@@ -32,7 +32,7 @@ src/
     logging/              pino with redaction
     http/                 problem+json exception filter, request-id
     context/              RequestContext (AsyncLocalStorage): requestId, userId, companyId, tx
-    authz/                @RequirePermission() and @Public() decorators (guard lands with Authorization module)
+    authz/                @RequirePermission()/@Public() + global deny-by-default PermissionGuard (evaluator lands with Authorization module)
   modules/<name>/         feature modules (organization, identity, authorization, audit, employment…)
     <name>.module.ts
     api/                  controllers + DTOs (HTTP layer)

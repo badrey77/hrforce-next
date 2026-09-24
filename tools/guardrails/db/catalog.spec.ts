@@ -1,0 +1,185 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { REPO_ROOT } from '../lib/report.ts';
+import { MIGRATIONS_DIR } from '../migrations/migrations.ts';
+import {
+  evaluateAudited,
+  evaluateCompanyId,
+  type ExemptEntry,
+  loadCatalog,
+  loadExempt,
+  parseMigrationTables,
+  type TableInfo,
+} from './catalog.ts';
+import { codegen } from './db-guard.ts';
+import { createThrowawayDb, superuserUrlFromEnv, type ThrowawayDb, withClient } from './throwaway-db.ts';
+
+const FIXTURE_ROOT = import.meta.dirname;
+const FIXTURE_DIR = '__fixtures__/migrations';
+const FIXTURE_EXEMPT: ExemptEntry[] = [
+  { table: 'company', reason: 'tenant table', rls: true },
+  { table: 'ghost', reason: 'stale on purpose' },
+];
+
+const tenant = (name: string, overrides: Partial<TableInfo> = {}): TableInfo => ({
+  name,
+  companyIdType: 'uuid',
+  companyIdNotNull: true,
+  rowSecurity: true,
+  forceRowSecurity: true,
+  policies: [{ name: `${name}_isolation`, using: "(company_id = (current_setting('app.company_id'::text, true))::uuid)", withCheck: null }],
+  triggers: [],
+  ...overrides,
+});
+
+describe('company-id / audit: pure evaluation', () => {
+  it('parses CREATE TABLE lines and -- @audited markers from migrations', () => {
+    const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
+    expect(tables.map((t) => `${t.table}${t.audited ? ' @audited' : ''} ${path.basename(t.file)}:${t.line}`)).toEqual([
+      'company 0001_tenancy.sql:2',
+      'good_tenant 0001_tenancy.sql:8',
+      'no_company 0001_tenancy.sql:17',
+      'nullable_company 0002_violations.sql:2',
+      'text_company 0002_violations.sql:4',
+      'not_forced 0002_violations.sql:9',
+      'wrong_policy 0002_violations.sql:13',
+      'audited_ok @audited 0003_audit.sql:8',
+      'audited_missing @audited 0003_audit.sql:17',
+      ' @audited 0003_audit.sql:22',
+    ]);
+  });
+
+  it('accepts compliant tables and RLS-only exemptions', () => {
+    const catalog = [tenant('employee'), tenant('company', { companyIdType: null, policies: [{ name: 'p', using: "(id = (current_setting('app.company_id'::text, true))::uuid)", withCheck: null }] })];
+    expect(evaluateCompanyId(catalog, [{ table: 'company', reason: 'tenant', rls: true }])).toEqual([]);
+  });
+
+  it('flags each missing ingredient and stale exemptions', () => {
+    const catalog = [
+      tenant('a', { companyIdType: null }),
+      tenant('b', { companyIdNotNull: false }),
+      tenant('c', { companyIdType: 'text' }),
+      tenant('d', { rowSecurity: false, forceRowSecurity: false, policies: [] }),
+      tenant('e', { policies: [{ name: 'all', using: 'true', withCheck: null }] }),
+      tenant('lookup', { companyIdType: null, rowSecurity: false, forceRowSecurity: false, policies: [] }),
+    ];
+    const messages = evaluateCompanyId(catalog, [{ table: 'lookup', reason: 'global catalogue' }, { table: 'gone', reason: 'x' }]).map((v) => v.message);
+    expect(messages).toEqual([
+      expect.stringMatching(/stale entry: table "gone"/),
+      expect.stringMatching(/table a has no company_id column/),
+      expect.stringMatching(/b\.company_id must be NOT NULL/),
+      expect.stringMatching(/c\.company_id must be uuid \(is text\)/),
+      expect.stringMatching(/table d: row level security is not enabled/),
+      expect.stringMatching(/table d: row level security is not forced/),
+      expect.stringMatching(/table d has no RLS policy/),
+      expect.stringMatching(/table e: no policy references current_setting\('app\.company_id'\)/),
+    ]);
+  });
+
+  it('flags @audited tables without an audit trigger', () => {
+    const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
+    const catalog = [
+      tenant('audited_ok', { triggers: [{ name: 'audited_ok_audit', function: 'audit_row_change' }] }),
+      tenant('audited_missing', { triggers: [{ name: 'touch', function: 'set_updated_at' }] }),
+    ];
+    expect(evaluateAudited(catalog, tables).map((v) => `${path.basename(v.file)}:${v.line} ${v.message}`)).toEqual([
+      expect.stringMatching(/0003_audit\.sql:17 table audited_missing is marked @audited but has no audit trigger/),
+      expect.stringMatching(/0003_audit\.sql:22 `-- @audited` must be on the CREATE TABLE line/),
+    ]);
+    expect(evaluateAudited([], [{ table: 'renamed', file: 'x.sql', line: 1, audited: true }])[0]?.message).toMatch(/does not exist after migrating/);
+  });
+
+  it('validates the exempt file shape', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'guard-exempt-'));
+    try {
+      const file = path.join(root, 'exempt.json');
+      writeFileSync(file, JSON.stringify([{ table: 'a', reason: 'ok' }, { table: 'a', reason: 'dup' }, { table: 'b' }, { table: 'c', reason: 'x', rls: 'yes' }]));
+      const { entries, violations } = loadExempt(root, 'exempt.json');
+      expect(entries.map((e) => e.table)).toEqual(['a', 'a']);
+      expect(violations.map((v) => v.message)).toEqual([
+        expect.stringMatching(/duplicate entry for "a"/),
+        expect.stringMatching(/entry 2 must be/),
+        expect.stringMatching(/entry 3 must be/),
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("the repo's exempt list is well-formed and names tables the migrations create", () => {
+    const { entries, violations } = loadExempt(REPO_ROOT);
+    expect(violations).toEqual([]);
+    const created = new Set(['schema_migrations', ...parseMigrationTables(REPO_ROOT, MIGRATIONS_DIR).map((t) => t.table)]);
+    for (const e of entries) expect(created, e.table).toContain(e.table);
+  });
+});
+
+const superuserUrl = superuserUrlFromEnv();
+
+describe.skipIf(!superuserUrl)('company-id / audit / schema-drift against Postgres (TEST_DATABASE_URL)', () => {
+  let db: ThrowawayDb;
+  const temp = mkdtempSync(path.join(tmpdir(), 'guard-drift-'));
+
+  beforeAll(async () => {
+    db = await createThrowawayDb(superuserUrl as string, 'hrforce_guard_spec');
+    await withClient(db.migratorUrl, async (client) => {
+      for (const file of readdirSync(path.join(FIXTURE_ROOT, FIXTURE_DIR)).toSorted()) {
+        await client.query(readFileSync(path.join(FIXTURE_ROOT, FIXTURE_DIR, file), 'utf8'));
+      }
+    });
+  });
+  afterAll(async () => {
+    await db?.drop();
+    rmSync(temp, { recursive: true, force: true });
+  });
+
+  it('reads the catalog and reports every fixture violation', async () => {
+    const catalog = await withClient(db.superuserUrl, (client) => loadCatalog(client));
+    expect(catalog.map((t) => t.name)).toEqual([
+      'audited_missing',
+      'audited_ok',
+      'company',
+      'good_tenant',
+      'no_company',
+      'not_forced',
+      'nullable_company',
+      'text_company',
+      'wrong_policy',
+    ]);
+    const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
+    const companyId = evaluateCompanyId(catalog, FIXTURE_EXEMPT, tables, 'exempt.json').map(
+      (v) => `${path.basename(v.file)}${v.line ? `:${v.line}` : ''} ${v.message}`,
+    );
+    expect(companyId).toEqual([
+      expect.stringMatching(/^exempt\.json stale entry: table "ghost"/),
+      expect.stringMatching(/^0001_tenancy\.sql:17 table no_company has no company_id column/),
+      expect.stringMatching(/^0001_tenancy\.sql:17 table no_company: row level security is not enabled/),
+      expect.stringMatching(/^0001_tenancy\.sql:17 table no_company: row level security is not forced/),
+      expect.stringMatching(/^0001_tenancy\.sql:17 table no_company has no RLS policy/),
+      expect.stringMatching(/^0002_violations\.sql:9 table not_forced: row level security is not forced/),
+      expect.stringMatching(/^0002_violations\.sql:2 nullable_company\.company_id must be NOT NULL/),
+      expect.stringMatching(/^0002_violations\.sql:2 table nullable_company: row level security is not enabled/),
+      expect.stringMatching(/^0002_violations\.sql:2 table nullable_company: row level security is not forced/),
+      expect.stringMatching(/^0002_violations\.sql:2 table nullable_company has no RLS policy/),
+      expect.stringMatching(/^0002_violations\.sql:4 text_company\.company_id must be uuid \(is text\)/),
+      expect.stringMatching(/^0002_violations\.sql:13 table wrong_policy: no policy references/),
+    ]);
+    const audited = evaluateAudited(catalog, tables).map((v) => `${path.basename(v.file)}:${v.line} ${v.message}`);
+    expect(audited).toEqual([
+      expect.stringMatching(/^0003_audit\.sql:17 table audited_missing is marked @audited but has no audit trigger/),
+      expect.stringMatching(/^0003_audit\.sql:22 /),
+    ]);
+  });
+
+  it('schema-drift: codegen --verify passes on a fresh schema file and fails once the DB changes', async () => {
+    const schemaFile = path.join(temp, 'schema.ts');
+    expect(codegen(db.migratorUrl, { verify: false, outFile: schemaFile }).ok).toBe(true);
+    expect(codegen(db.migratorUrl, { outFile: schemaFile })).toEqual({ ok: true, output: expect.any(String) });
+
+    await withClient(db.migratorUrl, (client) => client.query('alter table public.good_tenant add column hired_on date'));
+    const drift = codegen(db.migratorUrl, { outFile: schemaFile });
+    expect(drift.ok).toBe(false);
+  });
+});

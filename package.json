@@ -1,6 +1,7 @@
 {
   "name": "hrforce-next",
   "private": true,
+  "type": "module",
   "packageManager": "npm@11.20.0",
   "engines": {
     "node": ">=22.22.3 <23",
@@ -11,11 +12,28 @@
   ],
   "scripts": {
     "lint": "oxlint --deny-warnings -c .oxlintrc.json apps tools",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:tools",
+    "typecheck:tools": "tsc -p tools/tsconfig.json",
     "test": "npm run test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "test:tools": "vitest run -c vitest.tools.config.ts",
+    "build": "npm run build --workspaces --if-present",
+    "guard": "node tools/guardrails/run-static.ts",
+    "guard:boundaries": "node tools/guardrails/boundaries/boundaries.ts",
+    "guard:route-scan": "node tools/guardrails/route-scan/route-scan.ts",
+    "guard:migrations": "node tools/guardrails/migrations/migrations.ts",
+    "guard:no-secrets": "node tools/guardrails/secrets/no-secrets.ts",
+    "guard:i18n": "node tools/guardrails/i18n/i18n-parity.ts",
+    "guard:css-logical": "node tools/guardrails/css/css-logical.ts",
+    "guard:db": "node tools/guardrails/db/db-guard.ts"
   },
   "devDependencies": {
-    "oxlint": "1.85.0"
+    "@types/node": "22.20.4",
+    "@types/pg": "8.23.1",
+    "dependency-cruiser": "18.4.0",
+    "oxc-parser": "0.150.0",
+    "oxlint": "1.85.0",
+    "pg": "8.23.0",
+    "vitest": "5.0.1",
+    "yaml": "2.9.1"
   }
 }

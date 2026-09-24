@@ -1,0 +1,11 @@
+[
+  {
+    "table": "schema_migrations",
+    "reason": "Migration runner bookkeeping (apps/api/src/platform/db/migrator.ts); global, not tenant data, and revoked from hrforce_app."
+  },
+  {
+    "table": "company",
+    "reason": "The tenant table itself: its own id IS the company id. Still isolated by RLS on id = current_setting('app.company_id').",
+    "rls": true
+  }
+]

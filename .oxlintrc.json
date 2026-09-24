@@ -5,6 +5,9 @@
     "import",
     "unicorn"
   ],
+  "jsPlugins": [
+    "./tools/guardrails/oxlint-plugin/hrforce.mjs"
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -18,12 +21,14 @@
       {
         "allowWithDecorator": true
       }
-    ]
+    ],
+    "hrforce/no-sql-raw": "error"
   },
   "ignorePatterns": [
     "**/dist/**",
     "**/node_modules/**",
     "**/.angular/**",
-    "**/coverage/**"
+    "**/coverage/**",
+    "tools/guardrails/**/__fixtures__/**"
   ]
 }

@@ -1,0 +1,21 @@
+{
+  "name": "hrforce-next",
+  "private": true,
+  "packageManager": "npm@11.20.0",
+  "engines": {
+    "node": ">=22.12",
+    "npm": ">=11 <12"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "lint": "oxlint --deny-warnings -c .oxlintrc.json apps tools",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "oxlint": "1.85.0"
+  }
+}

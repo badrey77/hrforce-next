@@ -1,0 +1,51 @@
+{
+  "app": {
+    "title": "HRForce",
+    "skipToContent": "Skip to main content"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "home": "Home",
+    "employees": "Employees",
+    "organization": "Organization",
+    "settings": "Settings",
+    "login": "Sign in"
+  },
+  "language": {
+    "label": "Language",
+    "fr": "Français",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "username": "Username",
+      "password": "Password",
+      "submit": "Sign in",
+      "errors": {
+        "invalidCredentials": "Incorrect username or password.",
+        "locked": "Your account is temporarily locked. Try again later or contact your administrator.",
+        "usernameRequired": "Username is required.",
+        "passwordRequired": "Password is required."
+      }
+    }
+  },
+  "home": {
+    "title": "Welcome",
+    "intro": "Pick a section from the menu to get started."
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "backHome": "Back to home"
+  },
+  "errors": {
+    "generic": "An unexpected error occurred. Please try again.",
+    "notFound": "The page you requested could not be found.",
+    "forbidden": "You are not allowed to access this resource.",
+    "network": "Cannot reach the server. Check your connection."
+  }
+}

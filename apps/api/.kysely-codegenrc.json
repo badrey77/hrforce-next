@@ -1,0 +1,8 @@
+{
+  "dialect": "postgres",
+  "url": "env(MIGRATOR_DATABASE_URL)",
+  "outFile": "src/platform/db/schema.ts",
+  "excludePattern": "public.schema_migrations",
+  "defaultSchemas": ["public"],
+  "typeOnlyImports": true
+}

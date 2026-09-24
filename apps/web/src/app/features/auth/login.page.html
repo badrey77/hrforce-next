@@ -1,0 +1,65 @@
+<ng-container *transloco="let t">
+  <h1 id="login-title">{{ t('auth.login.title') }}</h1>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="login-title" novalidate>
+    @if (formError(); as error) {
+      <p class="form-error" role="alert">
+        {{ 'key' in error ? t(error.key) : error.text }}
+      </p>
+    }
+
+    @let username = form.controls.username;
+    <div class="field">
+      <label for="login-username">{{ t('auth.login.username') }}</label>
+      <input
+        id="login-username"
+        type="text"
+        formControlName="username"
+        autocomplete="username"
+        required
+        [attr.aria-invalid]="username.invalid && username.touched"
+        [attr.aria-describedby]="username.invalid && username.touched ? 'login-username-error' : null"
+      />
+      @if (username.invalid && username.touched) {
+        <p class="field-error" id="login-username-error">
+          @if (username.hasError('required')) {
+            {{ t('auth.login.errors.usernameRequired') }}
+          } @else if (username.hasError('server')) {
+            {{ username.getError('server') }}
+          } @else {
+            {{ t('errors.generic') }}
+          }
+        </p>
+      }
+    </div>
+
+    @let password = form.controls.password;
+    <div class="field">
+      <label for="login-password">{{ t('auth.login.password') }}</label>
+      <input
+        id="login-password"
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        required
+        [attr.aria-invalid]="password.invalid && password.touched"
+        [attr.aria-describedby]="password.invalid && password.touched ? 'login-password-error' : null"
+      />
+      @if (password.invalid && password.touched) {
+        <p class="field-error" id="login-password-error">
+          @if (password.hasError('required')) {
+            {{ t('auth.login.errors.passwordRequired') }}
+          } @else if (password.hasError('server')) {
+            {{ password.getError('server') }}
+          } @else {
+            {{ t('errors.generic') }}
+          }
+        </p>
+      }
+    </div>
+
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('auth.login.submitting') : t('auth.login.submit') }}
+    </button>
+  </form>
+</ng-container>

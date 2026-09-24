@@ -1,0 +1,27 @@
+<ng-container *transloco="let t">
+  <a class="skip-link" href="#main">{{ t('app.skipToContent') }}</a>
+  <header class="header">
+    <a class="brand" routerLink="/">{{ t('app.title') }}</a>
+    <app-language-switcher />
+  </header>
+  <div class="layout">
+    <nav class="sidenav" [attr.aria-label]="t('nav.label')">
+      <ul>
+        @for (link of navLinks; track link.path) {
+          <li>
+            <a
+              [routerLink]="link.path"
+              routerLinkActive="active"
+              ariaCurrentWhenActive="page"
+              [routerLinkActiveOptions]="{ exact: link.exact }"
+              >{{ t(link.labelKey) }}</a
+            >
+          </li>
+        }
+      </ul>
+    </nav>
+    <main id="main" class="content" tabindex="-1">
+      <router-outlet />
+    </main>
+  </div>
+</ng-container>

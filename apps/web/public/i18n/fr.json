@@ -1,0 +1,55 @@
+{
+  "app": {
+    "title": "HRForce",
+    "skipToContent": "Aller au contenu principal"
+  },
+  "nav": {
+    "label": "Navigation principale",
+    "home": "Accueil",
+    "employees": "Employés",
+    "organization": "Organisation",
+    "settings": "Paramètres",
+    "login": "Connexion"
+  },
+  "language": {
+    "label": "Langue",
+    "fr": "Français",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "username": "Nom d'utilisateur",
+      "password": "Mot de passe",
+      "submit": "Se connecter",
+      "submitting": "Connexion en cours…",
+      "errors": {
+        "invalidCredentials": "Nom d'utilisateur ou mot de passe incorrect.",
+        "locked": "Votre compte est temporairement verrouillé. Réessayez plus tard ou contactez votre administrateur.",
+        "usernameRequired": "Le nom d'utilisateur est obligatoire.",
+        "passwordRequired": "Le mot de passe est obligatoire."
+      }
+    }
+  },
+  "home": {
+    "title": "Bienvenue",
+    "intro": "Choisissez une rubrique dans le menu pour commencer."
+  },
+  "placeholder": {
+    "comingSoon": "Cette page sera bientôt disponible."
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "backHome": "Retour à l'accueil"
+  },
+  "errors": {
+    "generic": "Une erreur inattendue s'est produite. Veuillez réessayer.",
+    "notFound": "La page demandée est introuvable.",
+    "forbidden": "Vous n'avez pas l'autorisation d'accéder à cette ressource.",
+    "network": "Impossible de joindre le serveur. Vérifiez votre connexion."
+  }
+}

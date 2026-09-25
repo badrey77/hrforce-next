@@ -94,7 +94,7 @@ import type { OrgTreeNode } from '../../core/org/org.models';
     }
     .node:hover { text-decoration: underline; }
     .node[aria-current='true'] { font-weight: 600; }
-    .code { font-family: ui-monospace, monospace; font-size: 0.875rem; }
+    .code { font-family: ui-monospace, monospace; font-size: 0.875rem; white-space: nowrap; } /* keep "DEP-FIN" on one line: the browser may otherwise break at the hyphen */
     .site { color: var(--color-text-muted); font-size: 0.8125rem; }
   `,
 })

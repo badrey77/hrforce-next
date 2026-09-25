@@ -10,21 +10,30 @@ Kysely 0.29 + `pg`, zod 4, nestjs-pino / pino 10, Vitest 5 (SWC via `unplugin-sw
 ## Quick start
 
 ```bash
-# 1. Postgres with the two roles (hrforce_migrator, hrforce_app) and an `hrforce` database
+# 1. Postgres with the two roles (hrforce_migrator, hrforce_app) and an `hrforce` database, + Mailpit
 cd apps/api && docker compose up -d          # or run scripts/create-roles.sql against your own cluster
 cp .env.example .env                          # then load it: set -a; . ./.env; set +a
 
-# 2. Migrate (as hrforce_migrator), seed the demo organisation, and run with the dev identity
+# 2. Migrate (as hrforce_migrator), seed the demo organisation + demo users, run
 npm run migrate -w @hrforce/api
-npm run seed:dev -w @hrforce/api              # idempotent; demo company + org units (see below)
-npm run build -w @hrforce/api && DEV_AUTH=true npm start -w @hrforce/api
+npm run seed:dev -w @hrforce/api              # idempotent; demo company, org units, 2 users (see below)
+npm run build -w @hrforce/api && npm start -w @hrforce/api
 curl localhost:3000/api/health                # {"status":"ok","db":"ok"}
-curl localhost:3000/api/org/tree \
-  -H 'X-Dev-User-Id: 0190a5d0-0000-7000-8000-0000000000aa' \
-  -H 'X-Dev-Company-Id: 0190a5d0-0000-7000-8000-000000000001'
+
+# 3. Sign in with a cookie jar (the XSRF token is read from the XSRF-TOKEN cookie and echoed as X-XSRF-TOKEN)
+curl -s -c jar -b jar localhost:3000/api/auth/csrf
+curl -s -c jar -b jar -H "X-XSRF-TOKEN: $(awk '$6=="XSRF-TOKEN"{print $7}' jar)" -H 'Content-Type: application/json' \
+     -d '{"email":"rh.admin@demo.dz","password":"demo-password-2026"}' localhost:3000/api/auth/login
+curl -s -b jar localhost:3000/api/me
+curl -s -b jar localhost:3000/api/org/tree    # needs DEV_PERMISSIONS=allow_all until the Authorization module
 ```
 
+Mailpit (docker compose) catches every mail: web UI on http://localhost:8025, SMTP on `localhost:1025`
+(`SMTP_URL=smtp://localhost:1025`). Without Docker, use `MAIL_TRANSPORT=log` (development/test only): mails,
+links included, are written to the log at `info`.
+
 The API does not load `.env` files itself; export the variables (or use `--env-file` with Docker).
+`docker compose --profile api up -d` also runs the API image against these services.
 
 ## Environment
 
@@ -35,14 +44,22 @@ variables (values are never printed).
 |---|---|---|---|
 | `DATABASE_URL` | yes | | `hrforce_app` role — DML only, subject to RLS |
 | `MIGRATOR_DATABASE_URL` | for `migrate` | | `hrforce_migrator` role — owns the schema |
-| `COOKIE_SECRET` | yes | | ≥ 32 chars, signs cookies |
+| `COOKIE_SECRET` | yes | | ≥ 32 chars, cookie-parser secret |
+| `AUTH_ACCESS_SECRET` | yes | | ≥ 32 chars, HS256 key of the access token (`hrf_at`) |
+| `AUTH_XSRF_SECRET` | yes | | ≥ 32 chars, HMAC key of the XSRF token; must differ from `AUTH_ACCESS_SECRET` |
+| `WEB_BASE_URL` | yes | | `http(s)://…` of the web app (trailing `/` dropped); mailed links are `${WEB_BASE_URL}/password/setup?token=…` |
+| `COOKIE_SECURE` | | `true` | `Secure` on every cookie. **Boot fails** if `false` and `NODE_ENV` is not `development`/`test` |
+| `MAIL_TRANSPORT` | | `smtp` | `smtp` \| `log`. `log` only in `development`/`test` |
+| `SMTP_URL` | with `smtp` | | `smtp://` or `smtps://` (nodemailer URL), e.g. `smtp://localhost:1025` (Mailpit) |
+| `MAIL_FROM` | | `HRForce <no-reply@hrforce.invalid>` | From header |
 | `NODE_ENV` | | `production` (fail-safe) | `development` \| `test` \| `production` |
 | `PORT` | | `3000` | |
 | `LOG_LEVEL` | | `info` | pino level or `silent` |
 | `DB_POOL_MAX` | | `10` | |
 | `TRUST_PROXY_HOPS` | | `0` | Express `trust proxy` |
 | `MIGRATIONS_DIR` | | `apps/api/migrations` | migrate only |
-| `DEV_AUTH` | | `false` | `true`/`false`. Development identity (below). **Boot fails** if `true` and `NODE_ENV` is not `development`/`test` |
+| `DEV_AUTH` | | `false` | `true`/`false`. Development header identity (below). **Boot fails** if `true` and `NODE_ENV` is not `development`/`test` |
+| `DEV_PERMISSIONS` | | unset | `allow_all`: every **authenticated** caller holds every permission (until the Authorization module). **Boot fails** if set and `NODE_ENV` is not `development`/`test` |
 
 ## Database
 
@@ -99,7 +116,9 @@ Per request: middleware → **guard** (decorator present? authenticated?) → **
 - **Validation**: DTOs are zod-backed classes — `class CreateX extends createZodDto(z.object({...})) {}` — used as the
   type of `@Body()` / `@Query()` / `@Param()`. Failures → 422 with `errors: [{field, code, message}]`
   (`field` is the dotted path, `code` the zod issue code).
-- **Access**: every handler needs `@RequirePermission('resource.action')` or `@Public()` (`src/platform/authz/decorators.ts`).
+- **Access**: every handler needs exactly one of `@RequirePermission('resource.action')`, `@Authenticated()` (signed-in
+  caller, no permission — e.g. `GET /api/me`) or `@Public()` (`src/platform/authz/decorators.ts`); the handler's own
+  declaration wins over the controller's.
   `PermissionGuard` denies undecorated routes (403) and answers 401 for anonymous callers of protected routes. It does
   **not** decide the permission: guards run before interceptors, i.e. before the request transaction exists. The decision
   is made by `PermissionCheck` (`src/platform/authz/permission-check.ts`), which `RequestContextInterceptor` calls right
@@ -107,18 +126,92 @@ Per request: middleware → **guard** (decorator present? authenticated?) → **
   Authorization module), which may therefore query grants with `currentTx()` under the caller's tenant and RLS.
   A denial is a 403 and rolls the transaction back. `PermissionCheck` also fails closed on its own (undecorated → 403,
   anonymous → 401), so the decision never depends on the guard alone.
-- **Identity seam**: `RequestIdentityResolver` (`src/platform/context/request-identity.ts`) returns `{userId, companyId}`;
-  the default is anonymous. The Identity module overrides the provider.
+- **Identity seam**: `RequestIdentityResolver` (`src/platform/context/request-identity.ts`) returns
+  `{userId, companyId, sessionId?}`. Default: `CookieIdentityResolver` (valid `hrf_at` access token → `sub`/`cid`/`sid`,
+  verified statelessly; missing/invalid/expired → anonymous).
+- **XSRF**: `XsrfGuard` (`src/platform/security/xsrf.guard.ts`, APP_GUARD registered before `PermissionGuard`) — every
+  `POST`/`PUT`/`PATCH`/`DELETE` needs header `X-XSRF-TOKEN` equal to the `XSRF-TOKEN` cookie and signed for the caller's
+  session (`sid` of the access cookie) or `anon` without one; otherwise 403 `urn:hrforce:problem:xsrf`. Header-only
+  identities (DEV_AUTH, tests) have no session: get an anon token from `GET /api/auth/csrf` (the e2e helper
+  `test/support/xsrf.ts` does exactly that).
 - **Request context / transaction**: `RequestContextInterceptor` opens ONE transaction per request and runs
   `set_config('app.company_id'|'app.user_id'|'app.request_id', …, true)`; commit on success, rollback on error.
   Repositories call `currentTx()` from `src/platform/context` — never the root `KYSELY` instance.
   `@SkipTransaction()` opts a route out (health). Workers can use `runInRequestTransaction(db, scope, fn)`.
   Pool sessions start with `app.company_id` = nil UUID, so outside a request (or with no tenant) RLS matches nothing.
-- **Development identity** (`DEV_AUTH=true`, development/test only): `DevHeaderIdentityResolver` reads
-  `X-Dev-User-Id` / `X-Dev-Company-Id` (both must be UUIDs, otherwise the request is anonymous) and
-  `DevAllowAllPermissionEvaluator` grants every permission. Both are the *default* providers only when the flag is on
-  (`src/platform/authz/dev-auth.ts`); a loud warning is logged at boot. The web dev proxy injects the headers.
+- **Development identity** (`DEV_AUTH=true`, development/test only): `DevHeaderIdentityResolver` also accepts
+  `X-Dev-User-Id` / `X-Dev-Company-Id` (both must be UUIDs, otherwise the request is anonymous); a valid session cookie
+  wins when both are present. It no longer grants permissions by itself: combine with `DEV_PERMISSIONS=allow_all`
+  (`DevAllowAllPermissionEvaluator`, authenticated callers only). Wiring in `src/platform/authz/dev-auth.ts`; a loud
+  warning is logged at boot for each flag. The web uses the real login (its dev proxy no longer injects headers).
 - **Logging**: nestjs-pino with the redaction paths from CONVENTIONS (`src/platform/logging/redaction.ts`).
+
+## Identity module (`src/modules/identity`)
+
+Contract: [`docs/contracts/identity.md`](../../docs/contracts/identity.md); design: ADR 004. Layers: `domain/` (password
+policy + bundled common-password list, throttle math, mail templates fr/ar/en), `infra/` (`IdentityRepository` over the
+`auth.*` functions, argon2id hasher, cookie writer, mail adapters, invite/seed), `application/` (`AuthService`,
+`PasswordService`, `MeService`), `api/` (controllers, zod DTOs, `@AuthXsrf()`).
+
+| Endpoint | Access | Result |
+|---|---|---|
+| `GET /api/auth/csrf` | public | 204; sets `XSRF-TOKEN` if missing or not valid for the caller (session-bound when signed in) |
+| `POST /api/auth/login` `{email, password}` | public + XSRF | 204 + `hrf_at`, `hrf_rt`, new `XSRF-TOKEN` · 401 `invalid-credentials` · 423 `account-locked` + `Retry-After` · 429 `too-many-attempts` + `Retry-After` · 403 `account-disabled` (only with the right password) · 422 missing fields |
+| `POST /api/auth/refresh` | public + XSRF | 204 rotated cookies · 401 `session-expired` (cookies cleared, anon XSRF) · 409 `refresh-race` (nothing changed) |
+| `POST /api/auth/logout` | public + XSRF | 204; revokes the session family, deletes `hrf_at`/`hrf_rt`, anon `XSRF-TOKEN` |
+| `POST /api/auth/password/forgot` `{email}` | public + XSRF | 202 always; mails a 1 h reset link to an **active** account, ≤ 3 per account per hour |
+| `POST /api/auth/password/setup` `{token, password}` | public + XSRF | 204 · 410 `token-invalid` · 422 `errors[{field:'password', code: too_short\|too_long\|contains_email\|common}]` |
+| `GET /api/me` | `@Authenticated()` | `{user:{id,email,displayName,locale}, company:{id,code,name}, companies:[…]}` |
+
+**Flows.**
+- *Login*: IP throttle (30 failures / 15 min → 429) → e-mail lock (5 failures / 15 min → 423 until 15 min after the 5th)
+  → argon2id verify (`m=19456,t=2,p=1`; unknown e-mails and password-less accounts verify against a dummy hash) →
+  invited = 401 (same body) → disabled = 403 → session in the user's default company (else the lowest company code).
+  Every attempt writes `auth.login_event` (`success`/`bad_credentials`/`locked`/`disabled`/`throttled_ip`) with IP and
+  user agent. `Retry-After` is an integer number of seconds. The client IP is `req.ip` (set `TRUST_PROXY_HOPS`).
+- *Tokens*: `hrf_at` = HS256 JWT `{sub, cid, sid, iat, exp=+15 min}` (`HttpOnly; SameSite=Strict; Path=/api; Max-Age=900`);
+  `hrf_rt` = 32 random bytes base64url, stored as sha-256 (`HttpOnly; SameSite=Strict; Path=/api/auth;
+  Max-Age=<remaining of 7 days>`); `XSRF-TOKEN` = `<random>.<HMAC(random.'.'.(sid|anon))>` (`SameSite=Strict; Path=/`).
+  `Secure` on all three when `COOKIE_SECURE=true`.
+- *Refresh*: `auth.rotate_session` locks the presented row (`FOR UPDATE`) and decides atomically: live → rotate (row
+  `rotated_at`, new row in the family, idle expiry `min(now+12 h, family start+7 d)`); rotated ≤ 10 s ago → `race` (409,
+  nothing changed); revoked, or rotated > 10 s ago → `reuse` (whole family revoked, 401); expired → family revoked, 401;
+  account no longer active/member → family revoked, 401.
+- *XSRF on `/api/auth/*` POSTs*: after 15 min the access cookie is gone, so these routes (`@AuthXsrf()`) accept a token
+  signed for `anon`, for the access cookie's `sid`, or for the session of the refresh cookie (looked up by hash).
+  Every other unsafe route requires the access cookie's `sid` (or `anon` when not signed in).
+- *Passwords*: 12–128 code points, must not contain the e-mail's local part (case-insensitive; local parts < 3 chars
+  are not checked), not in the bundled ~1 000-entry common list (`domain/common-passwords.ts`). Setup links live 72 h,
+  reset links 1 h, both `${WEB_BASE_URL}/password/setup?token=…`, single use; consuming one sets the password,
+  `invited → active`, marks every pending token of the user used and **revokes all the user's sessions**.
+
+**Database (`auth` schema, migration 0007).** `user_account`, `user_credential`, `user_company`, `refresh_session`,
+`password_token`, `login_event` (append-only). `hrforce_app` has **no** privilege on these tables; the API calls
+`SECURITY DEFINER` functions only (list and abuse notes in the migration header). They are excluded from `schema.ts`
+(`.kysely-codegenrc.json`); the function results are typed by hand in `infra/identity.repository.ts`. The `/api/auth`
+routes run without a request transaction (`@SkipTransaction()`), so a failed login is still recorded and a detected
+reuse still revokes the family although the response is an error.
+**Retention**: `login_event` rows are kept 180 days; the cleanup job comes with the worker (not yet implemented —
+until then `delete from auth.login_event where at < now() - interval '180 days'` as the migrator).
+
+**CLI** — the only way to create users until the admin UI (runs as the migrator; needs `MIGRATOR_DATABASE_URL`,
+`WEB_BASE_URL`, `MAIL_TRANSPORT` and, for smtp, `SMTP_URL`):
+
+```bash
+npm run user:invite -w @hrforce/api -- --email salima@demo.dz --name "Salima Ould" --company DEMO [--locale ar]
+```
+
+Creates an **invited** account + membership (default company if it has none) and mails a 72 h setup link. Re-inviting
+an invited account sends a new link; an active account only gets the membership; a disabled one is refused.
+
+**Dev users** (`seed:dev`, company `DEMO`, password **`demo-password-2026`**, printed by the seed; never in production):
+
+| id | e-mail | name | locale |
+|---|---|---|---|
+| `0190a5d0-0000-7000-8000-0000000000aa` | `rh.admin@demo.dz` | Amina Benali | fr |
+| `0190a5d0-0000-7000-8000-0000000000ab` | `rh.est@demo.dz` | Karim Haddad | ar |
+
+`rh.admin` keeps the historical dev user id, so `X-Dev-User-Id: …aa` (DEV_AUTH) and a real login are the same person.
 
 ## Organization module (`src/modules/organization`)
 
@@ -187,7 +280,7 @@ npm run migrate -w @hrforce/api && npm run seed:dev -w @hrforce/api
 `npm run seed:dev -w @hrforce/api` (as `MIGRATOR_DATABASE_URL`, refuses `NODE_ENV=production`, idempotent) creates the
 company `0190a5d0-0000-7000-8000-000000000001` (`DEMO`, Groupe Démo), its sites and units, valid from 2026-01-01, with
 fixed ids `0190a5d0-0000-7000-8000-000000000<nnn>` (source: `src/modules/organization/infra/demo-seed.ts`).
-Dev user id: `…-0000000000aa`.
+Dev users: see the Identity module (`…-0000000000aa` = `rh.admin@demo.dz`).
 
 | nnn | Sites (code — name, wilaya) |
 |---|---|
@@ -217,8 +310,11 @@ npm run typecheck -w @hrforce/api
   - unset → starts `postgres:18-alpine` with Testcontainers (Docker required).
   - If the roles already exist on that cluster with other passwords, set `TEST_MIGRATOR_PASSWORD` / `TEST_APP_PASSWORD`.
 - `test/support/test-app.ts` adds test-only routes and header-driven identity (`X-Test-User`, `X-Test-Company`);
-  `createTestApp(db, { devAuth: true })` uses the real DEV_AUTH wiring (`X-Dev-*` headers) instead, `evaluator` swaps
-  the PermissionEvaluator, `configure: false` skips `configureApp`.
+  `createTestApp(db, { devAuth: true })` uses the real wiring instead (session cookie, else `X-Dev-*` headers, and
+  `DEV_PERMISSIONS=allow_all` unless `devPermissions: false`), `evaluator` swaps the PermissionEvaluator, `mailSender`
+  the MailSender (`RecordingMailSender`), `env` overrides variables, `configure: false` skips `configureApp`.
+- Unsafe requests need an XSRF token: `fetchXsrf(app)` + `withXsrf(req, xsrf)` (`test/support/xsrf.ts`); the
+  `Browser` helper (`test/support/cookie-jar.ts`) is a cookie jar honouring `Path` that echoes the XSRF header.
 - `assertNoSecrets(body)` (`test/support/assert-no-secrets.ts`) fails on any key matching `/(password|hash|token|secret)/i`.
 
 ## Docker

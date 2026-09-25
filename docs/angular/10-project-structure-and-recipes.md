@@ -10,14 +10,15 @@ See also: [04-dependency-injection.md](./04-dependency-injection.md) for how
 src/
   main.ts, app.config.ts, app.routes.ts, app.ts|html|css   the app shell and bootstrap
   core/          app-wide infrastructure: services, models, http plumbing, i18n plumbing
+    auth/        Identity: AuthApi, Session (root signal store), guards, refresh interceptor, session initializer
     date/        todayIso(), isIsoDate() — plain TS, no Angular
-    http/        ApiProblem + apiProblemInterceptor + applyServerErrors()
+    http/        ApiProblem + apiProblemInterceptor + applyServerErrors() + retryAfterSeconds() + XSRF names
     i18n/        languages, LanguageService, TranslocoHttpLoader
     org/         OrgApi + Organization contract types + KindCatalog (kind catalogue, once per app)
   shared/        reusable UI used by more than one feature
     org-unit-picker/
   features/<name>/  one page/flow per feature: auth, home, organization, not-found, placeholder
-  shell/         app-chrome widgets (language switcher) — not a route, not shared feature UI
+  shell/         app-chrome widgets (language switcher, user menu) — not a route, not shared feature UI
   testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
 
@@ -70,11 +71,38 @@ Using the Employees screen as a running example (the routes/placeholder already 
    `computed()`, don't trust the raw string).
 4. **Update `app.routes.ts`** (swap the placeholder entry to point at the real page, or
    the feature's own routes file for `loadChildren`).
+   Keep (or add) `canMatch: [authGuard]` on the entry; see "Recipe: protect a route".
 5. **Add nav** — `app.ts`'s `navLinks` already has an `/employees` entry; if adding a
    *new* top-level route, add one there too, with a translation key (see the i18n
    recipe below).
 6. **Test it** — a `RouterTestingHarness` spec if the page reads route state, following
    `organization.page.spec.ts`'s shape (see chapter 09).
+
+## Recipe: protect a route
+
+Every app page must be signed-in only (contract), so a new page needs its guard:
+
+1. Add `canMatch: [authGuard]` to its entry in `app.routes.ts`, next to `path`. For a
+   `loadChildren` feature, put it on the **parent** entry. Everything under it is then
+   covered, and the chunk is never downloaded for signed-out visitors (chapter 05).
+2. Do **not** use `canActivate` for this. It runs after a `loadChildren` chunk has
+   already been fetched.
+3. A page that must also work signed out (like an emailed link) gets **no** guard, and
+   its API calls must not assume a session.
+4. Test it in `auth.guards.spec.ts` style: signed out → `router.url` is
+   `/login?returnUrl=…`; `Session.set(ME_FIXTURE)` → the page renders.
+
+Need a permission check later (Authorization module)? Write another `CanMatchFn` that
+reads a `computed()` from `Session` and returns a `UrlTree` (never `false`, which would
+fall through to `**`). List it after `authGuard`: `canMatch: [authGuard, permissionGuard('employee.read')]`.
+
+## Recipe: an API call that must not redirect to login
+
+The refresh interceptor sends the user to `/login` when a refresh fails. For a call
+where "not signed in" is a normal answer (the startup `/api/me`, a public page probing
+the session), pass the `SKIP_LOGIN_REDIRECT` context flag, as `AuthApi.me()` does:
+`this.http.get<T>(url, { context: new HttpContext().set(SKIP_LOGIN_REDIRECT, true) })`
+(chapter 06). Calls under `/api/auth/*` never trigger a refresh at all.
 
 ## Recipe: add an API call
 

@@ -78,6 +78,18 @@ describe('company-id / audit: pure evaluation', () => {
     ]);
   });
 
+  it('schema-qualified exemptions document tables of other schemas: they must exist, nothing else is checked', () => {
+    const catalog = [tenant('company', { companyIdType: null })];
+    const exempt = [
+      { table: 'company', reason: 'tenant', rls: true },
+      { table: 'auth.user_account', reason: 'global identity' },
+      { table: 'auth.gone', reason: 'x' },
+    ];
+    expect(evaluateCompanyId(catalog, exempt, [], 'exempt.json', ['auth.user_account']).map((v) => v.message)).toEqual([
+      expect.stringMatching(/stale entry: table "auth\.gone"/),
+    ]);
+  });
+
   it('flags @audited tables without an audit trigger', () => {
     const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
     const catalog = [

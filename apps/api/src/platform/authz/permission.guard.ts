@@ -17,7 +17,8 @@ import { accessPolicyOf } from './access-policy.js';
  *  - @RequirePermission(code) → 401 if anonymous; otherwise allowed HERE — the permission itself is decided by
  *                               {@link PermissionCheck} inside the request transaction (guards run before
  *                               interceptors, i.e. before the transaction and its tenant settings exist);
- *  - neither (or both)        → 403 (misconfigured route; the route-scan guardrail should catch it first).
+ *  - @Authenticated()         → 401 if anonymous; otherwise allowed (no permission);
+ *  - none (or several)        → 403 (misconfigured route; the route-scan guardrail should catch it first).
  */
 @Injectable()
 export class PermissionGuard implements CanActivate {

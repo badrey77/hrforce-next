@@ -11,7 +11,7 @@ Angular SPA for HRForce Next. It uses standalone components, signals, zoneless c
 
 | Command | What it does |
 | --- | --- |
-| `npm start -w @hrforce/web` | `ng serve` on http://localhost:4200. `proxy.conf.json` forwards `/api` to the API at http://localhost:3000 and adds the dev identity headers (see below). |
+| `npm start -w @hrforce/web` | `ng serve` on http://localhost:4200. `proxy.conf.json` forwards `/api` to the API at http://localhost:3000 (same origin for the browser, so the httpOnly session cookies just work). |
 | `npm run build -w @hrforce/web` | Production build to `apps/web/dist/web/browser`. |
 | `npm test -w @hrforce/web` | Runs the Vitest unit tests once, headless (jsdom, via `@angular/build:unit-test`). |
 | `npm run typecheck -w @hrforce/web` | `ngc` for the app (type-checks templates too), `tsc` for the specs. |
@@ -24,19 +24,21 @@ src/
   main.ts, index.html          index.html ships lang="fr" dir="ltr"; the language service updates both at runtime
   styles.css                   design tokens + form/button basics (CSS logical properties only)
   app/
-    app.config.ts              router, HttpClient (fetch, XSRF, interceptors), Transloco, language init
-    app.routes.ts              lazy routes: '', /login, /organization (loadChildren), placeholders, ** → not found
-    app.ts|html|css            shell: header (title + language switcher), side nav, <main>
-    core/i18n/                 languages, LanguageService, Transloco HTTP loader
-    core/http/                 ApiProblem + parser, apiProblemInterceptor, applyServerErrors()
+    app.config.ts              router, HttpClient (fetch, XSRF, interceptors), Transloco, app initializers (language, session)
+    app.routes.ts              lazy routes; canMatch authGuard on app pages, guestGuard on /login, open password pages
+    app.ts|html|css            shell: header (title, user menu, language switcher), side nav (signed in only), <main>
+    core/auth/                 Identity: AuthApi, Session (root signal store), authGuard/guestGuard, refresh interceptor
+                               (single-flight), initializeSession() (csrf → /api/me), safeReturnUrl()
+    core/i18n/                 languages, LanguageService (device choice vs account locale), Transloco HTTP loader
+    core/http/                 ApiProblem + parser + retryAfterSeconds(), apiProblemInterceptor, applyServerErrors(), XSRF names
     core/date/                 todayIso(), isIsoDate() — dates are `YYYY-MM-DD` strings end to end
     core/org/                  Organization contract types + OrgApi (httpResource reads, Observable writes/search)
                                + KindCatalog (kind catalogue from GET /org/kinds, once per app, labels in the active language)
     shared/                    reusable UI used by several features (may import core/, never features/)
       org-unit-picker/         <app-org-unit-picker>: search-as-you-type combobox, a ControlValueAccessor (value = unit id)
-    features/<name>/           pages (auth/login, home, organization, not-found, placeholder)
-    shell/                     shell widgets (language switcher)
-  testing/                     test-only helpers (translocoTesting(), org fixtures: kind catalogue, sites), excluded from the app build
+    features/<name>/           pages (auth: login, password setup/forgot; home, organization, not-found, placeholder)
+    shell/                     shell widgets (language switcher, user menu with "Sign out")
+  testing/                     test-only helpers (translocoTesting(), org and auth fixtures), excluded from the app build
 public/i18n/{fr,ar,en}.json    translations, nested keys
 ```
 
@@ -72,18 +74,41 @@ régions → agences, services under a department, a region or an agency) and si
 
 ### Running it against the API (development only)
 
-Until the Identity module exists, the API accepts a development identity:
+1. Start Postgres and migrate (`npm run migrate -w @hrforce/api`, see `apps/api/README.md`), then seed:
+   `npm run seed:dev -w @hrforce/api` (the Organization v2 demo company and two active users, below).
+2. Start the API with `NODE_ENV=development DEV_PERMISSIONS=allow_all COOKIE_SECURE=false MAIL_TRANSPORT=log`
+   (plus the API's usual env). `DEV_PERMISSIONS=allow_all` grants every permission to any signed-in user until the
+   Authorization module exists; `COOKIE_SECURE=false` lets the browser keep the cookies over plain `http://localhost`;
+   `MAIL_TRANSPORT=log` writes outgoing mail, **including password setup/reset links, to the API log**.
+3. `npm start -w @hrforce/web`, open http://localhost:4200 and sign in.
 
-1. Start Postgres and migrate (`npm run migrate -w @hrforce/api`, see `apps/api/README.md`), then seed the demo company:
-   `npm run seed:dev -w @hrforce/api` (the contract's v2 seed: `DG` Direction Générale with departments, regions,
-   agencies and services, and 7 sites; fixed ids).
-2. Start the API with `DEV_AUTH=true` and `NODE_ENV=development` (the API refuses `DEV_AUTH` in any other environment).
-3. `npm start -w @hrforce/web`, open http://localhost:4200/organization.
+| Dev user | Name | Locale | Password |
+| --- | --- | --- | --- |
+| `rh.admin@demo.dz` | Amina Benali | fr | `demo-password-2026` |
+| `rh.est@demo.dz` | Karim Haddad | ar | `demo-password-2026` |
 
-`proxy.conf.json` adds `X-Dev-User-Id: 0190a5d0-0000-7000-8000-0000000000aa` and
-`X-Dev-Company-Id: 0190a5d0-0000-7000-8000-000000000001` to every proxied `/api` request, so the browser code never
-knows about them. This exists **only in `ng serve`**: the production build has no proxy and sends no such headers,
-and a production API rejects `DEV_AUTH`.
+To try the password pages: `/password/forgot` with one of the addresses above, then open the
+`http://localhost:4200/password/setup?token=…` link printed in the API log.
+
+## Authentication (docs/contracts/identity.md, ADR 004)
+
+- **Cookies only.** Access and refresh tokens are httpOnly cookies; the web never sees them. Angular's XSRF support
+  copies the `XSRF-TOKEN` cookie into `X-XSRF-TOKEN` on same-origin POST/PUT/PATCH/DELETE.
+- **Startup** (`core/auth/session-init.ts`, an app initializer): `GET /api/auth/csrf` so the XSRF cookie exists
+  before the first POST, then `GET /api/me` → `Session` (`user`, `company`, `companies`, `isAuthenticated`).
+  The router's first navigation waits for it.
+- **Guards** (`core/auth/auth.guards.ts`): `canMatch: [authGuard]` on every page except `/login`, `/password/setup`,
+  `/password/forgot` and `**` → `/login?returnUrl=…`; `canMatch: [guestGuard]` on `/login` → `/`.
+- **Expired access token** (`core/auth/auth-refresh.interceptor.ts`): a 401 from `/api/*` (not `/api/auth/*`)
+  triggers one shared `POST /api/auth/refresh`, then each failed request is retried once; 409 `refresh-race` →
+  retry; refresh failure → signed out and `/login?returnUrl=<current page>`.
+- **Login** (`features/auth/login.page.ts`): 401 / 423 / 429 (minutes from `Retry-After`) / 403 disabled messages;
+  `returnUrl` must be an internal path (`core/auth/return-url.ts`), otherwise `/`. After login the account's
+  `locale` is applied unless a language was picked on this device (it is not stored, so it never counts as a pick).
+- **Password pages**: `/password/setup?token=` (12–128 chars and confirmation checked in the browser; the server's
+  422 codes `too_short`/`too_long`/`contains_email`/`common` are translated; 410 → "link invalid or expired" with a
+  link to `/password/forgot`) and `/password/forgot` (always the same confirmation, no account enumeration).
+- **Sign out** (header): `POST /api/auth/logout`, then signed out locally and `/login`, even if the call failed.
 
 ## Conventions
 

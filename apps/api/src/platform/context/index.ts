@@ -1,4 +1,5 @@
 export { currentContext, currentTx, requireContext, runWithContext, type RequestContext } from './request-context.js';
+export { CookieIdentityResolver, FirstMatchIdentityResolver } from './cookie-identity.js';
 export { DEV_COMPANY_HEADER, DEV_USER_HEADER, DevHeaderIdentityResolver } from './dev-identity.js';
 export { RequestContextInterceptor } from './request-context.interceptor.js';
 export {

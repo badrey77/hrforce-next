@@ -229,6 +229,38 @@ deterministically, with no real delay. `ORG_UNIT_PICKER_DEBOUNCE_MS` is exported
 `org-unit-picker.ts` specifically so the test doesn't hardcode the magic number
 separately from the implementation.
 
+## Testing the Identity pieces
+
+A few patterns the auth specs introduced:
+
+- **Concurrency with `HttpTestingController`.** Requests stay pending until you
+  `flush()` them, so "three requests fail at the same time" is just three `http.get()`
+  calls followed by three 401 flushes. `expectOne('/api/auth/refresh')` then asserts
+  the single flight: it fails if there were zero or several refresh requests
+  (`auth-refresh.interceptor.spec.ts`).
+- **Order of requests.** `const csrf = http.expectOne('/api/auth/csrf');
+  http.expectNone('/api/me'); csrf.flush(...)` proves that `/api/me` waits for csrf
+  (`session-init.spec.ts`). `expectOne` *takes* the request out of the pending list,
+  so keep the returned `TestRequest` if you need to flush it later. A second
+  `expectOne` for the same URL would find nothing.
+- **Running a function that uses `inject()`** (an app initializer, a guard):
+  `TestBed.runInInjectionContext(() => initializeSession())`.
+- **`async` component handlers.** `submit()` in the login and password pages `await`s
+  HTTP calls, and the code after an `await` runs in a later microtask.
+  `fixture.whenStable()` alone can resolve before that. The specs use a `settle()`
+  helper, `await new Promise((r) => setTimeout(r)); await fixture.whenStable();`, which
+  lets the promise chain finish and then lets the view catch up.
+- **Guards through the real router.** `RouterTestingHarness` with a stub component per
+  route and a `vi.fn()` as `loadChildren`. The spy proves that `canMatch` stopped the
+  navigation before the lazy chunk was requested (`auth.guards.spec.ts`).
+- **Headers on a flushed error.** `flush(body, { status: 423, headers: { 'Retry-After': '540' } })`
+  exercises the "try again in 9 min" path (`login.page.spec.ts`).
+- **XSRF in jsdom.** `document.cookie = 'XSRF-TOKEN=before; path=/'` is enough for
+  Angular's real XSRF interceptor to add the header in a test. Change the cookie
+  between the 401 and the retry to prove the retry is re-stamped.
+- **Router navigation as an outcome.** `vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true)`
+  when the test only needs to know *where* the page wants to go, not to render it.
+
 ## Running a single test
 
 From the repo root: `npm test -w @hrforce/web` runs everything. To run one file or
@@ -238,6 +270,7 @@ invocation, e.g. from `apps/web`:
 ```
 npx ng test --watch=false -- src/app/shared/org-unit-picker/org-unit-picker.spec.ts
 npx ng test --watch=false -- -t "debounces typing"
+npx ng test --watch=false --include 'src/app/core/auth/*.spec.ts'
 ```
 
 (Consult `ng test --help` / the installed `@angular/build:unit-test` version for the

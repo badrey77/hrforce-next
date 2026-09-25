@@ -176,18 +176,78 @@ contract requires names to be 1–120 chars *once trimmed*. `isoDate` defers to
 and only checks *format* — separation of concerns between "is something there" and "is
 what's there valid".
 
+## Cross-field validators (FormGroup-level)
+
+A validator on a **control** sees only that control's value. "Confirm must equal
+password" needs two values, so the validator goes on the **group**:
+
+```ts
+// src/app/features/auth/password-rules.ts
+export const passwordsMatch: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
+  const password: unknown = group.get('password')?.value;
+  const confirm: unknown = group.get('confirm')?.value;
+  if (!confirm) {
+    return null; // left to `required` on the confirm control
+  }
+  return password === confirm ? null : { passwordMismatch: true };
+};
+
+// src/app/features/auth/password-setup.page.ts
+protected readonly form = inject(NonNullableFormBuilder).group(
+  {
+    password: ['', [Validators.required, Validators.minLength(PASSWORD_MIN_LENGTH), Validators.maxLength(PASSWORD_MAX_LENGTH)]],
+    confirm: ['', [Validators.required]],
+  },
+  // Second argument of group(): options for the GROUP itself, here its cross-field validator.
+  { validators: [passwordsMatch] },
+);
+```
+
+- **Where the error lands.** On `form.errors` (`{ passwordMismatch: true }`), **not** on
+  `form.controls.confirm.errors`. The group is invalid, but the confirm control on its
+  own is valid.
+- **When it runs.** Whenever any child's value changes: a change bubbles up and the
+  group re-validates. Editing the *password* after a matching confirm therefore brings
+  the mismatch back. `password-setup.page.spec.ts` › "re-runs when either field changes"
+  checks this.
+- **Showing it next to a field.** The template combines both sources. `aria-invalid` has
+  to be set by hand, because the control itself is valid:
+
+  ```html
+  <!-- password-setup.page.html -->
+  @let confirm = form.controls.confirm;
+  @let confirmInvalid = confirm.touched && (confirm.invalid || form.hasError('passwordMismatch'));
+  <input id="setup-confirm" ... [attr.aria-invalid]="confirmInvalid" />
+  ```
+
+- **Why not `confirm.setErrors(...)` inside the validator?** Validators should be pure:
+  value in, errors out. The confirm control re-runs its own validators on its next
+  keystroke and replaces `.errors`, which would wipe an error written there from
+  outside. It also makes behaviour depend on the order in which validators run.
+- **Returning `null` for an empty confirm** leaves "empty" to `Validators.required`, so
+  the user sees one message at a time ("confirm the password", then "does not match").
+  `isoDate` makes the same "don't duplicate required" choice.
+
+The server has rules the browser cannot check: "not the email's local part" and "not a
+common password". It returns them as 422 `errors[{field: 'password', code}]`. The page
+translates the **code** (`contains_email` →
+`auth.passwordSetup.serverErrors.containsEmail`, via `PASSWORD_SERVER_ERROR_KEYS`) and
+falls back to the server's `message` for a code it does not know yet. `applyServerErrors()`
+(below) keeps only the message, so this page sets
+`{ server: message, serverCode: code }` itself.
+
 ## `(ngSubmit)` and showing errors
 
 ```html
 <!-- login.page.html -->
-@let username = form.controls.username;
-<input id="login-username" formControlName="username" ... [attr.aria-invalid]="username.invalid && username.touched" />
-@if (username.invalid && username.touched) {
-  <p class="field-error" id="login-username-error">
-    @if (username.hasError('required')) { {{ t('auth.login.errors.usernameRequired') }} }
-    @else if (username.hasError('server')) { {{ username.getError('server') }} }
-    @else { {{ t('errors.generic') }} }
-  }
+@let email = form.controls.email;
+<input id="login-email" type="email" formControlName="email" ... [attr.aria-invalid]="email.invalid && email.touched" />
+@if (email.invalid && email.touched) {
+  <p class="field-error" id="login-email-error">
+    @if (email.hasError('required')) { {{ t('auth.login.errors.emailRequired') }} }
+    @else if (email.hasError('server')) { {{ email.getError('server') }} }
+    @else { {{ t('auth.login.errors.emailInvalid') }} }
+  </p>
 }
 ```
 

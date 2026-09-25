@@ -258,6 +258,57 @@ why `httpResource()`'s whole design is "value as a signal": in a zoneless app, i
 isn't a signal (or feeding one, like `toSignal()`), the view has no way to know it
 should re-render.
 
+## A root signal store: `Session`
+
+Who is signed in is app-wide state. The shell header shows the name, the guards decide
+routes with it, the login page fills it and the refresh interceptor empties it. It lives
+in one root service,
+[`src/app/core/auth/session.ts`](../../apps/web/src/app/core/auth/session.ts):
+
+```ts
+// src/app/core/auth/session.ts
+@Injectable({ providedIn: 'root' })
+export class Session {
+  private readonly api = inject(AuthApi);
+
+  /** `null` = signed out (the contract's "`null` = signed out"). */
+  private readonly me = signal<Me | null>(null);
+
+  readonly user = computed<SessionUser | null>(() => this.me()?.user ?? null);
+  readonly company = computed<SessionCompany | null>(() => this.me()?.company ?? null);
+  readonly companies = computed<readonly SessionCompany[]>(() => this.me()?.companies ?? []);
+  readonly isAuthenticated = computed(() => this.me() !== null);
+
+  async load(): Promise<void> { /* GET /api/me → me.set(body), or me.set(null) on any failure */ }
+  set(me: Me): void { this.me.set(me); }
+  clear(): void { this.me.set(null); }
+}
+```
+
+This is the whole "store pattern" in Angular with signals: no library, no actions,
+reducers or `BehaviorSubject`.
+
+- **One source signal, private.** `me` is the only writable piece, and only three
+  methods write to it. "Who signed this user out?" means searching for `.clear()`.
+- **Public read-only views.** `computed()`s give readers exactly the slices they need,
+  and a `computed()` cannot be `.set()` from outside. (`signal.asReadonly()` is the
+  other way to expose a signal read-only; `LanguageService.current` uses it.)
+- **One instance.** `providedIn: 'root'` means the root injector creates it once, and
+  every `inject(Session)` gets the same object (chapter 04). The guard, the interceptor
+  and `UserMenu` agree without passing anything around.
+- **Readers re-render on their own.** `app.html` reads `session.isAuthenticated()` in
+  an `@if` around the nav, and `shell/user-menu.ts` reads `session.user()`. After
+  `clear()`, exactly those two views re-render (zoneless, below). Nothing subscribes or
+  unsubscribes.
+- **Async stays at the edges.** `load()` is a Promise because the app initializer awaits
+  it ([chapter 11](./11-app-initializers-and-auth-flow.md)). The *state* stays synchronous: `isAuthenticated()` always has an
+  answer, which is what a guard needs.
+
+When a store grows (Authorization will add `permissions` and `scopes` to `/api/me`),
+add more `computed()` views of the same `me` signal, e.g.
+`hasPermission = (code) => this.me()?.permissions.includes(code)`. Do not add a second
+writable signal that could drift out of sync.
+
 ## Pitfalls
 
 - **Mutating instead of replacing.** Covered above — `.update()` must return a new

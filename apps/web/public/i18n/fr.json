@@ -8,8 +8,7 @@
     "home": "Accueil",
     "employees": "Employés",
     "organization": "Organisation",
-    "settings": "Paramètres",
-    "login": "Connexion"
+    "settings": "Paramètres"
   },
   "language": {
     "label": "Langue",
@@ -20,16 +19,62 @@
   "auth": {
     "login": {
       "title": "Connexion",
-      "username": "Nom d'utilisateur",
+      "email": "Adresse e-mail",
       "password": "Mot de passe",
       "submit": "Se connecter",
       "submitting": "Connexion en cours…",
+      "forgot": "Mot de passe oublié ?",
       "errors": {
-        "invalidCredentials": "Nom d'utilisateur ou mot de passe incorrect.",
-        "locked": "Votre compte est temporairement verrouillé. Réessayez plus tard ou contactez votre administrateur.",
-        "usernameRequired": "Le nom d'utilisateur est obligatoire.",
+        "invalidCredentials": "Adresse e-mail ou mot de passe incorrect.",
+        "locked": "Trop de tentatives échouées pour ce compte. Réessayez dans {{minutes}} min.",
+        "tooManyAttempts": "Trop de tentatives de connexion depuis ce réseau. Réessayez dans {{minutes}} min.",
+        "disabled": "Ce compte est désactivé. Contactez votre administrateur.",
+        "emailRequired": "L'adresse e-mail est obligatoire.",
+        "emailInvalid": "Saisissez une adresse e-mail valide.",
         "passwordRequired": "Le mot de passe est obligatoire."
       }
+    },
+    "session": {
+      "signOut": "Se déconnecter"
+    },
+    "passwordSetup": {
+      "title": "Choisissez votre mot de passe",
+      "intro": "Ce mot de passe vous servira à vous connecter à HRForce.",
+      "password": "Nouveau mot de passe",
+      "confirm": "Confirmez le mot de passe",
+      "submit": "Enregistrer le mot de passe",
+      "submitting": "Enregistrement…",
+      "hints": {
+        "length": "Entre {{min}} et {{max}} caractères. Une phrase facile à retenir convient très bien.",
+        "email": "Il ne doit pas contenir la partie de votre adresse e-mail située avant « @ ».",
+        "common": "Il ne doit pas figurer parmi les mots de passe les plus courants."
+      },
+      "errors": {
+        "required": "Le mot de passe est obligatoire.",
+        "tooShort": "Au moins {{min}} caractères.",
+        "tooLong": "{{max}} caractères au maximum.",
+        "confirmRequired": "Confirmez le mot de passe.",
+        "mismatch": "Les deux mots de passe ne sont pas identiques."
+      },
+      "serverErrors": {
+        "tooShort": "Ce mot de passe est trop court.",
+        "tooLong": "Ce mot de passe est trop long.",
+        "containsEmail": "Le mot de passe ne doit pas contenir votre adresse e-mail.",
+        "common": "Ce mot de passe est trop courant. Choisissez-en un autre."
+      },
+      "invalidLink": "Ce lien est invalide ou a expiré.",
+      "requestNewLink": "Demander un nouveau lien",
+      "done": "Votre mot de passe est enregistré. Vous pouvez maintenant vous connecter.",
+      "goToLogin": "Se connecter"
+    },
+    "passwordForgot": {
+      "title": "Mot de passe oublié",
+      "intro": "Indiquez votre adresse e-mail : nous vous enverrons un lien pour choisir un nouveau mot de passe.",
+      "email": "Adresse e-mail",
+      "submit": "Envoyer le lien",
+      "submitting": "Envoi…",
+      "sent": "Si cette adresse correspond à un compte, un lien pour choisir un nouveau mot de passe vient d'être envoyé. Il est valable une heure.",
+      "backToLogin": "Retour à la connexion"
     }
   },
   "home": {

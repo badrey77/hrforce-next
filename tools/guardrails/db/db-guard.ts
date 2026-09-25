@@ -1,6 +1,7 @@
 /**
  * DB-backed guardrails, run against ONE freshly migrated throwaway database:
- *   company-id       every public table: company_id uuid not null + ENABLE/FORCE RLS + tenant policy (or exempt)
+ *   company-id       every public table: company_id uuid not null + ENABLE/FORCE RLS + tenant policy (or exempt);
+ *                    the auth schema (no app privileges at all) is listed in the exemption file for documentation
  *   audit-per-write  `-- @audited` tables have an audit* trigger
  *   schema-drift     `npm run db:codegen:verify -w @hrforce/api` (src/platform/db/schema.ts is up to date)
  *
@@ -48,6 +49,7 @@ export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): P
       return [{ name: 'db (migrate)', violations: [{ file: MIGRATIONS_DIR, rule: 'db/migrate', message: `migrations failed:\n${migrate.output}` }] }];
     }
     const catalog = await withClient(db.superuserUrl, (client) => loadCatalog(client));
+    const authTables = (await withClient(db.superuserUrl, (client) => loadCatalog(client, 'auth'))).map((t) => `auth.${t.name}`);
     const tables = parseMigrationTables(root, MIGRATIONS_DIR);
     const exempt = loadExempt(root);
     // same command as `npm run db:codegen:verify -w @hrforce/api`
@@ -55,7 +57,7 @@ export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): P
     return [
       {
         name: 'company-id',
-        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables)],
+        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables, undefined, authTables)],
         info: `company-id: ${catalog.length} tables in public (${exempt.entries.length} exempt)`,
       },
       {

@@ -15,6 +15,12 @@ export const LANGUAGE_STORAGE_KEY = 'hrforce.lang';
 /**
  * Owns the active UI language: Transloco's active lang, `<html lang dir>`,
  * and the persisted choice (localStorage, best effort).
+ *
+ * Two sources of a language, in priority order:
+ * 1. a choice the person made on THIS device with the language switcher (stored in localStorage);
+ * 2. the signed-in account's `locale` (docs/contracts/identity.md › Web), applied after login and on reload
+ *    through `applyAccountLocale()` — but NOT stored, so it never masquerades as a device choice (a second
+ *    person signing in on the same computer still gets their own account language).
  */
 @Injectable({ providedIn: 'root' })
 export class LanguageService {
@@ -29,7 +35,8 @@ export class LanguageService {
   /** Restores the persisted language (or the default) and waits for its translations. */
   async init(): Promise<void> {
     const lang = this.readStored() ?? DEFAULT_LANGUAGE;
-    this.use(lang);
+    // Not remembered: falling back to the default is not a choice (see hasStoredChoice()).
+    this.use(lang, { remember: false });
     try {
       await firstValueFrom(this.transloco.load(lang));
     } catch {
@@ -37,13 +44,33 @@ export class LanguageService {
     }
   }
 
-  use(lang: AppLanguage): void {
+  /** Switches the UI language. `remember: false` applies it for this page load only (nothing stored). */
+  use(lang: AppLanguage, options: { remember?: boolean } = {}): void {
     this.transloco.setActiveLang(lang);
     const root = this.document.documentElement;
     root.lang = lang;
     root.dir = directionOf(lang);
     this.currentLang.set(lang);
-    this.persist(lang);
+    if (options.remember ?? true) {
+      this.persist(lang);
+    }
+  }
+
+  /** True when someone picked a language on this device (a valid value is stored). */
+  hasStoredChoice(): boolean {
+    return this.readStored() !== null;
+  }
+
+  /**
+   * Applies the signed-in account's locale unless this device already has a stored choice.
+   * Unknown values (not fr/ar/en) are ignored. Returns whether the language was applied.
+   */
+  applyAccountLocale(locale: string): boolean {
+    if (this.hasStoredChoice() || !isAppLanguage(locale)) {
+      return false;
+    }
+    this.use(locale, { remember: false });
+    return true;
   }
 
   private readStored(): AppLanguage | null {

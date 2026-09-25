@@ -12,7 +12,24 @@ import { loadEnv } from '../../src/platform/config/load-env.js';
 import { currentContext, currentTx } from '../../src/platform/context/request-context.js';
 import { RequestIdentityResolver, type RequestIdentity } from '../../src/platform/context/request-identity.js';
 import { createZodDto } from '../../src/platform/http/zod-validation.pipe.js';
+import { MailSender, type MailMessage } from '../../src/modules/identity/index.js';
 import type { TestDatabase } from './test-database.js';
+
+/** Secrets of every test app (the XSRF/JWT helpers of the tests sign with the same values). */
+export const TEST_SECRETS = {
+  COOKIE_SECRET: 'test-cookie-secret-test-cookie-secret',
+  AUTH_ACCESS_SECRET: 'test-access-secret-test-access-secret-0001',
+  AUTH_XSRF_SECRET: 'test-xsrf-secret-test-xsrf-secret-000000001',
+} as const;
+
+/** Captures outgoing mail instead of sending it. */
+export class RecordingMailSender extends MailSender {
+  readonly sent: MailMessage[] = [];
+  send(message: MailMessage): Promise<void> {
+    this.sent.push(message);
+    return Promise.resolve();
+  }
+}
 
 /** Test-only identity: taken from X-Test-User / X-Test-Company headers (stands in for the Identity module). */
 export class HeaderIdentityResolver extends RequestIdentityResolver {
@@ -124,6 +141,12 @@ export interface CreateTestAppOptions {
   evaluator?: Type<PermissionEvaluator> | null;
   /** Call configureApp() (default true). false = bare Nest bootstrap, to prove APP_GUARD/APP_INTERCEPTOR apply. */
   configure?: boolean;
+  /** DEV_PERMISSIONS=allow_all (default: same as devAuth, the historical "dev identity + allow all" wiring). */
+  devPermissions?: boolean;
+  /** Replaces the MailSender (default: MAIL_TRANSPORT=log with the logger silenced). */
+  mailSender?: MailSender;
+  /** Extra / overriding environment variables. */
+  env?: Record<string, string>;
 }
 
 /** Builds the real AppModule (+ test routes) through the same configureApp() as main.ts. */
@@ -134,8 +157,13 @@ export async function createTestApp(db: TestDatabase, options: CreateTestAppOpti
     LOG_LEVEL: process.env['LOG_LEVEL'] ?? 'silent',
     DATABASE_URL: db.appUrl,
     MIGRATOR_DATABASE_URL: db.migratorUrl,
-    COOKIE_SECRET: 'test-cookie-secret-test-cookie-secret',
+    ...TEST_SECRETS,
+    COOKIE_SECURE: 'false',
+    WEB_BASE_URL: 'http://web.test',
+    MAIL_TRANSPORT: 'log',
     DEV_AUTH: String(devAuth),
+    ...((options.devPermissions ?? devAuth) ? { DEV_PERMISSIONS: 'allow_all' } : {}),
+    ...options.env,
   });
   let builder = Test.createTestingModule({
     imports: [AppModule, TestRoutesModule, ...(options.extraModules ?? [])],
@@ -145,6 +173,7 @@ export async function createTestApp(db: TestDatabase, options: CreateTestAppOpti
   if (!devAuth) builder = builder.overrideProvider(RequestIdentityResolver).useClass(HeaderIdentityResolver);
   const evaluator = options.evaluator === undefined ? (devAuth ? null : TestPermissionEvaluator) : options.evaluator;
   if (evaluator) builder = builder.overrideProvider(PermissionEvaluator).useClass(evaluator);
+  if (options.mailSender) builder = builder.overrideProvider(MailSender).useValue(options.mailSender);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
   if (options.configure ?? true) configureApp(app);

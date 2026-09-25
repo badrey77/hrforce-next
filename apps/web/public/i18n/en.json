@@ -8,8 +8,7 @@
     "home": "Home",
     "employees": "Employees",
     "organization": "Organization",
-    "settings": "Settings",
-    "login": "Sign in"
+    "settings": "Settings"
   },
   "language": {
     "label": "Language",
@@ -20,16 +19,62 @@
   "auth": {
     "login": {
       "title": "Sign in",
-      "username": "Username",
+      "email": "Email address",
       "password": "Password",
       "submit": "Sign in",
       "submitting": "Signing in…",
+      "forgot": "Forgot your password?",
       "errors": {
-        "invalidCredentials": "Incorrect username or password.",
-        "locked": "Your account is temporarily locked. Try again later or contact your administrator.",
-        "usernameRequired": "Username is required.",
+        "invalidCredentials": "Incorrect email address or password.",
+        "locked": "Too many failed attempts for this account. Try again in {{minutes}} min.",
+        "tooManyAttempts": "Too many sign-in attempts from this network. Try again in {{minutes}} min.",
+        "disabled": "This account is disabled. Contact your administrator.",
+        "emailRequired": "Email address is required.",
+        "emailInvalid": "Enter a valid email address.",
         "passwordRequired": "Password is required."
       }
+    },
+    "session": {
+      "signOut": "Sign out"
+    },
+    "passwordSetup": {
+      "title": "Choose your password",
+      "intro": "You will use this password to sign in to HRForce.",
+      "password": "New password",
+      "confirm": "Confirm password",
+      "submit": "Save password",
+      "submitting": "Saving…",
+      "hints": {
+        "length": "Between {{min}} and {{max}} characters. An easy-to-remember phrase works well.",
+        "email": "It must not contain the part of your email address before \"@\".",
+        "common": "It must not be one of the most common passwords."
+      },
+      "errors": {
+        "required": "Password is required.",
+        "tooShort": "At least {{min}} characters.",
+        "tooLong": "{{max}} characters at most.",
+        "confirmRequired": "Confirm the password.",
+        "mismatch": "The two passwords do not match."
+      },
+      "serverErrors": {
+        "tooShort": "This password is too short.",
+        "tooLong": "This password is too long.",
+        "containsEmail": "The password must not contain your email address.",
+        "common": "This password is too common. Choose another one."
+      },
+      "invalidLink": "This link is invalid or has expired.",
+      "requestNewLink": "Request a new link",
+      "done": "Your password is saved. You can now sign in.",
+      "goToLogin": "Sign in"
+    },
+    "passwordForgot": {
+      "title": "Forgot password",
+      "intro": "Enter your email address and we will send you a link to choose a new password.",
+      "email": "Email address",
+      "submit": "Send link",
+      "submitting": "Sending…",
+      "sent": "If this address belongs to an account, a link to choose a new password has just been sent. It is valid for one hour.",
+      "backToLogin": "Back to sign in"
     }
   },
   "home": {

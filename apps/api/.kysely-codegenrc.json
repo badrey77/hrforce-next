@@ -2,7 +2,7 @@
   "dialect": "postgres",
   "url": "env(MIGRATOR_DATABASE_URL)",
   "outFile": "src/platform/db/schema.ts",
-  "excludePattern": "public.schema_migrations",
+  "excludePattern": "{public.schema_migrations,auth.*}",
   "defaultSchemas": ["public"],
   "typeOnlyImports": true
 }

@@ -6,16 +6,19 @@ bootstrap sequence, [09-testing.md](./09-testing.md) for `RouterTestingHarness`.
 ## The routes file
 
 ```ts
-// src/app/app.routes.ts
+// src/app/app.routes.ts (abridged)
 export const routes: Routes = [
-  { path: 'login', loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage) },
-  { path: '', pathMatch: 'full', loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage) },
-  { path: 'employees', loadComponent: () => import('./features/placeholder/placeholder.page').then((m) => m.PlaceholderPage), data: { titleKey: 'nav.employees' } },
+  { path: 'login', canMatch: [guestGuard], loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage) },
+  { path: 'password/setup', loadComponent: () => import('./features/auth/password-setup.page').then((m) => m.PasswordSetupPage) },
+  { path: 'password/forgot', loadComponent: () => import('./features/auth/password-forgot.page').then((m) => m.PasswordForgotPage) },
+  { path: '', pathMatch: 'full', canMatch: [authGuard], loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage) },
+  { path: 'employees', canMatch: [authGuard], loadComponent: () => ..., data: { titleKey: 'nav.employees' } },
   {
     path: 'organization',
+    canMatch: [authGuard],
     loadChildren: () => import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
   },
-  { path: 'settings', loadComponent: () => ..., data: { titleKey: 'nav.settings' } },
+  { path: 'settings', canMatch: [authGuard], loadComponent: () => ..., data: { titleKey: 'nav.settings' } },
   { path: '**', loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage) },
 ];
 ```
@@ -158,18 +161,107 @@ purely client-side "page not found" (the server always returns `index.html` for 
 paths in an SPA deployment — that's a hosting concern, not something this route
 controls).
 
-## Where guards will go
+## Guards: who may use a route
 
-There are no route guards yet (`CanActivate`/`CanMatch` functions, or `authGuard`-style
-functional guards) — `AuthService.login()` in
-`src/app/features/auth/auth.service.ts` is explicitly a stub: "Stub until the Identity
-module lands: the API sets httpOnly session cookies, so the body is not used by the
-client yet." Once identity/session state exists on the client, the natural place for an
-auth guard is a functional `CanActivateFn` (the modern style, replacing class-based
-guards) added to the routes that need it in `app.routes.ts`, likely checking a
-signal-backed "is logged in" state the same way `OrganizationPage` checks
-`tree.hasValue()`. This guide will grow a routing-guards example once that lands (per
-`CLAUDE.md`'s "update the guide" rule) — for now, don't invent one speculatively.
+A **guard** is a function the router calls while it decides whether a route may be used.
+This app has two, both in
+[`src/app/core/auth/auth.guards.ts`](../../apps/web/src/app/core/auth/auth.guards.ts):
+
+```ts
+// src/app/core/auth/auth.guards.ts
+export const authGuard: CanMatchFn = (_route, segments: UrlSegment[]) => {
+  if (inject(Session).isAuthenticated()) {
+    return true;
+  }
+  const router = inject(Router);
+  const attempted = router.currentNavigation()?.extractedUrl;
+  const returnUrl = attempted ? router.serializeUrl(attempted) : `/${segments.map((s) => s.path).join('/')}`;
+  return router.createUrlTree(['/login'], { queryParams: { returnUrl } });
+};
+
+export const guestGuard: CanMatchFn = () =>
+  inject(Session).isAuthenticated() ? inject(Router).createUrlTree(['/']) : true;
+```
+
+- **Functional guards.** A guard is a plain function typed `CanMatchFn` /
+  `CanActivateFn`. The router calls it inside an injection context, so `inject()` works
+  (chapter 04). Class-based guards (`implements CanActivate`) are the older style.
+- **They read a signal.** `Session.isAuthenticated()` is a `computed()` in a root
+  service (chapter 03). The guard does not wait for anything: the app initializer
+  already loaded the session before the first navigation ([chapter 11](./11-app-initializers-and-auth-flow.md)).
+
+### `canMatch` vs `canActivate`: when does the lazy chunk load?
+
+The router handles a navigation in phases
+(`node_modules/@angular/router/fesm2022/_router-chunk.mjs`: `recognize` →
+`checkGuards` → `resolveData` → `loadComponents`):
+
+| Phase | What happens | `loadChildren` chunk | `loadComponent` chunk |
+|---|---|---|---|
+| 1. match (recognize) | URL matched against the config; **`canMatch` guards run here** | downloaded here, *after* that route's `canMatch` passed (the router needs the child routes to keep matching) | — |
+| 2. guards | **`canActivate`** / `canActivateChild` / `canDeactivate` run | already downloaded | — |
+| 3. resolve | resolvers | | |
+| 4. activate | components loaded and created | | downloaded here |
+
+So `canActivate` on `/organization` (a `loadChildren` route) would run only **after** the
+Organization chunk had been downloaded for a signed-out visitor. `canMatch` runs before
+it, so signed-out visitors never download feature code. That is why the app uses
+`canMatch` everywhere. `auth.guards.spec.ts` checks this with a `loadChildren` spy that
+is never called when the visitor is signed out.
+
+Two more differences:
+
+- **The meaning of `false`.** `canActivate` returning `false` cancels the navigation.
+  `canMatch` returning `false` means "this route does not match, **try the next one**":
+  the router carries on down the array and ends up on `**`, the 404 page. So these
+  guards never return `false`. They return a `UrlTree`.
+- **What they receive.** `canActivate` gets the full `RouterStateSnapshot` (and so
+  `state.url`). `canMatch` gets only the `Route` and the URL segments at that level. The
+  full target URL comes from `router.currentNavigation()?.extractedUrl`.
+  `currentNavigation` is a signal (Angular ≥ 20.2); it replaces the deprecated
+  `getCurrentNavigation()`.
+
+Use `canActivate` when the check needs resolved route data or the whole router state,
+or when the route should stay matchable for other reasons (e.g. a `canDeactivate`
+partner). For "does this route exist for you?", use `canMatch`.
+
+### Return a `UrlTree`, don't call `navigate()`
+
+`router.createUrlTree(['/login'], { queryParams: { returnUrl } })` builds a parsed URL
+without going anywhere. Returned from a guard, it tells the router to cancel this
+navigation and go there instead, as one redirect. History, router events and the
+`returnUrl` all stay consistent. If the guard called `router.navigate()` itself, it
+would start a **second** navigation while the first one was still running, and it would
+still have to return `false` for the first. (A guard may also return a
+`RedirectCommand`, which wraps a `UrlTree` with navigation options such as
+`skipLocationChange`. Not needed here.)
+
+### Which routes carry which guard
+
+From the contract (`docs/contracts/identity.md` › Web): `authGuard` on every route
+except `/login`, `/password/setup`, `/password/forgot` and `**`. `guestGuard` goes on
+`/login`. The password pages have no guard, because an emailed link must work whether or
+not someone is signed in on that browser. The guards are attached route by route rather
+than through a componentless `path: ''` parent with `children`: a `canMatch` on a `''`
+prefix parent would also catch unknown URLs and send signed-out visitors to /login
+instead of the 404 page.
+
+### `returnUrl` and open redirects
+
+The login page receives `?returnUrl=` as a signal input (`withComponentInputBinding()`,
+above) and, after a successful sign-in, navigates there. Anyone can put anything in the
+query string. A phishing mail linking to
+`/login?returnUrl=https://evil.example/fake-hr` would log the user in on the real site
+and then send them to a copy of it. This is an **open redirect**. So `safeReturnUrl()`
+([`core/auth/return-url.ts`](../../apps/web/src/app/core/auth/return-url.ts)) accepts
+only internal paths: they must start with a single `/`. It rejects `//host` and `/\host`
+(browsers treat `\` like `/`), control characters and absolute URLs, and anything else
+falls back to `/`:
+
+```ts
+// src/app/features/auth/login.page.ts
+await this.router.navigateByUrl(safeReturnUrl(this.returnUrl()));
+```
 
 ## Next
 

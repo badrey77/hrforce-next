@@ -5,7 +5,7 @@ import { scanRoutes, scanSource } from './route-scan.ts';
 
 const HEADER = `
 import { Controller, Get, Post, Delete as Del } from '@nestjs/common';
-import { Public, RequirePermission } from '../../platform/authz/decorators.js';
+import { Authenticated, Public, RequirePermission } from '../../platform/authz/decorators.js';
 `;
 
 function scan(body: string) {
@@ -47,6 +47,33 @@ export class AuthController {
       'GET /api/employees/public/info public',
       'POST /api/auth/login public',
       'POST /api/employees employee.create',
+    ]);
+  });
+
+  it('accepts @Authenticated() (signed-in caller, no permission) and rejects it combined with another policy', () => {
+    const { violations, routes } = scan(`
+@Controller('me')
+export class MeController {
+  @Get() @Authenticated() me() {}
+  @Get('x') @Authenticated() @Public() x() {}
+  @Get('y') @Authenticated() @RequirePermission('employee.read') y() {}
+}
+@Authenticated()
+@Controller('profile')
+export class ProfileController {
+  @Get() get() {}
+  @Post() @RequirePermission('profile.update') update() {}
+}`);
+    expect(violations.map((v) => v.message)).toEqual([
+      expect.stringMatching(/MeController\.x: @Authenticated\(\) combined with/),
+      expect.stringMatching(/MeController\.y: @Authenticated\(\) combined with/),
+    ]);
+    expect(routes.map((r) => `${r.method} ${r.path} ${r.access}`)).toEqual([
+      'GET /api/me authenticated',
+      'GET /api/me/x public',
+      'GET /api/me/y authenticated',
+      'GET /api/profile authenticated',
+      'POST /api/profile profile.update',
     ]);
   });
 

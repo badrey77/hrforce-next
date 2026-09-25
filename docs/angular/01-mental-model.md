@@ -40,12 +40,15 @@ main.ts
        │    - provideHttpClient(withFetch(), withXsrfConfiguration(...), withInterceptors([...]))
        │    - provideTransloco({...})
        │    - provideAppInitializer(() => inject(LanguageService).init())
+       │    - provideAppInitializer(initializeSession)   GET /api/auth/csrf, then GET /api/me
+       │  bootstrap WAITS for both initializers ([chapter 11](./11-app-initializers-and-auth-flow.md))
        │
        ▼
   App component created (app.ts) — the root <app-root>
        │  its template has <router-outlet/> (app.html)
        ▼
   Router matches the URL "/organization" against routes (app.routes.ts)
+       │  canMatch: [authGuard] reads Session.isAuthenticated() (signed out → /login?returnUrl=…)
        │  path 'organization' → loadChildren() → fetch a separate JS chunk
        ▼
   organization.routes.ts loaded → ORGANIZATION_ROUTES → matches '' → OrganizationPage

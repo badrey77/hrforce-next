@@ -4,30 +4,32 @@
   <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="login-title" novalidate>
     @if (formError(); as error) {
       <p class="form-error" role="alert">
-        {{ 'key' in error ? t(error.key) : error.text }}
+        {{ 'key' in error ? t(error.key, error.params) : error.text }}
       </p>
     }
 
-    @let username = form.controls.username;
+    @let email = form.controls.email;
     <div class="field">
-      <label for="login-username">{{ t('auth.login.username') }}</label>
+      <label for="login-email">{{ t('auth.login.email') }}</label>
       <input
-        id="login-username"
-        type="text"
-        formControlName="username"
+        id="login-email"
+        type="email"
+        formControlName="email"
         autocomplete="username"
+        inputmode="email"
+        dir="ltr"
         required
-        [attr.aria-invalid]="username.invalid && username.touched"
-        [attr.aria-describedby]="username.invalid && username.touched ? 'login-username-error' : null"
+        [attr.aria-invalid]="email.invalid && email.touched"
+        [attr.aria-describedby]="email.invalid && email.touched ? 'login-email-error' : null"
       />
-      @if (username.invalid && username.touched) {
-        <p class="field-error" id="login-username-error">
-          @if (username.hasError('required')) {
-            {{ t('auth.login.errors.usernameRequired') }}
-          } @else if (username.hasError('server')) {
-            {{ username.getError('server') }}
+      @if (email.invalid && email.touched) {
+        <p class="field-error" id="login-email-error">
+          @if (email.hasError('required')) {
+            {{ t('auth.login.errors.emailRequired') }}
+          } @else if (email.hasError('server')) {
+            {{ email.getError('server') }}
           } @else {
-            {{ t('errors.generic') }}
+            {{ t('auth.login.errors.emailInvalid') }}
           }
         </p>
       }
@@ -62,4 +64,6 @@
       {{ submitting() ? t('auth.login.submitting') : t('auth.login.submit') }}
     </button>
   </form>
+
+  <p class="aside"><a routerLink="/password/forgot">{{ t('auth.login.forgot') }}</a></p>
 </ng-container>

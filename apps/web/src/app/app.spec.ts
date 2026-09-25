@@ -1,39 +1,76 @@
 import { DOCUMENT } from '@angular/common';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
+import { Session } from './core/auth/session';
 import { LanguageService } from './core/i18n/language.service';
+import { ME_FIXTURE } from '../testing/auth-fixtures';
 import { translocoTesting } from '../testing/transloco-testing';
+
+async function render() {
+  const fixture = TestBed.createComponent(App);
+  await fixture.whenStable();
+  return { fixture, el: fixture.nativeElement as HTMLElement };
+}
 
 describe('App shell', () => {
   beforeEach(async () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
       imports: [App, translocoTesting()],
-      providers: [provideRouter([])],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
   });
 
-  it('renders the title, a labelled nav and the language switcher', async () => {
-    const fixture = TestBed.createComponent(App);
-    await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
+  it('hides the nav and the user menu when signed out', async () => {
+    const { el } = await render();
 
     expect(el.querySelector('.brand')?.textContent).toContain('HRForce');
-    expect(el.querySelector('nav')?.getAttribute('aria-label')).toBe('Navigation principale');
-    expect([...el.querySelectorAll('nav a')].map((a) => a.textContent?.trim())).toContain('Employés');
+    expect(el.querySelector('nav')).toBeNull();
+    expect(el.querySelector('app-user-menu button')).toBeNull();
     expect(el.querySelector('app-language-switcher select')).not.toBeNull();
   });
 
-  it('re-renders in Arabic and flips the document to RTL', async () => {
-    const fixture = TestBed.createComponent(App);
+  it('shows the nav, display name, company and "Sign out" when signed in', async () => {
+    TestBed.inject(Session).set(ME_FIXTURE);
+    const { el } = await render();
+
+    expect(el.querySelector('nav')?.getAttribute('aria-label')).toBe('Navigation principale');
+    expect([...el.querySelectorAll('nav a')].map((a) => a.textContent?.trim())).toContain('Employés');
+    expect(el.querySelector('app-user-menu .name')?.textContent?.trim()).toBe('Amina Benali');
+    expect(el.querySelector('app-user-menu .company')?.textContent?.trim()).toBe('Groupe Démo');
+    expect(el.querySelector('app-user-menu button')?.textContent?.trim()).toBe('Se déconnecter');
+  });
+
+  it('signs out: POST logout, session cleared, nav hidden, /login', async () => {
+    const session = TestBed.inject(Session);
+    session.set(ME_FIXTURE);
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    const { fixture, el } = await render();
+
+    el.querySelector<HTMLButtonElement>('app-user-menu button')?.click();
+    const req = TestBed.inject(HttpTestingController).expectOne('/api/auth/logout');
+    expect(req.request.method).toBe('POST');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
+
+    expect(session.isAuthenticated()).toBe(false);
+    expect(el.querySelector('nav')).toBeNull();
+    expect(navigate).toHaveBeenCalledWith('/login');
+  });
+
+  it('re-renders in Arabic and flips the document to RTL', async () => {
+    TestBed.inject(Session).set(ME_FIXTURE);
+    const { fixture, el } = await render();
 
     TestBed.inject(LanguageService).use('ar');
     await fixture.whenStable();
-    const el = fixture.nativeElement as HTMLElement;
 
     expect([...el.querySelectorAll('nav a')].map((a) => a.textContent?.trim())).toContain('الموظفون');
+    expect(el.querySelector('app-user-menu button')?.textContent?.trim()).toBe('تسجيل الخروج');
     expect(TestBed.inject(DOCUMENT).documentElement.dir).toBe('rtl');
   });
 });

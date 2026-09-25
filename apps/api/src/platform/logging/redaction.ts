@@ -9,6 +9,16 @@ export const REDACT_PATHS: readonly string[] = [
   '*.token',
   '*.refreshToken',
   '*.secret',
+  // request bodies (login / password setup) and parsed cookies (hrf_at, hrf_rt, XSRF-TOKEN), if ever logged
+  'req.body.password',
+  'req.body.token',
+  '*.body.password',
+  '*.body.token',
+  'req.cookies',
+  '*.cookies',
+  '*.hrf_at',
+  '*.hrf_rt',
+  '*["XSRF-TOKEN"]',
 ];
 
 export const REDACT_CENSOR = '[REDACTED]';

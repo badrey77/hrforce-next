@@ -1,4 +1,4 @@
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
@@ -8,6 +8,7 @@ import {
   parseApiProblem,
   PROBLEM_TYPE_NETWORK,
   PROBLEM_TYPE_UNKNOWN,
+  retryAfterSeconds,
 } from './api-problem';
 import { apiProblemInterceptor } from './api-problem.interceptor';
 
@@ -115,5 +116,34 @@ describe('parseApiProblem', () => {
 
   it('falls back to the HTTP status when the body has none', () => {
     expect(parseApiProblem({ title: 'Oops' }, 500).status).toBe(500);
+  });
+});
+
+function withHeader(value?: string): ApiProblemError {
+  return new ApiProblemError(
+    { type: 't', title: 'Locked', status: 423 },
+    {
+      cause: new HttpErrorResponse({
+        status: 423,
+        headers: value === undefined ? new HttpHeaders() : new HttpHeaders({ 'Retry-After': value }),
+      }),
+    },
+  );
+}
+
+describe('retryAfterSeconds', () => {
+  it('reads delay-seconds', () => {
+    expect(retryAfterSeconds(withHeader('900'))).toBe(900);
+  });
+
+  it('reads an HTTP date relative to now', () => {
+    const now = Date.parse('2026-09-25T10:00:00Z');
+    expect(retryAfterSeconds(withHeader('Fri, 25 Sep 2026 10:05:00 GMT'), now)).toBe(300);
+  });
+
+  it('is null when missing, unparsable, or without an HTTP response behind it', () => {
+    expect(retryAfterSeconds(withHeader())).toBeNull();
+    expect(retryAfterSeconds(withHeader('soon'))).toBeNull();
+    expect(retryAfterSeconds(new ApiProblemError({ type: 't', title: 'x', status: 423 }))).toBeNull();
   });
 });

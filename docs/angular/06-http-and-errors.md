@@ -10,8 +10,10 @@ mechanics, [07-forms.md](./07-forms.md) for turning a failed write into form err
 // src/app/app.config.ts
 provideHttpClient(
   withFetch(),
-  withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
-  withInterceptors([apiProblemInterceptor]),
+  withXsrfConfiguration({ cookieName: XSRF_COOKIE_NAME, headerName: XSRF_HEADER_NAME }),
+  // Order = nesting: the FIRST is the outermost. apiProblemInterceptor wraps the refresh logic, so callers
+  // always get an ApiProblemError, retry or not (see core/auth/auth-refresh.interceptor.ts).
+  withInterceptors([apiProblemInterceptor, authRefreshInterceptor]),
 ),
 ```
 
@@ -23,14 +25,22 @@ app receives (see chapter 04 — it's a root-level provider). Each argument is a
   `XMLHttpRequest` (the older default). Mentioned here because it changes nothing about
   how you call `HttpClient`, but it's why the network tab shows `fetch` requests.
 - **`withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })`**
-  — implements the double-submit CSRF pattern from
-  [ADR 004](../adr/004-browser-auth.md): the API sets a non-`httpOnly` `XSRF-TOKEN`
-  cookie; `HttpClient` reads it and echoes it back as the `X-XSRF-TOKEN` header on
-  state-changing requests automatically. No code in this app ever touches that cookie or
-  header directly — that's the point of using Angular's built-in support instead of a
-  custom interceptor.
-- **`withInterceptors([apiProblemInterceptor])`** — registers the app's one functional
-  interceptor, covered next.
+  (names in [`core/http/xsrf.ts`](../../apps/web/src/app/core/http/xsrf.ts)) implements
+  the double-submit CSRF pattern from [ADR 004](../adr/004-browser-auth.md). The API sets
+  a non-`httpOnly` `XSRF-TOKEN` cookie; `HttpClient` reads it and echoes it back as the
+  `X-XSRF-TOKEN` header. The rules, from Angular's `xsrfInterceptorFn`
+  (`node_modules/@angular/common/fesm2022/_module-chunk.mjs`):
+  - **GET and HEAD never get the header.** Only state-changing methods do.
+  - **Same origin only.** The request URL is resolved against the page's origin, and the
+    header is added only if the origins match. Relative `/api/...` URLs always match. An
+    absolute URL to another origin never gets it, so the token cannot leak to a third
+    party.
+  - **Only if the cookie exists.** Angular never asks the server for a token. That is why
+    the app fetches `GET /api/auth/csrf` at startup, before any POST ([chapter 11](./11-app-initializers-and-auth-flow.md)).
+  - **It never overwrites** a header the request already carries.
+- **`withInterceptors([apiProblemInterceptor, authRefreshInterceptor])`** registers the
+  app's two functional interceptors, in that order. The order matters (see "Interceptor
+  order" below).
 
 ## Functional interceptors
 
@@ -54,10 +64,173 @@ An `HttpInterceptorFn` is a plain function `(req, next) => Observable<HttpEvent<
 of these; each calls `next(req)` to continue to the next interceptor (or the real HTTP
 call) and can transform the request going in or the response/error coming back.
 
-This app has exactly one interceptor, and its job is narrow but important: **every**
+The first of the app's interceptors has a narrow but important job: **every**
 `HttpClient` failure, anywhere in the app, comes back to the caller as an
 `ApiProblemError` rather than a raw `HttpErrorResponse`. That's a single, predictable
 error shape every feature can rely on without re-parsing response bodies itself.
+
+## Interceptor order
+
+`withInterceptors([a, b])` nests: **the first is the outermost**. A request goes
+a → b → server, and the response or error comes back server → b → a. Angular builds the
+chain with `reduceRight` over the registered functions. One more interceptor sits
+outside yours: `provideHttpClient()` registers Angular's own XSRF interceptor **before**
+any `withInterceptors(...)` feature, so it is always the outermost:
+
+```
+request  →  xsrfInterceptorFn  →  apiProblemInterceptor  →  authRefreshInterceptor  →  backend
+                (Angular)             (core/http)                 (core/auth)
+error    ←  ApiProblemError    ←  converts here            ←  sees raw HttpErrorResponse 401
+```
+
+Why `[apiProblemInterceptor, authRefreshInterceptor]` and not the reverse:
+
+- The refresh logic sits **closer to the server**, so it sees the raw
+  `HttpErrorResponse` and its `status`.
+- Whatever it finally lets through (the retry's result, the retry's own error, or the
+  original 401 when the refresh failed) passes back through `apiProblemInterceptor`.
+  Callers therefore get the **same error type (`ApiProblemError`)** whether or not a
+  refresh happened in between. "Normalise at the edge, recover inside."
+- The reverse order would also work, but the refresh interceptor would then have to
+  understand `ApiProblemError` for no gain.
+
+One consequence of the XSRF interceptor being outermost: it stamps the header on the
+**original** request only. A retry made with `next(...)` inside a later interceptor does
+not pass through it again. The refresh re-issues the `XSRF-TOKEN` cookie (it is bound to
+the new session id), so the retried POST would carry a stale header and fail with 403
+`xsrf`. `authRefreshInterceptor` therefore re-stamps it:
+
+```ts
+// src/app/core/auth/auth-refresh.interceptor.ts
+function withCurrentXsrfToken<T>(req: HttpRequest<T>, token: string | null): HttpRequest<T> {
+  if (token === null || !req.headers.has(XSRF_HEADER_NAME)) {
+    return req;
+  }
+  return req.clone({ headers: req.headers.set(XSRF_HEADER_NAME, token) });
+}
+```
+
+The token comes from `inject(HttpXsrfTokenExtractor).getToken()`, the same public
+service Angular's interceptor uses. The spec "re-stamps a retried POST with the XSRF
+token the refresh re-issued" covers this.
+
+## Refresh on 401: retry once, one refresh for everyone
+
+The access cookie lives 15 minutes (contract). When it has expired, the next API call
+comes back 401. [`auth-refresh.interceptor.ts`](../../apps/web/src/app/core/auth/auth-refresh.interceptor.ts)
+then calls `POST /api/auth/refresh` and re-sends the original request:
+
+```ts
+// src/app/core/auth/auth-refresh.interceptor.ts
+export const authRefreshInterceptor: HttpInterceptorFn = (req, next) => {
+  if (!isRefreshable(req.url)) {
+    return next(req);
+  }
+  const refresher = inject(TokenRefresher);
+  const router = inject(Router);
+  const xsrf = inject(HttpXsrfTokenExtractor);
+
+  return next(req).pipe(
+    catchError((error: unknown) => {
+      if (!(error instanceof HttpErrorResponse) || error.status !== 401) {
+        return throwError(() => error);
+      }
+      return refresher.refresh().pipe(
+        catchError(() => {
+          if (!req.context.get(SKIP_LOGIN_REDIRECT)) {
+            redirectToLogin(router);
+          }
+          return throwError(() => error);
+        }),
+        switchMap(() => next(withCurrentXsrfToken(req, xsrf.getToken()))),
+      );
+    }),
+  );
+};
+```
+
+- **Not for `/api/auth/*`.** A 401 from `POST /api/auth/login` means "wrong
+  password", not "expired token". Refreshing there would make no sense, and for
+  `/api/auth/refresh` itself it would loop forever.
+- **`inject()` only at the top.** The interceptor body is an injection context, but only
+  while it runs synchronously. A `catchError` callback runs later, outside it, so every
+  `inject()` sits before the `pipe`.
+- **Retry once, no loop.** The retry calls `next(...)`, which covers only the
+  interceptors *after* this one plus the backend. This interceptor is not re-entered, so
+  a second 401 simply reaches the caller.
+- **409 `refresh-race`** (two tabs refreshed within 10 s; the other tab won and the
+  cookies are already new) counts as success, so the request is retried.
+- **Refresh failed:** the session is cleared (in `TokenRefresher`, once per refresh) and
+  the user is sent to `/login?returnUrl=<current page>`. The caller still gets the
+  original 401 as an `ApiProblemError`.
+
+### Single flight with `share()`
+
+A page often fires several requests at once. If all of them get a 401, the app must not
+send three refreshes: refresh tokens rotate, so the second and third would present an
+already-rotated token. The server tolerates that for 10 seconds (409), but the cleaner
+fix is not to do it. `TokenRefresher` caches the Observable of the refresh in progress:
+
+```ts
+// src/app/core/auth/auth-refresh.interceptor.ts
+refresh(): Observable<void> {
+  this.inFlight ??= this.api.refresh().pipe(
+    map(() => undefined),
+    catchError((error: unknown) => {
+      if (statusOf(error) === 409) {
+        return of(undefined);
+      }
+      this.session.clear();
+      return throwError(() => error);
+    }),
+    finalize(() => {
+      this.inFlight = null;
+    }),
+    share({ resetOnRefCountZero: false }),
+  );
+  return this.inFlight;
+}
+```
+
+- `HttpClient` Observables are **cold**: every `subscribe()` sends the request again.
+  `share()` makes them **hot** for as long as the request runs. The first subscriber
+  starts the one POST, later subscribers join it, and they all receive the same result.
+- `inFlight` holds on to that shared Observable so the second and third 401s find it.
+  `finalize()` drops it when the refresh completes or fails, so a 401 an hour later
+  starts a fresh one.
+- `resetOnRefCountZero: false`: normally `share()` unsubscribes from its source (here it
+  would **abort the POST**) as soon as nobody is listening, for example when the user
+  navigates away and the waiting requests are cancelled. An aborted refresh is
+  dangerous: the server may already have rotated the token while the browser drops the
+  `Set-Cookie`. The next refresh would then present the old token, and reuse detection
+  would revoke the whole session. Once started, the refresh always finishes.
+- A cached **Promise** would give the same single flight. The Observable fits better
+  here because the retry is composed with `switchMap`.
+
+`auth-refresh.interceptor.spec.ts` › "refreshes ONCE for three concurrent 401s" fires
+three GETs, answers all three with 401, and then calls `expectOne('/api/auth/refresh')`.
+That call fails if zero or two refreshes were sent.
+
+## `HttpContext`: per-request flags for interceptors
+
+Some requests need different treatment. At startup, `Session.load()` calls
+`GET /api/me`, and a failure there just means "signed out". It must not redirect to
+/login, because the visitor may be opening an emailed `/password/setup` link. The
+request carries a flag that only interceptors read (it is never sent to the server):
+
+```ts
+// src/app/core/auth/auth-api.ts
+export const SKIP_LOGIN_REDIRECT = new HttpContextToken<boolean>(() => false);
+
+me(): Observable<Me> {
+  return this.http.get<Me>(ME_URL, { context: new HttpContext().set(SKIP_LOGIN_REDIRECT, true) });
+}
+```
+
+`HttpContextToken` is a typed key with a default value, so requests that do not set it
+read `false`. The interceptor reads it with `req.context.get(SKIP_LOGIN_REDIRECT)`. Use
+this instead of URL checks or custom headers whenever an interceptor needs a per-call
+exception.
 
 ## `ApiProblem` and `ApiProblemError`
 
@@ -221,29 +394,27 @@ never handled by this app's code at all. `apps/web`'s only cookie-related code i
 XSRF configuration above; the browser sends the session cookies automatically because
 every API call is same-origin (`/api/...`).
 
-In development, `apps/web/proxy.conf.json` forwards `/api` to `http://localhost:3000`
-and injects two headers on every proxied request:
+In development, `apps/web/proxy.conf.json` forwards `/api` to `http://localhost:3000`:
 
 ```json
 {
   "/api": {
     "target": "http://localhost:3000",
-    "headers": {
-      "X-Dev-User-Id": "0190a5d0-0000-7000-8000-0000000000aa",
-      "X-Dev-Company-Id": "0190a5d0-0000-7000-8000-000000000001"
-    }
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
   }
 }
 ```
 
-This exists only because the Identity module doesn't exist yet
-(`docs/contracts/organization.md`'s "Development identity" section): the API accepts
-`DEV_AUTH=true` only when `NODE_ENV` is `development`/`test`, and with it on, reads
-these two headers as the caller's identity instead of a real session. The **proxy**
-injects them — `apps/web`'s own TypeScript never constructs or sends these headers, so
-there is nothing to remove from the browser code once real login lands; only
-`proxy.conf.json` and the API's dev-auth path go away. `ng serve` is the only place this
-proxy runs; a production build has no proxy config at all.
+To the browser, the API therefore has the same origin as the app (`localhost:4200`). The
+`SameSite=Strict` session cookies are sent, and the XSRF interceptor adds its header to
+`/api` POSTs. Until the Identity slice, this proxy also injected `X-Dev-User-Id` /
+`X-Dev-Company-Id` headers (the API's `DEV_AUTH` identity). Those headers are gone now:
+the web signs in for real, and `DEV_AUTH` remains only for API tests and curl. No
+browser code had to change to remove them, because the proxy had been the only place
+that knew about them. `ng serve` is the only place this proxy runs; a production build
+has no proxy config at all.
 
 ## Next
 

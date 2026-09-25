@@ -12,14 +12,16 @@ import { HealthController } from './health/health.controller.js';
 import { ProblemDetailsFilter } from './http/problem-details.filter.js';
 import { ZodValidationPipe } from './http/zod-validation.pipe.js';
 import { LoggingModule } from './logging/logging.module.js';
+import { XsrfGuard } from './security/xsrf.guard.js';
 
 /**
  * Cross-cutting infrastructure.
  *  - The guard and the request-context interceptor are registered as APP_GUARD / APP_INTERCEPTOR, so ANY
  *    bootstrap of AppModule is deny-by-default and transactional, with or without configureApp().
  *  - The problem+json filter and the zod pipe are provided here and installed by configureApp().
- * Feature modules replace the seams by overriding RequestIdentityResolver (Identity module) and
- * PermissionEvaluator (Authorization module). With DEV_AUTH=true both default to the dev implementations.
+ * Identity: CookieIdentityResolver (access-token cookie) + the DEV_AUTH header identity in development/test.
+ * Permissions: deny all, or allow all for authenticated callers with DEV_PERMISSIONS=allow_all (dev/test), until the
+ * Authorization module overrides PermissionEvaluator. XsrfGuard (APP_GUARD) checks every unsafe method.
  */
 @Global()
 @Module({
@@ -30,6 +32,8 @@ import { LoggingModule } from './logging/logging.module.js';
     { provide: PermissionEvaluator, inject: [ENV], useFactory: permissionEvaluatorFactory },
     DevAuthWarning,
     PermissionCheck,
+    // Order matters: global guards run in registration order (XSRF first, then access policy).
+    { provide: APP_GUARD, useClass: XsrfGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
     ProblemDetailsFilter,

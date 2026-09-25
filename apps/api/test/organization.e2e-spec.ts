@@ -6,6 +6,7 @@ import { createDatabase, type Database } from '../src/platform/db/database.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { createTestApp, TestPermissionEvaluator } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
+import { fetchXsrf, withXsrf, type XsrfPair } from './support/xsrf.js';
 
 const PROBLEM_JSON = /^application\/problem\+json/;
 const unit = (code: string) => {
@@ -50,14 +51,17 @@ interface TreeNode {
 
 type Agent = ReturnType<typeof request>;
 
-/** Requests carrying the DEV_AUTH identity headers. */
+/** XSRF token (anon: header identities have no session) — fetched once, valid for every app of this file. */
+let xsrf: XsrfPair;
+
+/** Requests carrying the DEV_AUTH identity headers (+ the XSRF cookie/header on unsafe methods). */
 function as(a: NestExpressApplication, user = DEMO_USER_ID, company = DEMO_COMPANY_ID) {
   const agent: Agent = request(a.getHttpServer());
   const withIdentity = (req: request.Test) => req.set('X-Dev-User-Id', user).set('X-Dev-Company-Id', company);
   return {
     get: (url: string) => withIdentity(agent.get(url)),
-    post: (url: string) => withIdentity(agent.post(url)),
-    patch: (url: string) => withIdentity(agent.patch(url)),
+    post: (url: string) => withXsrf(withIdentity(agent.post(url)), xsrf),
+    patch: (url: string) => withXsrf(withIdentity(agent.patch(url)), xsrf),
   };
 }
 
@@ -102,6 +106,7 @@ describe('Organization API v2 (e2e)', () => {
     await migrator.transaction().execute((tx) => seedOrganization(tx, ORG_B, today));
     app = await createTestApp(db, { devAuth: true }); // real DEV_AUTH wiring: headers + allow-all
     restricted = await createTestApp(db, { devAuth: true, evaluator: TestPermissionEvaluator });
+    xsrf = await fetchXsrf(app);
   });
 
   afterAll(async () => {

@@ -47,9 +47,17 @@ export class ProblemException extends HttpException {
     readonly slug: string,
     detail?: string,
     readonly errors?: FieldError[],
+    options: ProblemOptions = {},
   ) {
     super(detail ?? slug, status);
     this.hasDetail = detail !== undefined;
+    this.headers = options.headers ?? {};
   }
   readonly hasDetail: boolean;
+  /** Extra response headers (e.g. `Retry-After`), set by the problem filter. */
+  readonly headers: Readonly<Record<string, string>>;
+}
+
+export interface ProblemOptions {
+  headers?: Record<string, string>;
 }

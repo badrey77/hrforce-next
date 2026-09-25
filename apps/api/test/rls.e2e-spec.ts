@@ -6,6 +6,7 @@ import { runInRequestTransaction } from '../src/platform/context/request-transac
 import { currentTx } from '../src/platform/context/request-context.js';
 import { createDatabase, type Database } from '../src/platform/db/database.js';
 import { createTestApp, TestPermissionEvaluator } from './support/test-app.js';
+import { fetchXsrf, withXsrf } from './support/xsrf.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
 
 const COMPANY_A = '018f0000-0000-7000-8000-00000000000a';
@@ -128,8 +129,8 @@ describe('Row-level security (e2e)', () => {
 
   it('HTTP: an error rolls back the request transaction', async () => {
     TestPermissionEvaluator.granted = ['org_unit.create'];
-    await request(app.getHttpServer())
-      .post('/api/_test/org-units/fail-after-insert')
+    const xsrf = await fetchXsrf(app);
+    await withXsrf(request(app.getHttpServer()).post('/api/_test/org-units/fail-after-insert'), xsrf)
       .set('X-Test-User', USER)
       .set('X-Test-Company', COMPANY_A)
       .send({ companyId: COMPANY_A, code: 'A-ROLLBACK' })

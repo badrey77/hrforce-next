@@ -88,4 +88,34 @@ describe('LanguageService', () => {
     expect(service.current()).toBe('ar');
     expect(html.dir).toBe('rtl');
   });
+
+  it('does not store the default language on init (falling back is not a choice)', async () => {
+    await service.init();
+
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+    expect(service.hasStoredChoice()).toBe(false);
+  });
+
+  it('hasStoredChoice() is true after the user picks a language', () => {
+    service.use('en');
+
+    expect(service.hasStoredChoice()).toBe(true);
+  });
+
+  it('applyAccountLocale() applies an account locale without storing it', () => {
+    expect(service.applyAccountLocale('ar')).toBe(true);
+
+    expect(service.current()).toBe('ar');
+    expect(html.dir).toBe('rtl');
+    expect(service.hasStoredChoice()).toBe(false);
+  });
+
+  it('applyAccountLocale() yields to a stored choice and ignores unknown locales', () => {
+    service.use('en');
+
+    expect(service.applyAccountLocale('ar')).toBe(false);
+    expect(service.current()).toBe('en');
+    localStorage.clear();
+    expect(service.applyAccountLocale('de')).toBe(false);
+  });
 });

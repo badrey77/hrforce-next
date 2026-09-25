@@ -1,7 +1,8 @@
 /**
  * Guardrail: route-scan (CONVENTIONS.md › Routes).
  * Every handler of an @Controller class (method with @Get/@Post/@Put/@Patch/@Delete/@All/@Options/@Head)
- * must carry @RequirePermission('<resource>.<action>') or @Public() — on the method or on the class.
+ * must carry exactly one of @RequirePermission('<resource>.<action>'), @Authenticated() (signed-in caller, no
+ * permission) or @Public() — on the method or on the class (the method's declaration wins).
  * Scans apps/api/src (not test/, not *.spec.ts: test-only routes are deliberately undecorated).
  *
  *   npm run guard:route-scan            # violations + route → permission table
@@ -31,7 +32,7 @@ const NEST_COMMON = '@nestjs/common';
 export interface RouteEntry {
   method: string;
   path: string;
-  access: string; // permission code, "public", or "UNGUARDED"
+  access: string; // permission code, "public", "authenticated", or "UNGUARDED"
   controller: string;
   handler: string;
   file: string;
@@ -55,7 +56,7 @@ function makeResolver(program: AstNode): Resolver {
     }
     const binding = bindings.get(name);
     if (!binding) return name;
-    // Nest decorators must come from @nestjs/common; RequirePermission/Public from our authz module (any path).
+    // Nest decorators must come from @nestjs/common; RequirePermission/Public/Authenticated from our authz module (any path).
     if ((HTTP_DECORATORS as readonly string[]).includes(binding.imported) || binding.imported === 'Controller') {
       return binding.source === NEST_COMMON ? binding.imported : `${binding.source}:${binding.imported}`;
     }
@@ -91,16 +92,19 @@ function pathsOf(arg: AstNode | undefined): string[] {
 interface AccessInfo {
   permission?: string;
   isPublic: boolean;
+  isAuthenticated: boolean;
   problems: { node: AstNode; message: string }[];
 }
 
 function accessOf(decorators: AstNode[], resolve: Resolver): AccessInfo {
-  const info: AccessInfo = { isPublic: false, problems: [] };
+  const info: AccessInfo = { isPublic: false, isAuthenticated: false, problems: [] };
   for (const decorator of decorators) {
     const call = decoratorCall(decorator);
     const name = resolve(call.name);
     if (name === 'Public') {
       info.isPublic = true;
+    } else if (name === 'Authenticated') {
+      info.isAuthenticated = true;
     } else if (name === 'RequirePermission') {
       const code = stringValue(call.args[0]);
       if (info.permission !== undefined) {
@@ -127,7 +131,17 @@ function accessOf(decorators: AstNode[], resolve: Resolver): AccessInfo {
     const node = decorators[0];
     if (node) info.problems.push({ node, message: 'both @Public() and @RequirePermission() on the same target' });
   }
+  if (info.isAuthenticated && (info.isPublic || info.permission !== undefined)) {
+    const node = decorators[0];
+    if (node) info.problems.push({ node, message: '@Authenticated() combined with @Public() or @RequirePermission() on the same target' });
+  }
   return info;
+}
+
+function declaredAccess(info: AccessInfo): string | undefined {
+  if (info.isPublic) return 'public';
+  if (info.isAuthenticated) return 'authenticated';
+  return info.permission;
 }
 
 export function scanSource(file: string, text: string): { routes: RouteEntry[]; violations: Violation[] } {
@@ -163,16 +177,14 @@ export function scanSource(file: string, text: string): { routes: RouteEntry[]; 
         violations.push({ file, ...at(problem.node), rule: 'route-scan', message: `${className}.${handler}: ${problem.message}` });
       }
 
-      // Method-level decorators override class-level ones (Reflector.getAllAndOverride).
-      const access = methodAccess.isPublic
-        ? 'public'
-        : (methodAccess.permission ?? (classAccess.isPublic ? 'public' : (classAccess.permission ?? 'UNGUARDED')));
+      // Method-level declarations override class-level ones (platform/authz/access-policy.ts does the same).
+      const access = declaredAccess(methodAccess) ?? declaredAccess(classAccess) ?? 'UNGUARDED';
       if (access === 'UNGUARDED') {
         violations.push({
           file,
           ...position,
           rule: 'route-scan',
-          message: `${className}.${handler} has no @RequirePermission('<resource>.<action>') or @Public() (on the method or the class)`,
+          message: `${className}.${handler} has no @RequirePermission('<resource>.<action>'), @Authenticated() or @Public() (on the method or the class)`,
         });
       }
       for (const http of httpDecorators) {

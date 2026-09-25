@@ -3,7 +3,8 @@
  *  - company-id: every table in schema public has `company_id uuid not null`, ENABLE + FORCE row level security
  *    and at least one policy keyed on current_setting('app.company_id') — unless exempt
  *    (tools/guardrails/company-id-exempt.json: [{ table, reason, rls? }]; `rls: true` still requires RLS + policy;
- *    stale or malformed entries fail).
+ *    stale or malformed entries fail). Schema-qualified entries (e.g. `auth.user_account`) document tables of other
+ *    schemas, which the check does not cover; they only have to exist.
  *  - audit-per-write: tables whose CREATE TABLE line carries `-- @audited` have an audit trigger
  *    (a trigger whose function name starts with "audit").
  */
@@ -80,8 +81,9 @@ export async function loadCatalog(client: Client, schema = 'public'): Promise<Ta
   }));
 }
 
+/** Captures [schema?, table]; tables outside `public` are reported schema-qualified (e.g. `auth.user_account`). */
 const CREATE_TABLE =
-  /^\s*create\s+(?:(?:global\s+|local\s+)?(?:temporary|temp|unlogged)\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:"?public"?\s*\.\s*)?"?([a-z_][a-z0-9_$]*)"?/i;
+  /^\s*create\s+(?:(?:global\s+|local\s+)?(?:temporary|temp|unlogged)\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:"?([a-z_][a-z0-9_]*)"?\s*\.\s*)?"?([a-z_][a-z0-9_$]*)"?/i;
 const AUDITED_MARKER = /--\s*@audited\b/;
 
 /** Tables created by the migrations (file:line of their CREATE TABLE) and whether they are marked `-- @audited`. */
@@ -97,8 +99,11 @@ export function parseMigrationTables(root: string, dir: string): MigrationTable[
     const lines = readFileSync(path.join(root, dir, file), 'utf8').split('\n');
     lines.forEach((text, index) => {
       const match = CREATE_TABLE.exec(text);
-      if (match?.[1]) {
-        out.push({ table: match[1].toLowerCase(), file: `${dir}/${file}`, line: index + 1, audited: AUDITED_MARKER.test(text) });
+      if (match?.[2]) {
+        const schema = match[1]?.toLowerCase();
+        const name = match[2].toLowerCase();
+        const table = schema && schema !== 'public' ? `${schema}.${name}` : name;
+        out.push({ table, file: `${dir}/${file}`, line: index + 1, audited: AUDITED_MARKER.test(text) });
       } else if (AUDITED_MARKER.test(text)) {
         out.push({ table: '', file: `${dir}/${file}`, line: index + 1, audited: true });
       }
@@ -145,9 +150,11 @@ export function evaluateCompanyId(
   exempt: ExemptEntry[],
   migrationTables: MigrationTable[] = [],
   exemptFile = EXEMPT_FILE,
+  /** schema-qualified names of the tables of the other checked schemas (e.g. `auth.user_account`) */
+  otherSchemaTables: readonly string[] = [],
 ): Violation[] {
   const violations: Violation[] = [];
-  const names = new Set(catalog.map((t) => t.name));
+  const names = new Set([...catalog.map((t) => t.name), ...otherSchemaTables]);
   for (const e of exempt) {
     if (!names.has(e.table)) {
       violations.push({ file: exemptFile, rule: 'company-id/exempt', message: `stale entry: table "${e.table}" does not exist — remove it` });

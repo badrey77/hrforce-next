@@ -15,5 +15,29 @@
   {
     "table": "org_unit_kind_parent",
     "reason": "Global reference catalogue of allowed parent kinds per org unit kind, shared by every tenant; seeded by migration 0006, SELECT-only for hrforce_app."
+  },
+  {
+    "table": "auth.user_account",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "auth.user_credential",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "auth.user_company",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "auth.refresh_session",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "auth.password_token",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "auth.login_event",
+    "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
   }
 ]

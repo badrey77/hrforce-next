@@ -1,4 +1,6 @@
-# Local development database. Usage (from apps/api): docker compose up -d
+# Local development stack. Usage (from apps/api):
+#   docker compose up -d                 → postgres + mailpit (SMTP on :1025, web UI on http://localhost:8025)
+#   docker compose --profile api up -d   → + the API container (built from the repo root Dockerfile)
 services:
   postgres:
     image: postgres:18-alpine
@@ -15,5 +17,35 @@ services:
       - ./scripts/create-roles.sql:/hrforce/create-roles.sql:ro
       - ./scripts/docker-init-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
       - hrforce-pg:/var/lib/postgresql
+
+  # Captures every outgoing mail (password setup / reset links). Nothing is delivered to real mailboxes.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025" # SMTP  (SMTP_URL=smtp://localhost:1025 for an API running on the host)
+      - "8025:8025" # web UI
+
+  api:
+    profiles: ["api"]
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    depends_on: [postgres, mailpit]
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://hrforce_app:hrforce_app_dev@postgres:5432/hrforce
+      MIGRATOR_DATABASE_URL: postgres://hrforce_migrator:hrforce_migrator_dev@postgres:5432/hrforce
+      COOKIE_SECRET: dev-cookie-secret-dev-cookie-secret-0001
+      AUTH_ACCESS_SECRET: dev-access-secret-dev-access-secret-0001
+      AUTH_XSRF_SECRET: dev-xsrf-secret-dev-xsrf-secret-00000001
+      COOKIE_SECURE: "false"
+      WEB_BASE_URL: http://localhost:4200
+      MAIL_TRANSPORT: smtp
+      SMTP_URL: smtp://mailpit:1025
+      MAIL_FROM: HRForce <no-reply@hrforce.local>
+      DEV_PERMISSIONS: allow_all
+
 volumes:
   hrforce-pg:

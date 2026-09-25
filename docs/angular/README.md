@@ -34,8 +34,11 @@ the files it discusses, so you can jump straight to the source.
 9. [09-testing.md](./09-testing.md) — Vitest + `TestBed`, `HttpTestingController`,
    `RouterTestingHarness`, fake timers.
 10. [10-project-structure-and-recipes.md](./10-project-structure-and-recipes.md) —
-    folder boundaries and step-by-step recipes for adding a page, an API call, a form,
-    a translation key, a reusable control.
+    folder boundaries and step-by-step recipes for adding a page, protecting a route,
+    an API call, a form, a translation key, a reusable control.
+11. [11-app-initializers-and-auth-flow.md](./11-app-initializers-and-auth-flow.md) —
+    `provideAppInitializer`, and the sign-in flow end to end (session, guards, refresh,
+    password pages).
 
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (the Employees module is next).
@@ -66,7 +69,16 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `withComponentInputBinding()` | 05 | `src/app/app.config.ts`, `src/app/features/organization/organization.page.ts` |
 | `provideHttpClient`, interceptors | 06 | `src/app/app.config.ts`, `src/app/core/http/api-problem.interceptor.ts` |
 | `ApiProblem`, RFC 9457 errors | 06 | `src/app/core/http/api-problem.ts` |
-| Dev proxy, dev identity headers | 06 | `apps/web/proxy.conf.json` |
+| Dev proxy (same-origin `/api`) | 06 | `apps/web/proxy.conf.json` |
+| `provideAppInitializer`, startup order (csrf → me) | 11 | `src/app/core/auth/session-init.ts`, `src/app/app.config.ts` |
+| Root signal store (`Session`) | 03 | `src/app/core/auth/session.ts` |
+| Functional guards, `canMatch` vs `canActivate`, `UrlTree` | 05 | `src/app/core/auth/auth.guards.ts`, `src/app/app.routes.ts` |
+| Open-redirect-safe `returnUrl` | 05 | `src/app/core/auth/return-url.ts` |
+| Interceptor order, retry once, single flight (`share()`) | 06 | `src/app/core/auth/auth-refresh.interceptor.ts` |
+| XSRF rules, re-stamping a retried request | 06 | `src/app/core/auth/auth-refresh.interceptor.ts`, `src/app/core/http/xsrf.ts` |
+| `HttpContextToken` | 06 | `src/app/core/auth/auth-api.ts` (`SKIP_LOGIN_REDIRECT`) |
+| Cross-field (FormGroup) validator | 07 | `src/app/features/auth/password-rules.ts`, `password-setup.page.ts` |
+| Device language vs account locale | 08 | `src/app/core/i18n/language.service.ts` |
 | Typed reactive forms, `NonNullableFormBuilder` | 07 | `src/app/features/organization/create-unit-form.ts` |
 | `applyServerErrors()` | 06, 07 | `src/app/core/http/apply-server-errors.ts` |
 | Dependent select options, `[ngValue]` / `null` "inherit" | 07 | `src/app/features/organization/create-unit-form.ts` |
@@ -131,12 +143,18 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   functional style (`HttpInterceptorFn`), registered with `withInterceptors([...])`. See
   chapter 06.
 - **Route** — a path → component/loader mapping in a `Routes` array. See chapter 05.
+- **Guard** — a function (`CanMatchFn`, `CanActivateFn`, …) the router calls to decide
+  whether a route may be used; returns `true` or a `UrlTree` to redirect. See chapter 05.
+- **`UrlTree`** — a parsed URL object. Returned from a guard, it redirects the current
+  navigation instead of starting a new one.
+- **App initializer** — a function registered with `provideAppInitializer()` that runs
+  during bootstrap; the app waits for its Promise/Observable. See chapter 11.
 - **Lazy loading** — code for a route is fetched only when the user navigates there
   (`loadComponent`/`loadChildren`), splitting the JS bundle. See chapter 05.
 - **`TestBed`** — Angular's test harness: configures a mini application (providers,
   imports) for a test and creates component instances (`fixtures`) inside it. See
   chapter 09.
 
-Concepts not yet in this codebase (guards, `NgModule`, zone-based apps, `@ViewChild`,
+Concepts not yet in this codebase (`NgModule`, zone-based apps, `@ViewChild`,
 content projection with `<ng-content>`) are intentionally left out — this guide only
 teaches what the code actually uses, and grows as the code does (see `CLAUDE.md`).

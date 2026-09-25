@@ -28,6 +28,13 @@
   color: var(--color-on-primary);
 }
 
+.header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
 .brand {
   color: inherit;
   font-size: 1.25rem;

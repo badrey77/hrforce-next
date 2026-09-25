@@ -5,7 +5,12 @@ import { EnvValidationError, loadEnv, parseEnv } from './load-env.js';
 const valid = {
   DATABASE_URL: 'postgres://hrforce_app:pw@localhost:5432/hrforce',
   COOKIE_SECRET: 'x'.repeat(32),
+  AUTH_ACCESS_SECRET: 'a'.repeat(32),
+  AUTH_XSRF_SECRET: 'b'.repeat(32),
+  WEB_BASE_URL: 'https://hr.example.dz',
+  SMTP_URL: 'smtp://mail.example.dz:587',
 };
+const dev = { ...valid, NODE_ENV: 'development' };
 
 describe('loadEnv', () => {
   it('applies defaults to a minimal valid environment', () => {
@@ -28,6 +33,9 @@ describe('loadEnv', () => {
     const message = (error as EnvValidationError).message;
     expect(message).toContain('DATABASE_URL: is required');
     expect(message).toContain('COOKIE_SECRET: is required');
+    expect(message).toContain('AUTH_ACCESS_SECRET: is required');
+    expect(message).toContain('AUTH_XSRF_SECRET: is required');
+    expect(message).toContain('WEB_BASE_URL: is required');
     expect(message).toContain('PORT:');
     expect(message).toContain('NODE_ENV:');
   });
@@ -66,6 +74,39 @@ describe('loadEnv', () => {
       /DEV_AUTH: may only be true when NODE_ENV is development or test/,
     );
     expect(loadEnv({ ...valid, NODE_ENV: 'production', DEV_AUTH: 'false' }).DEV_AUTH).toBe(false);
+  });
+
+  it('identity defaults: secure cookies, smtp transport, no dev permissions; WEB_BASE_URL loses its trailing slash', () => {
+    const env = loadEnv({ ...valid, WEB_BASE_URL: 'https://hr.example.dz/app/' });
+    expect(env).toMatchObject({ COOKIE_SECURE: true, MAIL_TRANSPORT: 'smtp', WEB_BASE_URL: 'https://hr.example.dz/app' });
+    expect(env.DEV_PERMISSIONS).toBeUndefined();
+    expect(env.MAIL_FROM).toContain('@');
+  });
+
+  it('auth secrets must be ≥ 32 characters and different', () => {
+    expect(() => loadEnv({ ...valid, AUTH_ACCESS_SECRET: 'short' })).toThrowError(/AUTH_ACCESS_SECRET: must be at least 32/);
+    expect(() => loadEnv({ ...valid, AUTH_XSRF_SECRET: 'short' })).toThrowError(/AUTH_XSRF_SECRET: must be at least 32/);
+    expect(() => loadEnv({ ...valid, AUTH_XSRF_SECRET: valid.AUTH_ACCESS_SECRET })).toThrowError(/AUTH_XSRF_SECRET: must differ/);
+  });
+
+  it('refuses the development-only switches outside development/test', () => {
+    expect(() => loadEnv({ ...valid, DEV_PERMISSIONS: 'allow_all' })).toThrowError(/DEV_PERMISSIONS: may only be set when NODE_ENV/);
+    expect(() => loadEnv({ ...valid, COOKIE_SECURE: 'false' })).toThrowError(/COOKIE_SECURE: may only be false when NODE_ENV/);
+    expect(() => loadEnv({ ...valid, MAIL_TRANSPORT: 'log' })).toThrowError(/MAIL_TRANSPORT: may only be log when NODE_ENV/);
+    expect(() => loadEnv({ ...dev, DEV_PERMISSIONS: 'grant_everything' })).toThrowError(/DEV_PERMISSIONS/);
+    expect(loadEnv({ ...dev, DEV_PERMISSIONS: 'allow_all', COOKIE_SECURE: 'false', MAIL_TRANSPORT: 'log' })).toMatchObject({
+      DEV_PERMISSIONS: 'allow_all',
+      COOKIE_SECURE: false,
+      MAIL_TRANSPORT: 'log',
+    });
+  });
+
+  it('SMTP_URL is required with MAIL_TRANSPORT=smtp and must be smtp(s)://; WEB_BASE_URL must be http(s)', () => {
+    const { SMTP_URL: _omit, ...noSmtp } = valid;
+    expect(() => loadEnv(noSmtp)).toThrowError(/SMTP_URL: is required when MAIL_TRANSPORT is smtp/);
+    expect(loadEnv({ ...dev, SMTP_URL: '', MAIL_TRANSPORT: 'log' }).SMTP_URL).toBeUndefined();
+    expect(() => loadEnv({ ...valid, SMTP_URL: 'http://x' })).toThrowError(/SMTP_URL: must be an smtp/);
+    expect(() => loadEnv({ ...valid, WEB_BASE_URL: 'javascript:alert(1)' })).toThrowError(/WEB_BASE_URL/);
   });
 
   it('validates the migrator environment separately', () => {

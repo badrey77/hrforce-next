@@ -5,14 +5,15 @@ import type { Request } from 'express';
 export interface RequestIdentity {
   readonly userId: string | null;
   readonly companyId: string | null;
+  /** Refresh session id (`sid`) when the identity comes from the access-token cookie; absent otherwise. */
+  readonly sessionId?: string | null;
 }
 
 export const ANONYMOUS: RequestIdentity = Object.freeze({ userId: null, companyId: null });
 
 /**
- * Seam for authentication: resolves the caller of a request. The Identity module will provide the real
- * implementation (session cookie → user/company) by overriding this provider; until then every request
- * is anonymous.
+ * Seam for authentication: resolves the caller of a request. Default: {@link CookieIdentityResolver}
+ * (access-token cookie), plus the DEV_AUTH header identity in development/test (see platform/authz/dev-auth.ts).
  */
 export abstract class RequestIdentityResolver {
   abstract resolve(req: Request): Promise<RequestIdentity>;

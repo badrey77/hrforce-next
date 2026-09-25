@@ -1,3 +1,5 @@
+import { HttpErrorResponse } from '@angular/common/http';
+
 /** One field-level validation error (RFC 9457 extension used by the API). */
 export interface ApiFieldError {
   readonly field: string;
@@ -102,4 +104,25 @@ export function parseApiProblem(body: unknown, status: number, statusText = ''):
   if (requestId !== undefined) problem.requestId = requestId;
   if (errors !== undefined) problem.errors = errors;
   return problem;
+}
+
+/**
+ * The `Retry-After` header of the response behind an `ApiProblemError`, in seconds (423/429 from login).
+ * The interceptor keeps the original `HttpErrorResponse` as `cause`, so headers stay reachable.
+ * Accepts both forms RFC 9110 allows: delay-seconds (`"900"`) and an HTTP date. `null` when absent or unusable.
+ */
+export function retryAfterSeconds(error: ApiProblemError, now: number = Date.now()): number | null {
+  const cause: unknown = error.cause;
+  if (!(cause instanceof HttpErrorResponse)) {
+    return null;
+  }
+  const value = cause.headers.get('Retry-After')?.trim();
+  if (!value) {
+    return null;
+  }
+  if (/^\d+$/.test(value)) {
+    return Number(value);
+  }
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - now) / 1000));
 }

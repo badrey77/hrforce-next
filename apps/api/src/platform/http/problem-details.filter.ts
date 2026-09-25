@@ -90,6 +90,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       this.logger.error({ err: exception, requestId: problem.requestId }, 'Unhandled error');
     }
     if (res.headersSent) return;
+    if (exception instanceof ProblemException && problem.status < 500) {
+      for (const [name, value] of Object.entries(exception.headers)) res.setHeader(name, value);
+    }
     res.status(problem.status).setHeader('Content-Type', `${PROBLEM_CONTENT_TYPE}; charset=utf-8`);
     res.send(JSON.stringify(problem));
   }

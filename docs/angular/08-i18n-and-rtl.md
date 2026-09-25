@@ -108,11 +108,37 @@ things at once, and doing only one of them would leave the app inconsistent:
 
 It also persists the choice to `localStorage` (best-effort — wrapped in `try/catch`,
 since private browsing or blocked storage can throw) and, on `init()` (called once from
-`provideAppInitializer`), restores a previously stored language before the app's first
+`provideAppInitializer`), restores a previously stored language (without re-storing it) before the app's first
 render, falling back to `fr` if nothing was stored or the stored value isn't a known
 language (`isAppLanguage()` in `languages.ts`).
 
-`inject(DOCUMENT)` — not the global `document` — is used so the service is testable
+### Device choice vs account locale
+
+Since the Identity slice, a language can come from two sources, in this priority order:
+
+1. **A choice made on this device** with the language switcher: `use(lang)` stores it in
+   `localStorage`.
+2. **The signed-in account's `locale`** (`GET /api/me` › `user.locale`), applied after
+   login (`login.page.ts`) and on reload while signed in (`session-init.ts`):
+
+```ts
+// src/app/core/i18n/language.service.ts
+applyAccountLocale(locale: string): boolean {
+  if (this.hasStoredChoice() || !isAppLanguage(locale)) {
+    return false;
+  }
+  this.use(locale, { remember: false });
+  return true;
+}
+```
+
+`remember: false` matters here. If the account locale were stored, it would look like a
+device choice from then on: a second person signing in on the same computer would get
+the first person's language, and a later change to the account locale would never show.
+For the same reason `init()` no longer stores the `fr` fallback, since falling back to
+the default is not a choice.
+
+`inject(DOCUMENT)`, not the global `document` — is used so the service is testable
 (`language.service.spec.ts` injects a test `DOCUMENT` via `TestBed`) and so it would
 work in a server-rendering context if one were ever added; this app doesn't do SSR
 today, but the pattern costs nothing and is worth keeping.

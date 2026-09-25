@@ -6,6 +6,7 @@ export {
   ValidationProblemException,
   type FieldError,
   type ProblemDetails,
+  type ProblemOptions,
 } from './problem-details.js';
 export { getRequestId, REQUEST_ID_HEADER, requestIdMiddleware } from './request-id.js';
 export { createZodDto, toFieldErrors, ZodValidationPipe, type ZodDtoClass } from './zod-validation.pipe.js';

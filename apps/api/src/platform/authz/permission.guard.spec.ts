@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { currentContext, runWithContext } from '../context/request-context.js';
 import { AnonymousIdentityResolver, RequestIdentityResolver, type RequestIdentity } from '../context/request-identity.js';
-import { Public, RequirePermission } from './decorators.js';
+import { Authenticated, Public, RequirePermission } from './decorators.js';
 import { PermissionCheck } from './permission-check.js';
 import { DenyAllPermissionEvaluator, PermissionEvaluator } from './permission-evaluator.js';
 import { PermissionGuard } from './permission.guard.js';
@@ -13,6 +13,9 @@ class Routes {
   @RequirePermission('employee.read') guarded(): void {}
   undecorated(): void {}
   @Public() @RequirePermission('employee.read') both(): void {}
+  @Authenticated() signedIn(): void {}
+  @Authenticated() @Public() authenticatedAndPublic(): void {}
+  @Authenticated() @RequirePermission('employee.read') authenticatedAndPermission(): void {}
 }
 
 function contextFor(handler: keyof Routes): ExecutionContext {
@@ -68,6 +71,31 @@ describe('PermissionGuard (decorator presence + authentication)', () => {
   it('rejects malformed permission codes at decoration time', () => {
     expect(() => RequirePermission('Employee.Read')).toThrowError(/Invalid permission code/);
     expect(() => RequirePermission('employee')).toThrowError(/Invalid permission code/);
+  });
+});
+
+describe('@Authenticated()', () => {
+  const reflector = new Reflector();
+  beforeAll(() => Logger.overrideLogger(false));
+  afterAll(() => Logger.overrideLogger(['log', 'error', 'warn']));
+
+  it('guard: 401 when anonymous, allowed when authenticated', async () => {
+    await expect(new PermissionGuard(reflector, new AnonymousIdentityResolver()).canActivate(contextFor('signedIn'))).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(new PermissionGuard(reflector, new FixedIdentity()).canActivate(contextFor('signedIn'))).resolves.toBe(true);
+  });
+
+  it('check: no permission needed (even with a deny-all evaluator); 401 when anonymous', async () => {
+    const check = new PermissionCheck(reflector, new DenyAllPermissionEvaluator());
+    await expect(check.assertAllowed(contextFor('signedIn'), USER)).resolves.toBeUndefined();
+    await expect(check.assertAllowed(contextFor('signedIn'), ANON)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('combined with @Public or @RequirePermission → misconfigured → 403', async () => {
+    const guard = new PermissionGuard(reflector, new FixedIdentity());
+    await expect(guard.canActivate(contextFor('authenticatedAndPublic'))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(guard.canActivate(contextFor('authenticatedAndPermission'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 

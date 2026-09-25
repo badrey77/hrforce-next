@@ -4,16 +4,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, type TestDatabase } from './support/test-database.js';
+import { fetchXsrf, withXsrf, type XsrfPair } from './support/xsrf.js';
 
 const PROBLEM_JSON = /^application\/problem\+json/;
 
 describe('HTTP platform (e2e)', () => {
   let db: TestDatabase;
   let app: NestExpressApplication;
+  let xsrf: XsrfPair;
 
   beforeAll(async () => {
     db = await createTestDatabase();
     app = await createTestApp(db);
+    xsrf = await fetchXsrf(app);
   });
 
   afterAll(async () => {
@@ -56,8 +59,7 @@ describe('HTTP platform (e2e)', () => {
   });
 
   it('invalid body → 422 with errors[] {field, code, message}', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/_test/echo')
+    const res = await withXsrf(request(app.getHttpServer()).post('/api/_test/echo'), xsrf)
       .send({ name: '', age: 1.5, address: {} })
       .expect(422);
     expect(res.headers['content-type']).toMatch(PROBLEM_JSON);
@@ -71,8 +73,7 @@ describe('HTTP platform (e2e)', () => {
   });
 
   it('valid body passes and is stripped of unknown keys', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/_test/echo')
+    const res = await withXsrf(request(app.getHttpServer()).post('/api/_test/echo'), xsrf)
       .send({ name: 'Amina', age: 31, address: { city: 'Rabat' }, isAdmin: true })
       .expect(201);
     expect(res.body).toEqual({ name: 'Amina', age: 31, address: { city: 'Rabat' } });
@@ -85,8 +86,7 @@ describe('HTTP platform (e2e)', () => {
   });
 
   it('malformed JSON → 400 problem+json', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/_test/echo')
+    const res = await withXsrf(request(app.getHttpServer()).post('/api/_test/echo'), xsrf)
       .set('Content-Type', 'application/json')
       .send('{"name":')
       .expect(400);
@@ -113,6 +113,29 @@ describe('HTTP platform (e2e)', () => {
     expect(res.headers['content-type']).toMatch(PROBLEM_JSON);
     expect(Object.keys(res.body).toSorted()).toEqual(['instance', 'requestId', 'status', 'title', 'type']);
     expect(res.text).not.toMatch(/secret_table|\/srv\/internal|stack/);
+  });
+
+  it('unsafe methods without a valid XSRF header/cookie pair → 403 xsrf (before validation)', async () => {
+    const body = { name: 'Amina', age: 31, address: { city: 'Rabat' } };
+    const noHeader = await request(app.getHttpServer()).post('/api/_test/echo').set('Cookie', xsrf.cookie).send(body).expect(403);
+    expect(noHeader.headers['content-type']).toMatch(PROBLEM_JSON);
+    expect(noHeader.body).toMatchObject({ type: 'urn:hrforce:problem:xsrf', status: 403 });
+    await request(app.getHttpServer()).post('/api/_test/echo').set('X-XSRF-TOKEN', xsrf.token).send(body).expect(403);
+    const other = await fetchXsrf(app);
+    await request(app.getHttpServer())
+      .post('/api/_test/echo')
+      .set('Cookie', xsrf.cookie)
+      .set('X-XSRF-TOKEN', other.token)
+      .send(body)
+      .expect(403);
+    // equal but forged (not signed with AUTH_XSRF_SECRET)
+    const forged = 'A'.repeat(43) + '.' + 'B'.repeat(43);
+    await request(app.getHttpServer())
+      .post('/api/_test/echo')
+      .set('Cookie', `XSRF-TOKEN=${forged}`)
+      .set('X-XSRF-TOKEN', forged)
+      .send(body)
+      .expect(403);
   });
 
   it('does not advertise the framework', async () => {

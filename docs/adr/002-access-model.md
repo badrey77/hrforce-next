@@ -7,8 +7,8 @@
 
 The legacy design doc §4 models authorization as a single role per user, appropriate for
 the legacy app's flatter deployment. HRForce Next needs finer control from day one: HR
-users only manage employees inside an org unit of the management tree (see "Org model" below, with
-room for a department axis later), some fields (salary, bank details/RIB, NSS, medical
+users only manage employees inside an org unit of the management tree (see "Org model" below),
+some fields (salary, bank details/RIB, NSS, medical
 documents) are sensitive enough to need their own visibility rule independent of the
 record's general read permission, and every module (organization, identity,
 authorization, audit, employment, …) needs the same authorization primitives rather than

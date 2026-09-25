@@ -5,6 +5,12 @@
     <title>HRForce</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      No Referer on any request. /password/setup?token=… carries a live single-use token in its URL; with the
+      browser default (full URL to the same origin) every /api call made from that page would hand the token to
+      the API's access log and to any proxy in between.
+    -->
+    <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
   </head>
   <body>

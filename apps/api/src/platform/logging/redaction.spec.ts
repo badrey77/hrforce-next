@@ -46,7 +46,7 @@ describe('log redaction (identity)', () => {
       req: {
         body: { email: 'a@b.dz', password: 'hunter2-hunter2' },
         cookies: { hrf_at: 'jwt', hrf_rt: 'rt', 'XSRF-TOKEN': 'x' },
-        headers: { cookie: 'hrf_at=jwt; hrf_rt=rt', 'x-xsrf-token': 'x' },
+        headers: { cookie: 'hrf_at=jwt; hrf_rt=rt', 'x-xsrf-token': 'x', referer: 'http://web/password/setup?token=setup-token' },
       },
       res: { headers: { 'set-cookie': ['hrf_at=jwt; Path=/api', 'hrf_rt=rt; Path=/api/auth'] } },
       setup: { body: { token: 'setup-token', password: 'pw' } },

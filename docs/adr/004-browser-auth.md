@@ -90,6 +90,13 @@ above) ships in Phase 1; an OIDC-based path is a later-phase decision.
   credentials can diverge, which product/ops needs to be aware of.
 - Deferring SSO/OIDC means every P1 user goes through local password login, including
   any who would otherwise prefer/require SSO at their organization.
+- **The API database role is trusted with credentials.** Identity tables sit in schema `auth`, unreachable by
+  `hrforce_app` except through narrow `SECURITY DEFINER` functions. Those functions stop accidental misuse and
+  bulk reads, but a compromised app role (for example through SQL injection) could still create a session for a
+  user or issue itself a reset token and set a password, because the API must be able to do both to work. This
+  is no wider than what that role already holds (it signs access tokens and sets `app.company_id`). Closing it
+  fully would need a separate credential service with its own role; revisit before go-live (verification of
+  2026-09-26).
 
 ## Alternatives considered
 

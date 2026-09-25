@@ -30,7 +30,7 @@ Login happens before any tenant is known, so the account tables cannot sit behin
 | Cookie `XSRF-TOKEN` | readable by JS; `SameSite=Strict; Path=/`; value = `<random>.<hmac>` where hmac = HMAC-SHA256(`AUTH_XSRF_SECRET`, random + '.' + (sid or 'anon')) — a **signed** double-submit token bound to the session; re-issued on login, refresh and logout |
 | `Secure` flag | on every cookie when `COOKIE_SECURE=true` (default true; the env schema allows false only when `NODE_ENV` is development or test) |
 
-XSRF check: every `POST`/`PUT`/`PATCH`/`DELETE` under `/api` needs header `X-XSRF-TOKEN` equal to the `XSRF-TOKEN` cookie and a valid signature for the caller's `sid` (or `anon` without a session). Failure → **403** `urn:hrforce:problem:xsrf`. `GET /api/auth/csrf` always passes and sets a fresh anon token when none is present.
+XSRF check: every `POST`/`PUT`/`PATCH`/`DELETE` under `/api` needs header `X-XSRF-TOKEN` equal to the `XSRF-TOKEN` cookie and a valid signature for the caller's `sid` (or `anon` without a session). Failure → **403** `urn:hrforce:problem:xsrf`. `GET /api/auth/csrf` always passes and sets a fresh anon token when none is present. On `POST /api/auth/*` an `anon` token is also accepted from a signed-in caller (so login, refresh and logout work from a stale tab); every other unsafe route needs the session-bound token.
 
 ## Identity resolution and permissions (platform seams)
 

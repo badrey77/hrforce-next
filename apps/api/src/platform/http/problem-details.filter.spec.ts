@@ -88,6 +88,13 @@ describe('ProblemDetailsFilter', () => {
     expect(http.body()).toMatchObject({ type: 'urn:hrforce:problem:org-unit-code-taken', status: 409, detail: 'Code already used' });
   });
 
+  it('carries field errors of a ProblemException', () => {
+    const http = fakeHttp();
+    const errors = [{ field: 'parentId', code: 'invalid_parent', message: 'A site must be under a region' }];
+    filter.catch(new ProblemException(409, 'org-unit-invalid-parent', 'Invalid parent', errors), http.host);
+    expect(http.body()).toMatchObject({ status: 409, type: 'urn:hrforce:problem:org-unit-invalid-parent', errors });
+  });
+
   it('maps unknown errors to 500 without leaking internals', () => {
     const http = fakeHttp();
     const error = new Error('duplicate key value violates unique constraint "secret_idx" at /srv/app.js');

@@ -113,6 +113,9 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         if (detail !== undefined) problem.detail = detail;
       }
       if (exception instanceof ValidationProblemException) problem.errors = exception.errors;
+      if (exception instanceof ProblemException && exception.errors?.length && status < 500) {
+        problem.errors = exception.errors;
+      }
       return problem;
     }
 

@@ -52,6 +52,21 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...valid, PORT: '' }).PORT).toBe(3000);
   });
 
+  it('DEV_AUTH defaults to false and parses true/false strictly', () => {
+    expect(loadEnv(valid).DEV_AUTH).toBe(false);
+    expect(loadEnv({ ...valid, DEV_AUTH: 'true' }).DEV_AUTH).toBe(true);
+    expect(loadEnv({ ...valid, DEV_AUTH: 'FALSE' }).DEV_AUTH).toBe(false);
+    expect(loadEnv({ ...valid, NODE_ENV: 'test', DEV_AUTH: '1' }).DEV_AUTH).toBe(true);
+    expect(() => loadEnv({ ...valid, DEV_AUTH: 'yes' })).toThrowError(/DEV_AUTH: must be true or false/);
+  });
+
+  it('refuses DEV_AUTH=true unless NODE_ENV is development or test', () => {
+    expect(() => loadEnv({ ...valid, NODE_ENV: 'production', DEV_AUTH: 'true' })).toThrowError(
+      /DEV_AUTH: may only be true when NODE_ENV is development or test/,
+    );
+    expect(loadEnv({ ...valid, NODE_ENV: 'production', DEV_AUTH: 'false' }).DEV_AUTH).toBe(false);
+  });
+
   it('validates the migrator environment separately', () => {
     expect(() => parseEnv(migratorEnvSchema, {})).toThrowError(/MIGRATOR_DATABASE_URL: is required/);
     expect(parseEnv(migratorEnvSchema, { MIGRATOR_DATABASE_URL: 'postgresql://m@h/db' }).LOG_LEVEL).toBe('info');

@@ -1,0 +1,76 @@
+<!-- Same form pattern as create-unit-form.html; the new part is the custom control <app-org-unit-picker>. -->
+<form *transloco="let t" class="org-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="change-unit-title" novalidate>
+  <h3 id="change-unit-title">{{ t('org.change.title', { name: unit().name }) }}</h3>
+  <p class="field-hint">{{ t('org.change.intro') }}</p>
+
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @let name = form.controls.name;
+  <div class="field">
+    <label for="change-unit-name">{{ t('org.form.name') }}</label>
+    <input
+      id="change-unit-name"
+      type="text"
+      formControlName="name"
+      required
+      [attr.aria-invalid]="name.invalid && name.touched"
+      [attr.aria-describedby]="name.invalid && name.touched ? 'change-unit-name-error' : null"
+    />
+    @if (name.invalid && name.touched) {
+      <p class="field-error" id="change-unit-name-error">
+        {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+      </p>
+    }
+  </div>
+
+  @let parent = form.controls.parentId;
+  <div class="field">
+    @if (canMove()) {
+      <label for="change-unit-parent">{{ t('org.form.parent') }}</label>
+      <!-- formControlName works on our component because it provides NG_VALUE_ACCESSOR (ControlValueAccessor). -->
+      <app-org-unit-picker
+        formControlName="parentId"
+        inputId="change-unit-parent"
+        [kinds]="parentKinds()"
+        [asOf]="validFrom() || undefined"
+        [invalid]="parent.invalid && parent.touched"
+        [describedBy]="parent.invalid && parent.touched ? 'change-unit-parent-error' : null"
+      />
+      @if (parent.invalid && parent.touched) {
+        <p class="field-error" id="change-unit-parent-error">
+          {{ parent.hasError('server') ? parent.getError('server') : t(fieldErrorKey(parent)) }}
+        </p>
+      }
+    } @else {
+      <span>{{ t('org.form.parent') }}</span>
+      <p class="field-hint">{{ t('org.change.rootNoMove') }}</p>
+    }
+  </div>
+
+  @let validFromControl = form.controls.validFrom;
+  <div class="field">
+    <label for="change-unit-valid-from">{{ t('org.form.validFrom') }}</label>
+    <input
+      id="change-unit-valid-from"
+      type="date"
+      formControlName="validFrom"
+      required
+      [attr.aria-invalid]="validFromControl.invalid && validFromControl.touched"
+      [attr.aria-describedby]="validFromControl.invalid && validFromControl.touched ? 'change-unit-valid-from-error' : null"
+    />
+    @if (validFromControl.invalid && validFromControl.touched) {
+      <p class="field-error" id="change-unit-valid-from-error">
+        {{ validFromControl.hasError('server') ? validFromControl.getError('server') : t(fieldErrorKey(validFromControl)) }}
+      </p>
+    }
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('org.form.saving') : t('common.save') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

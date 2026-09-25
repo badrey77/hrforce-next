@@ -59,6 +59,13 @@ module.exports = {
       to: { path: '^apps/web/src/app/features/' },
     },
     {
+      name: 'web-shared-not-to-features',
+      comment: 'shared/** is reusable UI; it may use core/ but must not depend on features.',
+      severity: 'error',
+      from: { path: '^apps/web/src/app/shared/' },
+      to: { path: '^apps/web/src/app/features/' },
+    },
+    {
       name: 'not-to-unresolvable',
       comment: 'Relative imports must resolve (otherwise the rules above cannot see them).',
       severity: 'error',

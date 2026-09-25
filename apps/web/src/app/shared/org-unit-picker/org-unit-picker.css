@@ -1,0 +1,70 @@
+/* Component styles are scoped to this component (Angular's emulated encapsulation). Logical properties only. */
+:host {
+  display: block;
+}
+
+.combo {
+  position: relative;
+}
+
+input {
+  inline-size: 100%;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.listbox {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 100%;
+  z-index: 5;
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+}
+
+.listbox > li {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  cursor: pointer;
+}
+
+.listbox > li.active {
+  background: var(--color-hover);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.line {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+}
+
+.status {
+  margin: 0;
+  min-block-size: 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}

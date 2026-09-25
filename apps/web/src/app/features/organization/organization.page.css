@@ -1,0 +1,61 @@
+/* Logical properties only: the layout mirrors itself in Arabic (dir="rtl"). */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.as-of {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.as-of input {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.feedback {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-inline-start: 4px solid var(--color-primary);
+  background: var(--color-surface-alt);
+}
+
+.panes {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.tree-pane,
+.detail-pane {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  min-inline-size: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

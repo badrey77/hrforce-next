@@ -14,10 +14,14 @@ Kysely 0.29 + `pg`, zod 4, nestjs-pino / pino 10, Vitest 5 (SWC via `unplugin-sw
 cd apps/api && docker compose up -d          # or run scripts/create-roles.sql against your own cluster
 cp .env.example .env                          # then load it: set -a; . ./.env; set +a
 
-# 2. Migrate (as hrforce_migrator) and run
+# 2. Migrate (as hrforce_migrator), seed the demo organisation, and run with the dev identity
 npm run migrate -w @hrforce/api
-npm run build -w @hrforce/api && npm start -w @hrforce/api
+npm run seed:dev -w @hrforce/api              # idempotent; demo company + org units (see below)
+npm run build -w @hrforce/api && DEV_AUTH=true npm start -w @hrforce/api
 curl localhost:3000/api/health                # {"status":"ok","db":"ok"}
+curl localhost:3000/api/org/tree \
+  -H 'X-Dev-User-Id: 0190a5d0-0000-7000-8000-0000000000aa' \
+  -H 'X-Dev-Company-Id: 0190a5d0-0000-7000-8000-000000000001'
 ```
 
 The API does not load `.env` files itself; export the variables (or use `--env-file` with Docker).
@@ -38,6 +42,7 @@ variables (values are never printed).
 | `DB_POOL_MAX` | | `10` | |
 | `TRUST_PROXY_HOPS` | | `0` | Express `trust proxy` |
 | `MIGRATIONS_DIR` | | `apps/api/migrations` | migrate only |
+| `DEV_AUTH` | | `false` | `true`/`false`. Development identity (below). **Boot fails** if `true` and `NODE_ENV` is not `development`/`test` |
 
 ## Database
 
@@ -79,9 +84,13 @@ npm run db:codegen:verify -w @hrforce/api     # drift check: fails if schema.ts 
 
 ## Request pipeline
 
+`PlatformModule` registers `PermissionGuard` as `APP_GUARD` and `RequestContextInterceptor` as `APP_INTERCEPTOR`,
+so every bootstrap of `AppModule` is deny-by-default and transactional, even without `configureApp`.
 `configureApp(app)` (used by `main.ts` and every e2e test) installs, in order: X-Request-Id middleware,
-cookie-parser, global prefix `api`, `ProblemDetailsFilter`, `ZodValidationPipe`, `PermissionGuard`,
-`RequestContextInterceptor`, shutdown hooks.
+cookie-parser, global prefix `api`, `ProblemDetailsFilter`, `ZodValidationPipe`, shutdown hooks.
+
+Per request: middleware → **guard** (decorator present? authenticated?) → **interceptor** (open transaction,
+`set_config` tenant/audit settings, **then** the permission decision, then the handler) → pipes → handler.
 
 - **Errors**: RFC 9457 `application/problem+json` `{type, title, status, detail?, instance, requestId, errors?}`.
   `type` is `urn:hrforce:problem:<slug>` (`not-found`, `validation-error`, `forbidden`, `unauthenticated`,
@@ -90,8 +99,13 @@ cookie-parser, global prefix `api`, `ProblemDetailsFilter`, `ZodValidationPipe`,
   type of `@Body()` / `@Query()` / `@Param()`. Failures → 422 with `errors: [{field, code, message}]`
   (`field` is the dotted path, `code` the zod issue code).
 - **Access**: every handler needs `@RequirePermission('resource.action')` or `@Public()` (`src/platform/authz/decorators.ts`).
-  `PermissionGuard` denies undecorated routes (403), answers 401 for anonymous callers of protected routes, and asks
-  the `PermissionEvaluator` seam (default: deny all — replaced by the Authorization module).
+  `PermissionGuard` denies undecorated routes (403) and answers 401 for anonymous callers of protected routes. It does
+  **not** decide the permission: guards run before interceptors, i.e. before the request transaction exists. The decision
+  is made by `PermissionCheck` (`src/platform/authz/permission-check.ts`), which `RequestContextInterceptor` calls right
+  after opening the transaction; it asks the `PermissionEvaluator` seam (default: deny all — replaced by the
+  Authorization module), which may therefore query grants with `currentTx()` under the caller's tenant and RLS.
+  A denial is a 403 and rolls the transaction back. `PermissionCheck` also fails closed on its own (undecorated → 403,
+  anonymous → 401), so the decision never depends on the guard alone.
 - **Identity seam**: `RequestIdentityResolver` (`src/platform/context/request-identity.ts`) returns `{userId, companyId}`;
   the default is anonymous. The Identity module overrides the provider.
 - **Request context / transaction**: `RequestContextInterceptor` opens ONE transaction per request and runs
@@ -99,7 +113,48 @@ cookie-parser, global prefix `api`, `ProblemDetailsFilter`, `ZodValidationPipe`,
   Repositories call `currentTx()` from `src/platform/context` — never the root `KYSELY` instance.
   `@SkipTransaction()` opts a route out (health). Workers can use `runInRequestTransaction(db, scope, fn)`.
   Pool sessions start with `app.company_id` = nil UUID, so outside a request (or with no tenant) RLS matches nothing.
+- **Development identity** (`DEV_AUTH=true`, development/test only): `DevHeaderIdentityResolver` reads
+  `X-Dev-User-Id` / `X-Dev-Company-Id` (both must be UUIDs, otherwise the request is anonymous) and
+  `DevAllowAllPermissionEvaluator` grants every permission. Both are the *default* providers only when the flag is on
+  (`src/platform/authz/dev-auth.ts`); a loud warning is logged at boot. The web dev proxy injects the headers.
 - **Logging**: nestjs-pino with the redaction paths from CONVENTIONS (`src/platform/logging/redaction.ts`).
+
+## Organization module (`src/modules/organization`)
+
+Contract: [`docs/contracts/organization.md`](../../docs/contracts/organization.md). Layers: `domain/` (pure rules:
+parent kinds, code/name, cycles, version splitting, tree building — unit-tested), `infra/` (Kysely repository via
+`currentTx()`, closure maintenance, demo seed), `application/` (use cases + `_actions`), `api/` (controller, zod DTOs).
+
+| Endpoint | Permission |
+|---|---|
+| `GET /api/org/tree?asOf=` | `org_unit.read` (404 if no company unit exists on `asOf`) |
+| `GET /api/org/units?q=&kind=&asOf=` | `org_unit.read` (max 50, ordered by code) |
+| `GET /api/org/units/:id` | `org_unit.read` |
+| `POST /api/org/units` | `org_unit.create` → 201 + `Location` |
+| `PATCH /api/org/units/:id` | `org_unit.update` |
+
+- **Tables** (migrations 0004–0005): `org_unit` (kind, axis `geo`, immutable code — trigger), `org_unit_version`
+  (name + parent over a `valid daterange` `[from, to)`, no overlap per unit via a `btree_gist` exclusion constraint),
+  `org_unit_closure` (ancestor/descendant/depth incl. self rows). Composite FKs `(company_id, id)` make cross-tenant
+  references impossible; every table has FORCE RLS on `app.company_id`.
+- **Versions**: `PATCH` closes the latest version at `validFrom` and opens a new one; `validFrom` must be strictly after
+  the latest version's start (else 409 `org-unit-version-overlap`). Defaults to today (server local date — set `TZ`).
+- **Closure = tree as of today**: updated in the same transaction by create/move when the change takes effect on or
+  before today. Future-dated changes are visible in `GET /org/tree?asOf=…` immediately but enter the closure only
+  when rebuilt (`rebuildClosure(companyId, today)`; the daily job arrives with the worker; `seed:dev` rebuilds).
+- **Search**: accent/case-insensitive through `search_normalize(text)` (SQL, `lower(translate(…))` of accented Latin
+  letters) backing the generated column `org_unit_version.name_search`; the query text goes through the same function.
+  `unaccent` is not used because it is not a trusted extension.
+- **Errors**: 409 slugs `org-unit-code-taken` (field `code`), `org-unit-invalid-parent` (field `parentId`; codes
+  `invalid_parent_kind`, `not_found`, `parent_not_effective`), `org-unit-cycle`, `org-unit-version-overlap` (field
+  `validFrom`), `org-unit-root-immutable`. Malformed or unknown/other-tenant path ids → 404.
+
+### Demo seed
+
+`npm run seed:dev -w @hrforce/api` (as `MIGRATOR_DATABASE_URL`, refuses `NODE_ENV=production`, idempotent) creates the
+company `0190a5d0-0000-7000-8000-000000000001` (`DEMO`, Groupe Démo) and its units, valid from 2026-01-01, with fixed
+ids `0190a5d0-0000-7000-8000-000000000<nnn>`: `GROUPE` 101; regions `CENTRE` 111, `EST` 112, `OUEST` 113; sites
+`ALG-HQ` 121, `BLIDA` 122, `CNE` 123, `ANNABA` 124, `ORAN` 125, `TLEMCEN` 126. Dev user id: `…-0000000000aa`.
 
 ## Tests
 
@@ -116,7 +171,9 @@ npm run typecheck -w @hrforce/api
     and a throwaway `hrforce_test_*` database, dropped afterwards;
   - unset → starts `postgres:18-alpine` with Testcontainers (Docker required).
   - If the roles already exist on that cluster with other passwords, set `TEST_MIGRATOR_PASSWORD` / `TEST_APP_PASSWORD`.
-- `test/support/test-app.ts` adds test-only routes and header-driven identity (`X-Test-User`, `X-Test-Company`).
+- `test/support/test-app.ts` adds test-only routes and header-driven identity (`X-Test-User`, `X-Test-Company`);
+  `createTestApp(db, { devAuth: true })` uses the real DEV_AUTH wiring (`X-Dev-*` headers) instead, `evaluator` swaps
+  the PermissionEvaluator, `configure: false` skips `configureApp`.
 - `assertNoSecrets(body)` (`test/support/assert-no-secrets.ts`) fails on any key matching `/(password|hash|token|secret)/i`.
 
 ## Docker

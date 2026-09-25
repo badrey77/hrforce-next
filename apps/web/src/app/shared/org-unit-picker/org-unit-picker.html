@@ -1,0 +1,77 @@
+<!--
+  Template notes (first uses in this component):
+  - `*transloco="let t"` (structural directive) exposes the translate function `t` to everything inside.
+  - `[value]="query()"` is a property binding: it sets the DOM property from a signal and updates it when the
+    signal changes. `[attr.aria-…]` binds an ATTRIBUTE instead (ARIA has no DOM properties); `null` removes it.
+  - `(input)`, `(keydown)`, `(click)` are event bindings: `$event` is the native DOM event.
+  - `[class.active]="…"` toggles one CSS class from a boolean.
+  - `@for (x of list; track x.id)` repeats a block. `track` tells Angular which item is which, so on a new
+    result list it reuses the DOM of units already shown instead of re-creating every row. `$index` is built in.
+  - `@if` renders a block only while its condition is true; `@switch`/`@case` picks one block by value.
+  - `t('key', { count })` passes values for the `{{count}}` placeholder of a translation.
+-->
+<ng-container *transloco="let t">
+  <div class="combo">
+    <input
+      type="text"
+      role="combobox"
+      autocomplete="off"
+      aria-autocomplete="list"
+      [id]="inputId()"
+      [value]="query()"
+      [disabled]="disabled()"
+      [placeholder]="t('org.picker.placeholder')"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listboxId()"
+      [attr.aria-activedescendant]="activeOptionId()"
+      [attr.aria-invalid]="invalid()"
+      [attr.aria-describedby]="ariaDescribedBy()"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+    />
+
+    <ul class="listbox" role="listbox" [id]="listboxId()" [hidden]="!open() || results().length === 0">
+      @for (unit of results(); track unit.id; let i = $index) {
+        <!-- (mousedown) preventDefault keeps focus in the input, so the listbox does not close before (click). -->
+        <li
+          role="option"
+          [id]="optionId(i)"
+          [class.active]="i === activeIndex()"
+          [attr.aria-selected]="i === activeIndex()"
+          (mousedown)="$event.preventDefault()"
+          (click)="choose(unit)"
+        >
+          <span class="line">
+            <!-- &ngsp; = a space Angular's whitespace removal keeps (the option's accessible name needs it). -->
+            <span class="badge">{{ t('org.kind.' + unit.kind) }}</span>&ngsp;<span class="code">{{ unit.code }}</span
+            >&ngsp;<span class="name">{{ unit.name }}</span>
+          </span>
+          @if (unit.path.length) {
+            <ol class="breadcrumb" [attr.aria-label]="t('org.picker.path')">
+              @for (step of unit.path; track step.id) {
+                <li>{{ step.name }}</li>
+              }
+            </ol>
+          }
+        </li>
+      }
+    </ul>
+  </div>
+
+  <!-- A polite live region: screen readers announce search progress without moving focus. -->
+  <p class="status" aria-live="polite" [id]="statusId()">
+    @if (open()) {
+      @switch (state()) {
+        @case ('loading') {
+          {{ t('org.picker.loading') }}
+        }
+        @case ('error') {
+          <span class="error">{{ t('org.picker.error') }}</span>
+        }
+        @case ('done') {
+          {{ results().length ? t('org.picker.results', { count: results().length }) : t('org.picker.noResults') }}
+        }
+      }
+    }
+  </p>
+</ng-container>

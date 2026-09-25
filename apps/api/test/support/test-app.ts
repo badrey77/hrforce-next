@@ -77,6 +77,13 @@ export class TestRoutesController {
     return { requestId: ctx?.requestId, hasTx: ctx?.tx != null };
   }
 
+  @Get('whoami')
+  @RequirePermission('probe.read')
+  whoami(): { userId: string | null | undefined; companyId: string | null | undefined } {
+    const ctx = currentContext();
+    return { userId: ctx?.userId, companyId: ctx?.companyId };
+  }
+
   @Get('org-units')
   @RequirePermission('org_unit.read')
   async orgUnits(): Promise<{ codes: string[]; settings: { companyId: string; userId: string } }> {
@@ -97,7 +104,7 @@ export class TestRoutesController {
   async failAfterInsert(@Body() body: { companyId: string; code: string }): Promise<never> {
     await currentTx()
       .insertInto('org_unit')
-      .values({ company_id: body.companyId, code: body.code, name: body.code })
+      .values({ company_id: body.companyId, kind: 'region', code: body.code })
       .execute();
     throw new Error('boom after insert');
   }
@@ -108,29 +115,39 @@ export class TestRoutesModule {}
 
 export interface CreateTestAppOptions {
   extraModules?: Type[];
+  /**
+   * DEV_AUTH=true: the real dev wiring (X-Dev-User-Id / X-Dev-Company-Id headers, allow-all evaluator unless
+   * `evaluator` is given). Default false: X-Test-User / X-Test-Company headers + TestPermissionEvaluator.
+   */
+  devAuth?: boolean;
+  /** Replaces the PermissionEvaluator. `null` keeps the env-driven default. */
+  evaluator?: Type<PermissionEvaluator> | null;
+  /** Call configureApp() (default true). false = bare Nest bootstrap, to prove APP_GUARD/APP_INTERCEPTOR apply. */
+  configure?: boolean;
 }
 
 /** Builds the real AppModule (+ test routes) through the same configureApp() as main.ts. */
 export async function createTestApp(db: TestDatabase, options: CreateTestAppOptions = {}): Promise<NestExpressApplication> {
+  const devAuth = options.devAuth ?? false;
   const env = loadEnv({
     NODE_ENV: 'test',
     LOG_LEVEL: process.env['LOG_LEVEL'] ?? 'silent',
     DATABASE_URL: db.appUrl,
     MIGRATOR_DATABASE_URL: db.migratorUrl,
     COOKIE_SECRET: 'test-cookie-secret-test-cookie-secret',
+    DEV_AUTH: String(devAuth),
   });
-  const moduleRef = await Test.createTestingModule({
+  let builder = Test.createTestingModule({
     imports: [AppModule, TestRoutesModule, ...(options.extraModules ?? [])],
   })
     .overrideProvider(ENV)
-    .useValue(env)
-    .overrideProvider(RequestIdentityResolver)
-    .useClass(HeaderIdentityResolver)
-    .overrideProvider(PermissionEvaluator)
-    .useClass(TestPermissionEvaluator)
-    .compile();
+    .useValue(env);
+  if (!devAuth) builder = builder.overrideProvider(RequestIdentityResolver).useClass(HeaderIdentityResolver);
+  const evaluator = options.evaluator === undefined ? (devAuth ? null : TestPermissionEvaluator) : options.evaluator;
+  if (evaluator) builder = builder.overrideProvider(PermissionEvaluator).useClass(evaluator);
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
-  configureApp(app);
+  if (options.configure ?? true) configureApp(app);
   await app.init();
   return app;
 }

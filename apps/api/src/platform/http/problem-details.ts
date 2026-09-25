@@ -37,14 +37,16 @@ export class ValidationProblemException extends HttpException {
 }
 
 /**
- * An HTTP error with a stable problem `type` slug and an optional client-safe detail.
- * Feature modules throw this for domain errors (e.g. new ProblemException(409, 'org-unit-code-taken', '…')).
+ * An HTTP error with a stable problem `type` slug, an optional client-safe detail and optional field errors.
+ * Feature modules throw this for domain errors, e.g.
+ *   new ProblemException(409, 'org-unit-code-taken', 'Code already used', [{ field: 'code', code: 'taken', message: '…' }]).
  */
 export class ProblemException extends HttpException {
   constructor(
     status: number,
     readonly slug: string,
     detail?: string,
+    readonly errors?: FieldError[],
   ) {
     super(detail ?? slug, status);
     this.hasDetail = detail !== undefined;

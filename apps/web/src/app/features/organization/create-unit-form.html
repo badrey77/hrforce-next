@@ -1,0 +1,88 @@
+<!--
+  Reactive-form template:
+  - `[formGroup]="form"` binds the <form> to the FormGroup; each `formControlName="x"` binds one input to
+    `form.controls.x` (value, validity, disabled, touched all stay in sync both ways).
+  - `@let code = form.controls.code;` names a control once for the checks below.
+  - Error text shows only once a control is invalid AND touched (blurred or submitted), so users are not
+    scolded while still typing. `aria-invalid` + `aria-describedby` let screen readers announce the error.
+-->
+<form *transloco="let t" class="org-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="create-unit-title" novalidate>
+  <h3 id="create-unit-title">{{ t('org.create.title', { parent: parent().name }) }}</h3>
+
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  <div class="field">
+    <label for="create-unit-kind">{{ t('org.form.kind') }}</label>
+    <select id="create-unit-kind" formControlName="kind">
+      @for (kind of kinds(); track kind) {
+        <option [value]="kind">{{ t('org.kind.' + kind) }}</option>
+      }
+    </select>
+  </div>
+
+  @let code = form.controls.code;
+  <div class="field">
+    <label for="create-unit-code">{{ t('org.form.code') }}</label>
+    <input
+      id="create-unit-code"
+      type="text"
+      formControlName="code"
+      autocomplete="off"
+      maxlength="32"
+      required
+      [attr.aria-invalid]="code.invalid && code.touched"
+      aria-describedby="create-unit-code-hint create-unit-code-error"
+    />
+    <p class="field-hint" id="create-unit-code-hint">{{ t('org.form.codeHint') }}</p>
+    @if (code.invalid && code.touched) {
+      <p class="field-error" id="create-unit-code-error">
+        {{ code.hasError('server') ? code.getError('server') : t(fieldErrorKey(code)) }}
+      </p>
+    }
+  </div>
+
+  @let name = form.controls.name;
+  <div class="field">
+    <label for="create-unit-name">{{ t('org.form.name') }}</label>
+    <input
+      id="create-unit-name"
+      type="text"
+      formControlName="name"
+      required
+      [attr.aria-invalid]="name.invalid && name.touched"
+      [attr.aria-describedby]="name.invalid && name.touched ? 'create-unit-name-error' : null"
+    />
+    @if (name.invalid && name.touched) {
+      <p class="field-error" id="create-unit-name-error">
+        {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+      </p>
+    }
+  </div>
+
+  @let validFrom = form.controls.validFrom;
+  <div class="field">
+    <label for="create-unit-valid-from">{{ t('org.form.validFrom') }}</label>
+    <input
+      id="create-unit-valid-from"
+      type="date"
+      formControlName="validFrom"
+      required
+      [attr.aria-invalid]="validFrom.invalid && validFrom.touched"
+      [attr.aria-describedby]="validFrom.invalid && validFrom.touched ? 'create-unit-valid-from-error' : null"
+    />
+    @if (validFrom.invalid && validFrom.touched) {
+      <p class="field-error" id="create-unit-valid-from-error">
+        {{ validFrom.hasError('server') ? validFrom.getError('server') : t(fieldErrorKey(validFrom)) }}
+      </p>
+    }
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('org.form.saving') : t('common.save') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

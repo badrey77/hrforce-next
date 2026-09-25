@@ -16,9 +16,10 @@ export const routes: Routes = [
     data: { titleKey: 'nav.employees' },
   },
   {
+    // loadChildren: the feature owns its sub-routes (see features/organization/organization.routes.ts).
     path: 'organization',
-    loadComponent: () => import('./features/placeholder/placeholder.page').then((m) => m.PlaceholderPage),
-    data: { titleKey: 'nav.organization' },
+    loadChildren: () =>
+      import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
   },
   {
     path: 'settings',

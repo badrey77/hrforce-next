@@ -19,14 +19,35 @@ export interface Company {
 }
 
 export interface OrgUnit {
+  axis: Generated<string>;
   code: string;
   company_id: string;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  kind: string;
+}
+
+export interface OrgUnitClosure {
+  ancestor_id: string;
+  company_id: string;
+  depth: number;
+  descendant_id: string;
+}
+
+export interface OrgUnitVersion {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
   name: string;
+  name_search: Generated<string | null>;
+  org_unit_id: string;
+  parent_id: string | null;
+  valid: string;
 }
 
 export interface DB {
   company: Company;
   org_unit: OrgUnit;
+  org_unit_closure: OrgUnitClosure;
+  org_unit_version: OrgUnitVersion;
 }

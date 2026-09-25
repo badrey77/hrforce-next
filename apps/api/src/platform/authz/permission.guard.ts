@@ -9,13 +9,14 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { identityOf, RequestIdentityResolver } from '../context/request-identity.js';
-import { PERMISSION_KEY, PUBLIC_KEY } from './decorators.js';
-import { PermissionEvaluator } from './permission-evaluator.js';
+import { accessPolicyOf } from './access-policy.js';
 
 /**
- * Global, deny-by-default guard:
+ * Global (APP_GUARD), deny-by-default guard — the cheap checks that need no database:
  *  - @Public()                → allowed;
- *  - @RequirePermission(code) → 401 if anonymous, 403 unless the PermissionEvaluator grants `code`;
+ *  - @RequirePermission(code) → 401 if anonymous; otherwise allowed HERE — the permission itself is decided by
+ *                               {@link PermissionCheck} inside the request transaction (guards run before
+ *                               interceptors, i.e. before the transaction and its tenant settings exist);
  *  - neither (or both)        → 403 (misconfigured route; the route-scan guardrail should catch it first).
  */
 @Injectable()
@@ -25,27 +26,18 @@ export class PermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly identityResolver: RequestIdentityResolver,
-    private readonly evaluator: PermissionEvaluator,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const targets = [context.getHandler(), context.getClass()];
-    const isPublic = this.reflector.getAllAndOverride<boolean | undefined>(PUBLIC_KEY, targets) === true;
-    const permission = this.reflector.getAllAndOverride<string | undefined>(PERMISSION_KEY, targets);
-
-    if (isPublic === (permission !== undefined)) {
-      this.logger.warn(
-        { handler: `${context.getClass().name}.${context.getHandler().name}` },
-        isPublic ? 'route has both @Public and @RequirePermission' : 'route has no access policy; denied',
-      );
+    const policy = accessPolicyOf(this.reflector, context);
+    if (policy.kind === 'invalid') {
+      this.logger.warn({ handler: `${context.getClass().name}.${context.getHandler().name}` }, policy.reason);
       throw new ForbiddenException();
     }
-    if (isPublic || permission === undefined) return true;
+    if (policy.kind === 'public') return true;
 
-    const req = context.switchToHttp().getRequest<Request>();
-    const identity = await identityOf(this.identityResolver, req);
+    const identity = await identityOf(this.identityResolver, context.switchToHttp().getRequest<Request>());
     if (!identity.userId) throw new UnauthorizedException();
-    if (!(await this.evaluator.hasPermission(identity, permission))) throw new ForbiddenException();
     return true;
   }
 }

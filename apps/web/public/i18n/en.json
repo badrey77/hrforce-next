@@ -23,6 +23,7 @@
       "username": "Username",
       "password": "Password",
       "submit": "Sign in",
+      "submitting": "Signing in…",
       "errors": {
         "invalidCredentials": "Incorrect username or password.",
         "locked": "Your account is temporarily locked. Try again later or contact your administrator.",
@@ -34,6 +35,9 @@
   "home": {
     "title": "Welcome",
     "intro": "Pick a section from the menu to get started."
+  },
+  "placeholder": {
+    "comingSoon": "This page is coming soon."
   },
   "common": {
     "save": "Save",
@@ -47,5 +51,86 @@
     "notFound": "The page you requested could not be found.",
     "forbidden": "You are not allowed to access this resource.",
     "network": "Cannot reach the server. Check your connection."
+  },
+  "org": {
+    "title": "Organization",
+    "asOf": "As of",
+    "kind": {
+      "company": "Company",
+      "region": "Region",
+      "site": "Site"
+    },
+    "tree": {
+      "label": "Organization tree",
+      "toggle": "Sub-units of {{name}}",
+      "loading": "Loading the organization…",
+      "loadError": "Could not load the organization.",
+      "empty": "No sub-unit exists on this date."
+    },
+    "detail": {
+      "placeholder": "Select a unit in the tree to see its details.",
+      "loading": "Loading the unit…",
+      "loadError": "Could not load this unit.",
+      "code": "Code",
+      "kind": "Kind",
+      "path": "Parent chain",
+      "rootUnit": "Root unit",
+      "createdAt": "Created on",
+      "versions": "Version history",
+      "validFrom": "From",
+      "validTo": "To",
+      "name": "Name",
+      "parent": "Parent unit",
+      "open": "Ongoing",
+      "none": "None"
+    },
+    "actions": {
+      "createChild": "Add a sub-unit",
+      "change": "Change"
+    },
+    "form": {
+      "kind": "Kind",
+      "code": "Code",
+      "codeHint": "Capital letters, digits, \"-\" or \"_\", 2 to 32 characters. Cannot be changed later.",
+      "name": "Name",
+      "parent": "Parent unit",
+      "validFrom": "Effective date",
+      "saving": "Saving…",
+      "errors": {
+        "required": "This field is required.",
+        "codePattern": "Invalid code format.",
+        "nameTooLong": "120 characters at most.",
+        "invalidDate": "Invalid date.",
+        "nothingChanged": "Change the name or the parent unit."
+      }
+    },
+    "create": {
+      "title": "New sub-unit of {{parent}}"
+    },
+    "change": {
+      "title": "Change {{name}}",
+      "intro": "Each change creates a new version, effective from the effective date.",
+      "rootNoMove": "The root unit cannot be moved."
+    },
+    "feedback": {
+      "created": "Unit \"{{name}}\" created.",
+      "changed": "Unit \"{{name}}\" updated."
+    },
+    "problems": {
+      "codeTaken": "This code is already in use.",
+      "invalidParent": "This parent unit is not allowed for this kind of unit.",
+      "cycle": "This move would create a loop in the tree.",
+      "versionOverlap": "Another version already starts on or after this date. Pick a later effective date.",
+      "rootImmutable": "The root unit cannot be changed this way.",
+      "notFound": "This unit no longer exists."
+    },
+    "picker": {
+      "placeholder": "Search by code or name",
+      "loading": "Searching…",
+      "noResults": "No unit found.",
+      "error": "The search failed.",
+      "results": "{{count}} result(s)",
+      "path": "Parent chain"
+    }
   }
 }

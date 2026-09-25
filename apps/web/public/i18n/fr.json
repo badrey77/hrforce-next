@@ -51,5 +51,86 @@
     "notFound": "La page demandée est introuvable.",
     "forbidden": "Vous n'avez pas l'autorisation d'accéder à cette ressource.",
     "network": "Impossible de joindre le serveur. Vérifiez votre connexion."
+  },
+  "org": {
+    "title": "Organisation",
+    "asOf": "Situation au",
+    "kind": {
+      "company": "Société",
+      "region": "Région",
+      "site": "Site"
+    },
+    "tree": {
+      "label": "Arborescence de l'organisation",
+      "toggle": "Sous-unités de {{name}}",
+      "loading": "Chargement de l'organisation…",
+      "loadError": "Impossible de charger l'organisation.",
+      "empty": "Aucune sous-unité n'existe à cette date."
+    },
+    "detail": {
+      "placeholder": "Sélectionnez une unité dans l'arborescence pour afficher son détail.",
+      "loading": "Chargement de l'unité…",
+      "loadError": "Impossible de charger cette unité.",
+      "code": "Code",
+      "kind": "Type",
+      "path": "Rattachement",
+      "rootUnit": "Unité racine",
+      "createdAt": "Créée le",
+      "versions": "Historique des versions",
+      "validFrom": "Du",
+      "validTo": "Au",
+      "name": "Nom",
+      "parent": "Unité parente",
+      "open": "En cours",
+      "none": "Aucune"
+    },
+    "actions": {
+      "createChild": "Ajouter une sous-unité",
+      "change": "Modifier"
+    },
+    "form": {
+      "kind": "Type",
+      "code": "Code",
+      "codeHint": "Majuscules, chiffres, « - » ou « _ », de 2 à 32 caractères. Non modifiable ensuite.",
+      "name": "Nom",
+      "parent": "Unité parente",
+      "validFrom": "Date d'effet",
+      "saving": "Enregistrement…",
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "codePattern": "Format de code invalide.",
+        "nameTooLong": "120 caractères au maximum.",
+        "invalidDate": "Date invalide.",
+        "nothingChanged": "Modifiez le nom ou l'unité parente."
+      }
+    },
+    "create": {
+      "title": "Nouvelle sous-unité de {{parent}}"
+    },
+    "change": {
+      "title": "Modifier {{name}}",
+      "intro": "Chaque modification crée une nouvelle version, applicable à partir de la date d'effet.",
+      "rootNoMove": "L'unité racine ne peut pas être déplacée."
+    },
+    "feedback": {
+      "created": "Unité « {{name}} » créée.",
+      "changed": "Unité « {{name}} » mise à jour."
+    },
+    "problems": {
+      "codeTaken": "Ce code est déjà utilisé.",
+      "invalidParent": "Cette unité parente n'est pas autorisée pour ce type d'unité.",
+      "cycle": "Ce déplacement créerait une boucle dans l'arborescence.",
+      "versionOverlap": "Une autre version commence déjà à cette date ou après. Choisissez une date d'effet plus récente.",
+      "rootImmutable": "L'unité racine ne peut pas être modifiée de cette façon.",
+      "notFound": "Cette unité n'existe plus."
+    },
+    "picker": {
+      "placeholder": "Rechercher par code ou nom",
+      "loading": "Recherche…",
+      "noResults": "Aucune unité trouvée.",
+      "error": "La recherche a échoué.",
+      "results": "{{count}} résultat(s)",
+      "path": "Rattachement"
+    }
   }
 }

@@ -1,0 +1,89 @@
+<!--
+  States come straight from the resources:
+    error()    → role="alert" message + retry (`reload()`)
+    hasValue() → content (kept during a reload, so the tree does not flash after a save)
+    otherwise  → loading text
+  `@if (x(); as v)` both tests and names a value.
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('org.title') }}</h1>
+    <div class="as-of">
+      <label for="org-as-of">{{ t('org.asOf') }}</label>
+      <!-- (change), not (input): navigate once the date is complete, not on every keystroke. -->
+      <input id="org-as-of" type="date" [value]="effectiveAsOf()" (change)="onAsOfChange($event)" />
+    </div>
+  </header>
+
+  @if (feedback(); as message) {
+    <p class="feedback" role="status">{{ t(message.key, { name: message.name }) }}</p>
+  }
+
+  <div class="panes">
+    <section class="tree-pane" [attr.aria-busy]="tree.isLoading()">
+      @if (tree.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(treeErrorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="tree.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (root(); as rootNode) {
+        <app-org-tree [root]="rootNode" [(selectedId)]="selectedId" />
+        @if (rootNode.children.length === 0) {
+          <p class="muted">{{ t('org.tree.empty') }}</p>
+        }
+      } @else {
+        <p class="muted">{{ t('org.tree.loading') }}</p>
+      }
+    </section>
+
+    <section class="detail-pane" [attr.aria-busy]="detail.isLoading()">
+      @if (!selectedId()) {
+        <p class="muted">{{ t('org.detail.placeholder') }}</p>
+      } @else if (detail.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(detailErrorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="detail.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (detail.hasValue()) {
+        @let unit = detail.value();
+        @switch (mode()) {
+          @case ('create') {
+            <app-create-unit-form
+              [parent]="unit"
+              [defaultValidFrom]="effectiveAsOf()"
+              (saved)="onCreated($event)"
+              (cancelled)="mode.set('view')"
+            />
+          }
+          @case ('change') {
+            <app-change-unit-form
+              [unit]="unit"
+              [defaultValidFrom]="effectiveAsOf()"
+              (saved)="onChanged($event)"
+              (cancelled)="mode.set('view')"
+            />
+          }
+          @default {
+            @if (can('create_child') || can('update')) {
+              <div class="actions">
+                @if (can('create_child')) {
+                  <button class="btn" type="button" data-action="create" (click)="startMode('create')">
+                    {{ t('org.actions.createChild') }}
+                  </button>
+                }
+                @if (can('update')) {
+                  <button class="btn secondary" type="button" data-action="change" (click)="startMode('change')">
+                    {{ t('org.actions.change') }}
+                  </button>
+                }
+              </div>
+            }
+            <app-unit-detail [unit]="unit" [names]="names()" />
+          }
+        }
+      } @else {
+        <p class="muted">{{ t('org.detail.loading') }}</p>
+      }
+    </section>
+  </div>
+</ng-container>

@@ -1,0 +1,136 @@
+/**
+ * The collapsible org tree: `<app-org-tree [root]="…" [(selectedId)]="…" />`.
+ *
+ * Angular concepts:
+ * - **Recursive component.** `OrgTreeItem` renders one node and, for its children, `<app-org-tree-item>` again —
+ *   a standalone component may use its own selector in its template without importing itself. We chose this
+ *   over `<ng-template>` + `ngTemplateOutlet` recursion because template-outlet contexts are untyped
+ *   (`let-node` would be `any` under strictTemplates); a component input is fully type-checked.
+ * - **Hierarchical DI: injecting an ancestor component.** Every component instance is itself available for
+ *   injection to the components *inside* its template. So each `OrgTreeItem`, however deep, can
+ *   `inject(OrgTree)` and share the tree-wide state (selection, collapsed nodes) — no need to pass inputs down
+ *   and re-emit outputs up through every level. Both classes live in this file: they reference each other,
+ *   and two files importing each other would be a circular dependency (forbidden by the boundaries guard).
+ * - **`model()`** declares a *two-way* bindable signal: the parent writes it with `[selectedId]` and listens with
+ *   `(selectedIdChange)`, or both at once with the "banana in a box" syntax `[(selectedId)]="signal"`.
+ *   Calling `this.selectedId.set(id)` inside updates the parent's signal.
+ * - **`input.required<T>()`**: the template must bind it; reading it before binding throws.
+ *
+ * Accessibility: nested lists of buttons (a disclosure button with `aria-expanded` per parent, a select button with
+ * `aria-current` per node). Every row is reachable with Tab and activated with Enter/Space. This is simpler than the
+ * full ARIA `tree` pattern (roving tabindex, arrow keys) and fully usable; upgrade later if needed.
+ * RTL: indentation uses `padding-inline-start`; the chevron points toward inline-end and is mirrored under `:dir(rtl)`.
+ */
+import { ChangeDetectionStrategy, Component, computed, inject, input, model, signal } from '@angular/core';
+import { TranslocoDirective } from '@jsverse/transloco';
+import type { OrgTreeNode } from '../../core/org/org.models';
+
+@Component({
+  selector: 'app-org-tree-item',
+  imports: [TranslocoDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <ng-container *transloco="let t">
+      <!-- @let declares a template-local variable: read the input signal once, use it below. -->
+      @let item = node();
+      <div class="row" [class.selected]="selected()">
+        @if (item.children.length) {
+          <button
+            type="button"
+            class="toggle"
+            [attr.aria-expanded]="expanded()"
+            [attr.aria-label]="t('org.tree.toggle', { name: item.name })"
+            (click)="tree.toggle(item.id)"
+          >
+            <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
+          </button>
+        } @else {
+          <span class="toggle" aria-hidden="true"></span>
+        }
+        <button type="button" class="node" [attr.aria-current]="selected() ? 'true' : null" (click)="tree.select(item.id)">
+          <!-- Angular drops whitespace-only text between tags; &ngsp; keeps a real space so the button's
+               accessible name reads "Région CENTRE Région Centre", not "RégionCENTRERégion Centre". -->
+          <span class="badge">{{ t('org.kind.' + item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
+        </button>
+      </div>
+      @if (item.children.length && expanded()) {
+        <ul>
+          @for (child of item.children; track child.id) {
+            <li><app-org-tree-item [node]="child" /></li>
+          }
+        </ul>
+      }
+    </ng-container>
+  `,
+  styles: `
+    :host { display: block; }
+    ul { list-style: none; margin: 0; padding: 0; padding-inline-start: var(--space-6); }
+    .row { display: flex; align-items: center; gap: var(--space-1); border-radius: var(--radius); }
+    .row.selected { background: var(--color-hover); }
+    .toggle {
+      display: inline-grid; place-items: center; inline-size: 1.75rem; block-size: 1.75rem; flex-shrink: 0;
+      padding: 0; border: 0; background: none; color: inherit; cursor: pointer;
+    }
+    .chevron { transition: transform 0.15s; }
+    [aria-expanded='true'] .chevron { transform: rotate(90deg); }
+    .chevron:dir(rtl) { transform: scaleX(-1); }
+    [aria-expanded='true'] .chevron:dir(rtl) { transform: scaleX(-1) rotate(90deg); }
+    .node {
+      display: inline-flex; align-items: baseline; gap: var(--space-2); flex: 1; min-inline-size: 0;
+      padding-block: var(--space-1); padding-inline: var(--space-2);
+      border: 0; background: none; color: inherit; text-align: start; cursor: pointer; border-radius: var(--radius);
+    }
+    .node:hover { text-decoration: underline; }
+    .node[aria-current='true'] { font-weight: 600; }
+    .code { font-family: ui-monospace, monospace; font-size: 0.875rem; }
+  `,
+})
+export class OrgTreeItem {
+  /** Resolved from the nearest ancestor `<app-org-tree>` (see header: hierarchical DI). */
+  protected readonly tree = inject(OrgTree);
+  readonly node = input.required<OrgTreeNode>();
+
+  protected readonly expanded = computed(() => !this.tree.isCollapsed(this.node().id));
+  protected readonly selected = computed(() => this.tree.selectedId() === this.node().id);
+}
+
+@Component({
+  selector: 'app-org-tree',
+  imports: [OrgTreeItem, TranslocoDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <ul *transloco="let t" class="root" [attr.aria-label]="t('org.tree.label')">
+      <li><app-org-tree-item [node]="root()" /></li>
+    </ul>
+  `,
+  styles: `
+    .root { list-style: none; margin: 0; padding: 0; }
+  `,
+})
+export class OrgTree {
+  readonly root = input.required<OrgTreeNode>();
+  /** Two-way bindable: `[(selectedId)]`. */
+  readonly selectedId = model<string | null>(null);
+
+  /** Collapsed rather than expanded ids: new nodes (e.g. just created) show up expanded. */
+  private readonly collapsed = signal<ReadonlySet<string>>(new Set());
+
+  isCollapsed(id: string): boolean {
+    return this.collapsed().has(id);
+  }
+
+  toggle(id: string): void {
+    // Signals compare by reference: build a NEW Set so dependents see a change.
+    this.collapsed.update((ids) => {
+      const next = new Set(ids);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  select(id: string): void {
+    this.selectedId.set(id);
+  }
+}

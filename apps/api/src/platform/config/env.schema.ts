@@ -21,7 +21,7 @@ export const DEV_AUTH_ALLOWED_NODE_ENVS: readonly string[] = ['development', 'te
 /** Environment consumed by the HTTP API process. */
 export const apiEnvSchema = z
   .object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
   /** Connection URL for the `hrforce_app` role (DML only, subject to RLS). */

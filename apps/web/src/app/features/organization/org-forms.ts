@@ -18,7 +18,7 @@
  */
 import type { AbstractControl, FormGroup, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { isIsoDate } from '../../core/date/iso-date';
-import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
+import { type ApiFieldError, type ApiProblem, isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { applyServerErrors } from '../../core/http/apply-server-errors';
 import { ORG_PROBLEM_PREFIX, type OrgProblemSlug } from '../../core/org/org.models';
 
@@ -39,6 +39,24 @@ function slugKey(type: string): string | undefined {
   return slug in SLUG_KEYS ? SLUG_KEYS[slug as OrgProblemSlug] : undefined;
 }
 
+/**
+ * For a known business-rule slug, the field shows the TRANSLATED slug message (`{ serverKey }`, read by
+ * `fieldErrorKey`), not the server's `message`: the API writes its messages in English only.
+ */
+function applySlugErrors(form: FormGroup, problem: ApiProblem, key: string): ApiFieldError[] {
+  const unmatched: ApiFieldError[] = [];
+  for (const error of problem.errors ?? []) {
+    const control = form.get(error.field);
+    if (!control) {
+      unmatched.push(error);
+      continue;
+    }
+    control.setErrors({ ...control.errors, serverKey: key });
+    control.markAsTouched();
+  }
+  return unmatched;
+}
+
 /** Applies field errors to `form` and returns the form-level message to show, if any. */
 export function orgWriteError(form: FormGroup, error: unknown): FormError | null {
   if (!isApiProblemError(error)) {
@@ -49,10 +67,10 @@ export function orgWriteError(form: FormGroup, error: unknown): FormError | null
     case 400:
     case 409:
     case 422: {
-      const unmatched = applyServerErrors(form, problem);
+      const key = slugKey(problem.type);
+      const unmatched = key ? applySlugErrors(form, problem, key) : applyServerErrors(form, problem);
       const matchedSome = (problem.errors?.length ?? 0) > unmatched.length;
       if (matchedSome && unmatched.length === 0) return null;
-      const key = slugKey(problem.type);
       if (key) return { key };
       const text = unmatched[0]?.message || problem.detail || problem.title;
       return text ? { text } : { key: 'errors.generic' };
@@ -80,6 +98,8 @@ export const isoDate: ValidatorFn = (control: AbstractControl): ValidationErrors
 
 /** Translation key for a control's first client-side error (server errors carry their own text). */
 export function fieldErrorKey(control: AbstractControl): string {
+  const serverKey: unknown = control.getError('serverKey');
+  if (typeof serverKey === 'string') return serverKey;
   if (control.hasError('required')) return 'org.form.errors.required';
   if (control.hasError('pattern')) return 'org.form.errors.codePattern';
   if (control.hasError('maxlength')) return 'org.form.errors.nameTooLong';

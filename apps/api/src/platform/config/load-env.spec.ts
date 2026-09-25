@@ -10,7 +10,7 @@ const valid = {
 describe('loadEnv', () => {
   it('applies defaults to a minimal valid environment', () => {
     const env = loadEnv(valid);
-    expect(env).toMatchObject({ NODE_ENV: 'development', PORT: 3000, LOG_LEVEL: 'info', DB_POOL_MAX: 10 });
+    expect(env).toMatchObject({ NODE_ENV: 'production', PORT: 3000, LOG_LEVEL: 'info', DB_POOL_MAX: 10 });
   });
 
   it('coerces numeric values', () => {
@@ -54,13 +54,14 @@ describe('loadEnv', () => {
 
   it('DEV_AUTH defaults to false and parses true/false strictly', () => {
     expect(loadEnv(valid).DEV_AUTH).toBe(false);
-    expect(loadEnv({ ...valid, DEV_AUTH: 'true' }).DEV_AUTH).toBe(true);
+    expect(loadEnv({ ...valid, NODE_ENV: 'development', DEV_AUTH: 'true' }).DEV_AUTH).toBe(true);
     expect(loadEnv({ ...valid, DEV_AUTH: 'FALSE' }).DEV_AUTH).toBe(false);
     expect(loadEnv({ ...valid, NODE_ENV: 'test', DEV_AUTH: '1' }).DEV_AUTH).toBe(true);
     expect(() => loadEnv({ ...valid, DEV_AUTH: 'yes' })).toThrowError(/DEV_AUTH: must be true or false/);
   });
 
   it('refuses DEV_AUTH=true unless NODE_ENV is development or test', () => {
+    expect(() => loadEnv({ ...valid, DEV_AUTH: 'true' })).toThrowError(/DEV_AUTH: may only be true/); // NODE_ENV unset → production
     expect(() => loadEnv({ ...valid, NODE_ENV: 'production', DEV_AUTH: 'true' })).toThrowError(
       /DEV_AUTH: may only be true when NODE_ENV is development or test/,
     );

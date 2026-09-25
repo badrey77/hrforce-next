@@ -206,7 +206,7 @@ describe('OrganizationPage', () => {
     );
     await settle();
 
-    expect(el().querySelector('#create-unit-code-error')?.textContent?.trim()).toBe('Ce code existe déjà.');
+    expect(el().querySelector('#create-unit-code-error')?.textContent?.trim()).toBe('Ce code est déjà utilisé.');
     expect(el().querySelector('#create-unit-code')?.getAttribute('aria-invalid')).toBe('true');
     expect(el().querySelector('form [role="alert"]')).toBeNull();
   });

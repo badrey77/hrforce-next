@@ -36,7 +36,7 @@ variables (values are never printed).
 | `DATABASE_URL` | yes | | `hrforce_app` role — DML only, subject to RLS |
 | `MIGRATOR_DATABASE_URL` | for `migrate` | | `hrforce_migrator` role — owns the schema |
 | `COOKIE_SECRET` | yes | | ≥ 32 chars, signs cookies |
-| `NODE_ENV` | | `development` | `development` \| `test` \| `production` |
+| `NODE_ENV` | | `production` (fail-safe) | `development` \| `test` \| `production` |
 | `PORT` | | `3000` | |
 | `LOG_LEVEL` | | `info` | pino level or `silent` |
 | `DB_POOL_MAX` | | `10` | |

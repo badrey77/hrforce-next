@@ -88,7 +88,7 @@ import type { OrgTreeNode } from '../../core/org/org.models';
     .chevron:dir(rtl) { transform: scaleX(-1); }
     [aria-expanded='true'] .chevron:dir(rtl) { transform: scaleX(-1) rotate(90deg); }
     .node {
-      display: inline-flex; align-items: baseline; gap: var(--space-2); flex: 1; min-inline-size: 0;
+      display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); flex: 1; min-inline-size: 0;
       padding-block: var(--space-1); padding-inline: var(--space-2);
       border: 0; background: none; color: inherit; text-align: start; cursor: pointer; border-radius: var(--radius);
     }

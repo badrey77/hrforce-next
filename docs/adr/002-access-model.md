@@ -7,7 +7,7 @@
 
 The legacy design doc §4 models authorization as a single role per user, appropriate for
 the legacy app's flatter deployment. HRForce Next needs finer control from day one: HR
-users only manage employees inside a geographic org unit (company → region → site, with
+users only manage employees inside an org unit of the management tree (see "Org model" below, with
 room for a department axis later), some fields (salary, bank details/RIB, NSS, medical
 documents) are sensitive enough to need their own visibility rule independent of the
 record's general read permission, and every module (organization, identity,
@@ -72,9 +72,15 @@ so the web app never has to re-derive permission logic client-side.
 
 **Org tree.** Modeled as a **closure table** (ancestor/descendant pairs with depth) over
 **versioned `org_unit` rows** (a unit's move or rename creates a new version rather than
-mutating history), rather than Postgres `ltree`. The geographic axis (company → region →
-site) is built first, with the table design leaving room for an independent department
-axis to be added later without a breaking change.
+mutating history), rather than Postgres `ltree`.
+
+**Org model (confirmed 2026-09-25, contract v2).** One management tree:
+Direction Générale → departments → Département RX → regions → agencies, with services under a
+department, a region or an agency. A region only groups agencies and has no departments. Unit
+kinds and allowed parents are reference data (`org_unit_kind`, `org_unit_kind_parent`), not code.
+Sites are places that host units (`site`), not tree levels; a unit's effective site is its own or
+its nearest ancestor's. Grants scoped to a unit therefore follow the management chain: a grant on
+a region covers its agencies and services on every site.
 
 ## Consequences
 

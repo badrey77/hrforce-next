@@ -1,6 +1,6 @@
 # ADR 003: Delivery order — vertical slices, org tree before permissions
 
-**Status:** Proposed — needs approval
+**Status:** Accepted (approved 2026-09-25, recorded in the Phase 1 plan)
 **Date:** 2026-09-24
 
 ## Context

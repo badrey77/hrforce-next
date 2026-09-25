@@ -10,7 +10,7 @@ Report 13 §6 for the full P1 feature list these ADRs support.
 |---|-------|--------|------------|
 | [001](./001-data-access.md) | Data access — Kysely with plain-SQL forward-only migrations | Accepted | 10-BACKEND-REDESIGN.md §5 (TypeORM) |
 | [002](./002-access-model.md) | Access model — scoped permission grants with RLS backstop | Accepted | 10-BACKEND-REDESIGN.md §4 (one role per user) |
-| [003](./003-delivery-order.md) | Delivery order — vertical slices, org tree before permissions | **Proposed — needs approval** | CLAUDE.md's horizontal foundation-first order |
+| [003](./003-delivery-order.md) | Delivery order — vertical slices, org tree before permissions | Accepted | CLAUDE.md's horizontal foundation-first order |
 | [004](./004-browser-auth.md) | Browser auth — httpOnly cookies for both tokens, plus XSRF | Accepted | Report 13: "Not covered today" |
 | [005](./005-infrastructure.md) | Infrastructure — Postgres only in P1 | Accepted | 10-BACKEND-REDESIGN.md §2, §6 (Redis, BullMQ, four apps) |
 

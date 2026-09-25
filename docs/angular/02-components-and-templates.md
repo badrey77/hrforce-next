@@ -145,11 +145,26 @@ between tags by default (for smaller output); `&ngsp;` inserts a real space wher
 *accessible name* of an element depends on one, e.g. in `org-tree.ts`:
 
 ```html
-<span class="badge">{{ t('org.kind.' + item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
+<span class="badge">{{ kindCatalog.labelOf(item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
 ```
 
-Without it, a screen reader would announce `"RégionCENTRERégion Centre"` instead of
-`"Région CENTRE Région Centre"`.
+Without it, a screen reader would announce `"RégionREG-ESTRégion Est"` instead of
+`"Région REG-EST Région Est"`. (The badge text comes from the kind catalogue, not from
+`t()` — see chapter 03, "Combining an app-wide cache signal with the language signal".)
+
+### Template reference variables
+
+`#name` on an element names it for the rest of the template. `sites.page.html` uses one
+to read a search box on submit without any form library:
+
+```html
+<form class="search" role="search" (submit)="search($event, searchInput.value)">
+  <input #searchInput id="sites-q" type="search" [value]="q() ?? ''" ... />
+```
+
+`searchInput` is the `HTMLInputElement` itself. Because the form has no `[formGroup]`,
+Angular's forms directives leave it alone, so `search()` calls
+`event.preventDefault()` to stop the browser's page reload.
 
 ## Inputs, outputs, and `model()`
 

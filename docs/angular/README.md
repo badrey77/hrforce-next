@@ -53,18 +53,25 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `linkedSignal()` | 03 | `src/app/features/organization/organization.page.ts` (`mode`) |
 | `toSignal()` | 03 | `src/app/features/organization/change-unit-form.ts` |
 | `httpResource()` | 03, 06 | `src/app/core/org/org-api.ts` |
+| App-wide cache (`httpResource` in a root service) + language signal | 03, 06 | `src/app/core/org/kind-catalog.ts` |
+| `HttpParams` with repeated values | 06 | `src/app/core/org/org-api.ts` (`search`) |
 | RxJS `debounceTime`/`switchMap` | 03, 07 | `src/app/shared/org-unit-picker/org-unit-picker.ts` |
 | Zoneless change detection | 01, 03 | `src/app/app.config.ts` (`provideBrowserGlobalErrorListeners`, no zone.js) |
 | `inject()`, `providedIn: 'root'` | 04 | `src/app/core/org/org-api.ts` |
 | Hierarchical injectors (component-tree DI) | 04 | `src/app/features/organization/org-tree.ts` |
 | `InjectionToken`, multi-provider (`NG_VALUE_ACCESSOR`) | 04, 07 | `src/app/shared/org-unit-picker/org-unit-picker.ts` |
 | Routes, `loadComponent`, `loadChildren` | 05 | `src/app/app.routes.ts`, `src/app/features/organization/organization.routes.ts` |
+| `routerLinkActive` + `IsActiveMatchOptions` | 05 | `src/app/features/organization/org-nav.ts` |
+| Template reference variable (`#ref`) | 02 | `src/app/features/organization/sites.page.html` |
 | `withComponentInputBinding()` | 05 | `src/app/app.config.ts`, `src/app/features/organization/organization.page.ts` |
 | `provideHttpClient`, interceptors | 06 | `src/app/app.config.ts`, `src/app/core/http/api-problem.interceptor.ts` |
 | `ApiProblem`, RFC 9457 errors | 06 | `src/app/core/http/api-problem.ts` |
 | Dev proxy, dev identity headers | 06 | `apps/web/proxy.conf.json` |
 | Typed reactive forms, `NonNullableFormBuilder` | 07 | `src/app/features/organization/create-unit-form.ts` |
 | `applyServerErrors()` | 06, 07 | `src/app/core/http/apply-server-errors.ts` |
+| Dependent select options, `[ngValue]` / `null` "inherit" | 07 | `src/app/features/organization/create-unit-form.ts` |
+| Validators added from inputs (`addValidators`) | 07 | `src/app/features/organization/change-unit-form.ts` |
+| Data labels (API) vs i18n keys | 03, 08 | `src/app/core/org/kind-catalog.ts` |
 | `ControlValueAccessor` | 07 | `src/app/shared/org-unit-picker/org-unit-picker.ts` |
 | Transloco, `LanguageService`, RTL | 08 | `src/app/core/i18n/language.service.ts` |
 | `TestBed`, `TestBed.tick()` | 09 | `src/app/core/org/org-api.spec.ts` |

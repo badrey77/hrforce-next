@@ -3,39 +3,82 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { ORG_KIND_LIST, SITE_ANNABA, SITE_CNE, SITE_HQ, SITES } from '../../../testing/org-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { todayIso } from '../../core/date/iso-date';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
-import type { OrgAction, OrgTree, OrgTreeNode, OrgUnitDetail } from '../../core/org/org.models';
+import { LanguageService } from '../../core/i18n/language.service';
+import type { OrgAction, OrgTree, OrgTreeNode, OrgUnitDetail, SiteRef } from '../../core/org/org.models';
+import { ORG_UNIT_PICKER_DEBOUNCE_MS } from '../../shared/org-unit-picker/org-unit-picker';
 import { ORGANIZATION_ROUTES } from './organization.routes';
 
-function node(id: string, kind: OrgTreeNode['kind'], code: string, name: string, extra: Partial<OrgTreeNode> = {}): OrgTreeNode {
-  return { id, kind, code, name, children: [], _actions: [], ...extra };
+const ref = ({ id, code, name }: SiteRef): SiteRef => ({ id, code, name });
+
+function node(
+  id: string,
+  kind: string,
+  code: string,
+  name: string,
+  site: SiteRef | null,
+  extra: Partial<OrgTreeNode> = {},
+): OrgTreeNode {
+  return { id, kind, code, name, site, children: [], _actions: [], ...extra };
 }
 
 const ALL: OrgAction[] = ['update', 'create_child'];
-const CENTRE = node('r-centre', 'region', 'CENTRE', 'Région Centre', {
+const HQ = ref(SITE_HQ);
+const CNE = ref(SITE_CNE);
+const ANNABA = ref(SITE_ANNABA);
+
+// A slice of the contract's seed tree.
+const SRV_PAIE = node('s-paie', 'service', 'SRV-PAIE', 'Service Paie', HQ, { _actions: ['update'] });
+const DEP_RH = node('d-rh', 'department', 'DEP-RH', 'Département RH', HQ, { _actions: ALL, children: [SRV_PAIE] });
+const DEP_FIN = node('d-fin', 'department', 'DEP-FIN', 'Département Finances', HQ); // no _actions
+// A service that (wrongly) says create_child: the catalogue allows no child kind, so no create button.
+const SRV_CLI = node('s-cli', 'service', 'SRV-CLI-ANB', 'Service Clientèle', ANNABA, { _actions: ALL });
+const AG_ANNABA = node('a-annaba', 'agency', 'AG-ANNABA', 'Agence Annaba', ANNABA, { _actions: ALL, children: [SRV_CLI] });
+const REG_EST = node('r-est', 'region', 'REG-EST', 'Région Est', CNE, { _actions: ALL, children: [AG_ANNABA] });
+const DEP_RX = node('d-rx', 'department', 'DEP-RX', 'Département RX', HQ, { _actions: ALL, children: [REG_EST] });
+const ROOT = node('dg', 'direction_generale', 'DG', 'Direction Générale', HQ, {
   _actions: ALL,
-  children: [node('s-blida', 'site', 'BLIDA', 'Blida', { _actions: ['update'] })],
+  children: [DEP_RH, DEP_FIN, DEP_RX],
 });
-const EST = node('r-est', 'region', 'EST', 'Région Est'); // no _actions
-const ROOT = node('c-1', 'company', 'GROUPE', 'Groupe Démo', { _actions: ['create_child'], children: [CENTRE, EST] });
+
+const P_DG = { id: 'dg', name: 'Direction Générale' };
+const P_RX = { id: 'd-rx', name: 'Département RX' };
+const P_EST = { id: 'r-est', name: 'Région Est' };
 
 function tree(asOf: string, root: OrgTreeNode = ROOT): OrgTree {
   return { asOf, root };
 }
 
-function detailOf(n: OrgTreeNode, path: OrgUnitDetail['path'] = []): OrgUnitDetail {
+function detailOf(
+  n: OrgTreeNode,
+  path: OrgUnitDetail['path'] = [],
+  extra: Partial<OrgUnitDetail> = {},
+): OrgUnitDetail {
+  const siteInherited = extra.siteInherited ?? false;
   return {
     id: n.id,
     kind: n.kind,
     code: n.code,
     name: n.name,
+    site: n.site,
+    siteInherited,
     path,
     createdAt: '2024-01-01T08:00:00Z',
-    versions: [{ validFrom: '2024-01-01', validTo: null, name: n.name, parentId: path.at(-1)?.id ?? null }],
+    versions: [
+      {
+        validFrom: '2024-01-01',
+        validTo: null,
+        name: n.name,
+        parentId: path.at(-1)?.id ?? null,
+        siteId: siteInherited ? null : (n.site?.id ?? null),
+      },
+    ],
     // oxlint-disable-next-line no-underscore-dangle -- `_actions` is the contract's field name
     _actions: n._actions,
+    ...extra,
   };
 }
 
@@ -73,11 +116,18 @@ describe('OrganizationPage', () => {
 
   const el = () => harness.routeNativeElement as HTMLElement;
 
+  /** The page's reference data: the kind catalogue (once per app) and the sites list (once per page). */
+  function flushReferenceData(): void {
+    http.expectOne('/api/org/kinds').flush(ORG_KIND_LIST);
+    http.expectOne((r) => r.url === '/api/org/sites').flush({ items: SITES });
+  }
+
   async function open(url: string, root: OrgTreeNode = ROOT): Promise<void> {
     await harness.navigateByUrl(url);
     await settle();
     const req = http.expectOne(isTree);
     req.flush(tree(req.request.params.get('asOf') ?? '', root));
+    flushReferenceData();
     await settle();
   }
 
@@ -87,10 +137,10 @@ describe('OrganizationPage', () => {
     return found;
   }
 
-  async function select(n: OrgTreeNode, path: OrgUnitDetail['path'] = []): Promise<void> {
+  async function select(n: OrgTreeNode, path: OrgUnitDetail['path'] = [], extra: Partial<OrgUnitDetail> = {}): Promise<void> {
     button(n.name).click();
     await settle();
-    http.expectOne(`/api/org/units/${n.id}`).flush(detailOf(n, path));
+    http.expectOne(`/api/org/units/${n.id}`).flush(detailOf(n, path, extra));
     await settle();
   }
 
@@ -101,24 +151,63 @@ describe('OrganizationPage', () => {
     input.dispatchEvent(new Event('input'));
   }
 
+  function selectEl(id: string): HTMLSelectElement {
+    const found = el().querySelector(`#${id}`);
+    if (!(found instanceof HTMLSelectElement)) throw new Error(`missing select #${id}`);
+    return found;
+  }
+
+  function optionTexts(id: string): string[] {
+    return [...selectEl(id).options].map((o) => o.textContent?.trim() ?? '');
+  }
+
+  function choose(id: string, optionText: string): void {
+    const sel = selectEl(id);
+    const index = [...sel.options].findIndex((o) => o.textContent?.includes(optionText));
+    if (index < 0) throw new Error(`no option "${optionText}" in #${id}`);
+    sel.selectedIndex = index;
+    sel.dispatchEvent(new Event('change'));
+  }
+
   async function submit(): Promise<void> {
     el().querySelector('form')?.dispatchEvent(new Event('submit'));
     await settle();
   }
 
-  it('asks for the tree as of the asOf query param and renders it', async () => {
+  it('asks for the tree as of the asOf query param and renders kind labels from the catalogue', async () => {
     await harness.navigateByUrl('/organization?asOf=2025-03-31');
     await settle();
     const req = http.expectOne(isTree);
     expect(req.request.urlWithParams).toBe('/api/org/tree?asOf=2025-03-31');
     expect(el().textContent).toContain("Chargement de l'organisation…");
     req.flush(tree('2025-03-31'));
+    flushReferenceData();
     await settle();
 
-    const labels = [...el().querySelectorAll('app-org-tree-item .node')].map((b) => b.textContent?.trim());
-    expect(labels).toEqual(['Société GROUPE Groupe Démo', 'Région CENTRE Région Centre', 'Site BLIDA Blida', 'Région EST Région Est']);
+    const labels = [...el().querySelectorAll('app-org-tree-item .node')].map((b) => b.textContent?.replace(/\s+/g, ' ').trim());
+    // API order is kept; a row shows its site only where it differs from the parent's.
+    expect(labels).toEqual([
+      'Direction générale DG Direction Générale Alger – Siège',
+      'Département DEP-RH Département RH',
+      'Service SRV-PAIE Service Paie',
+      'Département DEP-FIN Département Finances',
+      'Département DEP-RX Département RX',
+      'Région REG-EST Région Est Constantine',
+      'Agence AG-ANNABA Agence Annaba Annaba',
+      'Service SRV-CLI-ANB Service Clientèle',
+    ]);
     expect((el().querySelector('#org-as-of') as HTMLInputElement).value).toBe('2025-03-31');
     expect(el().textContent).toContain('Sélectionnez une unité');
+  });
+
+  it('switches kind labels with the language, without re-fetching the catalogue', async () => {
+    await open('/organization?asOf=2025-03-31');
+    TestBed.inject(LanguageService).use('ar');
+    await settle();
+
+    expect(el().querySelector('app-org-tree-item .badge')?.textContent).toBe('المديرية العامة');
+    http.expectNone('/api/org/kinds');
+    TestBed.inject(LanguageService).use('fr');
   });
 
   it('defaults to today and puts a picked date into the URL', async () => {
@@ -127,6 +216,7 @@ describe('OrganizationPage', () => {
     const first = http.expectOne(isTree);
     expect(first.request.params.get('asOf')).toBe(todayIso());
     first.flush(tree(todayIso()));
+    flushReferenceData();
     await settle();
 
     const date = el().querySelector('#org-as-of') as HTMLInputElement;
@@ -147,13 +237,14 @@ describe('OrganizationPage', () => {
     await settle();
 
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(el().textContent).not.toContain('Région Centre');
+    expect(el().textContent).not.toContain('Département RH');
   });
 
   it('shows an error with retry when the tree fails to load', async () => {
     await harness.navigateByUrl('/organization?asOf=2025-03-31');
     await settle();
     http.expectOne(isTree).flush({ type: 'about:blank', title: 'Boom', status: 500 }, { status: 500, statusText: 'Server Error' });
+    flushReferenceData();
     await settle();
 
     expect(el().querySelector('[role="alert"]')?.textContent).toContain("Impossible de charger l'organisation.");
@@ -162,37 +253,83 @@ describe('OrganizationPage', () => {
     http.expectOne(isTree).flush(tree('2025-03-31'));
   });
 
-  it('shows the selected unit with its versions, and only the actions it allows', async () => {
+  it('shows the selected unit with its effective site, versions with a site column, and only allowed actions', async () => {
     await open('/organization?asOf=2025-03-31');
 
-    await select(EST, [{ id: 'c-1', name: 'Groupe Démo' }]);
-    expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Région Est');
-    expect(el().querySelectorAll('app-unit-detail tbody tr')).toHaveLength(1);
-    expect(el().querySelector('app-unit-detail tbody')?.textContent).toContain('Groupe Démo');
+    await select(DEP_FIN, [P_DG], { siteInherited: true });
+    expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Département Finances');
+    const site = el().querySelector('app-unit-detail [data-field="site"]')?.textContent?.replace(/\s+/g, ' ');
+    expect(site).toContain('Alger – Siège (ALG-HQ)');
+    expect(site).toContain("hérité d'une unité parente");
+    const cells = [...el().querySelectorAll('app-unit-detail tbody td')].map((td) => td.textContent?.trim());
+    expect(cells).toEqual(['2024-01-01', 'En cours', 'Département Finances', 'Direction Générale', 'Hérité']);
     expect(el().querySelector('[data-action]')).toBeNull();
 
-    await select(ROOT);
+    await select(REG_EST, [P_DG, P_RX]);
+    expect(el().querySelector('app-unit-detail tbody')?.textContent).toContain('Constantine (CNE)');
+    expect(el().querySelector('app-unit-detail [data-field="site"]')?.textContent).not.toContain('hérité');
     expect(el().querySelector('[data-action="create"]')).not.toBeNull();
-    expect(el().querySelector('[data-action="change"]')).toBeNull();
+    expect(el().querySelector('[data-action="change"]')).not.toBeNull();
   });
 
-  it('maps a 409 errors[] on code to the code field', async () => {
+  it('hides "add a sub-unit" when the catalogue allows no child kind, even with create_child', async () => {
     await open('/organization?asOf=2025-03-31');
-    await select(CENTRE, [{ id: 'c-1', name: 'Groupe Démo' }]);
+    await select(SRV_CLI, [P_DG, P_RX, P_EST, { id: 'a-annaba', name: 'Agence Annaba' }], { siteInherited: true });
+
+    expect(el().querySelector('[data-action="create"]')).toBeNull();
+    expect(el().querySelector('[data-action="change"]')).not.toBeNull();
+  });
+
+  it('offers the kinds allowed under the selected parent', async () => {
+    await open('/organization?asOf=2025-03-31');
+
+    await select(ROOT);
+    button('Ajouter une sous-unité').click();
+    await settle();
+    expect(optionTexts('create-unit-kind')).toEqual(['Département']);
+    expect(selectEl('create-unit-kind').value).toBe('department'); // single choice → preselected
+
+    await select(REG_EST, [P_DG, P_RX]);
+    button('Ajouter une sous-unité').click();
+    await settle();
+    expect(optionTexts('create-unit-kind')).toEqual(['Choisir un type', 'Agence', 'Service']);
+
+    await select(AG_ANNABA, [P_DG, P_RX, P_EST]);
+    button('Ajouter une sous-unité').click();
+    await settle();
+    expect(optionTexts('create-unit-kind')).toEqual(['Service']);
+  });
+
+  it('create form: site defaults to "inherit" (null); a 409 errors[] on code lands on the code field', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(REG_EST, [P_DG, P_RX]);
     button('Ajouter une sous-unité').click();
     await settle();
 
     expect((el().querySelector('#create-unit-valid-from') as HTMLInputElement).value).toBe('2025-03-31');
-    fill('create-unit-code', 'BLIDA');
-    fill('create-unit-name', ' Blida 2 ');
-    await submit();
+    expect(optionTexts('create-unit-site')).toEqual([
+      "Hériter de l'unité parente — Constantine",
+      'Alger – Siège (ALG-HQ)',
+      'Annaba (ANNABA)',
+      'Constantine (CNE)',
+    ]);
 
+    // Several kinds possible: submitting without choosing one is refused client-side.
+    fill('create-unit-code', 'AG-CNE');
+    fill('create-unit-name', ' Agence Constantine ');
+    await submit();
+    expect(el().querySelector('#create-unit-kind-error')?.textContent?.trim()).toBe('Ce champ est obligatoire.');
+    http.expectNone('/api/org/units');
+
+    choose('create-unit-kind', 'Agence');
+    await submit();
     const post = http.expectOne('/api/org/units');
     expect(post.request.body).toEqual({
-      kind: 'site',
-      code: 'BLIDA',
-      name: 'Blida 2',
-      parentId: 'r-centre',
+      kind: 'agency',
+      code: 'AG-CNE',
+      name: 'Agence Constantine',
+      parentId: 'r-est',
+      siteId: null,
       validFrom: '2025-03-31',
     });
     post.flush(
@@ -200,7 +337,7 @@ describe('OrganizationPage', () => {
         type: 'urn:hrforce:problem:org-unit-code-taken',
         title: 'Conflict',
         status: 409,
-        errors: [{ field: 'code', code: 'taken', message: 'Ce code existe déjà.' }],
+        errors: [{ field: 'code', code: 'taken', message: 'Code already used.' }],
       },
       { status: 409, statusText: 'Conflict' },
     );
@@ -211,13 +348,36 @@ describe('OrganizationPage', () => {
     expect(el().querySelector('form [role="alert"]')).toBeNull();
   });
 
-  it('shows a 409 without field as a form-level message', async () => {
+  it('create form sends a chosen site, and maps a 409 site-not-found (no errors[]) to the site field', async () => {
     await open('/organization?asOf=2025-03-31');
-    await select(CENTRE, [{ id: 'c-1', name: 'Groupe Démo' }]);
+    await select(REG_EST, [P_DG, P_RX]);
     button('Ajouter une sous-unité').click();
     await settle();
-    fill('create-unit-code', 'MEDEA');
-    fill('create-unit-name', 'Médéa');
+    choose('create-unit-kind', 'Agence');
+    fill('create-unit-code', 'AG-ANB2');
+    fill('create-unit-name', 'Agence Annaba 2');
+    choose('create-unit-site', 'Annaba (ANNABA)');
+    await submit();
+
+    const post = http.expectOne('/api/org/units');
+    expect(post.request.body).toMatchObject({ kind: 'agency', siteId: 's-annaba' });
+    post.flush(
+      { type: 'urn:hrforce:problem:site-not-found', title: 'Conflict', status: 409 },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await settle();
+
+    expect(el().querySelector('#create-unit-site-error')?.textContent?.trim()).toBe("Ce site n'existe pas ou plus.");
+    expect(el().querySelector('form [role="alert"]')).toBeNull();
+  });
+
+  it('shows a 409 without field as a form-level message', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(AG_ANNABA, [P_DG, P_RX, P_EST]);
+    button('Ajouter une sous-unité').click();
+    await settle();
+    fill('create-unit-code', 'SRV-X');
+    fill('create-unit-name', 'Service X');
     await submit();
 
     http
@@ -233,54 +393,108 @@ describe('OrganizationPage', () => {
 
   it('after a create, refreshes the tree and selects the new unit', async () => {
     await open('/organization?asOf=2025-03-31');
-    await select(CENTRE, [{ id: 'c-1', name: 'Groupe Démo' }]);
+    await select(AG_ANNABA, [P_DG, P_RX, P_EST]);
     button('Ajouter une sous-unité').click();
     await settle();
-    fill('create-unit-code', 'MEDEA');
-    fill('create-unit-name', 'Médéa');
+    fill('create-unit-code', 'SRV-X');
+    fill('create-unit-name', 'Service X');
     await submit();
 
-    const medea = node('s-medea', 'site', 'MEDEA', 'Médéa', { _actions: ['update'] });
-    http.expectOne('/api/org/units').flush(detailOf(medea), { status: 201, statusText: 'Created' });
-    await settle();
-
-    http.expectOne(isTree).flush(tree('2025-03-31', { ...ROOT, children: [{ ...CENTRE, children: [...CENTRE.children, medea] }, EST] }));
-    http.expectOne('/api/org/units/s-medea').flush(detailOf(medea));
-    await settle();
-
-    expect(el().querySelector('[role="status"]')?.textContent).toContain('Unité « Médéa » créée.');
-    expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Médéa');
-    expect(el().querySelector('[data-action="change"]')).not.toBeNull();
-  });
-
-  it('change form sends only what changed and refreshes tree and detail', async () => {
-    await open('/organization?asOf=2025-03-31');
-    const blida = CENTRE.children[0] as OrgTreeNode;
-    await select(blida, [
-      { id: 'c-1', name: 'Groupe Démo' },
-      { id: 'r-centre', name: 'Région Centre' },
-    ]);
-    button('Modifier').click();
-    await settle();
-    // The parent picker labels its preset value (the current parent).
-    http.expectOne('/api/org/units/r-centre').flush(detailOf(CENTRE, [{ id: 'c-1', name: 'Groupe Démo' }]));
-    await settle();
-    expect((el().querySelector('#change-unit-parent') as HTMLInputElement).value).toBe('Région Centre (CENTRE)');
-
-    await submit();
-    expect(el().querySelector('form [role="alert"]')?.textContent).toContain("Modifiez le nom ou l'unité parente.");
-
-    fill('change-unit-name', 'Blida Centre');
-    await submit();
-    const patch = http.expectOne('/api/org/units/s-blida');
-    expect(patch.request.method).toBe('PATCH');
-    expect(patch.request.body).toEqual({ name: 'Blida Centre', validFrom: '2025-03-31' });
-    patch.flush(detailOf({ ...blida, name: 'Blida Centre' }));
+    const created = node('s-x', 'service', 'SRV-X', 'Service X', ANNABA, { _actions: ['update'] });
+    http.expectOne('/api/org/units').flush(detailOf(created, [], { siteInherited: true }), { status: 201, statusText: 'Created' });
     await settle();
 
     http.expectOne(isTree).flush(tree('2025-03-31'));
-    http.expectOne('/api/org/units/s-blida').flush(detailOf({ ...blida, name: 'Blida Centre' }));
+    http.expectOne('/api/org/units/s-x').flush(detailOf(created, [], { siteInherited: true }));
     await settle();
-    expect(el().querySelector('[role="status"]')?.textContent).toContain('Blida Centre');
+
+    expect(el().querySelector('[role="status"]')?.textContent).toContain('Unité « Service X » créée.');
+    expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Service X');
+    expect(el().querySelector('[data-action="change"]')).not.toBeNull();
+  });
+
+  it('change form sends only what changed, including "inherit" as siteId null, and refreshes', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(REG_EST, [P_DG, P_RX]);
+    button('Modifier').click();
+    await settle();
+    // The parent picker labels its preset value (the current parent).
+    http.expectOne('/api/org/units/d-rx').flush(detailOf(DEP_RX, [P_DG]));
+    await settle();
+    expect((el().querySelector('#change-unit-parent') as HTMLInputElement).value).toBe('Département RX (DEP-RX)');
+    expect(selectEl('change-unit-site').selectedOptions[0]?.textContent?.trim()).toBe('Constantine (CNE)');
+    expect(optionTexts('change-unit-site')[0]).toBe("Hériter de l'unité parente");
+
+    await submit();
+    expect(el().querySelector('form [role="alert"]')?.textContent).toContain("Modifiez le nom, l'unité parente ou le site.");
+
+    fill('change-unit-name', 'Région Est-Sud');
+    choose('change-unit-site', "Hériter de l'unité parente");
+    await submit();
+    const patch = http.expectOne('/api/org/units/r-est');
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.body).toEqual({ name: 'Région Est-Sud', siteId: null, validFrom: '2025-03-31' });
+    const changed = { ...REG_EST, name: 'Région Est-Sud', site: HQ };
+    patch.flush(detailOf(changed, [P_DG, P_RX], { siteInherited: true }));
+    await settle();
+
+    http.expectOne(isTree).flush(tree('2025-03-31'));
+    http.expectOne('/api/org/units/r-est').flush(detailOf(changed, [P_DG, P_RX], { siteInherited: true }));
+    await settle();
+    expect(el().querySelector('[role="status"]')?.textContent).toContain('Région Est-Sud');
+  });
+
+  it('the move picker only searches the kinds allowed as parents (repeated kind params)', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(SRV_PAIE, [P_DG, { id: 'd-rh', name: 'Département RH' }]);
+    button('Modifier').click();
+    await settle();
+    http.expectOne('/api/org/units/d-rh').flush(detailOf(DEP_RH, [P_DG]));
+    await settle();
+
+    fill('change-unit-parent', 'Est');
+    await new Promise((resolve) => setTimeout(resolve, ORG_UNIT_PICKER_DEBOUNCE_MS + 20)); // the picker's debounce
+    const search = http.expectOne((r) => r.url === '/api/org/units');
+    expect(search.request.params.getAll('kind')).toEqual(['department', 'region', 'agency']);
+    expect(search.request.params.get('asOf')).toBe('2025-03-31');
+    search.flush({ items: [] });
+  });
+
+  it('root: cannot be moved, has no "inherit" site option, and maps org-unit-root-site-required to the site', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(ROOT);
+    button('Modifier').click();
+    await settle();
+
+    expect(el().querySelector('app-org-unit-picker')).toBeNull();
+    expect(el().textContent).toContain("L'unité racine ne peut pas être déplacée.");
+    expect(optionTexts('change-unit-site')).toEqual(['Alger – Siège (ALG-HQ)', 'Annaba (ANNABA)', 'Constantine (CNE)']);
+    expect(el().querySelector('#change-unit-site-hint')?.textContent).toContain("L'unité racine doit toujours avoir un site.");
+
+    choose('change-unit-site', 'Constantine (CNE)');
+    await submit();
+    const patch = http.expectOne('/api/org/units/dg');
+    expect(patch.request.body).toEqual({ siteId: 's-cne', validFrom: '2025-03-31' });
+    patch.flush(
+      {
+        type: 'urn:hrforce:problem:org-unit-root-site-required',
+        title: 'Conflict',
+        status: 409,
+        errors: [{ field: 'siteId', code: 'required', message: 'Root needs a site.' }],
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await settle();
+
+    expect(el().querySelector('#change-unit-site-error')?.textContent?.trim()).toBe("L'unité racine doit avoir un site.");
+    expect(el().querySelector('form [role="alert"]')).toBeNull();
+  });
+
+  it('links to the sites section', async () => {
+    await open('/organization?asOf=2025-03-31');
+    const links = [...el().querySelectorAll('app-org-nav a')];
+    expect(links.map((a) => a.textContent?.trim())).toEqual(['Structure', 'Sites']);
+    expect(links[0]?.getAttribute('aria-current')).toBe('page');
+    expect(links[1]?.getAttribute('href')).toBe('/organization/sites');
   });
 });

@@ -43,7 +43,7 @@
         >
           <span class="line">
             <!-- &ngsp; = a space Angular's whitespace removal keeps (the option's accessible name needs it). -->
-            <span class="badge">{{ t('org.kind.' + unit.kind) }}</span>&ngsp;<span class="code">{{ unit.code }}</span
+            <span class="badge">{{ kindCatalog.labelOf(unit.kind) }}</span>&ngsp;<span class="code">{{ unit.code }}</span
             >&ngsp;<span class="name">{{ unit.name }}</span>
           </span>
           @if (unit.path.length) {

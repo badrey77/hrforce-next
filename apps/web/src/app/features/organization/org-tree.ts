@@ -15,6 +15,12 @@
  *   `(selectedIdChange)`, or both at once with the "banana in a box" syntax `[(selectedId)]="signal"`.
  *   Calling `this.selectedId.set(id)` inside updates the parent's signal.
  * - **`input.required<T>()`**: the template must bind it; reading it before binding throws.
+ * - **Data labels vs i18n labels**: the kind badge is `kindCatalog.labelOf(kind)` — a label that comes from the API
+ *   (the kind catalogue) in the active language — while fixed UI texts still come from `t()`.
+ *
+ * Children are shown in the order the API sends them (kind sortOrder, then code): no sorting here.
+ * The effective site is shown on a row only where it differs from the parent's, so a service hosted at its
+ * agency's site does not repeat it.
  *
  * Accessibility: nested lists of buttons (a disclosure button with `aria-expanded` per parent, a select button with
  * `aria-current` per node). Every row is reachable with Tab and activated with Enter/Space. This is simpler than the
@@ -23,6 +29,7 @@
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input, model, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { KindCatalog } from '../../core/org/kind-catalog';
 import type { OrgTreeNode } from '../../core/org/org.models';
 
 @Component({
@@ -52,13 +59,16 @@ import type { OrgTreeNode } from '../../core/org/org.models';
         <button type="button" class="node" [attr.aria-current]="selected() ? 'true' : null" (click)="tree.select(item.id)">
           <!-- Angular drops whitespace-only text between tags; &ngsp; keeps a real space so the button's
                accessible name reads "Région CENTRE Région Centre", not "RégionCENTRERégion Centre". -->
-          <span class="badge">{{ t('org.kind.' + item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
+          <span class="badge">{{ kindCatalog.labelOf(item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
+          @if (ownSite(); as site) {
+            &ngsp;<span class="site" [attr.title]="t('org.detail.site')">{{ site.name }}</span>
+          }
         </button>
       </div>
       @if (item.children.length && expanded()) {
         <ul>
           @for (child of item.children; track child.id) {
-            <li><app-org-tree-item [node]="child" /></li>
+            <li><app-org-tree-item [node]="child" [parentSiteId]="item.site?.id ?? null" /></li>
           }
         </ul>
       }
@@ -85,13 +95,22 @@ import type { OrgTreeNode } from '../../core/org/org.models';
     .node:hover { text-decoration: underline; }
     .node[aria-current='true'] { font-weight: 600; }
     .code { font-family: ui-monospace, monospace; font-size: 0.875rem; }
+    .site { color: var(--color-text-muted); font-size: 0.8125rem; }
   `,
 })
 export class OrgTreeItem {
   /** Resolved from the nearest ancestor `<app-org-tree>` (see header: hierarchical DI). */
   protected readonly tree = inject(OrgTree);
+  protected readonly kindCatalog = inject(KindCatalog);
   readonly node = input.required<OrgTreeNode>();
+  /** Effective site of the parent row (`null` for the root or an unsited parent). */
+  readonly parentSiteId = input<string | null>(null);
 
+  /** The site to show on this row: the effective site, unless it is the same as the parent's. */
+  protected readonly ownSite = computed(() => {
+    const site = this.node().site;
+    return site && site.id !== this.parentSiteId() ? site : null;
+  });
   protected readonly expanded = computed(() => !this.tree.isCollapsed(this.node().id));
   protected readonly selected = computed(() => this.tree.selectedId() === this.node().id);
 }

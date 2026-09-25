@@ -1,0 +1,89 @@
+<!-- Same field pattern as create-unit-form.html: error shown once invalid AND touched, wired with aria-*. -->
+<form *transloco="let t" class="org-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="create-site-title" novalidate>
+  <h3 id="create-site-title">{{ t('org.sites.createTitle') }}</h3>
+
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @let code = form.controls.code;
+  <div class="field">
+    <label for="create-site-code">{{ t('org.sites.code') }}</label>
+    <input
+      id="create-site-code"
+      type="text"
+      formControlName="code"
+      autocomplete="off"
+      maxlength="32"
+      required
+      [attr.aria-invalid]="code.invalid && code.touched"
+      aria-describedby="create-site-code-hint create-site-code-error"
+    />
+    <p class="field-hint" id="create-site-code-hint">{{ t('org.form.codeHint') }}</p>
+    @if (code.invalid && code.touched) {
+      <p class="field-error" id="create-site-code-error">
+        {{ code.hasError('server') ? code.getError('server') : t(fieldErrorKey(code)) }}
+      </p>
+    }
+  </div>
+
+  @let name = form.controls.name;
+  <div class="field">
+    <label for="create-site-name">{{ t('org.sites.name') }}</label>
+    <input
+      id="create-site-name"
+      type="text"
+      formControlName="name"
+      required
+      [attr.aria-invalid]="name.invalid && name.touched"
+      [attr.aria-describedby]="name.invalid && name.touched ? 'create-site-name-error' : null"
+    />
+    @if (name.invalid && name.touched) {
+      <p class="field-error" id="create-site-name-error">
+        {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+      </p>
+    }
+  </div>
+
+  @let wilaya = form.controls.wilaya;
+  <div class="field">
+    <label for="create-site-wilaya">{{ t('org.sites.wilaya') }}</label>
+    <input
+      id="create-site-wilaya"
+      type="text"
+      formControlName="wilaya"
+      required
+      [attr.aria-invalid]="wilaya.invalid && wilaya.touched"
+      [attr.aria-describedby]="wilaya.invalid && wilaya.touched ? 'create-site-wilaya-error' : null"
+    />
+    @if (wilaya.invalid && wilaya.touched) {
+      <p class="field-error" id="create-site-wilaya-error">
+        {{ wilaya.hasError('server') ? wilaya.getError('server') : t(fieldErrorKey(wilaya)) }}
+      </p>
+    }
+  </div>
+
+  @let address = form.controls.address;
+  <div class="field">
+    <label for="create-site-address">{{ t('org.sites.address') }} {{ t('org.form.optional') }}</label>
+    <input
+      id="create-site-address"
+      type="text"
+      formControlName="address"
+      [attr.aria-invalid]="address.invalid && address.touched"
+      [attr.aria-describedby]="address.invalid && address.touched ? 'create-site-address-error' : null"
+    />
+    @if (address.invalid && address.touched) {
+      <p class="field-error" id="create-site-address-error">
+        {{ address.hasError('server') ? address.getError('server') : t(fieldErrorKey(address)) }}
+      </p>
+    }
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('org.form.saving') : t('common.save') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

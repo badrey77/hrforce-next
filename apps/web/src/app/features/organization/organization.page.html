@@ -14,6 +14,14 @@
       <input id="org-as-of" type="date" [value]="effectiveAsOf()" (change)="onAsOfChange($event)" />
     </div>
   </header>
+  <app-org-nav />
+
+  @if (kindCatalog.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('org.kinds.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="kindCatalog.reload()">{{ t('common.retry') }}</button>
+    </div>
+  }
 
   @if (feedback(); as message) {
     <p class="feedback" role="status">{{ t(message.key, { name: message.name }) }}</p>
@@ -50,6 +58,7 @@
           @case ('create') {
             <app-create-unit-form
               [parent]="unit"
+              [sites]="sites()"
               [defaultValidFrom]="effectiveAsOf()"
               (saved)="onCreated($event)"
               (cancelled)="mode.set('view')"
@@ -58,15 +67,16 @@
           @case ('change') {
             <app-change-unit-form
               [unit]="unit"
+              [sites]="sites()"
               [defaultValidFrom]="effectiveAsOf()"
               (saved)="onChanged($event)"
               (cancelled)="mode.set('view')"
             />
           }
           @default {
-            @if (can('create_child') || can('update')) {
+            @if (canCreateUnder(unit) || can('update')) {
               <div class="actions">
-                @if (can('create_child')) {
+                @if (canCreateUnder(unit)) {
                   <button class="btn" type="button" data-action="create" (click)="startMode('create')">
                     {{ t('org.actions.createChild') }}
                   </button>
@@ -78,7 +88,7 @@
                 }
               </div>
             }
-            <app-unit-detail [unit]="unit" [names]="names()" />
+            <app-unit-detail [unit]="unit" [names]="names()" [siteNames]="siteNames()" />
           }
         }
       } @else {

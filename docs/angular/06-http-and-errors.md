@@ -110,8 +110,7 @@ treeResource(asOf: () => string | undefined): HttpResourceRef<OrgTree | undefine
 }
 
 search(query: OrgUnitSearch): Observable<OrgUnitSearchResult> {
-  const params: Record<string, string> = {};
-  if (query.q?.trim()) params['q'] = query.q.trim();
+  let params = new HttpParams();
   ...
   return this.http.get<OrgUnitSearchResult>(`${ORG_API_BASE}/units`, { params });
 }
@@ -123,6 +122,79 @@ as long as that component, re-fetching whenever `effectiveAsOf()` changes value.
 `search()` is called fresh on every keystroke pipeline tick in the picker — a plain
 Observable per call, composed with `switchMap` there because the *timing* (debounce,
 cancel-on-new-keystroke) needs RxJS operators a resource doesn't give you directly.
+
+## `HttpParams` with repeated values
+
+The contract's search accepts several kinds as a **repeated** query parameter:
+`GET /org/units?kind=region&kind=agency`. A plain params object
+(`{ kind: 'region' }`) holds one value per name, so `OrgApi.search()` builds an
+`HttpParams`:
+
+```ts
+// src/app/core/org/org-api.ts
+search(query: OrgUnitSearch): Observable<OrgUnitSearchResult> {
+  let params = new HttpParams();
+  // HttpParams is immutable: re-assign the result of each append.
+  if (query.q?.trim()) params = params.append('q', query.q.trim());
+  if (query.kinds?.length) params = params.appendAll({ kind: query.kinds });
+  if (query.asOf) params = params.append('asOf', query.asOf);
+  return this.http.get<OrgUnitSearchResult>(`${ORG_API_BASE}/units`, { params });
+}
+```
+
+- `HttpParams` is **immutable**: `append()`/`appendAll()`/`set()` return a *new*
+  instance. `params.append('q', x);` on its own line does nothing — you must re-assign.
+- `append(name, value)` adds one more value for `name`; `set()` would replace them all.
+  `appendAll({ kind: ['region', 'agency'] })` appends each array item as its own
+  `kind=` pair.
+- In a test, `req.request.params.getAll('kind')` returns `['region', 'agency']`
+  (`get('kind')` would return only the first) — see `org-api.spec.ts` and the
+  "move picker" test in `organization.page.spec.ts`.
+- On the API side, Express parses repeated keys into an array; the DTO accepts a string
+  or an array (`apps/api/src/modules/organization/api/org.dto.ts`).
+
+## Reference data: fetch once per app
+
+`GET /org/kinds` is reference data: small, identical for every screen, changes only
+with a migration. It should be requested **once per app**, not once per page visit.
+Three ways to do that in Angular:
+
+| Option | What you get | Why not / why |
+|---|---|---|
+| `http.get(url).pipe(shareReplay(1))` stored in a root service | One request, the last value replayed to every later subscriber | Still an `Observable`: every consumer subscribes (or wraps it in `toSignal`). A failed request is replayed as a failure to everyone unless you add retry/reset logic yourself. |
+| `httpResource()` in each component | Signals, loading/error state | One request **per component instance**: every visit to `/organization` would re-fetch. |
+| **`httpResource()` held by a root service** (chosen) | One request for the app's lifetime, exposed as signals (`value()`, `error()`, `hasValue()`), with `reload()` for a retry | — |
+
+```ts
+// src/app/core/org/org-api.ts
+kindsResource(): HttpResourceRef<OrgKindList | undefined> {
+  return httpResource<OrgKindList>(() => `${ORG_API_BASE}/kinds`);
+}
+
+// src/app/core/org/kind-catalog.ts
+@Injectable({ providedIn: 'root' })
+export class KindCatalog {
+  private readonly resource = inject(OrgApi).kindsResource();
+  ...
+  reload(): void {
+    this.resource.reload();
+  }
+}
+```
+
+Why it fetches once: a resource re-runs its request function only when a signal it
+read changes, and this one reads none. The service is created by the root injector on
+the first `inject(KindCatalog)` (the tree, the forms, the picker, the page all inject
+the *same* instance), and a root service's field initializer is an injection context,
+so `httpResource()` can be created there. The resource lives as long as the app.
+`organization.page.html` shows the catalogue's `error()` with a retry button calling
+`kindCatalog.reload()`.
+
+Compare the **sites list**: tenant data that users change (the Sites page creates
+sites). The tree page loads it once *per page* (`OrganizationPage.sitesResource`) and
+passes it down to the forms and the detail as an input; the Sites page has its own
+`sitesResource(this.q)` driven by the `?q=` query param. Caching it app-wide would
+serve stale lists after a create.
 
 ## Cancellation
 

@@ -7,5 +7,13 @@
     "table": "company",
     "reason": "The tenant table itself: its own id IS the company id. Still isolated by RLS on id = current_setting('app.company_id').",
     "rls": true
+  },
+  {
+    "table": "org_unit_kind",
+    "reason": "Global reference catalogue of org unit kinds (labels, sort order, root flag) shared by every tenant; seeded by migration 0006, SELECT-only for hrforce_app."
+  },
+  {
+    "table": "org_unit_kind_parent",
+    "reason": "Global reference catalogue of allowed parent kinds per org unit kind, shared by every tenant; seeded by migration 0006, SELECT-only for hrforce_app."
   }
 ]

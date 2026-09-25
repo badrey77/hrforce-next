@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting, type TestRequest } fro
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { flushKinds } from '../../../testing/org-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import type { OrgUnitSummary } from '../../core/org/org.models';
@@ -11,16 +12,32 @@ import { ORG_UNIT_PICKER_DEBOUNCE_MS, OrgUnitPicker } from './org-unit-picker';
 const CENTRE: OrgUnitSummary = {
   id: 'r-centre',
   kind: 'region',
-  code: 'CENTRE',
+  code: 'REG-CTR',
   name: 'Région Centre',
-  path: [{ id: 'c-1', name: 'Groupe Démo' }],
+  site: { id: 's-blida', code: 'BLIDA', name: 'Blida' },
+  path: [
+    { id: 'dg', name: 'Direction Générale' },
+    { id: 'd-rx', name: 'Département RX' },
+  ],
 };
-const EST: OrgUnitSummary = { id: 'r-est', kind: 'region', code: 'EST', name: 'Région Est', path: CENTRE.path };
+const AG_ANNABA: OrgUnitSummary = {
+  id: 'a-annaba',
+  kind: 'agency',
+  code: 'AG-ANNABA',
+  name: 'Agence Annaba',
+  site: { id: 's-annaba', code: 'ANNABA', name: 'Annaba' },
+  path: [...CENTRE.path, { id: 'r-est', name: 'Région Est' }],
+};
 
 @Component({
   imports: [ReactiveFormsModule, OrgUnitPicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<app-org-unit-picker [formControl]="control" inputId="parent" [kinds]="['region']" asOf="2025-01-31" />`,
+  template: `<app-org-unit-picker
+    [formControl]="control"
+    inputId="parent"
+    [kinds]="['region', 'agency']"
+    asOf="2025-01-31"
+  />`,
 })
 class Host {
   readonly control = new FormControl<string | null>(null);
@@ -43,6 +60,9 @@ describe('OrgUnitPicker', () => {
     el = fixture.nativeElement as HTMLElement;
     http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
+    // The picker injects KindCatalog (option badges): answer its one catalogue request.
+    TestBed.tick();
+    flushKinds(http);
   });
 
   afterEach(() => {
@@ -72,7 +92,7 @@ describe('OrgUnitPicker', () => {
     fixture.detectChanges();
   }
 
-  it('debounces typing into one request with q, the single kind and asOf', () => {
+  it('debounces typing into one request with q, repeated kind params and asOf', () => {
     type('c');
     type('ce');
     vi.advanceTimersByTime(ORG_UNIT_PICKER_DEBOUNCE_MS - 1);
@@ -80,11 +100,14 @@ describe('OrgUnitPicker', () => {
 
     vi.advanceTimersByTime(1);
     const req = http.expectOne(isSearch);
-    expect(req.request.urlWithParams).toBe('/api/org/units?q=ce&kind=region&asOf=2025-01-31');
-    respond(req, [CENTRE]);
+    expect(req.request.urlWithParams).toBe('/api/org/units?q=ce&kind=region&kind=agency&asOf=2025-01-31');
+    respond(req, [CENTRE, AG_ANNABA]);
 
-    expect(el.querySelectorAll('[role="option"]')).toHaveLength(1);
-    expect(el.querySelector('[role="option"]')?.textContent).toContain('Groupe Démo');
+    const options = el.querySelectorAll('[role="option"]');
+    expect(options).toHaveLength(2);
+    expect(options[0]?.textContent).toContain('Département RX');
+    // The badge is the catalogue label of the kind, in the active language.
+    expect(options[1]?.querySelector('.badge')?.textContent).toBe('Agence');
     expect(input().getAttribute('aria-expanded')).toBe('true');
   });
 
@@ -105,7 +128,7 @@ describe('OrgUnitPicker', () => {
   it('moves the active option with arrows and writes the id to the form on Enter', () => {
     type('r');
     vi.advanceTimersByTime(ORG_UNIT_PICKER_DEBOUNCE_MS);
-    respond(http.expectOne(isSearch), [CENTRE, EST]);
+    respond(http.expectOne(isSearch), [CENTRE, AG_ANNABA]);
 
     expect(input().getAttribute('aria-activedescendant')).toBe('parent-option-0');
     key('ArrowDown');
@@ -115,8 +138,8 @@ describe('OrgUnitPicker', () => {
     key('ArrowUp');
     key('Enter');
 
-    expect(fixture.componentInstance.control.value).toBe('r-est');
-    expect(input().value).toBe('Région Est (EST)');
+    expect(fixture.componentInstance.control.value).toBe('a-annaba');
+    expect(input().value).toBe('Agence Annaba (AG-ANNABA)');
     expect(input().getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -138,10 +161,12 @@ describe('OrgUnitPicker', () => {
 
   it('shows the label of a value set by the form', () => {
     fixture.componentInstance.control.setValue('r-centre');
-    http.expectOne('/api/org/units/r-centre').flush({ ...CENTRE, createdAt: '', versions: [], _actions: [] });
+    http
+      .expectOne('/api/org/units/r-centre')
+      .flush({ ...CENTRE, siteInherited: false, createdAt: '', versions: [], _actions: [] });
     fixture.detectChanges();
 
-    expect(input().value).toBe('Région Centre (CENTRE)');
+    expect(input().value).toBe('Région Centre (REG-CTR)');
   });
 
   it('follows the form control disabled state', () => {

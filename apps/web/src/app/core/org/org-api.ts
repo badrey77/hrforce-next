@@ -1,5 +1,5 @@
 /**
- * OrgApi — the one place that knows the Organization endpoints (`docs/contracts/organization.md`).
+ * OrgApi — the one place that knows the Organization endpoints (`docs/contracts/organization.md`, v2).
  *
  * Angular concepts:
  * - `@Injectable({ providedIn: 'root' })` registers ONE shared instance of this class with the application's
@@ -16,22 +16,32 @@
  *      you give it a function that builds the request from signals; Angular re-runs it whenever those signals
  *      change, cancels the in-flight request if a newer one starts, and exposes the result as signals —
  *      `value()`, `status()`, `isLoading()`, `error()`, `hasValue()` — plus `reload()`. Returning `undefined`
- *      from the function means "no request" (status `idle`). Used for page reads (tree, unit detail).
+ *      from the function means "no request" (status `idle`). Used for page reads (tree, unit detail, sites,
+ *      and the kind catalogue).
+ * - **`HttpParams` with repeated values.** A plain `{ kind: 'x' }` params object holds one value per name. The
+ *   contract wants `kind=region&kind=agency`, so `search()` builds an immutable `HttpParams`: every `.append()`
+ *   returns a NEW instance with one more value (it never mutates), and `appendAll({ kind: [...] })` appends an
+ *   array as repeated params. (A params object with an array value — `{ kind: ['a', 'b'] }` — also repeats; the
+ *   explicit `HttpParams` makes the intent visible and lets us skip empty values.)
  *
  * `*Resource()` methods create an `httpResource`, which itself calls `inject()`. Call them from an injection
  * context — typically a component field initializer: `tree = inject(OrgApi).treeResource(this.asOf)`.
- * The resource then lives as long as that component and is destroyed with it.
+ * The resource then lives as long as that component (or, for a root service like KindCatalog, as the app).
  */
-import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
+import { HttpClient, HttpParams, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 import type {
   ChangeOrgUnit,
   CreateOrgUnit,
+  CreateSite,
+  OrgKindList,
   OrgTree,
   OrgUnitDetail,
   OrgUnitSearch,
   OrgUnitSearchResult,
+  Site,
+  SiteList,
 } from './org.models';
 
 export const ORG_API_BASE = '/api/org';
@@ -44,6 +54,14 @@ export function orgUnitUrl(id: string): string {
 @Injectable({ providedIn: 'root' })
 export class OrgApi {
   private readonly http = inject(HttpClient);
+
+  /**
+   * `GET /org/kinds` as a resource. Its request function reads no signal, so it runs ONCE for the resource's
+   * lifetime (plus explicit `reload()`s). Meant for KindCatalog, which keeps one per app.
+   */
+  kindsResource(): HttpResourceRef<OrgKindList | undefined> {
+    return httpResource<OrgKindList>(() => `${ORG_API_BASE}/kinds`);
+  }
 
   /**
    * `GET /org/tree?asOf=` as a resource. `asOf` is a signal (or any function reading signals):
@@ -65,12 +83,22 @@ export class OrgApi {
     });
   }
 
+  /** `GET /org/sites?q=` as a resource; each new `q` re-fetches. A blank `q` lists all (max 200). */
+  sitesResource(q: () => string | undefined): HttpResourceRef<SiteList | undefined> {
+    return httpResource<SiteList>(() => {
+      const text = q()?.trim();
+      const params: Record<string, string> = text ? { q: text } : {};
+      return { url: `${ORG_API_BASE}/sites`, params };
+    });
+  }
+
   /** `GET /org/units` — flat search (q matches code or name). Empty values are left out of the query. */
   search(query: OrgUnitSearch): Observable<OrgUnitSearchResult> {
-    const params: Record<string, string> = {};
-    if (query.q?.trim()) params['q'] = query.q.trim();
-    if (query.kind) params['kind'] = query.kind;
-    if (query.asOf) params['asOf'] = query.asOf;
+    let params = new HttpParams();
+    // HttpParams is immutable: re-assign the result of each append.
+    if (query.q?.trim()) params = params.append('q', query.q.trim());
+    if (query.kinds?.length) params = params.appendAll({ kind: query.kinds });
+    if (query.asOf) params = params.append('asOf', query.asOf);
     return this.http.get<OrgUnitSearchResult>(`${ORG_API_BASE}/units`, { params });
   }
 
@@ -87,5 +115,10 @@ export class OrgApi {
   /** `PATCH /org/units/:id` → 200 with the unit's new state. */
   change(id: string, body: ChangeOrgUnit): Observable<OrgUnitDetail> {
     return this.http.patch<OrgUnitDetail>(orgUnitUrl(id), body);
+  }
+
+  /** `POST /org/sites` → 201 with the created site. */
+  createSite(body: CreateSite): Observable<Site> {
+    return this.http.post<Site>(`${ORG_API_BASE}/sites`, body);
   }
 }

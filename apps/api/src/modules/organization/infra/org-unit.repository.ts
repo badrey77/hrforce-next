@@ -45,7 +45,7 @@ export class OrgUnitRepository {
       .where('company_id', '=', companyId)
       .where('id', '=', id)
       .executeTakeFirst();
-    return row ? { ...row, kind: row.kind as OrgUnitKind } : undefined;
+    return row;
   }
 
   async codeExists(companyId: string, code: string): Promise<boolean> {
@@ -62,7 +62,7 @@ export class OrgUnitRepository {
   async listVersions(companyId: string, unitId: string): Promise<OrgUnitVersionRow[]> {
     const rows = await currentTx()
       .selectFrom('org_unit_version as v')
-      .select(['v.id', 'v.name', 'v.parent_id as parentId', VALID_FROM.as('validFrom'), VALID_TO.as('validTo')])
+      .select(['v.id', 'v.name', 'v.parent_id as parentId', 'v.site_id as siteId', VALID_FROM.as('validFrom'), VALID_TO.as('validTo')])
       .where('v.company_id', '=', companyId)
       .where('v.org_unit_id', '=', unitId)
       .orderBy(sql`lower(v.valid)`)
@@ -70,25 +70,24 @@ export class OrgUnitRepository {
     return rows;
   }
 
-  /** Every unit that has a version valid on `asOf`, with that version's name and parent. */
-  async snapshot(companyId: string, asOf: string): Promise<OrgSnapshotUnit[]> {
-    const rows = await currentTx()
+  /** Every unit that has a version valid on `asOf`, with that version's name, parent and own site. */
+  snapshot(companyId: string, asOf: string): Promise<OrgSnapshotUnit[]> {
+    return currentTx()
       .selectFrom('org_unit as u')
       .innerJoin('org_unit_version as v', (join) =>
         join.onRef('v.company_id', '=', 'u.company_id').onRef('v.org_unit_id', '=', 'u.id'),
       )
-      .select(['u.id', 'u.kind', 'u.code', 'v.name', 'v.parent_id as parentId'])
+      .select(['u.id', 'u.kind', 'u.code', 'v.name', 'v.parent_id as parentId', 'v.site_id as siteId'])
       .where('u.company_id', '=', companyId)
       .where(sql<boolean>`v.valid @> ${asOf}::date`)
       .execute();
-    return rows.map((r) => ({ ...r, kind: r.kind as OrgUnitKind }));
   }
 
   /**
    * Units valid on `asOf` whose code or name contains `q`, ignoring case and accents (search_normalize(), see
    * migration 0005: lower() + translate() of accented Latin letters, backing the generated `name_search` column).
    */
-  async search(companyId: string, params: { asOf: string; q?: string; kind?: OrgUnitKind; limit: number }): Promise<string[]> {
+  async search(companyId: string, params: { asOf: string; q?: string; kinds?: readonly OrgUnitKind[]; limit: number }): Promise<string[]> {
     let query = currentTx()
       .selectFrom('org_unit as u')
       .innerJoin('org_unit_version as v', (join) =>
@@ -97,7 +96,7 @@ export class OrgUnitRepository {
       .select('u.id')
       .where('u.company_id', '=', companyId)
       .where(sql<boolean>`v.valid @> ${params.asOf}::date`);
-    if (params.kind) query = query.where('u.kind', '=', params.kind);
+    if (params.kinds && params.kinds.length > 0) query = query.where('u.kind', 'in', params.kinds);
     if (params.q) {
       const pattern = likeContains(params.q);
       query = query.where(
@@ -125,6 +124,7 @@ export class OrgUnitRepository {
         org_unit_id: unitId,
         name: version.name,
         parent_id: version.parentId,
+        site_id: version.siteId,
         valid: sql<string>`daterange(${version.validFrom}::date, ${version.validTo}::date, '[)')`,
       })
       .execute();

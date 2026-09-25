@@ -55,10 +55,13 @@
   "org": {
     "title": "Organisation",
     "asOf": "Situation au",
-    "kind": {
-      "company": "Société",
-      "region": "Région",
-      "site": "Site"
+    "nav": {
+      "label": "Sections de l'organisation",
+      "structure": "Structure",
+      "sites": "Sites"
+    },
+    "kinds": {
+      "loadError": "Impossible de charger les types d'unités."
     },
     "tree": {
       "label": "Arborescence de l'organisation",
@@ -82,7 +85,10 @@
       "name": "Nom",
       "parent": "Unité parente",
       "open": "En cours",
-      "none": "Aucune"
+      "none": "Aucune",
+      "site": "Site",
+      "siteInherited": "hérité d'une unité parente",
+      "inherited": "Hérité"
     },
     "actions": {
       "createChild": "Ajouter une sous-unité",
@@ -101,8 +107,12 @@
         "codePattern": "Format de code invalide.",
         "nameTooLong": "120 caractères au maximum.",
         "invalidDate": "Date invalide.",
-        "nothingChanged": "Modifiez le nom ou l'unité parente."
-      }
+        "nothingChanged": "Modifiez le nom, l'unité parente ou le site."
+      },
+      "kindPlaceholder": "Choisir un type",
+      "site": "Site",
+      "siteInherit": "Hériter de l'unité parente",
+      "optional": "(facultatif)"
     },
     "create": {
       "title": "Nouvelle sous-unité de {{parent}}"
@@ -110,7 +120,8 @@
     "change": {
       "title": "Modifier {{name}}",
       "intro": "Chaque modification crée une nouvelle version, applicable à partir de la date d'effet.",
-      "rootNoMove": "L'unité racine ne peut pas être déplacée."
+      "rootNoMove": "L'unité racine ne peut pas être déplacée.",
+      "rootSiteRequired": "L'unité racine doit toujours avoir un site."
     },
     "feedback": {
       "created": "Unité « {{name}} » créée.",
@@ -122,7 +133,27 @@
       "cycle": "Ce déplacement créerait une boucle dans l'arborescence.",
       "versionOverlap": "Une autre version commence déjà à cette date ou après. Choisissez une date d'effet plus récente.",
       "rootImmutable": "L'unité racine ne peut pas être modifiée de cette façon.",
-      "notFound": "Cette unité n'existe plus."
+      "notFound": "Cette unité n'existe plus.",
+      "rootSiteRequired": "L'unité racine doit avoir un site.",
+      "siteCodeTaken": "Ce code de site est déjà utilisé.",
+      "siteNotFound": "Ce site n'existe pas ou plus."
+    },
+    "sites": {
+      "title": "Sites",
+      "create": "Nouveau site",
+      "createTitle": "Nouveau site",
+      "created": "Site « {{name}} » créé.",
+      "search": "Rechercher un site",
+      "searchPlaceholder": "Code ou nom",
+      "searchSubmit": "Rechercher",
+      "code": "Code",
+      "name": "Nom",
+      "wilaya": "Wilaya",
+      "address": "Adresse",
+      "loading": "Chargement des sites…",
+      "loadError": "Impossible de charger les sites.",
+      "empty": "Aucun site n'est encore enregistré.",
+      "noMatch": "Aucun site ne correspond à « {{q}} »."
     },
     "picker": {
       "placeholder": "Rechercher par code ou nom",

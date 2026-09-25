@@ -13,13 +13,31 @@
     <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 
+  <!--
+    Dependent options: `kindOptions()` is computed from the parent's kind and the kind catalogue, so the list
+    changes with the parent. `[value]` is enough here (kind codes are strings); the site select below needs
+    `[ngValue]` because one of its values is `null`.
+  -->
+  @let kind = form.controls.kind;
   <div class="field">
     <label for="create-unit-kind">{{ t('org.form.kind') }}</label>
-    <select id="create-unit-kind" formControlName="kind">
-      @for (kind of kinds(); track kind) {
-        <option [value]="kind">{{ t('org.kind.' + kind) }}</option>
+    <select
+      id="create-unit-kind"
+      formControlName="kind"
+      required
+      [attr.aria-invalid]="kind.invalid && kind.touched"
+      [attr.aria-describedby]="kind.invalid && kind.touched ? 'create-unit-kind-error' : null"
+    >
+      @if (kindOptions().length > 1) {
+        <option value="" disabled>{{ t('org.form.kindPlaceholder') }}</option>
+      }
+      @for (option of kindOptions(); track option) {
+        <option [value]="option">{{ kindCatalog.labelOf(option) }}</option>
       }
     </select>
+    @if (kind.invalid && kind.touched) {
+      <p class="field-error" id="create-unit-kind-error">{{ t(fieldErrorKey(kind)) }}</p>
+    }
   </div>
 
   @let code = form.controls.code;
@@ -57,6 +75,34 @@
     @if (name.invalid && name.touched) {
       <p class="field-error" id="create-unit-name-error">
         {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+      </p>
+    }
+  </div>
+
+  @let site = form.controls.siteId;
+  @let parentSite = parent().site;
+  <div class="field">
+    <label for="create-unit-site">{{ t('org.form.site') }}</label>
+    <!--
+      `[ngValue]` keeps the option's real value in the form model: `null` for "inherit", a site id otherwise.
+      (`[value]="null"` would put the STRING "null" in the model.)
+    -->
+    <select
+      id="create-unit-site"
+      formControlName="siteId"
+      [attr.aria-invalid]="site.invalid && site.touched"
+      [attr.aria-describedby]="site.invalid && site.touched ? 'create-unit-site-error' : null"
+    >
+      <option [ngValue]="null">
+        {{ t('org.form.siteInherit') }}{{ parentSite ? ' — ' + parentSite.name : '' }}
+      </option>
+      @for (option of sites(); track option.id) {
+        <option [ngValue]="option.id">{{ option.name }} ({{ option.code }})</option>
+      }
+    </select>
+    @if (site.invalid && site.touched) {
+      <p class="field-error" id="create-unit-site-error">
+        {{ site.hasError('server') ? site.getError('server') : t(fieldErrorKey(site)) }}
       </p>
     }
   </div>

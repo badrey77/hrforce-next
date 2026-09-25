@@ -78,7 +78,12 @@ async function ensureRoles(client: Client): Promise<void> {
   }
 }
 
-async function createOn(superuserBase: string, cleanup: () => Promise<void>): Promise<TestDatabase> {
+export interface CreateTestDatabaseOptions {
+  /** Migrate from this directory instead of apps/api/migrations (e.g. a copy holding only the older migrations). */
+  migrationsDir?: string;
+}
+
+async function createOn(superuserBase: string, cleanup: () => Promise<void>, options: CreateTestDatabaseOptions): Promise<TestDatabase> {
   const name = `hrforce_test_${randomBytes(6).toString('hex')}`;
   await withClient(superuserBase, async (client) => {
     await ensureRoles(client);
@@ -97,7 +102,7 @@ async function createOn(superuserBase: string, cleanup: () => Promise<void>): Pr
     },
   };
   try {
-    await runMigrations({ connectionString: db.migratorUrl });
+    await runMigrations({ connectionString: db.migratorUrl, ...(options.migrationsDir ? { migrationsDir: options.migrationsDir } : {}) });
   } catch (error) {
     await db.drop();
     if (error instanceof Error && /password authentication failed/.test(error.message)) {
@@ -111,15 +116,19 @@ async function createOn(superuserBase: string, cleanup: () => Promise<void>): Pr
   return db;
 }
 
-export async function createTestDatabase(): Promise<TestDatabase> {
+export async function createTestDatabase(options: CreateTestDatabaseOptions = {}): Promise<TestDatabase> {
   const superuserUrl = process.env['TEST_DATABASE_URL'];
-  if (superuserUrl) return createOn(superuserUrl, () => Promise.resolve());
+  if (superuserUrl) return createOn(superuserUrl, () => Promise.resolve(), options);
 
   const { PostgreSqlContainer } = await import('@testcontainers/postgresql');
   const container = await new PostgreSqlContainer('postgres:18-alpine').start();
-  return createOn(container.getConnectionUri(), async () => {
-    await container.stop();
-  });
+  return createOn(
+    container.getConnectionUri(),
+    async () => {
+      await container.stop();
+    },
+    options,
+  );
 }
 
 /** Runs `fn` with a plain pg client (e.g. superuser for seeding). */

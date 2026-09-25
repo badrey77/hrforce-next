@@ -1,24 +1,73 @@
 /**
- * Organization API types — copied from the binding contract `docs/contracts/organization.md`.
+ * Organization API types — copied from the binding contract `docs/contracts/organization.md` (v2).
  * Keep these in sync with that file (field names and unions exactly); the API builds against the same text.
  * Plain TypeScript types: they vanish at runtime and only let `strictTemplates` and the compiler check our usage.
  *
  * Lives in core/ (not features/organization/) because other features — employees, permissions — will
  * need the org types and the picker too, and a feature must never import another feature.
+ *
+ * v2: unit kinds are DATA (`GET /org/kinds`), not a TypeScript union. The web holds no kind rules or kind labels;
+ * `KindCatalog` (kind-catalog.ts) serves both from the catalogue.
  */
 
-export type OrgUnitKind = 'company' | 'region' | 'site';
+/** A code from `GET /org/kinds` (e.g. `direction_generale`, `department`, `region`, `agency`, `service`). */
+export type OrgUnitKind = string;
 export type OrgAction = 'update' | 'create_child';
 
-/** Kinds a client may create (the company root is created with the tenant). */
-export type CreatableOrgUnitKind = Exclude<OrgUnitKind, 'company'>;
+/** Kind labels in every UI language, written by the business in the reference catalogue. */
+export interface OrgKindLabels {
+  readonly fr: string;
+  readonly ar: string;
+  readonly en: string;
+}
+
+export interface OrgKind {
+  readonly code: OrgUnitKind;
+  readonly isRoot: boolean;
+  readonly sortOrder: number;
+  readonly labels: OrgKindLabels;
+  /** Kinds a unit of this kind may hang under; empty for the root. */
+  readonly allowedParents: readonly OrgUnitKind[];
+}
+
+/** `GET /org/kinds` (sorted by sortOrder). */
+export interface OrgKindList {
+  readonly items: readonly OrgKind[];
+}
+
+export interface SiteRef {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+}
+
+/** A place that hosts units — not a node of the tree. */
+export interface Site extends SiteRef {
+  readonly wilaya: string;
+  readonly address: string | null;
+}
+
+/** `GET /org/sites?q=` (max 200, sorted by code). */
+export interface SiteList {
+  readonly items: readonly Site[];
+}
+
+/** `POST /org/sites` body → 201 `Site`. */
+export interface CreateSite {
+  readonly code: string;
+  readonly name: string;
+  readonly wilaya: string;
+  readonly address?: string;
+}
 
 export interface OrgTreeNode {
   readonly id: string;
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
-  /** Sorted by code. */
+  /** Effective site (own, else the nearest ancestor's). */
+  readonly site: SiteRef | null;
+  /** Sorted by the API (kind sortOrder, then code) — the web keeps that order. */
   readonly children: readonly OrgTreeNode[];
   /** What the caller may do on this unit. */
   readonly _actions: readonly OrgAction[];
@@ -40,7 +89,9 @@ export interface OrgUnitSummary {
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
-  /** Ancestors from the company root down to the parent (excludes self). */
+  /** Effective site. */
+  readonly site: SiteRef | null;
+  /** Ancestors from the root down to the parent (excludes self); empty for the root. */
   readonly path: readonly OrgUnitPathItem[];
 }
 
@@ -55,53 +106,43 @@ export interface OrgUnitVersion {
   readonly validTo: string | null;
   readonly name: string;
   readonly parentId: string | null;
+  /** Own site on that version; `null` = inherited from an ancestor. */
+  readonly siteId: string | null;
 }
 
 /** `GET /org/units/:id`, and the response of POST / PATCH. */
 export interface OrgUnitDetail extends OrgUnitSummary {
+  /** True when `site` comes from an ancestor. */
+  readonly siteInherited: boolean;
   readonly createdAt: string;
   /** Newest first. */
   readonly versions: readonly OrgUnitVersion[];
   readonly _actions: readonly OrgAction[];
 }
 
-/** `POST /org/units` body. `validFrom` defaults to today on the server. */
+/** `POST /org/units` body. `validFrom` defaults to today on the server; `siteId` null/absent = inherit. */
 export interface CreateOrgUnit {
-  readonly kind: CreatableOrgUnitKind;
+  readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
   readonly parentId: string;
+  readonly siteId?: string | null;
   readonly validFrom?: string;
 }
 
-/** `PATCH /org/units/:id` body — at least one of `name` / `parentId`. */
+/** `PATCH /org/units/:id` body — at least one of `name` / `parentId` / `siteId` (`siteId: null` = inherit). */
 export interface ChangeOrgUnit {
   readonly name?: string;
   readonly parentId?: string;
+  readonly siteId?: string | null;
   readonly validFrom?: string;
 }
 
-/** Query of `GET /org/units`. */
+/** Query of `GET /org/units`. Several kinds are sent as repeated params: `kind=region&kind=agency`. */
 export interface OrgUnitSearch {
   readonly q?: string;
-  readonly kind?: OrgUnitKind;
+  readonly kinds?: readonly OrgUnitKind[];
   readonly asOf?: string;
-}
-
-/** Contract "Parent rules": a region hangs under the company, a site under a region. */
-export const PARENT_KIND: Readonly<Record<CreatableOrgUnitKind, OrgUnitKind>> = {
-  region: 'company',
-  site: 'region',
-};
-
-/** Kinds that may be created under a parent of the given kind (inverse of PARENT_KIND). */
-export function childKindsOf(parentKind: OrgUnitKind): CreatableOrgUnitKind[] {
-  return (Object.keys(PARENT_KIND) as CreatableOrgUnitKind[]).filter((kind) => PARENT_KIND[kind] === parentKind);
-}
-
-/** Kinds a unit of the given kind may be moved under (empty for the company root: it has no parent). */
-export function parentKindsOf(kind: OrgUnitKind): OrgUnitKind[] {
-  return kind === 'company' ? [] : [PARENT_KIND[kind]];
 }
 
 /** Problem `type`s of the contract's 409 business-rule violations. */
@@ -111,4 +152,7 @@ export type OrgProblemSlug =
   | 'org-unit-invalid-parent'
   | 'org-unit-cycle'
   | 'org-unit-version-overlap'
-  | 'org-unit-root-immutable';
+  | 'org-unit-root-immutable'
+  | 'org-unit-root-site-required'
+  | 'site-code-taken'
+  | 'site-not-found';

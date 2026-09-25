@@ -13,9 +13,12 @@ Angular has two form APIs: template-driven (`[(ngModel)]`) and reactive
 ```ts
 // src/app/features/organization/create-unit-form.ts
 protected readonly form = this.fb.group({
-  kind: this.fb.control<CreatableOrgUnitKind>('region', Validators.required),
+  // '' = nothing chosen yet (only when several kinds are possible); `required` rejects it.
+  kind: ['', Validators.required],
   code: ['', [Validators.required, Validators.pattern(ORG_CODE_PATTERN)]],
   name: ['', [Validators.required, notBlank, Validators.maxLength(ORG_NAME_MAX)]],
+  // The generic widens the type to `string | null`: null = inherit the parent's site (the default).
+  siteId: this.fb.control<string | null>(null),
   validFrom: ['', [Validators.required, isoDate]],
 });
 ```
@@ -25,8 +28,8 @@ plain `FormBuilder`. The difference matters for both types and behavior:
 
 - **Types.** `fb.group({...})`'s return type is inferred from the initial values:
   `form.controls.code` is a `FormControl<string>` (not `string | null`), and
-  `form.getRawValue()` returns `{ kind: CreatableOrgUnitKind; code: string; name:
-  string; validFrom: string }` — a fully typed object, checked by the compiler
+  `form.getRawValue()` returns `{ kind: string; code: string; name: string; siteId:
+  string | null; validFrom: string }` — a fully typed object, checked by the compiler
   everywhere it's used (e.g. `this.api.create({ kind: value.kind, code:
   value.code.trim(), ... })`).
 - **Behavior.** "Non-nullable" means `form.reset()` puts each control back to its
@@ -34,9 +37,100 @@ plain `FormBuilder`. The difference matters for both types and behavior:
   `FormControl<string>` would actually reset to `null`, which is both surprising and
   untypeable without widening the type to `string | null`.
 
-`change-unit-form.ts`'s `kind: this.fb.control<CreatableOrgUnitKind>('region', ...)`
-shows the explicit-generic form: pinning a control's type to a union narrower than what
-TypeScript would infer from just the string literal `'region'`.
+`siteId: this.fb.control<string | null>(null)` shows the explicit-generic form: from
+the initial value `null` alone TypeScript would infer `FormControl<null>`, so the
+generic states the real type. (Kinds used to be a TypeScript union pinned the same way;
+since contract v2 they are data from `GET /org/kinds`, so `kind` is a plain `string`.)
+
+## Dependent select options
+
+The kind `<select>` of the create form offers only the kinds allowed under the chosen
+parent — a department offers region and service, an agency only service. The options
+are a `computed()` over the `parent` input and the kind catalogue:
+
+```ts
+// src/app/features/organization/create-unit-form.ts
+protected readonly kindOptions = computed(() => this.kindCatalog.allowedChildKinds(this.parent().kind));
+
+ngOnInit(): void {
+  const options = this.kindOptions();
+  // One possible kind: preselect it. Several: make the user choose (no silent default).
+  this.form.patchValue({ kind: options.length === 1 ? options[0] : '', validFrom: this.defaultValidFrom() });
+}
+```
+
+```html
+<!-- create-unit-form.html -->
+<select id="create-unit-kind" formControlName="kind" required ...>
+  @if (kindOptions().length > 1) {
+    <option value="" disabled>{{ t('org.form.kindPlaceholder') }}</option>
+  }
+  @for (option of kindOptions(); track option) {
+    <option [value]="option">{{ kindCatalog.labelOf(option) }}</option>
+  }
+</select>
+```
+
+- Options come from data, so no kind name is written in the component.
+- With several options the control starts at `''` and `Validators.required` refuses to
+  submit until a kind is chosen — a silent default would create the wrong kind of unit
+  when the user does not look at the field.
+- The page decides whether the form can open at all: "Add a sub-unit" needs the server's
+  `create_child` action **and** a non-empty `allowedChildKinds(unit.kind)`
+  (`organization.page.ts`'s `canCreateUnder`).
+- The move picker applies the same idea on the other side:
+  `[kinds]="parentKinds()"` with `parentKinds = computed(() =>
+  this.kindCatalog.allowedParentKinds(this.unit().kind))` in `change-unit-form.ts`.
+
+## A `null` option in a typed form: "inherit"
+
+A unit's own site is optional: `null` means "inherit the parent's site". The DOM can
+only store strings in `<option value>`, so binding `[value]="null"` would put the
+**string** `"null"` in the model. `[ngValue]` keeps the real value:
+
+```html
+<!-- create-unit-form.html -->
+<select id="create-unit-site" formControlName="siteId" ...>
+  <option [ngValue]="null">
+    {{ t('org.form.siteInherit') }}{{ parentSite ? ' — ' + parentSite.name : '' }}
+  </option>
+  @for (option of sites(); track option.id) {
+    <option [ngValue]="option.id">{{ option.name }} ({{ option.code }})</option>
+  }
+</select>
+```
+
+`[ngValue]` (from `ReactiveFormsModule`) lets the select accessor map any value —
+`null`, a number, an object — to a generated DOM value and back. Rule of thumb: plain
+strings → `[value]` is fine (the kind select); anything else → `[ngValue]`.
+
+Two consequences in the component code:
+
+- **Comparing, not testing truthiness.** In `change-unit-form.ts`, choosing "inherit" is
+  a real change that must be sent as `siteId: null`:
+  `if (value.siteId !== this.currentSiteId()) body.siteId = value.siteId;` — an
+  `if (value.siteId)` would silently drop it.
+- **What "unchanged" means.** The detail's `site` is the *effective* site; the form
+  presets the unit's *own* site: `siteInherited ? null : site.id`.
+
+## Validators that depend on inputs
+
+The root unit cannot move and must keep a site. Which control is `required` therefore
+depends on the `unit` input, which is only available from `ngOnInit`:
+
+```ts
+// src/app/features/organization/change-unit-form.ts
+ngOnInit(): void {
+  const { controls } = this.form;
+  (this.isRoot() ? controls.siteId : controls.parentId).addValidators(Validators.required);
+  this.form.reset({ ... });
+}
+```
+
+`addValidators()` adds to the control's existing validators; the following `reset()`
+re-runs them. The template hides the picker and the "inherit" option for the root. The
+server enforces the same rules (`org-unit-root-immutable`,
+`org-unit-root-site-required`); the client-side rule only saves a round trip.
 
 ## Connecting the template
 
@@ -158,7 +252,9 @@ unless it's re-added.
 `org-forms.ts`'s `orgWriteError()` builds on top of this for the organization forms
 specifically: it distinguishes 422 (field validation), 409 (business rule, may or may
 not be tied to a field, `type: urn:hrforce:problem:<slug>` mapped to a translation key
-via `SLUG_KEYS`), 403, 404, and everything else, always ending with either `null`
+via `SLUG_KEYS`; the site slugs `org-unit-root-site-required` / `site-not-found` →
+`siteId` and `site-code-taken` → `code` land on their field even when the server sends
+no `errors[]`, via `SLUG_FIELDS`), 403, 404, and everything else, always ending with either `null`
 (all errors matched a control — no form-level message needed) or a `FormError` to show
 above the form. `login.page.ts`'s `handleError()` shows the same shape at smaller scale
 for a form with no nested groups.

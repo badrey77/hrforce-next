@@ -9,6 +9,8 @@ export interface VersionSpan {
 export interface OrgUnitVersionData extends VersionSpan {
   readonly name: string;
   readonly parentId: string | null;
+  /** Own site of the version (null = inherited from the nearest ancestor). */
+  readonly siteId: string | null;
 }
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -47,6 +49,8 @@ export interface VersionChange {
   readonly validFrom: string;
   readonly name?: string;
   readonly parentId?: string;
+  /** undefined = unchanged; null = inherit from the nearest ancestor. */
+  readonly siteId?: string | null;
 }
 
 export interface VersionPlan<T extends OrgUnitVersionData> {
@@ -55,11 +59,12 @@ export interface VersionPlan<T extends OrgUnitVersionData> {
   readonly next: OrgUnitVersionData;
   readonly renamed: boolean;
   readonly moved: boolean;
+  readonly siteChanged: boolean;
 }
 
 /**
  * Splits the history at `change.validFrom`: the current version — the latest, open-ended one — is closed on that
- * date and a new open-ended version carries the new name/parent (unchanged values are copied).
+ * date and a new open-ended version carries the new name/parent/site (unchanged values are copied).
  * `validFrom` must be strictly after the current version's start, otherwise → org-unit-version-overlap.
  */
 export function planNewVersion<T extends OrgUnitVersionData>(versions: readonly T[], change: VersionChange): VersionPlan<T> {
@@ -74,10 +79,12 @@ export function planNewVersion<T extends OrgUnitVersionData>(versions: readonly 
   }
   const name = change.name ?? current.name;
   const parentId = change.parentId ?? current.parentId;
+  const siteId = change.siteId === undefined ? current.siteId : change.siteId;
   return {
     current,
-    next: { validFrom: change.validFrom, validTo: null, name, parentId },
+    next: { validFrom: change.validFrom, validTo: null, name, parentId, siteId },
     renamed: name !== current.name,
     moved: parentId !== current.parentId,
+    siteChanged: siteId !== current.siteId,
   };
 }

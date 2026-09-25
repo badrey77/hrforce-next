@@ -113,7 +113,7 @@ select {
   color: var(--color-text-muted);
 }
 
-/* Small pill naming an org-unit kind (company / region / site). */
+/* Small pill naming an org-unit kind (label from the kind catalogue, e.g. "Agence"). */
 .badge {
   display: inline-block;
   padding-inline: var(--space-2);

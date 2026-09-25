@@ -32,7 +32,7 @@ describe('Row-level security (e2e)', () => {
     await query(
       db.superuserUrl,
       `insert into org_unit (company_id, kind, code) values
-         ($1, 'company', 'A-HQ'), ($1, 'region', 'A-OPS'), ($2, 'company', 'B-HQ')`,
+         ($1, 'direction_generale', 'A-HQ'), ($1, 'department', 'A-OPS'), ($2, 'direction_generale', 'B-HQ')`,
       [COMPANY_A, COMPANY_B],
     );
     appDb = createDatabase({ connectionString: db.appUrl, maxConnections: 2 });
@@ -59,9 +59,9 @@ describe('Row-level security (e2e)', () => {
     expect(owned).toHaveLength(0);
     const tables = await query<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }>(
       db.superuserUrl,
-      `select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('company','org_unit','org_unit_version','org_unit_closure') order by relname`,
+      `select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('company','org_unit','org_unit_version','org_unit_closure','site') order by relname`,
     );
-    expect(tables).toHaveLength(4);
+    expect(tables).toHaveLength(5);
     expect(tables.every((t) => t.relrowsecurity && t.relforcerowsecurity)).toBe(true);
   });
 
@@ -99,7 +99,7 @@ describe('Row-level security (e2e)', () => {
       ),
     ).rejects.toThrow(/row-level security/);
     const updated = await runInRequestTransaction(appDb, scoped(COMPANY_A), () =>
-      currentTx().updateTable('org_unit').set({ axis: 'geo' }).where('code', '=', 'B-HQ').executeTakeFirst(),
+      currentTx().updateTable('org_unit').set({ axis: 'management' }).where('code', '=', 'B-HQ').executeTakeFirst(),
     );
     expect(updated.numUpdatedRows).toBe(0n);
   });

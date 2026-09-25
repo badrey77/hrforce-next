@@ -31,36 +31,52 @@ src/
     core/http/                 ApiProblem + parser, apiProblemInterceptor, applyServerErrors()
     core/date/                 todayIso(), isIsoDate() — dates are `YYYY-MM-DD` strings end to end
     core/org/                  Organization contract types + OrgApi (httpResource reads, Observable writes/search)
+                               + KindCatalog (kind catalogue from GET /org/kinds, once per app, labels in the active language)
     shared/                    reusable UI used by several features (may import core/, never features/)
       org-unit-picker/         <app-org-unit-picker>: search-as-you-type combobox, a ControlValueAccessor (value = unit id)
     features/<name>/           pages (auth/login, home, organization, not-found, placeholder)
     shell/                     shell widgets (language switcher)
-  testing/                     test-only helpers (translocoTesting()), excluded from the app build
+  testing/                     test-only helpers (translocoTesting(), org fixtures: kind catalogue, sites), excluded from the app build
 public/i18n/{fr,ar,en}.json    translations, nested keys
 ```
 
 ## Organization feature (`/organization`)
 
-Built against `docs/contracts/organization.md`.
+Built against `docs/contracts/organization.md` **v2**: one management tree (Direction générale → départements →
+régions → agences, services under a department, a region or an agency) and sites as places that host units.
 
-- **Page** (`features/organization/organization.page.ts`): the org tree as of a date. The date lives in the URL
+- **Kinds are data.** `KindCatalog` (`core/org/kind-catalog.ts`) loads `GET /org/kinds` once per app and serves
+  `kinds()`, `labelOf(code)` (in the active language, follows language switches), `allowedChildKinds(parentKind)`
+  and `allowedParentKinds(kind)`. The web has no kind union, no parent-rule table and no `org.kind.*` i18n keys.
+- **Tree page** (`features/organization/organization.page.ts`): the org tree as of a date. The date lives in the URL
   (`/organization?asOf=2025-01-31`, default today) and reaches the page as a signal input via
-  `withComponentInputBinding()`. Selecting a node loads its detail (`GET /org/units/:id`) with the version history.
-- **Create / change**: "Add a sub-unit" shows when the node's `_actions` has `create_child`, "Change" when it has
-  `update`. The create form posts kind/code/name/effective date under the selected parent; the change form sends
-  only what changed (name and/or parent, chosen with the org-unit picker restricted to valid parent kinds). 422 and
-  409 `errors[]` land on the matching field; 409s without a field show as a form-level message. A successful write
-  reloads the tree and the detail.
+  `withComponentInputBinding()`. Rows show the kind label from the catalogue and the effective site where it
+  differs from the parent's; children keep the API order. Selecting a node loads its detail (`GET /org/units/:id`):
+  effective site (with "inherited" when `siteInherited`) and the version history with a site column.
+- **Create / change**: "Add a sub-unit" shows when the node's `_actions` has `create_child` **and** the catalogue
+  allows at least one child kind; "Change" when it has `update`. The create form offers only the allowed child kinds
+  (preselected when there is one) and a site select defaulting to "inherit from parent" (`siteId: null`). The
+  change form sends only what changed: name, parent (org-unit picker restricted to the allowed parent kinds, sent as
+  repeated `kind=` params) and/or site ("inherit" = `siteId: null`). The root cannot move and must keep a site
+  (no "inherit" option). 422 and 409 `errors[]` land on the matching field; `org-unit-root-site-required` and
+  `site-not-found` land on the site field and `site-code-taken` on the code field even without `errors[]`; other
+  409s without a field show as a form-level message. A successful write reloads the tree and the detail.
+- **Sites** (`/organization/sites`, `features/organization/sites.page.ts`): a sub-route of the feature, linked from
+  both pages by `<app-org-nav>`, lazy-loaded as its own chunk. Lists sites (code, name, wilaya, address) with a
+  search kept in the URL (`?q=`), and a create form (code, name, wilaya, optional address). **Wilaya is free text
+  for now**; a wilaya reference list (and a select) can come later without changing the API shape.
 - **Picker** (`shared/org-unit-picker/`): use it in any reactive form:
-  `<app-org-unit-picker formControlName="unitId" inputId="unit" [kinds]="['region']" [asOf]="date" />`.
-  Debounced search on `GET /org/units`, stale requests cancelled, ARIA combobox keyboard support.
+  `<app-org-unit-picker formControlName="unitId" inputId="unit" [kinds]="['region', 'agency']" [asOf]="date" />`.
+  Debounced search on `GET /org/units` (several kinds → `kind=region&kind=agency`, filtered by the server), stale
+  requests cancelled, ARIA combobox keyboard support, kind badges from the catalogue.
 
 ### Running it against the API (development only)
 
 Until the Identity module exists, the API accepts a development identity:
 
 1. Start Postgres and migrate (`npm run migrate -w @hrforce/api`, see `apps/api/README.md`), then seed the demo company:
-   `npm run seed:dev -w @hrforce/api` (company `GROUPE` Groupe Démo with 3 regions and 6 sites, fixed ids).
+   `npm run seed:dev -w @hrforce/api` (the contract's v2 seed: `DG` Direction Générale with departments, regions,
+   agencies and services, and 7 sites; fixed ids).
 2. Start the API with `DEV_AUTH=true` and `NODE_ENV=development` (the API refuses `DEV_AUTH` in any other environment).
 3. `npm start -w @hrforce/web`, open http://localhost:4200/organization.
 

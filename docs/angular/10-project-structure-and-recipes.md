@@ -13,12 +13,12 @@ src/
     date/        todayIso(), isIsoDate() — plain TS, no Angular
     http/        ApiProblem + apiProblemInterceptor + applyServerErrors()
     i18n/        languages, LanguageService, TranslocoHttpLoader
-    org/         OrgApi + Organization contract types
+    org/         OrgApi + Organization contract types + KindCatalog (kind catalogue, once per app)
   shared/        reusable UI used by more than one feature
     org-unit-picker/
   features/<name>/  one page/flow per feature: auth, home, organization, not-found, placeholder
   shell/         app-chrome widgets (language switcher) — not a route, not shared feature UI
-  testing/       test-only helpers, excluded from the app build (tsconfig.app.json excludes it)
+  testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
 
 (`apps/web/README.md`'s "Layout" section has the same map with per-file notes — this
@@ -99,6 +99,25 @@ Using the Employees screen as a running example (the routes/placeholder already 
    inside its own component, not in `OrgApi`).
 4. **Test with `HttpTestingController`** (chapter 09), asserting the exact URL/params/
    body the contract specifies, following `org-api.spec.ts`.
+
+## Recipe: add reference data (a catalogue from the API)
+
+Following `core/org/kind-catalog.ts` (chapter 03 for the signals, chapter 06 for the
+caching choice):
+
+1. Add the list type and a `…Resource()` method whose request function reads no signal
+   to the domain's `core/<domain>/<domain>-api.ts`.
+2. Create a root service (`@Injectable({ providedIn: 'root' })`) that creates the
+   resource in a field initializer and exposes `computed()` views of it (the list,
+   lookups, rules) plus `error()` and `reload()`.
+3. If the items have per-language labels, build the code → label map in a `computed()`
+   that also reads `LanguageService.current()`, and expose `labelOf(code)`. Do **not**
+   add i18n keys per code.
+4. Show a load error somewhere with a retry calling `reload()`; make `labelOf` fall back
+   to the code so screens still render while it loads.
+5. Tests: add the fixture to `src/testing/`, flush the request in every spec whose
+   components inject the service, and test the label switch with
+   `LanguageService.use()`.
 
 ## Recipe: add a form with server errors
 

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { OrgRuleViolation } from './org-unit.js';
 import { covers, isIsoDate, planNewVersion, sortVersions, toIsoDate, versionAt, type OrgUnitVersionData } from './versions.js';
 
-const oran: OrgUnitVersionData = { validFrom: '2026-01-01', validTo: '2026-03-01', name: 'Oran', parentId: 'r1' };
-const history: OrgUnitVersionData[] = [{ validFrom: '2026-03-01', validTo: null, name: 'Oran Centre', parentId: 'r2' }, oran];
+const oran: OrgUnitVersionData = { validFrom: '2026-01-01', validTo: '2026-03-01', name: 'Oran', parentId: 'r1', siteId: null };
+const history: OrgUnitVersionData[] = [{ validFrom: '2026-03-01', validTo: null, name: 'Oran Centre', parentId: 'r2', siteId: 's1' }, oran];
 
 describe('org unit versions', () => {
   it('ISO dates', () => {
@@ -29,11 +29,21 @@ describe('org unit versions', () => {
   it('a new version from validFrom closes the current one and copies unchanged values', () => {
     const plan = planNewVersion(history, { validFrom: '2026-06-01', parentId: 'r3' });
     expect(plan.current.validFrom).toBe('2026-03-01');
-    expect(plan.next).toEqual({ validFrom: '2026-06-01', validTo: null, name: 'Oran Centre', parentId: 'r3' });
-    expect(plan).toMatchObject({ moved: true, renamed: false });
+    expect(plan.next).toEqual({ validFrom: '2026-06-01', validTo: null, name: 'Oran Centre', parentId: 'r3', siteId: 's1' });
+    expect(plan).toMatchObject({ moved: true, renamed: false, siteChanged: false });
 
     const rename = planNewVersion(history, { validFrom: '2026-06-01', name: 'Oran Ouest', parentId: 'r2' });
-    expect(rename).toMatchObject({ moved: false, renamed: true });
+    expect(rename).toMatchObject({ moved: false, renamed: true, siteChanged: false });
+  });
+
+  it('site changes split the history too: a new site, or null to inherit again', () => {
+    const moveSite = planNewVersion(history, { validFrom: '2026-06-01', siteId: 's2' });
+    expect(moveSite.next).toMatchObject({ name: 'Oran Centre', parentId: 'r2', siteId: 's2' });
+    expect(moveSite).toMatchObject({ siteChanged: true, moved: false, renamed: false });
+    const inherit = planNewVersion(history, { validFrom: '2026-06-01', siteId: null });
+    expect(inherit.next.siteId).toBeNull();
+    expect(inherit.siteChanged).toBe(true);
+    expect(planNewVersion(history, { validFrom: '2026-06-01', siteId: 's1' }).siteChanged).toBe(false);
   });
 
   it('validFrom must be strictly after the current version start (org-unit-version-overlap)', () => {

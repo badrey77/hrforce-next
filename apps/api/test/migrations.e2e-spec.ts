@@ -89,4 +89,34 @@ describe('Migration runner (e2e)', () => {
       await rm(shortDir, { recursive: true, force: true });
     }
   });
+
+  it('0006 (org model v2) refuses a database holding v1 org units and records nothing', async () => {
+    const v1Dir = await mkdtemp(path.join(tmpdir(), 'hrforce-v1-'));
+    let v1: TestDatabase | undefined;
+    try {
+      for (const f of (await loadMigrationFiles(DEFAULT_MIGRATIONS_DIR)).filter((m) => m.version <= 5)) {
+        await cp(path.join(DEFAULT_MIGRATIONS_DIR, f.fileName), path.join(v1Dir, f.fileName));
+      }
+      v1 = await createTestDatabase({ migrationsDir: v1Dir });
+      const company = '0190a5d0-0000-7000-8000-00000000c001';
+      await query(v1.superuserUrl, `insert into company (id, code, name) values ($1, 'V1', 'V1')`, [company]);
+      await query(v1.superuserUrl, `insert into org_unit (company_id, kind, code) values ($1, 'company', 'GROUPE'), ($1, 'region', 'EST')`, [
+        company,
+      ]);
+      await expect(runMigrations({ connectionString: v1.migratorUrl })).rejects.toThrow(
+        /0006_org_model_v2\.sql failed: .*v1 organisation rows.*recreate the database/,
+      );
+      const recorded = await query<{ version: number }>(v1.superuserUrl, 'select version from schema_migrations order by version');
+      expect(recorded.map((r) => r.version)).toEqual([1, 2, 3, 4, 5]);
+      expect(await query(v1.superuserUrl, `select 1 from pg_tables where tablename in ('site', 'org_unit_kind')`)).toHaveLength(0);
+
+      // an empty v1 database migrates cleanly
+      await query(v1.superuserUrl, 'delete from org_unit');
+      const result = await runMigrations({ connectionString: v1.migratorUrl });
+      expect(result.applied).toContain('0006_org_model_v2.sql');
+    } finally {
+      await v1?.drop();
+      await rm(v1Dir, { recursive: true, force: true });
+    }
+  });
 });

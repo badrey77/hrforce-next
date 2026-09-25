@@ -41,6 +41,13 @@ private readonly route = inject(ActivatedRoute);
 Each is resolved independently by walking the injector tree (below) until a provider
 is found.
 
+A root service is also the natural home for **state shared by the whole app**.
+`KindCatalog` (`src/app/core/org/kind-catalog.ts`) is injected by the org page, every
+tree row, the forms and the picker — all get the same instance, so the kind catalogue
+it holds is fetched once (chapter 06, "Reference data: fetch once per app"). Its field
+initializer `inject(OrgApi).kindsResource()` runs in the root injector's injection
+context, which is why it may create an `httpResource` there.
+
 ## The injector tree, and hierarchical injection
 
 Angular does not have one global registry — it has a **tree** of injectors, roughly

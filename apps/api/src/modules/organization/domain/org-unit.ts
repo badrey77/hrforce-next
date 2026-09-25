@@ -1,12 +1,11 @@
 /**
- * Organisation units — pure domain rules (no Nest, no Kysely). Contract: docs/contracts/organization.md.
+ * Organisation units — pure domain rules (no Nest, no Kysely). Contract: docs/contracts/organization.md (v2).
  * Dates are ISO `YYYY-MM-DD` strings throughout: they compare correctly as strings and never shift with time zones.
+ * Unit kinds and their parent rules are data (tables org_unit_kind / org_unit_kind_parent): see {@link KindCatalogue}.
  */
 
-export const ORG_UNIT_KINDS = ['company', 'region', 'site'] as const;
-export type OrgUnitKind = (typeof ORG_UNIT_KINDS)[number];
-/** Kinds that can be created through the API (the company unit is created with the company). */
-export const CREATABLE_KINDS = ['region', 'site'] as const satisfies readonly OrgUnitKind[];
+/** A code from the kind catalogue (GET /org/kinds), e.g. `direction_generale`, `department`, `service`. */
+export type OrgUnitKind = string;
 
 export const ORG_UNIT_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,31}$/;
 export const ORG_UNIT_NAME_MAX = 120;
@@ -14,14 +13,17 @@ export const ORG_UNIT_NAME_MAX = 120;
 export type OrgAction = 'update' | 'create_child';
 
 /** Body fields a rule violation can point at (the web maps them to form controls). */
-export type OrgField = 'name' | 'parentId' | 'code' | 'kind' | 'validFrom';
+export type OrgField = 'name' | 'parentId' | 'siteId' | 'code' | 'kind' | 'validFrom';
 
 export type OrgProblemSlug =
   | 'org-unit-code-taken'
   | 'org-unit-invalid-parent'
   | 'org-unit-cycle'
   | 'org-unit-version-overlap'
-  | 'org-unit-root-immutable';
+  | 'org-unit-root-immutable'
+  | 'org-unit-root-site-required'
+  | 'site-code-taken'
+  | 'site-not-found';
 
 /** A business-rule violation (→ 409 problem with `type: urn:hrforce:problem:<slug>`). */
 export class OrgRuleViolation extends Error {
@@ -36,6 +38,7 @@ export class OrgRuleViolation extends Error {
   }
 }
 
+/** Unit and site codes share the pattern `^[A-Z0-9][A-Z0-9_-]{1,31}$`. */
 export function isOrgUnitCode(code: string): boolean {
   return ORG_UNIT_CODE_PATTERN.test(code);
 }
@@ -46,39 +49,91 @@ export function normalizeName(raw: string): string | null {
   return name.length >= 1 && name.length <= ORG_UNIT_NAME_MAX ? name : null;
 }
 
-/** The kind a unit's parent must have (null: the unit is the root and has no parent). */
-export function requiredParentKind(kind: OrgUnitKind): OrgUnitKind | null {
-  switch (kind) {
-    case 'company':
-      return null;
-    case 'region':
-      return 'company';
-    case 'site':
-      return 'region';
+export interface OrgKindLabels {
+  readonly fr: string;
+  readonly ar: string;
+  readonly en: string;
+}
+
+/** One entry of the kind catalogue (shape of GET /org/kinds items). */
+export interface OrgKind {
+  readonly code: OrgUnitKind;
+  readonly isRoot: boolean;
+  readonly sortOrder: number;
+  readonly labels: OrgKindLabels;
+  /** Kinds a unit of this kind may be placed under (empty for the root). */
+  readonly allowedParents: readonly OrgUnitKind[];
+}
+
+/** The kind catalogue with the parent rules: `department` → `direction_generale`, `service` → `department|region|agency`… */
+export class KindCatalogue {
+  private readonly byCode: ReadonlyMap<string, OrgKind>;
+  /** Sorted by sortOrder, then code. */
+  readonly kinds: readonly OrgKind[];
+
+  constructor(kinds: readonly OrgKind[]) {
+    this.kinds = kinds.toSorted((a, b) => a.sortOrder - b.sortOrder || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0));
+    this.byCode = new Map(this.kinds.map((k) => [k.code, k]));
+  }
+
+  get(code: string): OrgKind | undefined {
+    return this.byCode.get(code);
+  }
+
+  has(code: string): boolean {
+    return this.byCode.has(code);
+  }
+
+  isRoot(code: string): boolean {
+    return this.byCode.get(code)?.isRoot ?? false;
+  }
+
+  /** Unknown kinds sort last. */
+  sortOrder(code: string): number {
+    return this.byCode.get(code)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+  }
+
+  allowsParent(childKind: string, parentKind: string): boolean {
+    return this.byCode.get(childKind)?.allowedParents.includes(parentKind) ?? false;
+  }
+
+  /** True when some kind may be placed under `kind` — i.e. units of that kind offer `create_child`. */
+  canHaveChildren(kind: string): boolean {
+    return this.kinds.some((k) => k.allowedParents.includes(kind));
+  }
+
+  /** Kinds that can be created through the API (every non-root kind). */
+  creatableKinds(): OrgUnitKind[] {
+    return this.kinds.filter((k) => !k.isRoot).map((k) => k.code);
   }
 }
 
-/** Kinds that may have children — i.e. that offer the `create_child` action. */
-export function canHaveChildren(kind: OrgUnitKind): boolean {
-  return ORG_UNIT_KINDS.some((child) => requiredParentKind(child) === kind);
-}
-
-/** region → parent is the company unit; site → parent is a region. `parent` undefined = not found. */
-export function assertParentAllowed(childKind: OrgUnitKind, parent: { kind: OrgUnitKind } | undefined): void {
-  const expected = requiredParentKind(childKind);
-  if (expected === null) {
-    throw new OrgRuleViolation('org-unit-root-immutable', 'The company unit has no parent and cannot be moved.', 'parentId');
+/**
+ * The parent of a `childKind` unit must exist (`parent` undefined = not found / other tenant) and have one of the
+ * kind's allowed parent kinds. The root kind has no parent and cannot be moved.
+ */
+export function assertParentAllowed(catalogue: KindCatalogue, childKind: OrgUnitKind, parent: { kind: OrgUnitKind } | undefined): void {
+  if (catalogue.isRoot(childKind)) {
+    throw new OrgRuleViolation('org-unit-root-immutable', 'The root unit has no parent and cannot be moved.', 'parentId');
   }
   if (!parent) {
     throw new OrgRuleViolation('org-unit-invalid-parent', 'The parent unit does not exist.', 'parentId', 'not_found');
   }
-  if (parent.kind !== expected) {
+  if (!catalogue.allowsParent(childKind, parent.kind)) {
+    const allowed = catalogue.get(childKind)?.allowedParents ?? [];
     throw new OrgRuleViolation(
       'org-unit-invalid-parent',
-      `A ${childKind} must be placed under a ${expected}, not a ${parent.kind}.`,
+      `A ${childKind} cannot be placed under a ${parent.kind} (allowed: ${allowed.join(', ') || 'none'}).`,
       'parentId',
       'invalid_parent_kind',
     );
+  }
+}
+
+/** The root unit must always be hosted by a site (its descendants inherit it). */
+export function assertRootSite(catalogue: KindCatalogue, kind: OrgUnitKind, siteId: string | null): void {
+  if (catalogue.isRoot(kind) && siteId === null) {
+    throw new OrgRuleViolation('org-unit-root-site-required', 'The root unit must have a site.', 'siteId');
   }
 }
 

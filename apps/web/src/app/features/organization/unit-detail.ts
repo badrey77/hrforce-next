@@ -1,5 +1,6 @@
 /**
- * Read-only view of one org unit: identity, parent chain and version history. `<app-unit-detail [unit]="…" />`.
+ * Read-only view of one org unit: identity, parent chain, effective site and version history.
+ * `<app-unit-detail [unit]="…" [names]="…" [siteNames]="…" />`.
  *
  * Angular concepts:
  * - **Presentational ("dumb") component**: data in through inputs, nothing fetched, no side effects. The page
@@ -9,9 +10,14 @@
  * - **`@for … ; track $index`**: versions have no id of their own; the list is replaced wholesale on reload, so
  *   tracking by position is fine here.
  * - **`@empty`** after `@for` renders when the list is empty.
+ * - The kind badge comes from `KindCatalog.labelOf()` (API data in the active language), not from `t()`.
+ *
+ * Site: `unit.site` is the EFFECTIVE site; when `siteInherited` is true it comes from an ancestor, which the view
+ * says. In the history, a version's `siteId` is its OWN site, so `null` reads "inherited".
  */
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { KindCatalog } from '../../core/org/kind-catalog';
 import type { OrgUnitDetail } from '../../core/org/org.models';
 
 @Component({
@@ -22,7 +28,7 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
     <ng-container *transloco="let t">
       @let u = unit();
       <h2 class="title">
-        <span class="badge">{{ t('org.kind.' + u.kind) }}</span>&ngsp;{{ u.name }}
+        <span class="badge">{{ kindCatalog.labelOf(u.kind) }}</span>&ngsp;{{ u.name }}
       </h2>
       <dl class="facts">
         <dt>{{ t('org.detail.code') }}</dt>
@@ -39,6 +45,17 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
             {{ t('org.detail.rootUnit') }}
           }
         </dd>
+        <dt>{{ t('org.detail.site') }}</dt>
+        <dd data-field="site">
+          @if (u.site; as site) {
+            {{ site.name }} <span class="code">({{ site.code }})</span>
+            @if (u.siteInherited) {
+              <span class="hint">{{ t('org.detail.siteInherited') }}</span>
+            }
+          } @else {
+            {{ t('org.detail.none') }}
+          }
+        </dd>
         <dt>{{ t('org.detail.createdAt') }}</dt>
         <dd>{{ u.createdAt.slice(0, 10) }}</dd>
       </dl>
@@ -52,6 +69,7 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
               <th scope="col">{{ t('org.detail.validTo') }}</th>
               <th scope="col">{{ t('org.detail.name') }}</th>
               <th scope="col">{{ t('org.detail.parent') }}</th>
+              <th scope="col">{{ t('org.detail.site') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -61,10 +79,11 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
                 <td>{{ version.validTo ?? t('org.detail.open') }}</td>
                 <td>{{ version.name }}</td>
                 <td>{{ version.parentId ? parentName(version.parentId) : t('org.detail.none') }}</td>
+                <td>{{ version.siteId ? siteName(version.siteId) : t('org.detail.inherited') }}</td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="4">{{ t('org.detail.none') }}</td>
+                <td colspan="5">{{ t('org.detail.none') }}</td>
               </tr>
             }
           </tbody>
@@ -78,6 +97,7 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
     dt { color: var(--color-text-muted); }
     dd { margin: 0; }
     .code { font-family: ui-monospace, monospace; }
+    .hint { color: var(--color-text-muted); font-size: 0.8125rem; margin-inline-start: var(--space-2); }
     h3 { font-size: 1rem; margin-block: var(--space-4) var(--space-2); }
     .table-scroll { overflow-x: auto; }
     table { border-collapse: collapse; inline-size: 100%; font-size: 0.875rem; }
@@ -87,9 +107,12 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
   `,
 })
 export class UnitDetail {
+  protected readonly kindCatalog = inject(KindCatalog);
   readonly unit = input.required<OrgUnitDetail>();
   /** id → name of units known from the tree, to name the parent of older versions. */
   readonly names = input<ReadonlyMap<string, string>>(new Map());
+  /** id → label of known sites, to name the site of older versions. */
+  readonly siteNames = input<ReadonlyMap<string, string>>(new Map());
 
   private readonly lookup = computed(() => {
     const map = new Map(this.names());
@@ -97,7 +120,18 @@ export class UnitDetail {
     return map;
   });
 
+  private readonly siteLookup = computed(() => {
+    const map = new Map(this.siteNames());
+    const site = this.unit().site;
+    if (site && !map.has(site.id)) map.set(site.id, `${site.name} (${site.code})`);
+    return map;
+  });
+
   protected parentName(id: string): string {
     return this.lookup().get(id) ?? id;
+  }
+
+  protected siteName(id: string): string {
+    return this.siteLookup().get(id) ?? id;
   }
 }

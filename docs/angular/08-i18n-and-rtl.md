@@ -182,6 +182,21 @@ checks the same `fr`/`ar` key parity and the "`en` has no keys unknown to `fr`" 
 "no empty strings" rules directly against the imported JSON files, so a broken parity
 also fails `npm test`, not just the CI guardrail script.
 
+## Labels that are data, not translation keys
+
+Not every visible label belongs in `public/i18n/*.json`. Org-unit **kind** names
+("Direction générale", "Agence"…) are maintained by the business in a database
+catalogue with `label_fr`/`label_ar`/`label_en` (contract v2), because adding a kind must
+not need a web release. So v2 **removed** the `org.kind.*` keys from all three files; the
+web asks `KindCatalog.labelOf(code)` (`src/app/core/org/kind-catalog.ts`), which picks the
+label for `LanguageService.current()` and re-renders on a language switch like `t()`
+does. Chapter 03 shows the `computed()` that combines the two signals.
+
+When deciding where a label goes: written by the team, part of the UI → i18n key.
+Maintained by the business, part of the data → API field per language (and never a
+translation key built from a data code like `t('org.kind.' + code)`: a new code would
+show a missing key).
+
 ## Adding a key correctly
 
 See chapter 10's "add a translation key" recipe for the concrete steps — in short: add

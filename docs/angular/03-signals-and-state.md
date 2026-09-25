@@ -78,6 +78,51 @@ or fire during change detection in a way that surprises you. Reach for `effect()
 for genuine side effects (and prefer doing them in response to a user action or in a
 resource, if you can) — not as a substitute for `computed()`.
 
+## Combining an app-wide cache signal with the language signal
+
+Kind labels ("Direction générale", "Agence"…) are **data**: the business maintains them
+in the `org_unit_kind` catalogue, one label per language, and the API serves them from
+`GET /org/kinds`. They cannot live in `public/i18n/*.json` (adding a kind must not need
+a web release). So a label has to be picked from API data *according to the active
+language* — and must change when the user switches language. Two signals from two
+different worlds, combined in one `computed()`:
+
+```ts
+// src/app/core/org/kind-catalog.ts
+@Injectable({ providedIn: 'root' })
+export class KindCatalog {
+  private readonly language = inject(LanguageService);
+  private readonly resource = inject(OrgApi).kindsResource();
+
+  readonly kinds = computed<readonly OrgKind[]>(() => (this.resource.hasValue() ? this.resource.value().items : []));
+
+  private readonly labels = computed(() => {
+    const lang = this.language.current();
+    return new Map(this.kinds().map((kind) => [kind.code, kind.labels[lang]]));
+  });
+
+  labelOf(code: OrgUnitKind): string {
+    return this.labels().get(code) || code;
+  }
+}
+```
+
+- `this.resource` is an app-wide cache: the service is a root singleton, so the
+  catalogue is fetched once and shared (chapter 06 explains why an `httpResource` held
+  by a root service, rather than `shareReplay`).
+- `LanguageService.current()` is the signal `LanguageService.use(lang)` sets (chapter 08).
+- `labels` read **both**, so it is rebuilt when the catalogue arrives *or* the language
+  changes — and only then. `labelOf()` is a plain method, but it reads the `labels`
+  signal, so a template that calls it (`{{ kindCatalog.labelOf(item.kind) }}` in
+  `org-tree.ts`) depends on both signals too: switching to Arabic re-renders every kind
+  badge, without the template knowing anything about languages.
+
+The rule the codebase follows: **texts the team writes** (buttons, messages, headings)
+come from the i18n files through `t()`; **labels of reference data the business
+maintains** (kinds now, wilayas later) come from the API with one label per language
+and are chosen with the language signal. `organization.page.spec.ts`'s "switches kind
+labels with the language" test and `kind-catalog.spec.ts` check this.
+
 ## `linkedSignal()`
 
 A writable signal that **resets itself** to a computed value whenever a separate
@@ -173,10 +218,13 @@ in `org-api.ts`. The clearest example of "RxJS earns its keep" is the picker's s
 this.searches
   .pipe(
     debounceTime(ORG_UNIT_PICKER_DEBOUNCE_MS),
-    switchMap((request) => this.api.search(request).pipe(
-      map((result) => result.items.filter(...)),
-      catchError(() => of(null)),
-    )),
+    switchMap((request) => {
+      this.state.set('loading');
+      return this.api.search(request).pipe(
+        map((result) => result.items),
+        catchError(() => of(null)),
+      );
+    }),
     takeUntilDestroyed(),
   )
   .subscribe((items) => { ... });
@@ -225,6 +273,10 @@ should re-render.
   throws if the resource has no value yet; `organization.page.ts` always checks
   `tree.hasValue()` (via the `root` computed) or narrows in the template with
   `@if (detail.hasValue())` first.
+- **Reading a language-dependent value without the language signal.** A helper that
+  did `kind.labels[transloco.getActiveLang()]` would read the language *once*: nothing
+  would re-render on a switch. Read `LanguageService.current()` (a signal) instead, as
+  `KindCatalog.labels` does.
 - **`linkedSignal` vs `computed`.** If you never need to overwrite the derived value
   directly, use `computed()` — it's simpler and cannot get out of sync in ways you
   didn't intend. Reach for `linkedSignal()` only when you need "resets on X, but

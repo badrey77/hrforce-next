@@ -70,7 +70,8 @@ psql "$SUPERUSER_URL" -v migrator_password="'…'" -v app_password="'…'" -v db
   applied migrations missing on disk, or a checksum change of an applied migration — never edit an applied file.
 - Tenant tables: `company_id uuid not null` + `enable` **and** `force row level security` + policy
   `using (company_id = current_setting('app.company_id', true)::uuid)`. Tables exempt from `company_id`
-  (`schema_migrations`, `company`) are listed in `tools/guardrails/company-id-exempt.json`.
+  (`schema_migrations`, `company`, the `org_unit_kind*` catalogues) are listed in `tools/guardrails/company-id-exempt.json`.
+  Global reference catalogues are `SELECT`-only for `hrforce_app` (revoke the default DML grants in the migration).
 
 ### `schema.ts` (Kysely types)
 
@@ -121,24 +122,45 @@ Per request: middleware → **guard** (decorator present? authenticated?) → **
 
 ## Organization module (`src/modules/organization`)
 
-Contract: [`docs/contracts/organization.md`](../../docs/contracts/organization.md). Layers: `domain/` (pure rules:
-parent kinds, code/name, cycles, version splitting, tree building — unit-tested), `infra/` (Kysely repository via
-`currentTx()`, closure maintenance, demo seed), `application/` (use cases + `_actions`), `api/` (controller, zod DTOs).
+Contract: [`docs/contracts/organization.md`](../../docs/contracts/organization.md) (**v2**: one management tree —
+Direction Générale → départements → (Département RX →) régions → agences, with services under a department, a region
+or an agency; sites are places that host units). Layers: `domain/` (pure rules: kind catalogue + parent rules,
+code/name, root rules, cycles, version splitting, tree building, effective site — unit-tested), `infra/` (Kysely
+repositories via `currentTx()`, closure maintenance, demo seed), `application/` (use cases + `_actions`), `api/`
+(controller, zod DTOs).
 
 | Endpoint | Permission |
 |---|---|
-| `GET /api/org/tree?asOf=` | `org_unit.read` (404 if no company unit exists on `asOf`) |
-| `GET /api/org/units?q=&kind=&asOf=` | `org_unit.read` (max 50, ordered by code) |
+| `GET /api/org/kinds` | `org_unit.read` — kind catalogue (fr/ar/en labels, `allowedParents`), sorted by `sortOrder` |
+| `GET /api/org/tree?asOf=` | `org_unit.read` (404 if no root unit exists on `asOf`) |
+| `GET /api/org/units?q=&kind=&kind=&asOf=` | `org_unit.read` (max 50, ordered by code; `kind` repeats; unknown kind → 422) |
 | `GET /api/org/units/:id` | `org_unit.read` |
-| `POST /api/org/units` | `org_unit.create` → 201 + `Location` |
-| `PATCH /api/org/units/:id` | `org_unit.update` |
+| `POST /api/org/units` | `org_unit.create` → 201 + `Location` (any non-root kind; root/unknown kind → 422 on `kind`) |
+| `PATCH /api/org/units/:id` | `org_unit.update` (name / parentId / siteId — `siteId: null` = inherit) |
+| `GET /api/org/sites?q=` | `site.read` (max 200, ordered by code; q matches code, name or wilaya) |
+| `POST /api/org/sites` | `site.create` → 201 `Site` (blank `address` → null) |
 
-- **Tables** (migrations 0004–0005): `org_unit` (kind, axis `geo`, immutable code — trigger), `org_unit_version`
-  (name + parent over a `valid daterange` `[from, to)`, no overlap per unit via a `btree_gist` exclusion constraint),
-  `org_unit_closure` (ancestor/descendant/depth incl. self rows). Composite FKs `(company_id, id)` make cross-tenant
-  references impossible; every table has FORCE RLS on `app.company_id`.
-- **Versions**: `PATCH` closes the latest version at `validFrom` and opens a new one; `validFrom` must be strictly after
-  the latest version's start (else 409 `org-unit-version-overlap`). Defaults to today (server local date — set `TZ`).
+- **Kinds are data** (migration 0006): `org_unit_kind(code, label_fr, label_ar, label_en, sort_order, is_root)` and
+  `org_unit_kind_parent(kind, parent_kind)` are a global reference catalogue (no `company_id`, exempt in
+  `tools/guardrails/company-id-exempt.json`, `SELECT` only for `hrforce_app`). Seeded: `direction_generale` (root, 10),
+  `department` (20), `region` (30), `agency` (40), `service` (50); parents `department→direction_generale`,
+  `region→department`, `agency→region`, `service→department|region|agency`. Arabic labels use the usual Algerian
+  administrative terms: المديرية العامة, دائرة, منطقة, وكالة, مصلحة. The API caches the catalogue per process
+  (`OrgKindRepository`, first read through the request transaction) — adding a kind is a migration + restart.
+- **Tables**: `org_unit` (`kind` → FK to the catalogue, axis `management`, immutable code — trigger; `is_root` is a
+  copy of the kind's flag, filled by trigger and checked by the composite FK `(kind, is_root)`, so "one root unit per
+  company" is the partial unique index `org_unit_one_root_uk`), `org_unit_version` (name + parent + `site_id` over a
+  `valid daterange` `[from, to)`, no overlap per unit via a `btree_gist` exclusion constraint), `org_unit_closure`
+  (ancestor/descendant/depth incl. self rows), `site` (code unique per company, name, wilaya, address). Composite FKs
+  `(company_id, id)` make cross-tenant references impossible; every tenant table has FORCE RLS on `app.company_id`.
+- **Sites / effective site**: a version's `site_id` is its own site (null = inherited). The effective site is the own
+  site, else the nearest ancestor's, as of the requested date (`site` in tree/search/detail; `siteInherited` in the
+  detail). The root must always have a site (409 `org-unit-root-site-required`); the root can be renamed and change
+  site but never moved (409 `org-unit-root-immutable`). A `siteId` that does not exist in the caller's company → 409
+  `site-not-found` on field `siteId`.
+- **Versions**: `PATCH` closes the latest version at `validFrom` and opens a new one (name, parent and/or site);
+  `validFrom` must be strictly after the latest version's start (else 409 `org-unit-version-overlap`). Defaults to
+  today (server local date — set `TZ`).
 - **Closure = tree as of today**: updated in the same transaction by create/move when the change takes effect on or
   before today. Future-dated changes are visible in `GET /org/tree?asOf=…` immediately but enter the closure only
   when rebuilt (`rebuildClosure(companyId, today)`; the daily job arrives with the worker; `seed:dev` rebuilds).
@@ -147,14 +169,37 @@ parent kinds, code/name, cycles, version splitting, tree building — unit-teste
   `unaccent` is not used because it is not a trusted extension.
 - **Errors**: 409 slugs `org-unit-code-taken` (field `code`), `org-unit-invalid-parent` (field `parentId`; codes
   `invalid_parent_kind`, `not_found`, `parent_not_effective`), `org-unit-cycle`, `org-unit-version-overlap` (field
-  `validFrom`), `org-unit-root-immutable`. Malformed or unknown/other-tenant path ids → 404.
+  `validFrom`), `org-unit-root-immutable`, `org-unit-root-site-required` (field `siteId`), `site-code-taken` (field
+  `code`), `site-not-found` (field `siteId`). Malformed or unknown/other-tenant path ids → 404.
+
+### Upgrading a v1 database (org model v2)
+
+Migration `0006_org_model_v2.sql` cannot map v1 units (kinds `company`/`region`/`site`) onto the v2 model and **fails
+on purpose** if `org_unit` holds any row. The project is pre-production: recreate the database, then migrate and seed.
+
+```bash
+psql "$SUPERUSER_URL" -c 'drop database hrforce_dev with (force)' -c 'create database hrforce_dev owner hrforce_migrator'
+npm run migrate -w @hrforce/api && npm run seed:dev -w @hrforce/api
+```
 
 ### Demo seed
 
 `npm run seed:dev -w @hrforce/api` (as `MIGRATOR_DATABASE_URL`, refuses `NODE_ENV=production`, idempotent) creates the
-company `0190a5d0-0000-7000-8000-000000000001` (`DEMO`, Groupe Démo) and its units, valid from 2026-01-01, with fixed
-ids `0190a5d0-0000-7000-8000-000000000<nnn>`: `GROUPE` 101; regions `CENTRE` 111, `EST` 112, `OUEST` 113; sites
-`ALG-HQ` 121, `BLIDA` 122, `CNE` 123, `ANNABA` 124, `ORAN` 125, `TLEMCEN` 126. Dev user id: `…-0000000000aa`.
+company `0190a5d0-0000-7000-8000-000000000001` (`DEMO`, Groupe Démo), its sites and units, valid from 2026-01-01, with
+fixed ids `0190a5d0-0000-7000-8000-000000000<nnn>` (source: `src/modules/organization/infra/demo-seed.ts`).
+Dev user id: `…-0000000000aa`.
+
+| nnn | Sites (code — name, wilaya) |
+|---|---|
+| 201–207 | `ALG-HQ` Alger – Siège (Alger), `ALG-CTR` Alger Centre (Alger), `BLIDA`, `CNE` Constantine, `ANNABA`, `ORAN`, `TLEMCEN` |
+
+| nnn | Units (code, own site; others inherit) |
+|---|---|
+| 101 | `DG` Direction Générale @ALG-HQ |
+| 111–113 | `DEP-RH`, `DEP-FIN`, `DEP-RX` |
+| 121–123 | `REG-CTR` @BLIDA, `REG-EST` @CNE, `REG-OUEST` @ORAN (under `DEP-RX`) |
+| 131–136 | `AG-ALG` @ALG-CTR, `AG-BLIDA` @BLIDA (REG-CTR); `AG-CNE` @CNE, `AG-ANNABA` @ANNABA (REG-EST); `AG-ORAN` @ORAN, `AG-TLEMCEN` @TLEMCEN (REG-OUEST) |
+| 141–145 | `SRV-PAIE`, `SRV-FORM` (DEP-RH); `SRV-COMPTA` (DEP-FIN); `SRV-ADM-EST` (REG-EST); `SRV-CLI-ANB` (AG-ANNABA) |
 
 ## Tests
 

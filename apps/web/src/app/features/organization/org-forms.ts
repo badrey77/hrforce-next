@@ -15,6 +15,8 @@
  * - 409 → business rule, `type: urn:hrforce:problem:<slug>`; with `errors[]` when tied to a field (e.g. code taken
  *   → the `code` control). A 409 with no field, or whose field has no control in this form, becomes a form-level
  *   message, translated from the slug when we know it, else the server's `detail`/`title`.
+ * - v2 site slugs are always about one field, even if the server omits `errors[]`: `org-unit-root-site-required`
+ *   and `site-not-found` → `siteId`, `site-code-taken` → `code` (see SLUG_FIELDS).
  */
 import type { AbstractControl, FormGroup, ValidationErrors, ValidatorFn } from '@angular/forms';
 import { isIsoDate } from '../../core/date/iso-date';
@@ -31,21 +33,38 @@ const SLUG_KEYS: Readonly<Record<OrgProblemSlug, string>> = {
   'org-unit-cycle': 'org.problems.cycle',
   'org-unit-version-overlap': 'org.problems.versionOverlap',
   'org-unit-root-immutable': 'org.problems.rootImmutable',
+  'org-unit-root-site-required': 'org.problems.rootSiteRequired',
+  'site-code-taken': 'org.problems.siteCodeTaken',
+  'site-not-found': 'org.problems.siteNotFound',
 };
 
-function slugKey(type: string): string | undefined {
+/** Field a slug is about when the problem carries no `errors[]` (contract: these always concern one field). */
+const SLUG_FIELDS: Readonly<Partial<Record<OrgProblemSlug, string>>> = {
+  'org-unit-root-site-required': 'siteId',
+  'site-not-found': 'siteId',
+  'site-code-taken': 'code',
+};
+
+function slugOf(type: string): OrgProblemSlug | undefined {
   if (!type.startsWith(ORG_PROBLEM_PREFIX)) return undefined;
   const slug = type.slice(ORG_PROBLEM_PREFIX.length);
-  return slug in SLUG_KEYS ? SLUG_KEYS[slug as OrgProblemSlug] : undefined;
+  return slug in SLUG_KEYS ? (slug as OrgProblemSlug) : undefined;
 }
 
 /**
  * For a known business-rule slug, the field shows the TRANSLATED slug message (`{ serverKey }`, read by
  * `fieldErrorKey`), not the server's `message`: the API writes its messages in English only.
  */
-function applySlugErrors(form: FormGroup, problem: ApiProblem, key: string): ApiFieldError[] {
+function applySlugErrors(form: FormGroup, problem: ApiProblem, slug: OrgProblemSlug): ApiFieldError[] {
+  const key = SLUG_KEYS[slug];
+  const defaultField = SLUG_FIELDS[slug];
+  const errors: readonly ApiFieldError[] = problem.errors?.length
+    ? problem.errors
+    : defaultField
+      ? [{ field: defaultField, code: slug, message: '' }]
+      : [];
   const unmatched: ApiFieldError[] = [];
-  for (const error of problem.errors ?? []) {
+  for (const error of errors) {
     const control = form.get(error.field);
     if (!control) {
       unmatched.push(error);
@@ -55,6 +74,12 @@ function applySlugErrors(form: FormGroup, problem: ApiProblem, key: string): Api
     control.markAsTouched();
   }
   return unmatched;
+}
+
+/** How many field errors a problem produces (its `errors[]`, or the slug's default field). */
+function fieldErrorCount(problem: ApiProblem, slug: OrgProblemSlug | undefined): number {
+  if (problem.errors?.length) return problem.errors.length;
+  return slug && SLUG_FIELDS[slug] ? 1 : 0;
 }
 
 /** Applies field errors to `form` and returns the form-level message to show, if any. */
@@ -67,11 +92,11 @@ export function orgWriteError(form: FormGroup, error: unknown): FormError | null
     case 400:
     case 409:
     case 422: {
-      const key = slugKey(problem.type);
-      const unmatched = key ? applySlugErrors(form, problem, key) : applyServerErrors(form, problem);
-      const matchedSome = (problem.errors?.length ?? 0) > unmatched.length;
+      const slug = slugOf(problem.type);
+      const unmatched = slug ? applySlugErrors(form, problem, slug) : applyServerErrors(form, problem);
+      const matchedSome = fieldErrorCount(problem, slug) > unmatched.length;
       if (matchedSome && unmatched.length === 0) return null;
-      if (key) return { key };
+      if (slug) return { key: SLUG_KEYS[slug] };
       const text = unmatched[0]?.message || problem.detail || problem.title;
       return text ? { text } : { key: 'errors.generic' };
     }
@@ -84,7 +109,7 @@ export function orgWriteError(form: FormGroup, error: unknown): FormError | null
   }
 }
 
-/** Contract: code `^[A-Z0-9][A-Z0-9_-]{1,31}$`, names 1–120 chars once trimmed. */
+/** Contract: code `^[A-Z0-9][A-Z0-9_-]{1,31}$` (units and sites), names 1–120 chars once trimmed. */
 export const ORG_CODE_PATTERN = /^[A-Z0-9][A-Z0-9_-]{1,31}$/;
 export const ORG_NAME_MAX = 120;
 

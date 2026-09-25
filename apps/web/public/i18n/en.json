@@ -55,10 +55,13 @@
   "org": {
     "title": "Organization",
     "asOf": "As of",
-    "kind": {
-      "company": "Company",
-      "region": "Region",
-      "site": "Site"
+    "nav": {
+      "label": "Organization sections",
+      "structure": "Structure",
+      "sites": "Sites"
+    },
+    "kinds": {
+      "loadError": "Could not load the unit types."
     },
     "tree": {
       "label": "Organization tree",
@@ -82,7 +85,10 @@
       "name": "Name",
       "parent": "Parent unit",
       "open": "Ongoing",
-      "none": "None"
+      "none": "None",
+      "site": "Site",
+      "siteInherited": "inherited from a parent unit",
+      "inherited": "Inherited"
     },
     "actions": {
       "createChild": "Add a sub-unit",
@@ -101,8 +107,12 @@
         "codePattern": "Invalid code format.",
         "nameTooLong": "120 characters at most.",
         "invalidDate": "Invalid date.",
-        "nothingChanged": "Change the name or the parent unit."
-      }
+        "nothingChanged": "Change the name, the parent unit or the site."
+      },
+      "kindPlaceholder": "Choose a type",
+      "site": "Site",
+      "siteInherit": "Inherit from the parent unit",
+      "optional": "(optional)"
     },
     "create": {
       "title": "New sub-unit of {{parent}}"
@@ -110,7 +120,8 @@
     "change": {
       "title": "Change {{name}}",
       "intro": "Each change creates a new version, effective from the effective date.",
-      "rootNoMove": "The root unit cannot be moved."
+      "rootNoMove": "The root unit cannot be moved.",
+      "rootSiteRequired": "The root unit must always have a site."
     },
     "feedback": {
       "created": "Unit \"{{name}}\" created.",
@@ -122,7 +133,27 @@
       "cycle": "This move would create a loop in the tree.",
       "versionOverlap": "Another version already starts on or after this date. Pick a later effective date.",
       "rootImmutable": "The root unit cannot be changed this way.",
-      "notFound": "This unit no longer exists."
+      "notFound": "This unit no longer exists.",
+      "rootSiteRequired": "The root unit must have a site.",
+      "siteCodeTaken": "This site code is already in use.",
+      "siteNotFound": "This site does not exist (any more)."
+    },
+    "sites": {
+      "title": "Sites",
+      "create": "New site",
+      "createTitle": "New site",
+      "created": "Site “{{name}}” created.",
+      "search": "Search sites",
+      "searchPlaceholder": "Code or name",
+      "searchSubmit": "Search",
+      "code": "Code",
+      "name": "Name",
+      "wilaya": "Wilaya",
+      "address": "Address",
+      "loading": "Loading sites…",
+      "loadError": "Could not load the sites.",
+      "empty": "No site has been recorded yet.",
+      "noMatch": "No site matches “{{q}}”."
     },
     "picker": {
       "placeholder": "Search by code or name",

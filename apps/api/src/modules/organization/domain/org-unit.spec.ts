@@ -2,13 +2,31 @@ import { describe, expect, it } from 'vitest';
 import {
   assertNoCycle,
   assertParentAllowed,
-  canHaveChildren,
+  assertRootSite,
   isOrgUnitCode,
+  KindCatalogue,
   normalizeName,
+  type OrgKind,
   OrgRuleViolation,
-  requiredParentKind,
   wouldCreateCycle,
 } from './org-unit.js';
+
+/** The v2 kind catalogue as seeded by migration 0006. */
+const def = (code: string, sortOrder: number, allowedParents: string[], isRoot = false): OrgKind => ({
+  code,
+  isRoot,
+  sortOrder,
+  labels: { fr: code, ar: code, en: code },
+  allowedParents,
+});
+
+const kinds = new KindCatalogue([
+  def('service', 50, ['department', 'region', 'agency']),
+  def('direction_generale', 10, [], true),
+  def('department', 20, ['direction_generale']),
+  def('region', 30, ['department']),
+  def('agency', 40, ['region']),
+]);
 
 function violation(fn: () => void): OrgRuleViolation {
   try {
@@ -34,24 +52,49 @@ describe('org unit rules', () => {
     expect(normalizeName('x'.repeat(121))).toBeNull();
   });
 
-  it('parent rules: region → company, site → region, company is the root', () => {
-    expect(requiredParentKind('company')).toBeNull();
-    expect(requiredParentKind('region')).toBe('company');
-    expect(requiredParentKind('site')).toBe('region');
-    expect(canHaveChildren('company')).toBe(true);
-    expect(canHaveChildren('region')).toBe(true);
-    expect(canHaveChildren('site')).toBe(false);
+  it('catalogue: sorted by sortOrder, one root, create_child only for kinds that are a parent of some kind', () => {
+    expect(kinds.kinds.map((k) => k.code)).toEqual(['direction_generale', 'department', 'region', 'agency', 'service']);
+    expect(kinds.isRoot('direction_generale')).toBe(true);
+    expect(kinds.isRoot('department')).toBe(false);
+    expect(kinds.creatableKinds()).toEqual(['department', 'region', 'agency', 'service']);
+    for (const k of ['direction_generale', 'department', 'region', 'agency']) expect(kinds.canHaveChildren(k), k).toBe(true);
+    expect(kinds.canHaveChildren('service')).toBe(false);
+    expect(kinds.canHaveChildren('unknown')).toBe(false);
+    expect(kinds.sortOrder('unknown')).toBeGreaterThan(kinds.sortOrder('service'));
+  });
 
-    expect(() => assertParentAllowed('region', { kind: 'company' })).not.toThrow();
-    expect(() => assertParentAllowed('site', { kind: 'region' })).not.toThrow();
-    expect(violation(() => assertParentAllowed('site', { kind: 'company' }))).toMatchObject({
-      slug: 'org-unit-invalid-parent',
-      field: 'parentId',
-      code: 'invalid_parent_kind',
+  it('parent rules come from the catalogue: every allowed pair passes, every other pair is invalid_parent_kind', () => {
+    const allowed = new Set([
+      'department<direction_generale',
+      'region<department',
+      'agency<region',
+      'service<department',
+      'service<region',
+      'service<agency',
+    ]);
+    for (const child of kinds.creatableKinds()) {
+      for (const parent of kinds.kinds.map((k) => k.code)) {
+        const run = () => assertParentAllowed(kinds, child, { kind: parent });
+        if (allowed.has(`${child}<${parent}`)) expect(run, `${child} under ${parent}`).not.toThrow();
+        else
+          expect(violation(run), `${child} under ${parent}`).toMatchObject({
+            slug: 'org-unit-invalid-parent',
+            field: 'parentId',
+            code: 'invalid_parent_kind',
+          });
+      }
+    }
+    expect(violation(() => assertParentAllowed(kinds, 'service', undefined))).toMatchObject({ slug: 'org-unit-invalid-parent', code: 'not_found' });
+    expect(violation(() => assertParentAllowed(kinds, 'direction_generale', { kind: 'department' })).slug).toBe('org-unit-root-immutable');
+  });
+
+  it('the root unit must keep a site', () => {
+    expect(() => assertRootSite(kinds, 'direction_generale', 'site-1')).not.toThrow();
+    expect(() => assertRootSite(kinds, 'agency', null)).not.toThrow();
+    expect(violation(() => assertRootSite(kinds, 'direction_generale', null))).toMatchObject({
+      slug: 'org-unit-root-site-required',
+      field: 'siteId',
     });
-    expect(violation(() => assertParentAllowed('region', { kind: 'site' })).slug).toBe('org-unit-invalid-parent');
-    expect(violation(() => assertParentAllowed('site', undefined))).toMatchObject({ slug: 'org-unit-invalid-parent', code: 'not_found' });
-    expect(violation(() => assertParentAllowed('company', { kind: 'company' })).slug).toBe('org-unit-root-immutable');
   });
 
   it('cycle detection', () => {

@@ -1,4 +1,7 @@
-<!-- Same form pattern as create-unit-form.html; the new part is the custom control <app-org-unit-picker>. -->
+<!--
+  Same form pattern as create-unit-form.html; the new part is the custom control <app-org-unit-picker>.
+  (aria-describedby may name an id that is not rendered yet; assistive tech ignores missing ids.)
+-->
 <form *transloco="let t" class="org-form" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="change-unit-title" novalidate>
   <h3 id="change-unit-title">{{ t('org.change.title', { name: unit().name }) }}</h3>
   <p class="field-hint">{{ t('org.change.intro') }}</p>
@@ -27,7 +30,7 @@
 
   @let parent = form.controls.parentId;
   <div class="field">
-    @if (canMove()) {
+    @if (!isRoot()) {
       <label for="change-unit-parent">{{ t('org.form.parent') }}</label>
       <!-- formControlName works on our component because it provides NG_VALUE_ACCESSOR (ControlValueAccessor). -->
       <app-org-unit-picker
@@ -46,6 +49,33 @@
     } @else {
       <span>{{ t('org.form.parent') }}</span>
       <p class="field-hint">{{ t('org.change.rootNoMove') }}</p>
+    }
+  </div>
+
+  @let site = form.controls.siteId;
+  <div class="field">
+    <label for="change-unit-site">{{ t('org.form.site') }}</label>
+    <!-- `[ngValue]`: see create-unit-form.html. The root has no "inherit" option: it must keep a site. -->
+    <select
+      id="change-unit-site"
+      formControlName="siteId"
+      [attr.aria-invalid]="site.invalid && site.touched"
+      [attr.aria-describedby]="isRoot() || (site.invalid && site.touched) ? 'change-unit-site-hint change-unit-site-error' : null"
+    >
+      @if (!isRoot()) {
+        <option [ngValue]="null">{{ t('org.form.siteInherit') }}</option>
+      }
+      @for (option of sites(); track option.id) {
+        <option [ngValue]="option.id">{{ option.name }} ({{ option.code }})</option>
+      }
+    </select>
+    @if (isRoot()) {
+      <p class="field-hint" id="change-unit-site-hint">{{ t('org.change.rootSiteRequired') }}</p>
+    }
+    @if (site.invalid && site.touched) {
+      <p class="field-error" id="change-unit-site-error">
+        {{ site.hasError('server') ? site.getError('server') : t(fieldErrorKey(site)) }}
+      </p>
     }
   </div>
 

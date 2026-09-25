@@ -39,21 +39,52 @@ possible; it's ordinary JS, and Angular's builder (`@angular/build:application` 
 
   ```ts
   // src/app/features/organization/organization.routes.ts
-  export const ORGANIZATION_ROUTES: Routes = [{ path: '', component: OrganizationPage }];
+  export const ORGANIZATION_ROUTES: Routes = [
+    { path: '', component: OrganizationPage },
+    { path: 'sites', loadComponent: () => import('./sites.page').then((m) => m.SitesPage) },
+  ];
   ```
 
-  Mounted at `/organization` by the parent config's `loadChildren`, this currently
-  defines one child route (`''`, i.e. exactly `/organization`), but — per the comment in
-  that file — the feature can add `/organization/:id` or `/organization/history` later
-  by editing only `organization.routes.ts`, never `app.routes.ts`. `loadChildren` was
-  picked *because* this feature is expected to grow; a feature with a single, fixed page
+  Mounted at `/organization` by the parent config's `loadChildren`, this defines
+  `/organization` (the tree) and `/organization/sites` (the sites list, added with
+  contract v2) — and adding the second one touched only `organization.routes.ts`, never
+  `app.routes.ts`. `loadChildren` was picked *because* this feature was expected to grow; a feature with a single, fixed page
   and no plans to add sub-routes would just use `loadComponent` instead, as
   `employees`/`settings` currently do (they're placeholders today, but will likely
   switch to `loadChildren` once the Employees module needs sub-routes).
 
   Notice `organization.routes.ts` imports `OrganizationPage` with a **static** `import`,
   not another dynamic one — that's correct, not an oversight: this file is *already*
-  inside the lazy chunk that `loadChildren` fetches, so there's nothing left to defer.
+  inside the lazy chunk that `loadChildren` fetches, and the tree is the feature's
+  landing page. The sites page, on the other hand, uses `loadComponent` **inside** the
+  lazy feature: a second, smaller chunk (`sites-page` in the `ng build` output) fetched
+  only when someone opens the sites section. Lazy loading nests.
+
+  Why sites got a sub-route rather than a panel on the tree page (see `org-nav.ts`'s
+  header): a site is a place, not a tree node, and its list/search/create shares
+  nothing with the tree's date and selection; a route gives it a linkable URL
+  (`/organization/sites?q=oran`, the search text bound to the `q` input exactly like
+  `asOf`).
+
+### Section links: `routerLinkActive` options
+
+`org-nav.ts` renders the two section links. `/organization` must not look active on
+`/organization/sites`, but must stay active on `/organization?asOf=…`:
+
+```ts
+// src/app/features/organization/org-nav.ts
+protected readonly exactPath: IsActiveMatchOptions = {
+  paths: 'exact',
+  queryParams: 'ignored',
+  matrixParams: 'ignored',
+  fragment: 'ignored',
+};
+```
+
+`[routerLinkActiveOptions]="{ exact: true }"` is shorthand for exact paths **and** exact
+query params, which would switch the link off as soon as a date is picked;
+`IsActiveMatchOptions` controls each part separately. `ariaCurrentWhenActive="page"`
+adds `aria-current="page"` to the active link.
 
 ## `withComponentInputBinding()` and query params as inputs
 

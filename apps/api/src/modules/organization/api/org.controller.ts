@@ -3,9 +3,18 @@ import type { Response } from 'express';
 import { RequirePermission } from '../../../platform/authz/decorators.js';
 import { ProblemException } from '../../../platform/http/problem-details.js';
 import { OrgUnitsService } from '../application/org-units.service.js';
-import type { OrgTreeView, OrgUnitDetail, OrgUnitSearchView } from '../application/org-views.js';
+import type { OrgKindsView, OrgTreeView, OrgUnitDetail, OrgUnitSearchView, Site, SitesView } from '../application/org-views.js';
+import { SitesService } from '../application/sites.service.js';
 import { OrgRuleViolation } from '../domain/org-unit.js';
-import { ChangeOrgUnitDto, CreateOrgUnitDto, isUuid, OrgTreeQueryDto, OrgUnitSearchQueryDto } from './org.dto.js';
+import {
+  ChangeOrgUnitDto,
+  CreateOrgUnitDto,
+  CreateSiteDto,
+  isUuid,
+  OrgTreeQueryDto,
+  OrgUnitSearchQueryDto,
+  SiteSearchQueryDto,
+} from './org.dto.js';
 
 /** Domain rule violations → 409 problem+json with `errors[]` on the offending body field. */
 async function problems<T>(run: () => Promise<T>): Promise<T> {
@@ -26,10 +35,19 @@ function unitIdParam(id: string): string {
   return id.toLowerCase();
 }
 
-/** Organization endpoints — docs/contracts/organization.md. */
+/** Organization endpoints — docs/contracts/organization.md (v2). */
 @Controller('org')
 export class OrgController {
-  constructor(private readonly units: OrgUnitsService) {}
+  constructor(
+    private readonly units: OrgUnitsService,
+    private readonly sites: SitesService,
+  ) {}
+
+  @Get('kinds')
+  @RequirePermission('org_unit.read')
+  kinds(): Promise<OrgKindsView> {
+    return this.units.listKinds();
+  }
 
   @Get('tree')
   @RequirePermission('org_unit.read')
@@ -61,5 +79,17 @@ export class OrgController {
   @RequirePermission('org_unit.update')
   change(@Param('id') id: string, @Body() body: ChangeOrgUnitDto): Promise<OrgUnitDetail> {
     return problems(() => this.units.changeUnit(unitIdParam(id), body));
+  }
+
+  @Get('sites')
+  @RequirePermission('site.read')
+  listSites(@Query() query: SiteSearchQueryDto): Promise<SitesView> {
+    return this.sites.list(query.q);
+  }
+
+  @Post('sites')
+  @RequirePermission('site.create')
+  createSite(@Body() body: CreateSiteDto): Promise<Site> {
+    return problems(() => this.sites.create(body));
   }
 }

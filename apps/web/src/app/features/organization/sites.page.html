@@ -1,0 +1,78 @@
+<!--
+  `#searchInput` is a template reference variable: it names the <input> element so `(submit)` can pass its value.
+  `[value]="q() ?? ''"` shows the current search from the URL (e.g. after the back button).
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('org.title') }}</h1>
+  </header>
+  <app-org-nav />
+
+  <div class="page-header">
+    <h2 class="section-title">{{ t('org.sites.title') }}</h2>
+    @if (!creating()) {
+      <button class="btn" type="button" data-action="create-site" (click)="startCreate()">
+        {{ t('org.sites.create') }}
+      </button>
+    }
+  </div>
+
+  @if (created(); as name) {
+    <p class="feedback" role="status">{{ t('org.sites.created', { name }) }}</p>
+  }
+
+  @if (creating()) {
+    <app-create-site-form (saved)="onCreated($event)" (cancelled)="creating.set(false)" />
+  }
+
+  <form class="search" role="search" (submit)="search($event, searchInput.value)">
+    <label for="sites-q">{{ t('org.sites.search') }}</label>
+    <input
+      #searchInput
+      id="sites-q"
+      type="search"
+      autocomplete="off"
+      [value]="q() ?? ''"
+      [placeholder]="t('org.sites.searchPlaceholder')"
+    />
+    <button class="btn secondary" type="submit">{{ t('org.sites.searchSubmit') }}</button>
+  </form>
+
+  <section [attr.aria-busy]="sites.isLoading()">
+    @if (sites.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="sites.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (sites.hasValue()) {
+      <div class="table-scroll">
+        <table class="sites">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('org.sites.code') }}</th>
+              <th scope="col">{{ t('org.sites.name') }}</th>
+              <th scope="col">{{ t('org.sites.wilaya') }}</th>
+              <th scope="col">{{ t('org.sites.address') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (site of items(); track site.id) {
+              <tr>
+                <td class="code">{{ site.code }}</td>
+                <td>{{ site.name }}</td>
+                <td>{{ site.wilaya }}</td>
+                <td>{{ site.address ?? '' }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">{{ q() ? t('org.sites.noMatch', { q: q() }) : t('org.sites.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('org.sites.loading') }}</p>
+    }
+  </section>
+</ng-container>

@@ -1,5 +1,6 @@
 /**
  * /organization — the org tree as of a date, a detail panel for the selected unit, and create/change forms.
+ * Sites have their own sub-route, /organization/sites (sites.page.ts); `<app-org-nav>` links the two.
  *
  * Angular concepts:
  * - **Router → component input binding.** `app.config.ts` enables `withComponentInputBinding()`: the router then
@@ -17,16 +18,23 @@
  * - **`inject(Router)` + `router.navigate([], { queryParams, queryParamsHandling: 'merge' })`** changes only the
  *   query string of the current URL; the component is reused and its `asOf` input updates.
  * - **`[(selectedId)]`** in the template is two-way binding to the tree's `model()` input (see org-tree.ts).
+ * - **App-wide reference data**: `KindCatalog` is injected here too; it is the same root instance the tree and
+ *   forms use, so the kind catalogue is fetched once whatever the number of consumers. The "Add a sub-unit" button
+ *   needs BOTH the server's `create_child` action and at least one allowed child kind in the catalogue.
+ * - `sites` (`GET /org/sites`) is loaded once by the page and handed down as an input to the forms (select options)
+ *   and the detail (site names in the history), instead of each child fetching it.
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { isIsoDate, todayIso } from '../../core/date/iso-date';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
+import { KindCatalog } from '../../core/org/kind-catalog';
 import { OrgApi } from '../../core/org/org-api';
-import type { OrgAction, OrgTreeNode, OrgUnitDetail } from '../../core/org/org.models';
+import type { OrgAction, OrgTreeNode, OrgUnitDetail, Site } from '../../core/org/org.models';
 import { ChangeUnitForm } from './change-unit-form';
 import { CreateUnitForm } from './create-unit-form';
+import { OrgNav } from './org-nav';
 import { OrgTree } from './org-tree';
 import { UnitDetail } from './unit-detail';
 
@@ -63,7 +71,7 @@ function collectNames(node: OrgTreeNode, into: Map<string, string>): Map<string,
 
 @Component({
   selector: 'app-organization-page',
-  imports: [TranslocoDirective, OrgTree, UnitDetail, CreateUnitForm, ChangeUnitForm],
+  imports: [TranslocoDirective, OrgNav, OrgTree, UnitDetail, CreateUnitForm, ChangeUnitForm],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './organization.page.html',
   styleUrl: './organization.page.css',
@@ -72,6 +80,7 @@ export class OrganizationPage {
   private readonly api = inject(OrgApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  protected readonly kindCatalog = inject(KindCatalog);
 
   /** `?asOf=YYYY-MM-DD`, bound by the router (withComponentInputBinding). Absent → undefined. */
   readonly asOf = input<string>();
@@ -87,6 +96,14 @@ export class OrganizationPage {
   protected readonly detail = this.api.unitResource(this.selectedId);
   protected readonly mode = linkedSignal<string | null, Mode>({ source: this.selectedId, computation: () => 'view' });
   protected readonly feedback = signal<Feedback | null>(null);
+  /** All sites (no search): options of the site selects and names for the version history. */
+  private readonly sitesResource = this.api.sitesResource(() => '');
+  protected readonly sites = computed<readonly Site[]>(() =>
+    this.sitesResource.hasValue() ? this.sitesResource.value().items : [],
+  );
+  protected readonly siteNames = computed(
+    () => new Map(this.sites().map((site) => [site.id, `${site.name} (${site.code})`])),
+  );
 
   protected readonly root = computed(() => (this.tree.hasValue() ? this.tree.value().root : null));
   protected readonly names = computed(() => {
@@ -121,6 +138,11 @@ export class OrganizationPage {
 
   protected can(action: OrgAction): boolean {
     return this.actions().includes(action);
+  }
+
+  /** `create_child` from the server, and at least one kind the catalogue allows under this unit. */
+  protected canCreateUnder(unit: OrgUnitDetail): boolean {
+    return this.can('create_child') && this.kindCatalog.allowedChildKinds(unit.kind).length > 0;
   }
 
   protected startMode(mode: Mode): void {

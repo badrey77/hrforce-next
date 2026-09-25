@@ -2,7 +2,7 @@
  * `<app-org-unit-picker>` — a search-as-you-type combobox that picks ONE org unit. Its form value is the unit id
  * (`string | null`), so it plugs into reactive forms like a plain input:
  *
- *   <app-org-unit-picker formControlName="parentId" inputId="parent" [kinds]="['region']" [asOf]="date" />
+ *   <app-org-unit-picker formControlName="parentId" inputId="parent" [kinds]="['department', 'region']" [asOf]="date" />
  *
  * Lives in shared/: reusable UI with no feature knowledge. It may import core/ (OrgApi, models) but never features/.
  *
@@ -23,6 +23,8 @@
  *   query arrives — for HttpClient, unsubscribing aborts the request, so a slow stale response can never
  *   overwrite newer results. `takeUntilDestroyed()` ends the pipeline when the component is destroyed
  *   (it uses the component's `DestroyRef`, so it must be called in an injection context: here, the constructor).
+ * - **Injecting an app-wide signal cache** (`KindCatalog`): the kind badge of each option is
+ *   `kindCatalog.labelOf(unit.kind)`, which follows the active language (see core/org/kind-catalog.ts).
  * - **`host` metadata** binds events on the component's own element (`(focusout)`), no wrapper div needed.
  *
  * Accessibility: WAI-ARIA combobox pattern ("list autocomplete"): the text input has `role="combobox"`,
@@ -34,6 +36,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { catchError, debounceTime, map, of, Subject, switchMap } from 'rxjs';
+import { KindCatalog } from '../../core/org/kind-catalog';
 import { OrgApi } from '../../core/org/org-api';
 import type { OrgUnitKind, OrgUnitSummary } from '../../core/org/org.models';
 
@@ -65,8 +68,12 @@ export function orgUnitLabel(unit: Pick<OrgUnitSummary, 'code' | 'name'>): strin
 })
 export class OrgUnitPicker implements ControlValueAccessor {
   private readonly api = inject(OrgApi);
+  protected readonly kindCatalog = inject(KindCatalog);
 
-  /** Only offer these kinds (e.g. `['region']`). One kind is sent to the API as `kind=`; several are filtered here. */
+  /**
+   * Only offer these kinds (e.g. `['department', 'region']`). Sent to the API as repeated params
+   * (`kind=department&kind=region`); the server filters. Absent or empty → all kinds.
+   */
   readonly kinds = input<readonly OrgUnitKind[]>();
   /** Search the tree as of this date (`YYYY-MM-DD`); server default is today. */
   readonly asOf = input<string>();
@@ -105,14 +112,11 @@ export class OrgUnitPicker implements ControlValueAccessor {
         debounceTime(ORG_UNIT_PICKER_DEBOUNCE_MS),
         switchMap((request) => {
           this.state.set('loading');
-          const kinds = request.kinds;
-          return this.api
-            .search({ q: request.q, kind: kinds?.length === 1 ? kinds[0] : undefined, asOf: request.asOf })
-            .pipe(
-              map((result) => result.items.filter((unit) => !kinds?.length || kinds.includes(unit.kind))),
-              // Handle the error INSIDE switchMap: an error reaching the outer pipe would end it for good.
-              catchError(() => of(null)),
-            );
+          return this.api.search(request).pipe(
+            map((result) => result.items),
+            // Handle the error INSIDE switchMap: an error reaching the outer pipe would end it for good.
+            catchError(() => of(null)),
+          );
         }),
         takeUntilDestroyed(),
       )

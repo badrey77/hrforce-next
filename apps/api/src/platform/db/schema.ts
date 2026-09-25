@@ -24,6 +24,7 @@ export interface OrgUnit {
   company_id: string;
   created_at: Generated<Timestamp>;
   id: Generated<string>;
+  is_root: Generated<boolean>;
   kind: string;
 }
 
@@ -34,6 +35,20 @@ export interface OrgUnitClosure {
   descendant_id: string;
 }
 
+export interface OrgUnitKind {
+  code: string;
+  is_root: Generated<boolean>;
+  label_ar: string;
+  label_en: string;
+  label_fr: string;
+  sort_order: number;
+}
+
+export interface OrgUnitKindParent {
+  kind: string;
+  parent_kind: string;
+}
+
 export interface OrgUnitVersion {
   company_id: string;
   created_at: Generated<Timestamp>;
@@ -42,12 +57,26 @@ export interface OrgUnitVersion {
   name_search: Generated<string | null>;
   org_unit_id: string;
   parent_id: string | null;
+  site_id: string | null;
   valid: string;
+}
+
+export interface Site {
+  address: string | null;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  name: string;
+  wilaya: string;
 }
 
 export interface DB {
   company: Company;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;
+  org_unit_kind: OrgUnitKind;
+  org_unit_kind_parent: OrgUnitKindParent;
   org_unit_version: OrgUnitVersion;
+  site: Site;
 }

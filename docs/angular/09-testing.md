@@ -138,6 +138,35 @@ and respond to those captured requests:
   never checked/flushed; every spec file using `HttpTestingController` in this codebase
   calls `verify()` in `afterEach`, catching an accidentally-unhandled request.
 
+### Reference data a component pulls in
+
+Components that inject `KindCatalog` (the tree, the picker, the forms) make the root
+service send its one `GET /api/org/kinds` as soon as effects run. Because every test
+calls `http.verify()`, each spec must answer it. `src/testing/org-fixtures.ts` holds the
+contract's seed catalogue (`ORG_KINDS`), some sites, and `flushKinds(http)`:
+
+```ts
+// src/app/shared/org-unit-picker/org-unit-picker.spec.ts
+fixture.detectChanges();
+// The picker injects KindCatalog (option badges): answer its one catalogue request.
+TestBed.tick();
+flushKinds(http);
+```
+
+Each test gets a fresh `TestBed`, hence a fresh root injector and a fresh catalogue —
+"once per app" means once per test. `kind-catalog.spec.ts` asserts that a second
+`inject(KindCatalog)` sends nothing (`http.expectNone('/api/org/kinds')`).
+
+To test language-dependent data labels, switch through the real service —
+`TestBed.inject(LanguageService).use('ar')` — then `TestBed.tick()` and read the DOM
+(see "switches kind labels with the language" in `organization.page.spec.ts`).
+
+### Driving a `<select>`
+
+Options bound with `[ngValue]` have generated DOM values (`"0: null"`), so tests pick an
+option by its text: set `select.selectedIndex` and dispatch a `change` event, which is
+what the select accessor listens to (`choose()` in `organization.page.spec.ts`).
+
 ## `RouterTestingHarness`
 
 For a routed page — one that reads route/query params and relies on navigation —

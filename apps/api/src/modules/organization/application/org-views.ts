@@ -67,7 +67,18 @@ export interface OrgUnitVersionView {
   siteId: string | null;
 }
 
+/** The head of a unit today (docs/contracts/leave.md › Links; set with PUT /org/units/:id/head). */
+export interface OrgUnitHeadView {
+  employmentId: string;
+  matricule: string;
+  person: { lastName: string; firstName: string; lastNameAr: string | null; firstNameAr: string | null };
+  validFrom: string;
+  validTo: string | null;
+}
+
 export interface OrgUnitDetail extends OrgUnitSummary {
+  /** today's head, or null */
+  head: OrgUnitHeadView | null;
   siteInherited: boolean;
   createdAt: string;
   versions: OrgUnitVersionView[];

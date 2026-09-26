@@ -13,6 +13,7 @@ Report 13 §6 for the full P1 feature list these ADRs support.
 | [003](./003-delivery-order.md) | Delivery order — vertical slices, org tree before permissions | Accepted | CLAUDE.md's horizontal foundation-first order |
 | [004](./004-browser-auth.md) | Browser auth — httpOnly cookies for both tokens, plus XSRF | Accepted | Report 13: "Not covered today" |
 | [005](./005-infrastructure.md) | Infrastructure — Postgres only in P1 | Accepted | 10-BACKEND-REDESIGN.md §2, §6 (Redis, BullMQ, four apps) |
+| [006](./006-workflow-engine.md) | Workflow engine — Postgres state machine | Accepted | — (approvals were ad-hoc status columns) |
 
 ## How these fit together
 
@@ -28,6 +29,9 @@ Report 13 §6 for the full P1 feature list these ADRs support.
 - **004** is the concrete browser-side implementation of 002's guard-checked, scoped
   access: how a session is established and kept, on top of the RLS/audit
   transaction context that 001 and 005 set up per request.
+
+- **006** (M2) is the approval engine: a synchronous Postgres state machine inside the request transaction (005),
+  whose "who may act" is answered by 002's scoped grants at read time.
 
 ## Format
 

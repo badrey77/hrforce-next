@@ -41,13 +41,21 @@ src/
     core/access/               Authorization contract types + AccessApi + AccessCatalog (permissions, roles; labels in the
                                active language; only fetched with access.read)
     core/employees/            Employment contract types (money as a decimal string) + EmployeesApi (list/detail resources,
-                               writes)
+                               writes, search/get for the employee picker)
+    core/leave/                Leave contract types + LeaveApi (preview as a POST httpResource) + LeaveCatalog (types, labels
+                               in the active language) + MyEmployment (GET /me/employment, gates "My leave")
+    core/tasks/                TasksApi + TasksBadge (root store of open tasks: nav count, /tasks list, optimistic hide/show,
+                               refresh on navigation / tab visible / after actions)
     shared/                    reusable UI used by several features (may import core/, never features/)
       can/                     *appCan="'code'; else tpl" structural directive
       display-name/            `displayName` pipe: Arabic name in the Arabic UI when there is one (people, units)
       org-unit-picker/         <app-org-unit-picker>: search-as-you-type combobox, a ControlValueAccessor (value = unit id)
+      employee-picker/         <app-employee-picker>: the same combobox for employees (value = employment id)
+      workflow-stepper/        <app-workflow-stepper>: approval steps (labels from the definition), RTL-safe
+      leave/                   balance cards, the request form with live preview, the read-only request view, leave rules
     features/<name>/           pages (access, auth: login, password setup/forgot; employees: list with URL state, create,
-                               detail with tabs; home, organization, not-found, placeholder)
+                               detail with tabs incl. Leave; home, organization (+ head of unit), my-leave (/me/leave),
+                               tasks (/tasks), leave (/leave list, /leave/requests/:id, /leave/settings); not-found, placeholder)
     shell/                     shell widgets (language switcher, user menu with "Sign out")
   testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill), excluded
                                from the app build
@@ -129,6 +137,36 @@ re-checks everything. Permissions reach the web through `GET /api/me` (`permissi
 
 To try it: sign in as `rh.admin@demo.dz`, open Accès → Utilisateurs → Samir Belkacem, add or end a grant; then sign
 in as `lecture.ouest@demo.dz` to see the read-only organization and no Access entry.
+
+## Leave, workflow and My tasks (docs/contracts/leave.md)
+
+| Screen | Route | Needs | Notes |
+|---|---|---|---|
+| My leave | `/me/leave` | `leave.request_self` + a linked employment | balance cards, request form with a debounced live preview (`POST /leave/preview`), my requests with a stepper, cancel |
+| My tasks | `/tasks` | signed in | nav badge with the open count; approve (optimistic) / reject (comment required, dialog); rollback on `workflow-task-closed` |
+| HR leave | `/leave`, `/leave/requests/:id` | `leave.read` | filters in the URL (status, type, unit + sub-units, from/to, q, page) |
+| Settings | `/leave/settings` | `leave.configure` | types (inline edit), holidays per year (approximate flag), policy (weekend, reference month) |
+| Employee › Leave tab | `/employees/:id` | `leave.read` | balances, ledger; adjustments (`leave.adjust`); request on behalf (`leave.request`) |
+| Org › Head of unit | `/organization` | unit `update` action | employee picker + from date |
+| Access › Linked employee | `/access/users/:id` | `access.grant` (+ `employee.read` to search) | link / unlink |
+
+**Contract interpretations** (the contract lists endpoints and slugs, not every body; checked against the API's views in
+`apps/api/src/modules/{leave,workflow,staffing}`):
+- Reference-data labels are `labels: {fr, ar, en}` (types, holidays, workflow steps), like the org kind catalogue; the
+  preview's holiday `name` is read as either labels or a plain string.
+- Days are JSON numbers (one decimal); balances carry `accrued/taken/adjusted/balance/pending/available` per
+  `(leaveTypeId, periodStart)`.
+- List items carry `workflow: {status, currentStep, steps[]}` (steps with labels) so each row can draw its stepper; the
+  detail adds `history[]` (tasks oldest first), `_actions` (`cancel`) and the employee's `balances` for the request type
+  (the manager step's approver holds no `leave.read`).
+- `GET /tasks` items: `{id, stepKey, stepIndex, stepLabels, escalated, createdAt, subject: {type, id, employee, leaveTypeId,
+  startDate, endDate, days}}`.
+- `GET /leave/policy` exists (the contract lists only the PUT); the web sends back `entitlementDelayMonths` unchanged.
+- The preview's `warnings[]` (slugs a submit would hit) are shown with the same messages as the submit's 409s.
+- Current head = `head` on the unit detail; linked employee = `employment` on the Access user; unlink sends
+  `{employmentId: null}`. Staffing slugs mapped: `head-date`, `employment-ended`, `employment-linked`, `link-self`.
+- 409 mapping of a request: `leave-overlap` → start date, `leave-dates` → end date, `leave-document-required` → document,
+  `leave-once-per-career` → type, `leave-balance`/`leave-max-request` → above the form, `leave-not-linked` → page message.
 
 ## Authentication (docs/contracts/identity.md, ADR 004)
 

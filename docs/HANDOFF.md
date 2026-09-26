@@ -15,7 +15,7 @@ Keep it current: when a decision is made or an open question is answered, update
 | CI guardrails green | `npm run guard`, `npm run guard:db` |
 | Postgres only at runtime | no Redis/broker/object storage; SMTP relay for mail (Mailpit in dev only) |
 
-**Not yet done for M1:** a real GitHub Actions run (on PG18) and the staging deploy (needs a target from the owner).
+**Not yet done for M1:** a real GitHub Actions run (on PG18) and the actual staging deploy. The **staging deploy pack is ready** (`deploy/`, `.github/workflows/deploy-staging.yml`, `deploy/README.md`): any Ubuntu server with Docker, Caddy with automatic HTTPS, nightly backups, `bootstrap` CLI for the first company and admin. It needs the server + DNS + 4 repository secrets.
 
 ## How we work (keep doing this)
 
@@ -38,6 +38,10 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-26 | Local start scripts: `scripts/dev-up.sh` (bash) and `scripts/dev-up.ps1` (PowerShell) |
 | 2026-09-26 | M2 starts with **Leave** using **Algerian defaults** (Law 90-11) as editable data, to be confirmed; default approval chain **unit head → regional HR**. In parallel: a **staging deploy pack** for any Docker Linux host (target still to choose). Workflow engine = ADR 006; SSO moves to ADR 007 |
 
+## M2 progress
+
+- **Leave + workflow + My tasks: built** (contract `docs/contracts/leave.md`, ADR 006). Build decisions to confirm: accrued annual days become usable 12 months after the reference year starts (reading of "taken from 1 July N"); special paid leaves count working days; a user cannot link their own account to an employee; `rh.est` also holds `employe` so Karim can request leave; the Région Est director linked to Karim in the seed is the fictitious "Souad Cherif".
+
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
 - **Sensitive fields:** only `admin_rh_central` reads/edits salary, RIB, NSS; **no role** holds `employee.medical.read`.
@@ -49,7 +53,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 0. **Confirm the leave assumptions** listed at the top of `docs/contracts/leave.md` (accrual, reference period, special leaves, holidays, southern supplement).
 
 1. **SSO:** HRForce login should authorize other apps. Which apps, and what are they built with (OIDC-capable web apps / legacy PHP-Java / SAML-only products)? Recommendation: HRForce as the OIDC provider (`oidc-provider` in the API, Postgres only) unless SAML or directory integration is needed (then Keycloak/Zitadel). Record as **ADR 007** once answered. SSO was out of P1 scope.
-2. **Staging target** for "deployed to staging from CI" (server, cloud VM, Kubernetes?).
+2. **Staging server**: provide an Ubuntu 24.04 host with Docker, a DNS name, and the repository secrets `STAGING_HOST`, `STAGING_USER`, `STAGING_SSH_KEY`, `STAGING_DOMAIN` (see `deploy/README.md`).
 3. **App-role trust** (ADR 004 note): accept that a compromised `hrforce_app` DB role could mint sessions / forge audit events, or plan a separate credential service before go-live.
 4. Team size and target date (plan open question).
 

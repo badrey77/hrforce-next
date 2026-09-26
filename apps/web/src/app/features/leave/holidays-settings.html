@@ -1,0 +1,100 @@
+<section *transloco="let t" aria-labelledby="holidays-title">
+  <div class="toolbar">
+    <h2 id="holidays-title">{{ t('leave.settings.holidays.title') }}</h2>
+    <div class="form-actions">
+      <label for="holidays-year">{{ t('leave.settings.holidays.year') }}</label>
+      <select id="holidays-year" (change)="onYear($event)">
+        @for (y of years; track y) {
+          <option [value]="y" [selected]="y === year()">{{ y }}</option>
+        }
+      </select>
+      @if (editing() === null) {
+        <button class="btn" type="button" data-action="add-holiday" (click)="startAdd()">{{ t('leave.settings.holidays.add') }}</button>
+      }
+    </div>
+  </div>
+  <p class="field-hint">{{ t('leave.settings.holidays.hint') }}</p>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @if (editing() !== null) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate data-form="holiday">
+      <div class="grid">
+        <div class="field">
+          <label for="holiday-date">{{ t('leave.settings.holidays.date') }}</label>
+          <input id="holiday-date" type="date" formControlName="date" required
+            [attr.aria-invalid]="c.date.invalid && c.date.touched" aria-describedby="holiday-date-error" />
+          @if (c.date.invalid && c.date.touched) {
+            <p class="field-error" id="holiday-date-error">{{ c.date.getError('server') ?? t(errorKey(c.date)) }}</p>
+          }
+        </div>
+        <ng-container formGroupName="labels">
+          @for (lang of ['fr', 'ar', 'en']; track lang) {
+            <div class="field">
+              <label [for]="'holiday-label-' + lang">{{ t('leave.settings.labelIn.' + lang) }}</label>
+              <input [id]="'holiday-label-' + lang" type="text" [formControlName]="lang" [attr.lang]="lang" dir="auto" required />
+            </div>
+          }
+        </ng-container>
+      </div>
+      @if (c.labels.invalid && c.labels.touched) {
+        <p class="field-error" data-error="labels">{{ t('leave.settings.labelsRequired') }}</p>
+      }
+      <div class="check">
+        <input id="holiday-approximate" type="checkbox" formControlName="approximate" />
+        <label for="holiday-approximate">{{ t('leave.settings.holidays.approximate') }}</label>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-holiday" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="editing.set(null)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <div class="table-scroll" [attr.aria-busy]="holidays.isLoading()">
+    <table class="data" data-table="holidays">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('leave.settings.holidays.date') }}</th>
+          <th scope="col">{{ t('leave.settings.holidays.name') }}</th>
+          <th scope="col"><span class="visually-hidden">{{ t('leave.settings.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (holiday of items(); track holiday.id) {
+          <tr [attr.data-holiday]="holiday.id">
+            <td class="nowrap">{{ holiday.date | date: 'fullDate' : undefined : locale() }}</td>
+            <td>
+              {{ catalog.labelOf(holiday.labels) }}
+              @if (holiday.approximate) {
+                &ngsp;<span class="badge" data-status="pending" data-flag="approximate">{{ t('leave.settings.holidays.approximateBadge') }}</span>
+              }
+            </td>
+            <td class="form-actions">
+              @if (deletingId() === holiday.id) {
+                <span>{{ t('leave.settings.holidays.confirmDelete') }}</span>
+                <button class="btn" type="button" data-action="confirm-delete" [disabled]="saving()" (click)="confirmDelete(holiday)">{{ t('leave.settings.yes') }}</button>
+                <button class="btn secondary" type="button" (click)="deletingId.set(null)">{{ t('leave.settings.no') }}</button>
+              } @else {
+                <button class="btn secondary" type="button" data-action="edit-holiday" [disabled]="editing() !== null" (click)="startEdit(holiday)">{{ t('leave.settings.edit') }}</button>
+                <button class="btn secondary" type="button" data-action="delete-holiday" [disabled]="editing() !== null" (click)="deletingId.set(holiday.id)">{{ t('leave.settings.delete') }}</button>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="3" class="muted">
+              {{ holidays.error() ? t('leave.settings.holidays.loadError') : holidays.hasValue() ? t('leave.settings.holidays.empty') : t('common.loading') }}
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

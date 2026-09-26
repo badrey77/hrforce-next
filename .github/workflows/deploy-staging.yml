@@ -1,0 +1,244 @@
+name: Deploy staging
+
+# Builds the API and web images for a commit of main that passed CI, pushes them to GHCR tagged with the commit
+# SHA (+ `staging`), then deploys that SHA to the staging server over SSH (deploy/deploy.sh) and smoke-checks it.
+# Manual run: "Run workflow" with an empty sha = build + deploy the head of the chosen branch; with a sha =
+# redeploy images already in GHCR (rollback) using that commit's deploy/ files.
+# Setup and secrets: deploy/README.md. Without the STAGING_HOST secret, images are still built and pushed and the
+# deploy job is skipped with a notice.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full commit SHA already built and pushed (rollback / redeploy). Empty = build and deploy the selected branch."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+# One deploy at a time; a queued deploy waits instead of cancelling the one in progress.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare
+    # workflow_run: only after a successful CI run on a push to main (not PRs whose head branch is named main).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      build: ${{ steps.plan.outputs.build }}
+      deploy: ${{ steps.plan.outputs.deploy }}
+      registry: ${{ steps.plan.outputs.registry }}
+    steps:
+      - name: Plan
+        id: plan
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+          INPUT_SHA: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ $GITHUB_EVENT_NAME == workflow_dispatch && -n $INPUT_SHA ]]; then
+            if [[ ! $INPUT_SHA =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error title=Invalid sha::'sha' must be a full 40-character lower-case commit SHA"
+              exit 1
+            fi
+            sha=$INPUT_SHA build=false
+          elif [[ $GITHUB_EVENT_NAME == workflow_dispatch ]]; then
+            sha=$GITHUB_SHA build=true
+          else
+            sha=$RUN_SHA build=true
+          fi
+          deploy=true
+          if [[ -z $STAGING_HOST ]]; then
+            deploy=false
+            msg="STAGING_HOST secret is not set: images are built and pushed, the deploy is skipped. Configure the server and the secrets described in deploy/README.md to enable it."
+            echo "::notice title=Staging deploy skipped::$msg"
+            echo "### Staging deploy skipped"$'\n\n'"$msg" >> "$GITHUB_STEP_SUMMARY"
+          else
+            for name in STAGING_USER STAGING_SSH_KEY STAGING_DOMAIN; do
+              if [[ -z ${!name} ]]; then
+                echo "::error title=Missing secret::STAGING_HOST is set but $name is not (deploy/README.md › CI secrets)"
+                exit 1
+              fi
+            done
+          fi
+          {
+            echo "sha=$sha"
+            echo "build=$build"
+            echo "deploy=$deploy"
+            echo "registry=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          } >> "$GITHUB_OUTPUT"
+          echo "sha=$sha build=$build deploy=$deploy"
+
+  build:
+    name: Build and push ${{ matrix.image }}
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: hrforce-api
+            dockerfile: apps/api/Dockerfile
+          - image: hrforce-web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}:${{ needs.prepare.outputs.sha }}
+            ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}:staging
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+            org.opencontainers.image.title=${{ matrix.image }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy to staging
+    needs: [prepare, build]
+    # build is skipped for a redeploy of an existing sha; any other build outcome blocks the deploy.
+    if: >-
+      always() && needs.prepare.result == 'success' && needs.prepare.outputs.deploy == 'true' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: staging
+    env:
+      SHA: ${{ needs.prepare.outputs.sha }}
+      REGISTRY: ${{ needs.prepare.outputs.registry }}
+      SSH_PORT: ${{ vars.STAGING_SSH_PORT || '22' }}
+      REMOTE_DIR: ${{ vars.STAGING_DIR || '/opt/hrforce' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.SHA }}
+          persist-credentials: false
+
+      - name: Check that both images exist for this sha
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin > /dev/null
+          for image in hrforce-api hrforce-web; do
+            docker buildx imagetools inspect "$REGISTRY/$image:$SHA" > /dev/null \
+              || { echo "::error title=Image missing::$REGISTRY/$image:$SHA is not in GHCR (build it first: run this workflow with an empty sha on that commit)"; exit 1; }
+          done
+          docker logout ghcr.io > /dev/null
+
+      - name: Configure SSH
+        env:
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          if [[ -n $STAGING_SSH_KNOWN_HOSTS ]]; then
+            printf '%s\n' "$STAGING_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning title=SSH host key not pinned::STAGING_SSH_KNOWN_HOSTS is not set; trusting the key the host presents now (ssh-keyscan). Set the secret to pin it (deploy/README.md)."
+            ssh-keyscan -p "$SSH_PORT" -H "$STAGING_HOST" > ~/.ssh/known_hosts 2> /dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+          {
+            echo "Host staging"
+            echo "  HostName $STAGING_HOST"
+            echo "  Port $SSH_PORT"
+            echo "  User $STAGING_USER"
+            echo "  IdentityFile ~/.ssh/staging_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  ServerAliveInterval 30"
+          } > ~/.ssh/config
+
+      - name: Upload the deploy bundle (deploy/ + apps/api/scripts/, never .env)
+        run: |
+          set -euo pipefail
+          # REMOTE_DIR is expanded here on purpose (a workflow value, not a server variable).
+          # shellcheck disable=SC2029
+          tar -czf - deploy apps/api/scripts | ssh staging "mkdir -p '$REMOTE_DIR' && tar -xzf - -C '$REMOTE_DIR'"
+
+      - name: Deploy ${{ env.SHA }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The job's GITHUB_TOKEN (packages: read via the workflow's packages: write) lets the server pull; it
+          # expires when the job ends and is removed from the server right after the deploy.
+          # SHA / REMOTE_DIR / GITHUB_ACTOR are expanded here on purpose.
+          # shellcheck disable=SC2029
+          printf '%s' "$GHCR_TOKEN" | ssh staging "docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin > /dev/null"
+          status=0
+          # shellcheck disable=SC2029
+          ssh staging "cd '$REMOTE_DIR/deploy' && ./deploy.sh '$SHA'" || status=$?
+          ssh staging "docker logout ghcr.io > /dev/null" || true
+          exit "$status"
+
+      - name: Smoke check
+        env:
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+        run: |
+          set -euo pipefail
+          # Right after a first install the certificate may still be in flight: retry for up to ~2 minutes.
+          for attempt in 1 2 3 4 5 6; do
+            if bash deploy/smoke.sh "https://$STAGING_DOMAIN"; then exit 0; fi
+            echo "smoke check failed (attempt $attempt), retrying in 20 s"
+            sleep 20
+          done
+          exit 1
+
+      - name: Summary
+        if: always()
+        env:
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+        run: |
+          {
+            echo "### Staging: ${{ job.status }}"
+            echo
+            echo "- commit: \`$SHA\`"
+            echo "- images: \`$REGISTRY/hrforce-api:$SHA\`, \`$REGISTRY/hrforce-web:$SHA\`"
+            echo "- url: https://$STAGING_DOMAIN"
+            echo "- rollback: run this workflow with the previous sha, or on the server \`cd $REMOTE_DIR/deploy && ./deploy.sh <sha>\` (deploy/README.md)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f ~/.ssh/staging_key

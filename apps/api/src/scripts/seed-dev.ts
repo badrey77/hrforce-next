@@ -2,7 +2,8 @@
  * CLI: seed the demo company, its organisation (docs/contracts/organization.md), the demo users
  * (docs/contracts/identity.md › CLI and seed: rh.admin@demo.dz, rh.est@demo.dz, lecture.ouest@demo.dz, password
  * DEMO_PASSWORD), the system roles, the demo grants (docs/contracts/authorization.md › Dev seed) and 40 fictitious
- * employees (docs/contracts/employment.md › Seed — TEST DATA).
+ * employees (docs/contracts/employment.md › Seed — TEST DATA) and the leave demo (docs/contracts/leave.md › Seed additions:
+ * defaults, agent.annaba / chef.annaba, links, unit heads, accruals Jul 2025 – Sep 2026, requests in each status).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -14,6 +15,7 @@ import { createDatabase } from '../platform/db/database.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess } from '../modules/authorization/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
+import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
 
 const seedEnvSchema = migratorEnvSchema.extend({
@@ -30,8 +32,16 @@ async function main(): Promise<void> {
       await seedOrganization(tx, DEMO_ORGANIZATION, toIsoDate(new Date()));
       await seedIdentity(tx, DEMO_ORGANIZATION.company.id);
       await seedDemoAccess(tx);
-      return seedDemoEmployees(tx);
-    }).then((employees) => logger.info({ employees }, 'demo employees seeded (fictitious test data)'));
+      const employees = await seedDemoEmployees(tx);
+      const leave = await seedDemoLeave(tx, { requests: true });
+      return { employees, leave };
+    }).then(({ employees, leave }) => {
+      logger.info({ employees }, 'demo employees seeded (fictitious test data)');
+      logger.info(
+        { ...leave, users: LEAVE_DEMO_USERS.map((u) => u.email) },
+        'leave demo seeded (defaults, links, unit heads, accruals 2025-07 → 2026-09, requests)',
+      );
+    });
     logger.info(
       { companyId: DEMO_ORGANIZATION.company.id, units: DEMO_ORGANIZATION.units.length },
       'demo organisation seeded',

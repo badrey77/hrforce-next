@@ -1,0 +1,62 @@
+<!-- Same markup and ARIA as shared/org-unit-picker/org-unit-picker.html (template notes there). -->
+<ng-container *transloco="let t">
+  <div class="combo">
+    <input
+      type="text"
+      role="combobox"
+      autocomplete="off"
+      aria-autocomplete="list"
+      dir="auto"
+      [id]="inputId()"
+      [value]="query()"
+      [disabled]="disabled()"
+      [placeholder]="t('employees.picker.placeholder')"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listboxId()"
+      [attr.aria-activedescendant]="activeOptionId()"
+      [attr.aria-invalid]="invalid()"
+      [attr.aria-describedby]="ariaDescribedBy()"
+      (input)="onInput($event)"
+      (keydown)="onKeydown($event)"
+    />
+
+    <ul class="listbox" role="listbox" [id]="listboxId()" [hidden]="!open() || results().length === 0">
+      @for (employee of results(); track employee.id; let i = $index) {
+        <li
+          role="option"
+          [id]="optionId(i)"
+          [class.active]="i === activeIndex()"
+          [attr.aria-selected]="i === activeIndex()"
+          (mousedown)="$event.preventDefault()"
+          (click)="choose(employee)"
+        >
+          <span class="line">
+            <span class="code">{{ employee.matricule }}</span>&ngsp;<span class="name">{{
+              employee.person | displayName: lang()
+            }}</span>
+          </span>
+          <ol class="breadcrumb">
+            <li>{{ employee.unit | displayName: lang() }}</li>
+            <li>{{ employee.jobTitle }}</li>
+          </ol>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <p class="status" aria-live="polite" [id]="statusId()">
+    @if (open()) {
+      @switch (state()) {
+        @case ('loading') {
+          {{ t('employees.picker.loading') }}
+        }
+        @case ('error') {
+          <span class="error">{{ t('employees.picker.error') }}</span>
+        }
+        @case ('done') {
+          {{ results().length ? t('employees.picker.results', { count: results().length }) : t('employees.picker.noResults') }}
+        }
+      }
+    }
+  </p>
+</ng-container>

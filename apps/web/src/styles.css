@@ -262,3 +262,177 @@ td.code {
 .table-scroll {
   overflow-x: auto;
 }
+
+/*
+ * Page patterns shared by the Leave, Tasks and settings screens (M2). The M1 features keep their own scoped copies
+ * (features/employees/employees.css, features/access/access.css); new screens use these global classes so their
+ * component stylesheets stay small (angular.json budget: 4 kB per component style). Logical properties only.
+ */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.page-header h1 {
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block: var(--space-4) var(--space-3);
+}
+
+.toolbar h2,
+.toolbar h3 {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.feedback {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-inline-start: 4px solid var(--color-primary);
+  background: var(--color-surface-alt);
+}
+
+.warning {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border-inline-start: 4px solid var(--color-danger);
+  background: var(--color-surface-alt);
+}
+
+.panel {
+  margin-block: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+table.data {
+  border-collapse: collapse;
+  inline-size: 100%;
+}
+
+table.data th,
+table.data td {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  text-align: start;
+  vertical-align: top;
+  border-block-end: 1px solid var(--color-border);
+}
+
+table.data th {
+  border-block-end-width: 2px;
+  white-space: nowrap;
+}
+
+table.data td.num,
+table.data th.num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-4);
+  margin-block-end: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.filters .field {
+  margin-block-end: 0;
+  min-inline-size: 11rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0 var(--space-4);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin-block: 0 var(--space-4);
+}
+
+.facts dt {
+  color: var(--color-text-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.code {
+  font-family: var(--font-mono);
+}
+
+.field textarea {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.field textarea[aria-invalid='true'],
+.field select[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+/* Status pills of leave requests (and anything with the same four states). */
+.badge[data-status='pending'] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.badge[data-status='approved'] {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.badge[data-status='rejected'] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.badge[data-status='cancelled'] {
+  color: var(--color-text-muted);
+}
+
+dialog.modal {
+  max-inline-size: min(32rem, 100vw - 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+dialog.modal::backdrop {
+  background: rgb(0 0 0 / 40%);
+}

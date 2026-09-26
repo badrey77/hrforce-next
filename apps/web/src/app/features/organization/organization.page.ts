@@ -52,6 +52,7 @@ import { CreateUnitForm } from './create-unit-form';
 import { OrgNav } from './org-nav';
 import { OrgTree } from './org-tree';
 import { UnitDetail } from './unit-detail';
+import { UnitHead } from './unit-head';
 
 type Mode = 'view' | 'create' | 'change';
 
@@ -86,7 +87,7 @@ function collectNames(node: OrgTreeNode, lang: AppLanguage, into: Map<string, st
 
 @Component({
   selector: 'app-organization-page',
-  imports: [TranslocoDirective, OrgNav, OrgTree, UnitDetail, CreateUnitForm, ChangeUnitForm, HistoryTabs],
+  imports: [TranslocoDirective, OrgNav, OrgTree, UnitDetail, UnitHead, CreateUnitForm, ChangeUnitForm, HistoryTabs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './organization.page.html',
   styleUrl: './organization.page.css',

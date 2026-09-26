@@ -1,0 +1,124 @@
+<!-- Same structure as features/employees/employees.page.html: filters from the URL, results, pager. -->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('leave.list.title') }}</h1>
+    <a *appCan="'leave.configure'" class="btn secondary" routerLink="/leave/settings" data-action="settings">{{ t('leave.settings.title') }}</a>
+  </header>
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('leave.list.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="leave-q">{{ t('leave.list.search') }}</label>
+      <input id="leave-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('leave.list.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="leave-status">{{ t('leave.fields.status') }}</label>
+      <select id="leave-status" (change)="onField('status', $event)">
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('leave.statusFilter.' + status) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="leave-type">{{ t('leave.fields.type') }}</label>
+      <select id="leave-type" (change)="onField('typeId', $event)">
+        <option value="" [selected]="!current.typeId">{{ t('leave.list.allTypes') }}</option>
+        @for (type of catalog.types(); track type.id) {
+          <option [value]="type.id" [selected]="type.id === current.typeId">{{ catalog.nameOf(type.id) }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="leave-unit">{{ t('leave.list.unit') }}</label>
+        <app-org-unit-picker inputId="leave-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="leave-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="leave-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    <div class="field">
+      <label for="leave-from">{{ t('leave.list.from') }}</label>
+      <input id="leave-from" type="date" [value]="current.from ?? ''" (change)="onField('from', $event)" />
+    </div>
+    <div class="field">
+      <label for="leave-to">{{ t('leave.list.to') }}</label>
+      <input id="leave-to" type="date" [value]="current.to ?? ''" (change)="onField('to', $event)" />
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('leave.list.total', { count: total() }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data" data-table="leave">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('leave.fields.employee') }}</th>
+                <th scope="col">{{ t('leave.list.unit') }}</th>
+                <th scope="col">{{ t('leave.fields.type') }}</th>
+                <th scope="col">{{ t('leave.list.from') }}</th>
+                <th scope="col">{{ t('leave.list.to') }}</th>
+                <th scope="col" class="num">{{ t('leave.fields.days') }}</th>
+                <th scope="col">{{ t('leave.fields.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr [attr.data-request]="item.id">
+                  <td>
+                    <a [routerLink]="['/leave/requests', item.id]">{{ item.employee.person | displayName: lang() }}</a>
+                    <span class="code muted"> {{ item.employee.matricule }}</span>
+                  </td>
+                  <td>{{ item.employee.unit ? (item.employee.unit | displayName: lang()) : '—' }}</td>
+                  <td>{{ catalog.nameOf(item.leaveTypeId) }}</td>
+                  <td class="nowrap">{{ item.startDate | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td class="nowrap">{{ item.endDate | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td class="num">{{ item.days | number: '1.0-1' : locale() }}</td>
+                  <td>
+                    <span class="badge" [attr.data-status]="item.status">{{ t('leave.status.' + item.status) }}</span>
+                    @if (currentStep(item); as step) {
+                      <span class="muted"> {{ step }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="leave-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="leave-page-size" (change)="onField('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('leave.list.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('leave.list.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

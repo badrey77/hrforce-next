@@ -128,8 +128,35 @@ export interface OrgUnitVersion {
   readonly siteId: string | null;
 }
 
+/**
+ * The head of a unit (docs/contracts/leave.md › Links: `org_unit_head`, date-effective). The contract adds the
+ * `PUT /org/units/:id/head` write; the web reads the CURRENT head from the unit detail as `head` (absent from an API
+ * before the Leave step → treated as "none").
+ */
+export interface OrgUnitHead {
+  readonly employmentId: string;
+  readonly matricule: string;
+  readonly person: {
+    readonly lastName: string;
+    readonly firstName: string;
+    readonly lastNameAr: string | null;
+    readonly firstNameAr: string | null;
+  };
+  readonly validFrom: string;
+  readonly validTo: string | null;
+}
+
+/** `PUT /org/units/:id/head` body — closes the previous head the day before `validFrom`. */
+export interface SetOrgUnitHead {
+  /** `null` = the unit has no head from `validFrom`. */
+  readonly employmentId: string | null;
+  readonly validFrom: string;
+}
+
 /** `GET /org/units/:id`, and the response of POST / PATCH. */
 export interface OrgUnitDetail extends OrgUnitSummary {
+  /** Current head of the unit (Leave step); `null`/absent = none. */
+  readonly head?: OrgUnitHead | null;
   /** True when `site` comes from an ancestor. */
   readonly siteInherited: boolean;
   readonly createdAt: string;

@@ -42,6 +42,14 @@ export interface AccessUserView {
   displayName: string;
   status: string;
   grants: GrantView[];
+  /** the linked employee (self-service, docs/contracts/leave.md; set with PUT /access/users/:id/employment), or null */
+  employment: LinkedEmploymentView | null;
+}
+
+export interface LinkedEmploymentView {
+  id: string;
+  matricule: string;
+  person: { lastName: string; firstName: string; lastNameAr: string | null; firstNameAr: string | null };
 }
 
 export interface ItemsView<T> {

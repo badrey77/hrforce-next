@@ -1,0 +1,5 @@
+# The root .gitignore ignores .env.* (except .env.example); the staging template must be tracked,
+# the real deploy/.env and the deploy bookkeeping must not.
+!.env.staging.example
+.env
+releases.log

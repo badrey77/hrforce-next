@@ -1,0 +1,139 @@
+<!--
+  Two columns: the form, and the live preview beside it (stacked on a phone).
+  - `@let c = …` is not needed: the class exposes `c` (the controls) directly.
+  - The preview is a `role="status"` live region: when the day count arrives, screen readers read it without the
+    focus leaving the date field.
+  - `[attr.aria-busy]` tells assistive tech the preview is being recomputed.
+  - Dates: `DatePipe` with the locale as an ARGUMENT (core/i18n/date-locale.ts).
+-->
+<form *transloco="let t" class="request" [formGroup]="form" (ngSubmit)="submit()" novalidate [attr.aria-labelledby]="ids + '-title'">
+  <div class="fields">
+    <h3 [id]="ids + '-title'">{{ employmentId() ? t('leave.form.titleOnBehalf') : t('leave.form.title') }}</h3>
+    @if (formError(); as error) {
+      <p class="form-error" role="alert" data-error="form">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    <div class="field">
+      <label [for]="ids + '-type'">{{ t('leave.form.type') }}</label>
+      <select [id]="ids + '-type'" formControlName="leaveTypeId" required
+        [attr.aria-invalid]="c.leaveTypeId.invalid && c.leaveTypeId.touched" [attr.aria-describedby]="ids + '-type-error'">
+        <option value="" disabled>{{ t('leave.form.typePlaceholder') }}</option>
+        @for (type of catalog.activeTypes(); track type.id) {
+          <option [value]="type.id">{{ catalog.nameOf(type.id) }}</option>
+        }
+      </select>
+      @if (c.leaveTypeId.invalid && c.leaveTypeId.touched) {
+        <p class="field-error" [id]="ids + '-type-error'">{{ c.leaveTypeId.getError('server') ?? t(errorKey(c.leaveTypeId)) }}</p>
+      }
+      @if (selectedType(); as type) {
+        <p class="field-hint" data-hint="count-mode">{{ t('leave.form.countMode.' + type.countMode) }}</p>
+      }
+    </div>
+
+    <div class="grid">
+      <div class="field">
+        <label [for]="ids + '-start'">{{ t('leave.form.startDate') }}</label>
+        <input [id]="ids + '-start'" type="date" formControlName="startDate" required
+          [attr.aria-invalid]="c.startDate.invalid && c.startDate.touched" [attr.aria-describedby]="ids + '-start-error'" />
+        @if (c.startDate.invalid && c.startDate.touched) {
+          <p class="field-error" [id]="ids + '-start-error'">{{ c.startDate.getError('server') ?? t(errorKey(c.startDate)) }}</p>
+        }
+        <div class="check">
+          <input [id]="ids + '-half-start'" type="checkbox" formControlName="halfDayStart" />
+          <label [for]="ids + '-half-start'">{{ t('leave.form.halfDayStart') }}</label>
+        </div>
+      </div>
+      <div class="field">
+        <label [for]="ids + '-end'">{{ t('leave.form.endDate') }}</label>
+        <input [id]="ids + '-end'" type="date" formControlName="endDate" required [min]="c.startDate.value"
+          [attr.aria-invalid]="(c.endDate.invalid && c.endDate.touched) || form.hasError('dateOrder')"
+          [attr.aria-describedby]="ids + '-end-error'" />
+        @if (c.endDate.invalid && c.endDate.touched) {
+          <p class="field-error" [id]="ids + '-end-error'">{{ c.endDate.getError('server') ?? t(errorKey(c.endDate)) }}</p>
+        } @else if (form.hasError('dateOrder')) {
+          <p class="field-error" [id]="ids + '-end-error'" data-error="dateOrder">{{ t('leave.form.errors.dateOrder') }}</p>
+        }
+        <div class="check">
+          <input [id]="ids + '-half-end'" type="checkbox" formControlName="halfDayEnd" />
+          <label [for]="ids + '-half-end'">{{ t('leave.form.halfDayEnd') }}</label>
+        </div>
+      </div>
+    </div>
+    @if (form.hasError('halfDays')) {
+      <p class="field-error" data-error="halfDays">{{ t('leave.form.errors.halfDays') }}</p>
+    }
+
+    <div class="field">
+      <label [for]="ids + '-doc'">
+        {{ t('leave.form.documentRef') }}
+        @if (selectedType()?.requiresDocument) {
+          <span class="muted">{{ t('leave.form.required') }}</span>
+        }
+      </label>
+      <input [id]="ids + '-doc'" type="text" formControlName="documentRef" dir="auto" autocomplete="off"
+        [attr.aria-invalid]="c.documentRef.invalid && c.documentRef.touched"
+        [attr.aria-describedby]="ids + '-doc-hint ' + ids + '-doc-error'" />
+      <p class="field-hint" [id]="ids + '-doc-hint'">{{ t('leave.form.documentHint') }}</p>
+      @if (c.documentRef.invalid && c.documentRef.touched) {
+        <p class="field-error" [id]="ids + '-doc-error'">{{ c.documentRef.getError('server') ?? t(errorKey(c.documentRef)) }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label [for]="ids + '-reason'">{{ t('leave.form.reason') }}</label>
+      <textarea [id]="ids + '-reason'" formControlName="reason" rows="2" dir="auto"
+        [attr.aria-invalid]="c.reason.invalid && c.reason.touched"></textarea>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn" type="submit" [disabled]="submitting()" data-action="submit">
+        {{ submitting() ? t('leave.form.sending') : t('leave.form.submit') }}
+      </button>
+      @if (cancellable()) {
+        <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+      }
+    </div>
+  </div>
+
+  <!-- Live preview (a read, even though it is a POST — see leave-request-form.ts). -->
+  <aside class="preview" role="status" [attr.aria-busy]="preview.isLoading()" [attr.aria-label]="t('leave.preview.title')" data-panel="preview">
+    <h4>{{ t('leave.preview.title') }}</h4>
+    @if (preview.error()) {
+      <p class="field-error" data-preview="error">{{ t(previewErrorKey()) }}</p>
+    } @else if (preview.hasValue()) {
+      @let p = preview.value();
+      <p class="days" data-preview="days">{{ t('leave.preview.days', { days: (p.days | number: '1.0-1' : locale()) }) }}</p>
+      <dl class="facts">
+        <dt>{{ t('leave.preview.calendarDays') }}</dt>
+        <dd data-preview="calendar">{{ p.breakdown.calendarDays }}</dd>
+        <dt>{{ t('leave.preview.weekendDays') }}</dt>
+        <dd data-preview="weekend">{{ p.breakdown.weekendDays }}</dd>
+        <dt>{{ t('leave.preview.halfDays') }}</dt>
+        <dd data-preview="half">{{ p.breakdown.halfDays ?? halfDays() }}</dd>
+        @if (p.balanceAfter !== null) {
+          <dt>{{ t('leave.preview.balanceAfter') }}</dt>
+          <dd data-preview="balance" [class.negative]="p.balanceAfter < 0">{{ p.balanceAfter | number: '1.0-1' : locale() }}</dd>
+        }
+      </dl>
+      @if (p.breakdown.holidays.length) {
+        <p class="muted">{{ t('leave.preview.holidays') }}</p>
+        <ul class="holidays" data-preview="holidays">
+          @for (holiday of p.breakdown.holidays; track holiday.date) {
+            <li><span class="nowrap">{{ holiday.date | date: 'mediumDate' : undefined : locale() }}</span> — {{ catalog.labelOf(holiday.name) }}</li>
+          }
+        </ul>
+      }
+      @if (p.balanceAfter !== null && p.balanceAfter < 0) {
+        <p class="field-error" data-preview="over">{{ t('leave.preview.overBalance') }}</p>
+      }
+      <!-- The server says which rules a submit would break (409 slugs): the same table as the submit's errors. -->
+      @for (key of warningKeys(); track key) {
+        <p class="field-error" data-preview="warning">{{ t(key) }}</p>
+      }
+    } @else if (preview.isLoading()) {
+      <p class="muted">{{ t('leave.preview.loading') }}</p>
+    } @else {
+      <p class="muted" data-preview="idle">{{ t('leave.preview.idle') }}</p>
+    }
+  </aside>
+</form>

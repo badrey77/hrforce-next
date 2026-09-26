@@ -3,6 +3,7 @@ import request from 'supertest';
 import { seedDemoAccess, seedGrants, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
 import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
+import { LEAVE_DEMO_USERS, seedDemoLeave } from '../../src/modules/leave/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
 import { query, type TestDatabase } from './test-database.js';
@@ -50,6 +51,10 @@ export const USERS = {
   target: { id: id('af'), email: 'target@demo.dz', displayName: 'Lina Cible', locale: 'ar' } satisfies DemoUser,
   /** admin_rh_central of BETA (member of BETA only) */
   beta: { id: id('bb'), email: 'admin@beta.dz', displayName: 'Beta Admin', locale: 'fr' } satisfies DemoUser,
+  /** employe, linked to EMP-0030 (Agence Annaba) — seeded with `{ leave: true }` */
+  agent: LEAVE_DEMO_USERS[0] as DemoUser,
+  /** employe, linked to EMP-0029, head of Agence Annaba — seeded with `{ leave: true }` */
+  chef: LEAVE_DEMO_USERS[1] as DemoUser,
 } as const;
 
 export type ActorName = keyof typeof USERS;
@@ -127,8 +132,13 @@ async function roleIds(db: TestDatabase, companyId: string): Promise<Record<stri
   return Object.fromEntries(rows.map((r) => [r.code, r.id]));
 }
 
+export interface FixtureOptions {
+  /** + the leave demo without requests (defaults, agent/chef users, links, heads, accruals 2025-07 → 2026-09) */
+  leave?: boolean;
+}
+
 /** Seeds both companies, users, roles and grants (idempotent). */
-export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new Date())): Promise<AccessFixture> {
+export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new Date()), options: FixtureOptions = {}): Promise<AccessFixture> {
   const migrator = createDatabase({ connectionString: db.migratorUrl, maxConnections: 1 });
   try {
     await migrator.transaction().execute(async (tx) => {
@@ -146,6 +156,7 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
       await seedGrants(tx, COMPANY_A, extra);
       await seedDemoEmployees(tx);
       await seedEmployees(tx, COMPANY_B, [EMPLOYEE_B]);
+      if (options.leave) await seedDemoLeave(tx, { requests: false });
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },
       ]);
@@ -182,5 +193,6 @@ export function as(app: NestExpressApplication, actor: ActorName | null, xsrf: X
     post: (url: string) => withXsrf(who(agent.post(url)), xsrf),
     patch: (url: string) => withXsrf(who(agent.patch(url)), xsrf),
     put: (url: string) => withXsrf(who(agent.put(url)), xsrf),
+    delete: (url: string) => withXsrf(who(agent.delete(url)), xsrf),
   };
 }

@@ -67,7 +67,11 @@ describe('system roles', () => {
   });
 
   it('match the contract table', () => {
-    expect(byCode.get('rh_regional')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update']);
+    expect(byCode.get('rh_regional')?.permissions).toEqual([
+      'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
+      'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
+    ]);
+    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);
     expect(byCode.get('admin_acces')?.permissions).toEqual(['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read']);
     for (const role of SYSTEM_ROLES) {

@@ -98,6 +98,68 @@ export interface EmploymentSalary {
   valid: string;
 }
 
+export interface LeaveLedger {
+  accrual_month: Timestamp | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  days: Numeric;
+  employment_id: string;
+  id: Generated<string>;
+  kind: string;
+  leave_type_id: string;
+  note: string | null;
+  period_start: Timestamp;
+  request_id: string | null;
+}
+
+export interface LeavePolicy {
+  company_id: string;
+  entitlement_delay_months: Generated<number>;
+  reference_start_month: Generated<number>;
+  updated_at: Generated<Timestamp>;
+  weekend_days: Generated<number[]>;
+}
+
+export interface LeaveRequest {
+  company_id: string;
+  days: Numeric;
+  document_ref: string | null;
+  employment_id: string;
+  end_date: Timestamp;
+  half_day_end: Generated<boolean>;
+  half_day_start: Generated<boolean>;
+  id: Generated<string>;
+  leave_type_id: string;
+  org_unit_id: string;
+  reason: string | null;
+  requested_at: Generated<Timestamp>;
+  requested_by: string;
+  start_date: Timestamp;
+  status: Generated<string>;
+  workflow_instance_id: string | null;
+}
+
+export interface LeaveType {
+  accrual_days_per_month: Numeric | null;
+  active: Generated<boolean>;
+  code: string;
+  company_id: string;
+  count_mode: string;
+  created_at: Generated<Timestamp>;
+  has_balance: Generated<boolean>;
+  id: Generated<string>;
+  max_days_per_request: Numeric | null;
+  max_days_per_year: Numeric | null;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  once_per_career: Generated<boolean>;
+  requires_document: Generated<boolean>;
+  sort_order: Generated<number>;
+  workflow_definition_id: string;
+}
+
 export interface OrgUnit {
   axis: Generated<string>;
   code: string;
@@ -113,6 +175,15 @@ export interface OrgUnitClosure {
   company_id: string;
   depth: number;
   descendant_id: string;
+}
+
+export interface OrgUnitHead {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  employment_id: string;
+  id: Generated<string>;
+  org_unit_id: string;
+  valid: string;
 }
 
 export interface OrgUnitKind {
@@ -178,6 +249,17 @@ export interface PersonSensitive {
   updated_at: Generated<Timestamp>;
 }
 
+export interface PublicHoliday {
+  approximate: Generated<boolean>;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  date: Timestamp;
+  id: Generated<string>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+}
+
 export interface Role {
   code: string;
   company_id: string;
@@ -218,7 +300,61 @@ export interface Site {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;
+  south_supplement_days: Generated<number>;
   wilaya: string;
+}
+
+export interface UserEmployment {
+  company_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  linked_at: Generated<Timestamp>;
+  linked_by: string | null;
+  user_id: string;
+}
+
+export interface WorkflowDefinition {
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_system: Generated<boolean>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  steps: Json;
+}
+
+export interface WorkflowInstance {
+  company_id: string;
+  current_step: Generated<number>;
+  definition_id: string;
+  finished_at: Timestamp | null;
+  id: Generated<string>;
+  started_at: Generated<Timestamp>;
+  started_by: string;
+  status: Generated<string>;
+  subject_id: string;
+  subject_type: string;
+  subject_user_id: string | null;
+}
+
+export interface WorkflowTask {
+  acted_at: Timestamp | null;
+  acted_by: string | null;
+  assignee_kind: string;
+  assignee_user_id: string | null;
+  comment: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  instance_id: string;
+  outcome: string | null;
+  permission: string | null;
+  scope_unit_id: string;
+  status: Generated<string>;
+  step_index: number;
+  step_key: string;
 }
 
 export interface DB {
@@ -229,16 +365,26 @@ export interface DB {
   company: Company;
   employment: Employment;
   employment_salary: EmploymentSalary;
+  leave_ledger: LeaveLedger;
+  leave_policy: LeavePolicy;
+  leave_request: LeaveRequest;
+  leave_type: LeaveType;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;
+  org_unit_head: OrgUnitHead;
   org_unit_kind: OrgUnitKind;
   org_unit_kind_parent: OrgUnitKindParent;
   org_unit_version: OrgUnitVersion;
   permission: Permission;
   person: Person;
   person_sensitive: PersonSensitive;
+  public_holiday: PublicHoliday;
   role: Role;
   role_grant: RoleGrant;
   role_permission: RolePermission;
   site: Site;
+  user_employment: UserEmployment;
+  workflow_definition: WorkflowDefinition;
+  workflow_instance: WorkflowInstance;
+  workflow_task: WorkflowTask;
 }

@@ -10,6 +10,8 @@
  * Actors (test/support/access-fixture.ts):
  *   admin  admin_rh_central on DG (+)       est    rh_regional on REG-EST (+)     ouest  lecture on REG-OUEST (+)
  *   acces  admin_acces on REG-EST (+)       beta   admin_rh_central of the OTHER company (BETA)
+ *   agent  employe, linked to EMP-0030 (Agence Annaba)  chef  employe, head of Agence Annaba (leave demo seed)
+ *   (est = rh.est is linked to EMP-0022 and also holds employe; admin and beta hold leave.request_self but are not linked)
  * Targets:
  *   est    a resource inside REG-EST (unit AG-CNE, employee EMP-0027 of AG-CNE, or a company-A resource for roles)
  *   ouest  a resource inside REG-OUEST (unit AG-ORAN, employee EMP-0036 of AG-ORAN)
@@ -22,8 +24,10 @@ import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { as, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { LeaveClock } from '../src/modules/leave/index.js';
+import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
-import { createTestDatabase, type TestDatabase } from './support/test-database.js';
+import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
 import { fetchXsrf, type XsrfPair } from './support/xsrf.js';
 
 type Actor = ActorName | 'anon';
@@ -75,6 +79,27 @@ const grantOf = (t: Target): string => (t === 'est' ? GRANTS.targetCne : t === '
 /** A distinct future date per request (versions and grants must not collide between rows). */
 const day = (n: number, plus = 0): string => new Date(Date.UTC(2027, 0, 1 + n * 2 + plus)).toISOString().slice(0, 10);
 const NAMES = { fr: 'Rôle test', ar: 'دور تجريبي', en: 'Test role' };
+/** Leave fixtures (filled in beforeAll): type ids, a holiday of each kind, requests and open tasks. */
+const LV = {
+  annual: '', recovery: '', marriage: '', holidayA: '', holidayToDelete: '',
+  agentCancel: '', estRequest: '', ouestRequest: '', approveTask: '', rejectTask: '',
+};
+const MISSING = '0190a5d0-0000-7000-8000-00000000dead';
+const leaveDay = (n: number) => day(n);
+const leaveBody = (n: number, extra: object = {}) => ({ leaveTypeId: LV.annual, startDate: leaveDay(n), endDate: leaveDay(n), ...extra });
+const HR_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+];
+const CONFIG_ROWS = (ok: number): readonly Row[] => [['admin', '-', ok], ['est', '-', 403], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', ok]];
+const SELF_ROWS = (ok: number): readonly Row[] => [
+  ['admin', '-', 409], ['beta', '-', 409], // leave.request_self held, no linked employment: leave-not-linked
+  ['est', '-', ok], ['agent', '-', ok], // Karim and agent.annaba are linked
+  ['ouest', '-', 403], ['acces', '-', 403],
+];
+
 const READERS: readonly Row[] = [
   ['admin', '-', 200],
   ['est', '-', 200],
@@ -292,6 +317,155 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: EMPLOYEE_WRITE_ROWS,
   },
 
+  // ── staffing (links, heads) ────────────────────────────────────────────────────────────────────────────
+  'GET /api/me/employment': {
+    access: 'authenticated',
+    request: () => ({ path: '/api/me/employment' }),
+    rows: [['admin', '-', 404], ['est', '-', 200], ['ouest', '-', 404], ['acces', '-', 404], ['beta', '-', 404], ['agent', '-', 200]],
+  },
+  'PUT /api/access/users/:id/employment': {
+    access: 'access.grant',
+    request: (t) => ({ path: `/api/access/users/${USERS.newbie.id}/employment`, body: { employmentId: employeeOf(t) } }),
+    rows: [
+      ['admin', 'est', 200],
+      ['acces', 'est', 200], // same link: no change
+      ['acces', 'ouest', 422], // EMP-0036 is outside admin_acces's REG-EST scope: employmentId not_found
+      ['admin', 'ouest', 200], ['admin', 'other', 422],
+      ['est', 'est', 403], ['ouest', 'ouest', 403],
+      ['beta', 'est', 404], // newbie is not a member of BETA
+    ],
+  },
+  'PUT /api/org/units/:id/head': {
+    access: 'org_unit.update',
+    request: (t, n) => ({ path: `/api/org/units/${unitOf(t)}/head`, body: { employmentId: employeeOf(t), validFrom: day(n) } }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['est', 'est', 403], ['est', 'ouest', 403],
+      ['ouest', 'ouest', 403], ['acces', 'est', 403],
+      ['beta', 'est', 404], ['beta', 'other', 200],
+    ],
+  },
+
+  // ── leave: self-service ────────────────────────────────────────────────────────────────────────────────
+  'GET /api/me/leave/balances': { access: 'leave.request_self', request: () => ({ path: '/api/me/leave/balances' }), rows: SELF_ROWS(200) },
+  'GET /api/me/leave/requests': { access: 'leave.request_self', request: () => ({ path: '/api/me/leave/requests' }), rows: SELF_ROWS(200) },
+  'POST /api/me/leave/requests': { access: 'leave.request_self', request: (_t, n) => ({ path: '/api/me/leave/requests', body: leaveBody(n) }), rows: SELF_ROWS(201) },
+  'POST /api/me/leave/requests/:id/cancel': {
+    access: 'leave.request_self',
+    request: () => ({ path: `/api/me/leave/requests/${LV.agentCancel}/cancel` }),
+    rows: [
+      ['est', 'est', 404], ['chef', 'est', 404], // someone else's request
+      ['admin', 'est', 409], ['beta', 'est', 409], // not linked
+      ['ouest', 'est', 403], ['acces', 'est', 403],
+      ['agent', 'est', 200], // own pending request
+    ],
+  },
+
+  // ── leave: reference data, configuration ───────────────────────────────────────────────────────────────
+  'POST /api/leave/preview': {
+    access: 'authenticated',
+    // target: whose leave (est: EMP-0027, ouest: EMP-0036, other: BETA's employee, -: the caller's own)
+    request: (t, n) => ({ path: '/api/leave/preview', body: t === '-' ? leaveBody(n) : leaveBody(n, { employmentId: employeeOf(t) }) }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404], ['admin', '-', 409],
+      ['est', 'est', 200], ['est', 'ouest', 404], ['est', '-', 200],
+      ['ouest', 'ouest', 404], ['ouest', '-', 403],
+      ['acces', 'est', 404],
+      ['beta', 'est', 404], ['beta', 'other', 422], // company A's leave type does not exist in BETA
+      ['agent', '-', 200], ['agent', 'est', 404],
+    ],
+  },
+  'GET /api/leave/types': { access: 'authenticated', request: () => ({ path: '/api/leave/types' }), rows: READERS },
+  'GET /api/leave/holidays': { access: 'authenticated', request: () => ({ path: '/api/leave/holidays?year=2026' }), rows: READERS },
+  'GET /api/leave/policy': { access: 'authenticated', request: () => ({ path: '/api/leave/policy' }), rows: READERS },
+  'PUT /api/leave/types/:id': {
+    access: 'leave.configure',
+    request: () => ({ path: `/api/leave/types/${LV.marriage}`, body: { maxDaysPerRequest: 3 } }),
+    rows: [['admin', 'est', 200], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403], ['beta', 'est', 404]],
+  },
+  'POST /api/leave/holidays': {
+    access: 'leave.configure',
+    request: (_t, n) => ({
+      path: '/api/leave/holidays',
+      body: { date: new Date(Date.UTC(2031, 0, 1 + n)).toISOString().slice(0, 10), labels: { fr: `Férié ${n}`, ar: 'عطلة', en: `Holiday ${n}` } },
+    }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PUT /api/leave/holidays/:id': {
+    access: 'leave.configure',
+    request: () => ({ path: `/api/leave/holidays/${LV.holidayA}`, body: { date: '2026-11-01', labels: { fr: 'Fête de la Révolution (1954)', ar: 'عيد الثورة', en: 'Revolution Day' } } }),
+    rows: [['admin', 'est', 200], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403], ['beta', 'est', 404]],
+  },
+  'DELETE /api/leave/holidays/:id': {
+    access: 'leave.configure',
+    request: () => ({ path: `/api/leave/holidays/${LV.holidayToDelete}` }),
+    rows: [['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403], ['beta', 'est', 404], ['admin', 'est', 204]],
+  },
+  'PUT /api/leave/policy': {
+    access: 'leave.configure',
+    request: () => ({ path: '/api/leave/policy', body: { referenceStartMonth: 7, weekendDays: [5, 6] } }),
+    rows: CONFIG_ROWS(200),
+  },
+  'GET /api/leave/workflows': { access: 'leave.configure', request: () => ({ path: '/api/leave/workflows' }), rows: CONFIG_ROWS(200) },
+
+  // ── leave: HR ──────────────────────────────────────────────────────────────────────────────────────────
+  'GET /api/leave/requests': {
+    access: 'leave.read',
+    request: () => ({ path: '/api/leave/requests?status=all' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'GET /api/leave/requests/:id': {
+    access: 'authenticated',
+    request: (t) => ({ path: `/api/leave/requests/${t === 'ouest' ? LV.ouestRequest : t === 'other' ? MISSING : LV.estRequest}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['est', 'est', 200], ['est', 'ouest', 404],
+      ['ouest', 'ouest', 404], ['ouest', 'est', 404], // lecture has no leave.read
+      ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404],
+    ],
+  },
+  'POST /api/employees/:id/leave/requests': {
+    access: 'leave.request',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/leave/requests`, body: leaveBody(n) }),
+    rows: [
+      ['admin', 'est', 201], ['admin', 'ouest', 201], ['admin', 'other', 404],
+      ['est', 'est', 201], ['est', 'ouest', 404],
+      ['ouest', 'ouest', 403], ['acces', 'est', 403],
+      ['beta', 'est', 404], ['beta', 'other', 422], // company A's leave type does not exist in BETA
+    ],
+  },
+  'GET /api/employees/:id/leave/balances': { access: 'leave.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/leave/balances` }), rows: HR_ROWS },
+  'GET /api/employees/:id/leave/ledger': { access: 'leave.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/leave/ledger` }), rows: HR_ROWS },
+  'POST /api/employees/:id/leave/adjustments': {
+    access: 'leave.adjust',
+    request: (t) => ({ path: `/api/employees/${employeeOf(t)}/leave/adjustments`, body: { leaveTypeId: LV.recovery, periodStart: '2026-07-01', days: 1, note: 'Matrice' } }),
+    rows: [
+      ['admin', 'est', 201], ['admin', 'ouest', 201], ['admin', 'other', 404],
+      ['est', 'est', 201], ['est', 'ouest', 404],
+      ['ouest', 'ouest', 403], ['acces', 'est', 403],
+      ['beta', 'est', 404], ['beta', 'other', 422],
+    ],
+  },
+  'POST /api/leave/accruals/run': {
+    access: 'leave.adjust',
+    request: () => ({ path: '/api/leave/accruals/run', body: { month: '2025-06' } }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200]],
+  },
+
+  // ── workflow: My tasks ─────────────────────────────────────────────────────────────────────────────────
+  'GET /api/tasks': { access: 'authenticated', request: () => ({ path: '/api/tasks?status=open' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
+  'POST /api/tasks/:id/approve': {
+    access: 'authenticated',
+    // the manager task of an agent.annaba request: only chef.annaba is a candidate
+    request: () => ({ path: `/api/tasks/${LV.approveTask}/approve`, body: {} }),
+    rows: [['admin', 'est', 404], ['est', 'est', 404], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['chef', 'est', 200]],
+  },
+  'POST /api/tasks/:id/reject': {
+    access: 'authenticated',
+    request: () => ({ path: `/api/tasks/${LV.rejectTask}/reject`, body: { comment: 'Période chargée' } }),
+    rows: [['admin', 'est', 404], ['est', 'est', 404], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['chef', 'est', 200]],
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
     access: 'audit.read',
@@ -318,6 +492,7 @@ function scanRoutes(): ScannedRoute[] {
 }
 
 const scanned = scanRoutes();
+const unitCompany = '0190a5d0-0000-7000-8000-000000000001';
 
 describe('Authorization matrix (e2e, real grants)', () => {
   let db: TestDatabase;
@@ -328,9 +503,36 @@ describe('Authorization matrix (e2e, real grants)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    fx = await seedAccessFixture(db);
-    app = await createTestApp(db, { devAuth: true, devPermissions: false });
+    fx = await seedAccessFixture(db, undefined, { leave: true });
+    const pinned = { today: () => '2026-09-26' };
+    app = await createTestApp(db, {
+      devAuth: true,
+      devPermissions: false,
+      overrides: [
+        { provide: LeaveClock, useValue: pinned },
+        { provide: StaffingClock, useValue: pinned },
+      ],
+    });
     xsrf = await fetchXsrf(app);
+    const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [unitCompany]);
+    const typeId = (code: string) => types.find((t) => t.code === code)?.id ?? '';
+    Object.assign(LV, { annual: typeId('annual'), recovery: typeId('recovery'), marriage: typeId('marriage') });
+    LV.holidayA = (await query<{ id: string }>(db.superuserUrl, `select id from public_holiday where company_id = $1 and date = '2026-11-01'`, [unitCompany]))[0]?.id ?? '';
+    LV.holidayToDelete = (await query<{ id: string }>(db.superuserUrl, `select id from public_holiday where company_id = $1 and date = '2027-08-15'`, [unitCompany]))[0]?.id ?? '';
+    const agent = as(app, 'agent', xsrf);
+    const create = async (start: string) => ((await agent.post('/api/me/leave/requests').send({ leaveTypeId: LV.annual, startDate: start, endDate: start })).body as { id: string }).id;
+    const managerTask = async (requestId: string) => {
+      const tasks = (await as(app, 'chef', xsrf).get('/api/tasks')).body as { items: { id: string; subject: { id: string } }[] };
+      return tasks.items.find((t) => t.subject.id === requestId)?.id ?? '';
+    };
+    LV.approveTask = await managerTask(await create('2030-06-01'));
+    LV.rejectTask = await managerTask(await create('2030-06-03'));
+    LV.agentCancel = await create('2030-06-05');
+    const onBehalf = async (employee: string) =>
+      ((await as(app, 'admin', xsrf).post(`/api/employees/${employee}/leave/requests`).send({ leaveTypeId: LV.annual, startDate: '2030-07-01', endDate: '2030-07-01' })).body as { id: string }).id;
+    LV.estRequest = await onBehalf(employeeA(27));
+    LV.ouestRequest = await onBehalf(employeeA(36));
+    expect(Object.values(LV).every((v) => v !== ''), JSON.stringify(LV)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();
@@ -356,7 +558,15 @@ describe('Authorization matrix (e2e, real grants)', () => {
     const req = spec.request(target, ++counter, fx);
     const client = as(app, actor === 'anon' ? null : actor, xsrf);
     const call =
-      method === 'GET' ? client.get(req.path) : method === 'POST' ? client.post(req.path) : method === 'PUT' ? client.put(req.path) : client.patch(req.path);
+      method === 'GET'
+        ? client.get(req.path)
+        : method === 'POST'
+          ? client.post(req.path)
+          : method === 'PUT'
+            ? client.put(req.path)
+            : method === 'DELETE'
+              ? client.delete(req.path)
+              : client.patch(req.path);
     const res = req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
   });

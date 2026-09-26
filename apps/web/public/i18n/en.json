@@ -9,7 +9,12 @@
     "employees": "Employees",
     "organization": "Organization",
     "access": "Access",
-    "settings": "Settings"
+    "settings": "Settings",
+    "myLeave": "My leave",
+    "tasks": "My tasks",
+    "leave": "Leave",
+    "tasksWithCount": "My tasks, {{count}} open",
+    "tasksLive": "{{count}} open task(s)"
   },
   "language": {
     "label": "Language",
@@ -214,6 +219,21 @@
       "error": "The search failed.",
       "results": "{{count}} result(s)",
       "path": "Parent chain"
+    },
+    "head": {
+      "title": "Head of unit",
+      "none": "No head appointed.",
+      "since": "since {{date}}",
+      "change": "Appoint a head",
+      "employee": "Employee",
+      "validFrom": "From",
+      "employeeRequired": "Pick an employee from the list.",
+      "dateRequired": "Enter a valid date.",
+      "saved": "Head saved.",
+      "problems": {
+        "date": "A head already starts on or after this date, or the employee is not employed on it.",
+        "ended": "This employment has ended."
+      }
     }
   },
   "access": {
@@ -351,6 +371,25 @@
       "roleCodeTaken": "This role code is already used.",
       "roleEscalation": "You cannot add permissions you do not hold to a role.",
       "roleSystemImmutable": "System roles cannot be changed."
+    },
+    "link": {
+      "title": "Linked employee",
+      "none": "This account is not linked to an employee.",
+      "employee": "Link to employee",
+      "replace": "Link to another employee",
+      "hint": "The account uses self-service (My leave) and approves as a unit head as this employee.",
+      "link": "Link",
+      "unlink": "Unlink",
+      "confirmUnlink": "Unlink this account from the employee?",
+      "linked": "Account linked to the employee.",
+      "unlinked": "Link removed.",
+      "employeeRequired": "Pick an employee from the list.",
+      "needsEmployeeRead": "Searching employees to link requires the permission to read employees.",
+      "problems": {
+        "taken": "This employee is already linked to another account.",
+        "ended": "This employment has ended.",
+        "self": "You cannot link your own account."
+      }
     }
   },
   "audit": {
@@ -701,6 +740,290 @@
       "forbiddenField": "You may not fill in this field.",
       "forbiddenWrite": "You may view this employee but not change it.",
       "notFound": "Employee not found."
+    },
+    "picker": {
+      "placeholder": "Name or matricule…",
+      "loading": "Searching…",
+      "error": "The search failed.",
+      "results": "{{count}} employee(s) found",
+      "noResults": "No employee found."
+    }
+  },
+  "leave": {
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "statusFilter": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "all": "All"
+    },
+    "fields": {
+      "employee": "Employee",
+      "type": "Leave type",
+      "dates": "Dates",
+      "range": "{{from}} to {{to}}",
+      "days": "Days",
+      "daysCount": "{{days}} d",
+      "status": "Status",
+      "reason": "Reason",
+      "documentRef": "Supporting document",
+      "requestedBy": "Requested by",
+      "halfDaysNote": "with a half day"
+    },
+    "balances": {
+      "title": "Balances",
+      "year": "Year {{year}}",
+      "available": "days available",
+      "balance": "Balance",
+      "pending": "Pending",
+      "accrued": "Accrued",
+      "taken": "Taken",
+      "adjusted": "Adjustments",
+      "empty": "No balance yet.",
+      "loadError": "Could not load the balances."
+    },
+    "form": {
+      "title": "New leave request",
+      "titleOnBehalf": "Leave request for the employee",
+      "type": "Leave type",
+      "typePlaceholder": "Choose a type…",
+      "startDate": "First day",
+      "endDate": "Last day",
+      "halfDayStart": "Start in the afternoon (half day)",
+      "halfDayEnd": "End at noon (half day)",
+      "documentRef": "Document reference",
+      "documentHint": "For example the medical certificate number.",
+      "required": "(required for this type)",
+      "reason": "Reason (optional)",
+      "submit": "Send request",
+      "sending": "Sending…",
+      "countMode": {
+        "calendar": "Counted in calendar days.",
+        "working": "Counted in working days (weekends and public holidays excluded)."
+      },
+      "countModeShort": {
+        "calendar": "Calendar",
+        "working": "Working"
+      },
+      "errors": {
+        "required": "This field is required.",
+        "date": "Enter a valid date.",
+        "tooLong": "Text too long.",
+        "documentRequired": "This leave type requires a document.",
+        "dateOrder": "The last day must be on or after the first day.",
+        "halfDays": "A one-day request cannot be a half day at both ends.",
+        "number": "Invalid number."
+      }
+    },
+    "preview": {
+      "title": "Preview",
+      "idle": "Choose a type and dates to see the count.",
+      "loading": "Counting…",
+      "error": "Preview unavailable for now.",
+      "days": "{{days}} day(s) counted",
+      "calendarDays": "Calendar days",
+      "weekendDays": "Weekend days",
+      "halfDays": "Half days",
+      "holidays": "Public holidays in the period:",
+      "balanceAfter": "Balance after the request",
+      "overBalance": "This request exceeds the available balance.",
+      "warning": "This request breaks a leave rule."
+    },
+    "problems": {
+      "overlap": "Another pending or approved request already covers these dates.",
+      "dates": "Invalid dates: the end is before the start, or the period is outside the employment.",
+      "balance": "Insufficient balance (pending requests included).",
+      "maxRequest": "This leave type is limited in days per request.",
+      "oncePerCareer": "This leave can only be granted once per career.",
+      "documentRequired": "A supporting document is required for this leave type.",
+      "notLinked": "Your account is not linked to an employee record. Ask HR to link it to use self-service.",
+      "employeeNotFound": "Employee not found.",
+      "cannotCancel": "This request can no longer be cancelled."
+    },
+    "feedback": {
+      "requested": "Request sent. It now follows the approval chain.",
+      "cancelled": "Request cancelled.",
+      "adjusted": "Adjustment saved.",
+      "requestedOnBehalf": "Request recorded for the employee."
+    },
+    "mine": {
+      "title": "My leave",
+      "newRequest": "Request leave",
+      "requests": "My requests",
+      "empty": "No request yet.",
+      "cancel": "Cancel request",
+      "cancelTitle": "Cancel this request?",
+      "confirmCancel": "Yes, cancel",
+      "keep": "No, keep it"
+    },
+    "list": {
+      "title": "Leave",
+      "filters": "Filter requests",
+      "search": "Search",
+      "searchPlaceholder": "Name or matricule",
+      "allTypes": "All types",
+      "unit": "Unit",
+      "from": "From",
+      "to": "To",
+      "total": "{{count}} request(s)",
+      "empty": "No leave request.",
+      "noMatch": "No request matches the filters.",
+      "loadError": "Could not load the requests."
+    },
+    "detail": {
+      "title": "Leave request",
+      "back": "← Back to leave",
+      "employee": "Employee record",
+      "notFound": "Request not found.",
+      "loadError": "Could not load the request."
+    },
+    "employee": {
+      "requestOnBehalf": "Request for the employee",
+      "adjust": "Adjust a balance",
+      "adjustTitle": "Balance adjustment",
+      "adjustIntro": "Adds or removes days from a reference year (recovery, correction). The operation is audited.",
+      "period": "Reference year (first day)",
+      "periodHint": "For example 2026-07-01 for 2026–2027.",
+      "days": "Days (+/−)",
+      "daysHint": "Non-zero, at most one decimal (e.g. 2 or -0.5).",
+      "note": "Reason"
+    },
+    "ledger": {
+      "title": "Movements",
+      "date": "Date",
+      "period": "Year",
+      "kind": "Movement",
+      "note": "Note",
+      "by": "By",
+      "system": "Automatic",
+      "empty": "No movement.",
+      "loadError": "Could not load the movements.",
+      "kinds": {
+        "accrual": "Accrual",
+        "taken": "Taken",
+        "adjustment": "Adjustment",
+        "reversal": "Reversal"
+      }
+    },
+    "settings": {
+      "title": "Leave settings",
+      "intro": "The default rules (Law 90-11) are editable data. Every change is audited.",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete",
+      "yes": "Yes",
+      "no": "No",
+      "labelIn": {
+        "fr": "Label (French)",
+        "ar": "Label (Arabic)",
+        "en": "Label (English)"
+      },
+      "labelsRequired": "All three labels are required.",
+      "types": {
+        "title": "Leave types",
+        "code": "Code",
+        "labels": "Label",
+        "countMode": "Counting",
+        "accrual": "Accrual / month",
+        "maxYear": "Max / year",
+        "maxRequest": "Max / request",
+        "document": "Document",
+        "active": "Active",
+        "saved": "Leave type saved.",
+        "empty": "No leave type.",
+        "loadError": "Could not load the leave types."
+      },
+      "holidays": {
+        "title": "Public holidays",
+        "year": "Year",
+        "add": "Add a public holiday",
+        "date": "Date",
+        "name": "Name",
+        "approximate": "Approximate date (lunar holiday to confirm)",
+        "approximateBadge": "To confirm",
+        "hint": "Lunar holidays are entered at an estimated date: confirm them every year.",
+        "confirmDelete": "Delete this public holiday?",
+        "added": "Public holiday added.",
+        "saved": "Public holiday saved.",
+        "deleted": "Public holiday deleted.",
+        "empty": "No public holiday for this year.",
+        "loadError": "Could not load the public holidays."
+      },
+      "policy": {
+        "title": "General rules",
+        "weekend": "Weekend days",
+        "tooMany": "At most {{max}} weekend days.",
+        "referenceMonth": "Start of the reference year",
+        "referenceHint": "Law 90-11: from 1 July to 30 June.",
+        "saved": "Rules saved.",
+        "loadError": "Could not load the rules."
+      }
+    }
+  },
+  "tasks": {
+    "title": "My tasks",
+    "refresh": "Refresh",
+    "open": "{{count}} open task(s)",
+    "empty": "Nothing to approve for now.",
+    "loadError": "Could not load your tasks.",
+    "detailError": "Could not load the request.",
+    "panel": "Task detail",
+    "selectHint": "Pick a task to see the request.",
+    "step": "Step: {{step}}",
+    "balance": "Employee balance",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectTitle": "Reject the request",
+    "comment": "Comment",
+    "commentHint": "Explain the rejection: the employee will see this comment.",
+    "commentRequired": "A comment is required to reject.",
+    "confirmReject": "Reject",
+    "feedback": {
+      "approved": "{{name}}'s request approved.",
+      "rejected": "{{name}}'s request rejected."
+    },
+    "problems": {
+      "closed": "{{name}}'s request was already handled by someone else.",
+      "selfApproval": "You cannot act on your own request.",
+      "notCandidate": "This task is no longer assigned to you."
+    }
+  },
+  "workflow": {
+    "title": "Approval chain",
+    "escalated": "passed to HR (no reachable manager)",
+    "stepper": {
+      "label": "Approval steps"
+    },
+    "state": {
+      "done": "Approved",
+      "current": "Waiting",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "upcoming": "Upcoming",
+      "skipped": "Skipped"
+    },
+    "history": {
+      "title": "History",
+      "step": "Step",
+      "outcome": "Decision",
+      "by": "By",
+      "at": "On",
+      "comment": "Comment"
+    },
+    "outcome": {
+      "approve": "Approved",
+      "reject": "Rejected",
+      "escalated": "Escalated",
+      "open": "Open",
+      "done": "Done",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled"
     }
   }
 }

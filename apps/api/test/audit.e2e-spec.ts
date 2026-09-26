@@ -54,9 +54,15 @@ interface Entry {
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const AUDITED_TABLES = [
+/** The M1 tables exercised by the direct-SQL capture test (the leave tables are covered through the API writes). */
+const M1_TABLES = [
   'assignment', 'company', 'employment', 'employment_salary', 'org_unit', 'org_unit_version', 'person', 'person_sensitive',
   'role', 'role_grant', 'role_permission', 'site',
+];
+const AUDITED_TABLES = [
+  'assignment', 'company', 'employment', 'employment_salary', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
+  'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday', 'role', 'role_grant',
+  'role_permission', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
 const C = '0190a5d0-0000-7000-8000-00000000c0de';
 
@@ -108,7 +114,7 @@ async function timeline(actor: ActorName, subject: string, extra = ''): Promise<
 
 beforeAll(async () => {
   db = await createTestDatabase();
-  fx = await seedAccessFixture(db);
+  fx = await seedAccessFixture(db, undefined, { leave: true });
   app = await createTestApp(db, { devAuth: true, devPermissions: false });
   xsrf = await fetchXsrf(app);
 });
@@ -260,12 +266,12 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
     const rows = await changes('id > $1', [before[0]?.n]);
     expect(rows.every((r) => r.company_id === C && r.actor_user_id === null && r.request_id === null)).toBe(true);
     const byTable = (t: string) => rows.filter((r) => r.table_name === t);
-    for (const table of AUDITED_TABLES) {
+    for (const table of M1_TABLES) {
       const ops = byTable(table).map((r) => r.op);
       expect(ops, table).toEqual(table === 'role_permission' || table === 'org_unit' ? ['insert', 'delete'] : ['insert', 'update', 'delete']);
     }
     const [insertSite, updateSite, deleteSite] = byTable('site');
-    expect(insertSite).toMatchObject({ row_id: site, before: null, changed: ['id', 'company_id', 'code', 'name', 'wilaya', 'address', 'created_at'] });
+    expect(insertSite).toMatchObject({ row_id: site, before: null, changed: ['id', 'company_id', 'code', 'name', 'wilaya', 'address', 'created_at', 'south_supplement_days'] });
     expect(insertSite?.after).toMatchObject({ id: site, code: 'S-AUD', wilaya: 'Alger', address: null });
     expect(updateSite).toMatchObject({ changed: ['wilaya', 'address'], before: { id: site, wilaya: 'Alger', address: null }, after: { id: site, wilaya: 'Oran', address: 'Rue 1' } });
     expect(deleteSite).toMatchObject({ after: null, before: { id: site, wilaya: 'Oran', address: 'Rue 1' } });
@@ -325,6 +331,33 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
+  /** POST routes that write nothing (a read with a body). */
+  const READ_ONLY_POSTS = ['POST /api/leave/preview'];
+  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '' };
+
+  beforeAll(async () => {
+    const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
+    LV.annual = types.find((t) => t.code === 'annual')?.id ?? '';
+    LV.recovery = types.find((t) => t.code === 'recovery')?.id ?? '';
+    const holiday = async (date: string) => (await query<{ id: string }>(db.superuserUrl, 'select id from public_holiday where company_id = $1 and date = $2', [COMPANY_A, date]))[0]?.id ?? '';
+    LV.holiday = await holiday('2027-01-12');
+    LV.holidayToDelete = await holiday('2027-08-15');
+    // rh.admin gets a linked employment (EMP-0002, Direction Générale) for the self-service writes
+    await query(db.superuserUrl, 'insert into user_employment (company_id, user_id, employment_id) values ($1, $2, $3)', [COMPANY_A, USERS.admin.id, employeeA(2)]);
+    const body = (start: string) => ({ leaveTypeId: LV.annual, startDate: start, endDate: start });
+    LV.ownRequest = (await client('admin').post('/api/me/leave/requests').send(body('2027-03-01')).expect(201)).body.id;
+    // two agent.annaba requests past their manager step: open HR tasks rh.admin may act on
+    const hrTask = async (start: string) => {
+      const id = (await client('agent').post('/api/me/leave/requests').send(body(start)).expect(201)).body.id as string;
+      const manager = ((await client('chef').get('/api/tasks')).body.items as { id: string; subject: { id: string } }[]).find((t) => t.subject.id === id);
+      await client('chef').post(`/api/tasks/${manager?.id}/approve`).send({}).expect(200);
+      return ((await client('admin').get('/api/tasks')).body.items as { id: string; subject: { id: string } }[]).find((t) => t.subject.id === id)?.id ?? '';
+    };
+    LV.approveTask = await hrTask('2027-03-10');
+    LV.rejectTask = await hrTask('2027-03-12');
+    expect(Object.values(LV).every((v) => v !== '')).toBe(true);
+  });
+
   interface Write {
     request: () => { path: string; body: object };
     /** tables that must have a row for this request */
@@ -372,12 +405,59 @@ describe('exit criterion: every write through the API produces an audit row with
     'PUT /api/employees/:id/salary': { request: () => ({ path: `/api/employees/${employeeA(4)}/salary`, body: { baseSalary: '99000.00', validFrom: '2026-10-01' } }), tables: ['employment_salary'] },
     'PUT /api/employees/:id/bank': { request: () => ({ path: `/api/employees/${employeeA(5)}/bank`, body: { rib: '00799999000000000005', bankName: 'BEA' } }), tables: ['person_sensitive'] },
     'PUT /api/employees/:id/nss': { request: () => ({ path: `/api/employees/${employeeA(9)}/nss`, body: { nss: '990000000009' } }), tables: ['person_sensitive'] },
+    'PUT /api/access/users/:id/employment': {
+      request: () => ({ path: `/api/access/users/${USERS.newbie.id}/employment`, body: { employmentId: employeeA(31) } }),
+      tables: ['user_employment'],
+    },
+    'PUT /api/org/units/:id/head': {
+      request: () => ({ path: `/api/org/units/${unitA('AG-CNE')}/head`, body: { employmentId: employeeA(27), validFrom: '2027-03-01' } }),
+      tables: ['org_unit_head'],
+    },
+    'PUT /api/leave/types/:id': { request: () => ({ path: `/api/leave/types/${LV.annual}`, body: { maxDaysPerRequest: 30 } }), tables: ['leave_type'] },
+    'POST /api/leave/holidays': {
+      request: () => ({ path: '/api/leave/holidays', body: { date: '2028-01-01', labels: { fr: 'Jour de l’an', ar: 'رأس السنة الميلادية', en: 'New Year' } } }),
+      tables: ['public_holiday'],
+    },
+    'PUT /api/leave/holidays/:id': {
+      request: () => ({ path: `/api/leave/holidays/${LV.holiday}`, body: { date: '2027-01-12', labels: { fr: 'Yennayer 2977', ar: 'يناير', en: 'Yennayer' }, approximate: false } }),
+      tables: ['public_holiday'],
+    },
+    'DELETE /api/leave/holidays/:id': { request: () => ({ path: `/api/leave/holidays/${LV.holidayToDelete}`, body: {} }), tables: ['public_holiday'] },
+    'PUT /api/leave/policy': { request: () => ({ path: '/api/leave/policy', body: { referenceStartMonth: 7, weekendDays: [5, 6], entitlementDelayMonths: 11 } }), tables: ['leave_policy'] },
+    'POST /api/me/leave/requests': {
+      request: () => ({ path: '/api/me/leave/requests', body: { leaveTypeId: LV.annual, startDate: '2027-02-01', endDate: '2027-02-02' } }),
+      tables: ['leave_request', 'workflow_instance', 'workflow_task'],
+    },
+    'POST /api/me/leave/requests/:id/cancel': {
+      request: () => ({ path: `/api/me/leave/requests/${LV.ownRequest}/cancel`, body: {} }),
+      tables: ['leave_request', 'workflow_instance', 'workflow_task'],
+    },
+    'POST /api/employees/:id/leave/requests': {
+      request: () => ({ path: `/api/employees/${employeeA(27)}/leave/requests`, body: { leaveTypeId: LV.annual, startDate: '2027-02-07', endDate: '2027-02-08' } }),
+      tables: ['leave_request', 'workflow_instance', 'workflow_task'],
+    },
+    'POST /api/employees/:id/leave/adjustments': {
+      request: () => ({ path: `/api/employees/${employeeA(27)}/leave/adjustments`, body: { leaveTypeId: LV.recovery, periodStart: '2026-07-01', days: 1.5, note: 'Récupération' } }),
+      tables: ['leave_ledger'],
+    },
+    'POST /api/leave/accruals/run': { request: () => ({ path: '/api/leave/accruals/run', body: { month: '2025-06' } }), tables: ['leave_ledger'] },
+    'POST /api/tasks/:id/approve': {
+      request: () => ({ path: `/api/tasks/${LV.approveTask}/approve`, body: { comment: 'Validé' } }),
+      tables: ['workflow_task', 'workflow_instance', 'leave_request', 'leave_ledger'],
+    },
+    'POST /api/tasks/:id/reject': {
+      request: () => ({ path: `/api/tasks/${LV.rejectTask}/reject`, body: { comment: 'Refusé' } }),
+      tables: ['workflow_task', 'workflow_instance', 'leave_request'],
+    },
   };
 
   it('covers every write route of the route-scan outside /api/auth', () => {
     const result = spawnSync(process.execPath, ['tools/guardrails/route-scan/route-scan.ts', '--json'], { cwd: REPO_ROOT, encoding: 'utf8' });
     const routes = (JSON.parse(result.stdout) as { routes: { method: string; path: string }[] }).routes;
-    const writes = routes.filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/')).map((r) => `${r.method} ${r.path}`);
+    const writes = routes
+      .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
+      .map((r) => `${r.method} ${r.path}`)
+      .filter((key) => !READ_ONLY_POSTS.includes(key));
     expect(Object.keys(WRITES).toSorted()).toEqual(writes.toSorted());
   });
 
@@ -386,7 +466,8 @@ describe('exit criterion: every write through the API produces an audit row with
     if (!spec) throw new Error(key);
     const { path: url, body } = spec.request();
     const requestId = rid('write');
-    const call = key.startsWith('PATCH') ? client('admin').patch(url) : key.startsWith('PUT') ? client('admin').put(url) : client('admin').post(url);
+    const admin = client('admin');
+    const call = key.startsWith('PATCH') ? admin.patch(url) : key.startsWith('PUT') ? admin.put(url) : key.startsWith('DELETE') ? admin.delete(url) : admin.post(url);
     const res = await call.set('X-Request-Id', requestId).send(body);
     expect(res.status, JSON.stringify(res.body)).toBeLessThan(300);
     const rows = await changes('request_id = $1', [requestId]);

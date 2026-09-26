@@ -89,6 +89,23 @@ export interface AccessUser {
   readonly displayName: string;
   readonly status: UserStatus;
   readonly grants: readonly GrantView[];
+  /**
+   * The employee this account is linked to (docs/contracts/leave.md › Links: `user_employment`, needed for
+   * self-service). Absent from an API before the Leave step → treated as "not linked".
+   */
+  readonly employment?: LinkedEmployment | null;
+}
+
+/** The linked employment as shown on the user detail. */
+export interface LinkedEmployment {
+  readonly id: string;
+  readonly matricule: string;
+  readonly person: {
+    readonly lastName: string;
+    readonly firstName: string;
+    readonly lastNameAr: string | null;
+    readonly firstNameAr: string | null;
+  };
 }
 
 export interface AccessUserList {

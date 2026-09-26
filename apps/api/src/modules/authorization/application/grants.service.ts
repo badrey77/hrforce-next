@@ -90,12 +90,13 @@ export class GrantsService {
     const withGrants = new Set(all.map((g) => g.userId));
     const visibleGrants = new Map<string, GrantView[]>();
     for (const view of views) visibleGrants.set(view.userId, [...(visibleGrants.get(view.userId) ?? []), view]);
+    const links = await this.repo.linkedEmployments(companyId);
     const needle = q ? fold(q) : undefined;
     const items = members
       .filter((m) => !withGrants.has(m.id) || visibleGrants.has(m.id))
       .filter((m) => !needle || fold(m.displayName).includes(needle) || fold(m.email).includes(needle))
       .slice(0, USER_LIST_LIMIT)
-      .map((m) => ({ id: m.id, email: m.email, displayName: m.displayName, status: m.status, grants: visibleGrants.get(m.id) ?? [] }));
+      .map((m) => ({ id: m.id, email: m.email, displayName: m.displayName, status: m.status, grants: visibleGrants.get(m.id) ?? [], employment: links.get(m.id) ?? null }));
     return { items };
   }
 
@@ -120,6 +121,7 @@ export class GrantsService {
       displayName: member.displayName,
       status: member.status,
       grants: await this.toViews(inScope, members),
+      employment: (await this.repo.linkedEmployments(companyId)).get(id) ?? null,
     };
   }
 

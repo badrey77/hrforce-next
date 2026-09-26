@@ -179,6 +179,7 @@ export class OrgUnitsService {
     const siteRefs = await this.siteRefs(companyId, [site.siteId]);
     const catalogue = await this.kinds.catalogue();
     const actions = await this.actions.forUnit(catalogue, anchor, unit.kind);
+    const head = await this.repo.headOn(companyId, id, today);
     return {
       id: unit.id,
       kind: unit.kind,
@@ -188,6 +189,15 @@ export class OrgUnitsService {
       site: site.siteId ? (siteRefs.get(site.siteId) ?? null) : null,
       siteInherited: site.inherited,
       path: ancestorPath(shown.parentId, byId),
+      head: head
+        ? {
+            employmentId: head.employmentId,
+            matricule: head.matricule,
+            person: { lastName: head.lastName, firstName: head.firstName, lastNameAr: head.lastNameAr, firstNameAr: head.firstNameAr },
+            validFrom: head.validFrom,
+            validTo: head.validTo,
+          }
+        : null,
       createdAt: unit.createdAt,
       versions: versions.toReversed().map((v) => ({
         validFrom: v.validFrom,

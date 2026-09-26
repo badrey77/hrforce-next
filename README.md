@@ -34,6 +34,21 @@ TEST_DATABASE_URL=... npm run guard:db
 npm run build
 ```
 
+## Deploy
+
+Staging runs on any single Linux server with Docker: Caddy (HTTPS, headers, CSP) in front of the API and web images,
+Postgres 18 on an internal network, a one-shot migration job and nightly backups. Every push to `main` that passes CI
+is built into `ghcr.io/<owner>/hrforce-{api,web}:<sha>` and deployed over SSH by
+[`.github/workflows/deploy-staging.yml`](.github/workflows/deploy-staging.yml). The deploy is skipped until the
+`STAGING_*` secrets are set. Rollback means redeploying an older SHA.
+Server setup, secrets, first admin, backups and restore: [deploy/README.md](deploy/README.md).
+
+```sh
+docker build -f apps/api/Dockerfile -t hrforce-api .   # from the repo root
+docker build -f apps/web/Dockerfile -t hrforce-web .
+deploy/smoke.sh https://staging.example.dz             # post-deploy checks
+```
+
 ## Known follow-ups before the Authorization module
 - The permission guard runs before the per-request transaction opens, so a DB-backed permission check needs its own tenant-scoped query (or the guard moves inside the transaction).
 - Register the guard as `APP_GUARD` so an app bootstrapped without `configureApp()` is still deny-by-default.

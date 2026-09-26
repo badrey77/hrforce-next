@@ -19,15 +19,16 @@
 import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
-import type {
-  CreateEmployee,
-  EmployeeDetail,
-  EmployeePage,
-  EmployeeQuery,
-  EndEmployment,
-  NewAssignment,
-  NewSalary,
-  PersonInput,
+import {
+  type CreateEmployee,
+  DEFAULT_EMPLOYEE_QUERY,
+  type EmployeeDetail,
+  type EmployeePage,
+  type EmployeeQuery,
+  type EndEmployment,
+  type NewAssignment,
+  type NewSalary,
+  type PersonInput,
 } from './employees.models';
 
 export const EMPLOYEES_API_BASE = '/api/employees';
@@ -73,6 +74,21 @@ export class EmployeesApi {
       const value = id();
       return value ? employeeUrl(value) : undefined;
     });
+  }
+
+  /**
+   * `GET /employees?q=` as a one-shot Observable, for the employee picker (shared/employee-picker): the picker drives
+   * it from an RxJS `debounceTime`/`switchMap` pipeline, like the org-unit picker's search. Active employees only,
+   * first 10 by name.
+   */
+  search(q: string, pageSize = 10): Observable<EmployeePage> {
+    const params = employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, q, pageSize });
+    return this.http.get<EmployeePage>(EMPLOYEES_API_BASE, { params });
+  }
+
+  /** `GET /employees/:id` as a one-shot Observable (the picker labels a preset value). */
+  get(id: string): Observable<EmployeeDetail> {
+    return this.http.get<EmployeeDetail>(employeeUrl(id));
   }
 
   /** `POST /employees` → 201 with the detail (and a Location header). */

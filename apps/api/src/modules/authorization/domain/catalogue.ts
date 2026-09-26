@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -31,6 +31,12 @@ export const PERMISSION_CODES = [
   'employee.nss.read',
   'employee.nss.update',
   'employee.medical.read',
+  'leave.request_self',
+  'leave.read',
+  'leave.request',
+  'leave.approve_hr',
+  'leave.adjust',
+  'leave.configure',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -60,7 +66,10 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     code: 'rh_regional',
     names: { fr: 'RH régional', ar: 'مسؤول الموارد البشرية الجهوي', en: 'Regional HR' },
-    permissions: ['org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update'],
+    permissions: [
+      'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
+      'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
+    ],
   },
   {
     code: 'lecture',
@@ -71,6 +80,12 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
     code: 'admin_acces',
     names: { fr: 'Administrateur des accès', ar: 'مسؤول الصلاحيات', en: 'Access administrator' },
     permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read'],
+  },
+  {
+    // self-service (docs/contracts/leave.md): request one's own leave; the manager step needs no permission
+    code: 'employe',
+    names: { fr: 'Employé (libre-service)', ar: 'موظف (الخدمة الذاتية)', en: 'Employee (self-service)' },
+    permissions: ['leave.request_self'],
   },
 ];
 

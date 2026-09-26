@@ -37,6 +37,17 @@ const VALID_TO = sql<string | null>`upper(v.valid)::text`;
  * Org units, their versions and the closure — always through the request transaction (`currentTx()`), and
  * always filtered by the caller's company as well (RLS on app.company_id is the backstop, not the filter).
  */
+export interface OrgUnitHeadRow {
+  employmentId: string;
+  matricule: string;
+  lastName: string;
+  firstName: string;
+  lastNameAr: string | null;
+  firstNameAr: string | null;
+  validFrom: string;
+  validTo: string | null;
+}
+
 @Injectable()
 export class OrgUnitRepository {
   async findUnit(companyId: string, id: string): Promise<OrgUnitRow | undefined> {
@@ -47,6 +58,19 @@ export class OrgUnitRepository {
       .where('id', '=', id)
       .executeTakeFirst();
     return row;
+  }
+
+  /** The head of the unit on `date` (docs/contracts/leave.md › org_unit_head), or undefined. */
+  async headOn(companyId: string, unitId: string, date: string): Promise<OrgUnitHeadRow | undefined> {
+    const { rows } = await sql<OrgUnitHeadRow>`
+      select h.employment_id as "employmentId", e.matricule, p.last_name as "lastName", p.first_name as "firstName",
+             p.last_name_ar as "lastNameAr", p.first_name_ar as "firstNameAr",
+             lower(h.valid)::text as "validFrom", upper(h.valid)::text as "validTo"
+        from org_unit_head h
+        join employment e on e.company_id = h.company_id and e.id = h.employment_id
+        join person p on p.company_id = e.company_id and p.id = e.person_id
+       where h.company_id = ${companyId}::uuid and h.org_unit_id = ${unitId}::uuid and h.valid @> ${date}::date`.execute(currentTx());
+    return rows[0];
   }
 
   /** The unit is part of today's tree (it has its self row in the closure). */

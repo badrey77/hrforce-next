@@ -1,0 +1,40 @@
+# Static file server baked into the hrforce-web image (apps/web/Dockerfile).
+# Plain HTTP on :8080, reachable only on the compose-internal network: TLS, security headers and /api routing
+# live in the edge proxy (deploy/Caddyfile). This server never sees /api requests.
+{
+	admin off
+	persist_config off
+	auto_https off
+}
+
+:8080 {
+	root * /srv
+
+	# Angular's content-hashed bundles and fonts (main-KVOQVOPH.js, chunk-SWgI4iDL.js, styles-VTFV2CYA.css,
+	# media/cairo-…-PWNICP73.woff2) never change: cache for a year. A missing one is a real 404, never index.html,
+	# so an old tab asking for a chunk of a previous release fails loudly instead of parsing HTML as JavaScript.
+	@hashed path_regexp ^/(?:media/)?[^/]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2)$
+	handle @hashed {
+		@exists file
+		header @exists Cache-Control "public, max-age=31536000, immutable"
+		@missing not file
+		header @missing Cache-Control "no-store"
+		file_server
+	}
+
+	# Any other path with a file extension (favicon.ico, i18n/fr.json, …): served if it exists, else 404.
+	# Revalidated on every use (these names are not hashed).
+	@file path_regexp \.[A-Za-z0-9]+$
+	handle @file {
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# Everything else is an application route (/employees/…, /password/setup?token=…): SPA fallback to index.html.
+	# no-cache so a new release is picked up on the next navigation.
+	handle {
+		header Cache-Control "no-cache"
+		rewrite * /index.html
+		file_server
+	}
+}

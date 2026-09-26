@@ -74,6 +74,19 @@
   background: var(--color-hover);
 }
 
+.count {
+  display: inline-block;
+  min-inline-size: 1.5rem;
+  margin-inline-start: var(--space-2);
+  padding-inline: var(--space-1);
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 .sidenav a.active {
   border-inline-start-color: var(--color-primary);
   font-weight: 600;

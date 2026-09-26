@@ -1,0 +1,139 @@
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <h2>{{ t('leave.balances.title') }}</h2>
+    @if (panel() === null) {
+      <div class="form-actions">
+        <button *appCan="'leave.request'" class="btn" type="button" data-action="request-on-behalf" (click)="open('request')">
+          {{ t('leave.employee.requestOnBehalf') }}
+        </button>
+        <button *appCan="'leave.adjust'" class="btn secondary" type="button" data-action="adjust" (click)="open('adjust')">
+          {{ t('leave.employee.adjust') }}
+        </button>
+      </div>
+    }
+  </div>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (panel() === 'request') {
+    <app-leave-request-form [employmentId]="employee().id" [cancellable]="true" (saved)="onRequested()" (cancelled)="panel.set(null)" />
+  }
+
+  @if (panel() === 'adjust') {
+    @let c = adjustForm.controls;
+    <form class="panel" [formGroup]="adjustForm" (ngSubmit)="submitAdjustment()" novalidate aria-labelledby="adjust-title" data-form="adjust">
+      <h3 id="adjust-title">{{ t('leave.employee.adjustTitle') }}</h3>
+      <p class="field-hint">{{ t('leave.employee.adjustIntro') }}</p>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="grid">
+        <div class="field">
+          <label for="adjust-type">{{ t('leave.fields.type') }}</label>
+          <select id="adjust-type" formControlName="leaveTypeId" required>
+            @for (type of balanceTypes(); track type.id) {
+              <option [value]="type.id">{{ catalog.nameOf(type.id) }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="adjust-period">{{ t('leave.employee.period') }}</label>
+          <input id="adjust-period" type="date" formControlName="periodStart" required list="adjust-periods"
+            [attr.aria-invalid]="c.periodStart.invalid && c.periodStart.touched" aria-describedby="adjust-period-hint adjust-period-error" />
+          <datalist id="adjust-periods">
+            @for (period of periods(); track period) {
+              <option [value]="period">{{ yearLabel(period) }}</option>
+            }
+          </datalist>
+          <p class="field-hint" id="adjust-period-hint">{{ t('leave.employee.periodHint') }}</p>
+          @if (c.periodStart.invalid && c.periodStart.touched) {
+            <p class="field-error" id="adjust-period-error">{{ c.periodStart.getError('server') ?? t(errorKey(c.periodStart)) }}</p>
+          }
+        </div>
+        <div class="field">
+          <label for="adjust-days">{{ t('leave.employee.days') }}</label>
+          <input id="adjust-days" type="number" step="0.5" formControlName="days" required
+            [attr.aria-invalid]="c.days.invalid && c.days.touched" aria-describedby="adjust-days-hint adjust-days-error" />
+          <p class="field-hint" id="adjust-days-hint">{{ t('leave.employee.daysHint') }}</p>
+          @if (c.days.invalid && c.days.touched) {
+            <p class="field-error" id="adjust-days-error" data-error="days">
+              {{ c.days.getError('server') ?? (c.days.hasError('required') ? t('leave.form.errors.required') : t('leave.form.errors.number')) }}
+            </p>
+          }
+        </div>
+      </div>
+      <div class="field">
+        <label for="adjust-note">{{ t('leave.employee.note') }}</label>
+        <textarea id="adjust-note" formControlName="note" rows="2" required dir="auto"
+          [attr.aria-invalid]="c.note.invalid && c.note.touched" aria-describedby="adjust-note-error"></textarea>
+        @if (c.note.invalid && c.note.touched) {
+          <p class="field-error" id="adjust-note-error" data-error="note">{{ c.note.getError('server') ?? t(errorKey(c.note)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="panel.set(null)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <section [attr.aria-busy]="balances.isLoading()" data-panel="balances">
+    @if (balances.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('leave.balances.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="balances.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (balances.hasValue()) {
+      <app-balance-cards [balances]="balanceItems()" />
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  <section [attr.aria-busy]="ledger.isLoading()" aria-labelledby="ledger-title">
+    <h2 id="ledger-title">{{ t('leave.ledger.title') }}</h2>
+    @if (ledger.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('leave.ledger.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="ledger.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (ledger.hasValue()) {
+      <div class="table-scroll">
+        <table class="data" data-table="ledger">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('leave.ledger.date') }}</th>
+              <th scope="col">{{ t('leave.fields.type') }}</th>
+              <th scope="col">{{ t('leave.ledger.period') }}</th>
+              <th scope="col">{{ t('leave.ledger.kind') }}</th>
+              <th scope="col" class="num">{{ t('leave.fields.days') }}</th>
+              <th scope="col">{{ t('leave.ledger.note') }}</th>
+              <th scope="col">{{ t('leave.ledger.by') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of ledgerItems(); track row.id) {
+              <tr [attr.data-ledger]="row.id">
+                <td class="nowrap">{{ row.createdAt | date: 'mediumDate' : undefined : locale() }}</td>
+                <td>{{ catalog.nameOf(row.leaveTypeId) }}</td>
+                <td class="nowrap">{{ yearLabel(row.periodStart) }}</td>
+                <td>{{ t('leave.ledger.kinds.' + row.kind) }}</td>
+                <td class="num">{{ row.days > 0 ? '+' : '' }}{{ row.days | number: '1.0-1' : locale() }}</td>
+                <td dir="auto">{{ row.note ?? '' }}</td>
+                <td>{{ row.createdBy?.displayName ?? t('leave.ledger.system') }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="muted">{{ t('leave.ledger.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

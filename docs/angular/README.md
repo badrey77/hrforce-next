@@ -54,6 +54,12 @@ the files it discusses, so you can jump straight to the source.
     factories, cross-section rules, optional sections as disabled groups,
     `control.events`, the list/detail pattern, tabs as a local signal.
 
+15. [15-workflows-in-the-ui.md](./15-workflows-in-the-ui.md) — Leave and "My tasks": a live
+    preview (a POST modelled as a read: debounced signal → `httpResource`), one root store
+    behind a nav badge and a page, polling vs events (`NavigationEnd`, `visibilitychange`),
+    optimistic updates with rollback, a stepper over a pure function (RTL), the second
+    ControlValueAccessor.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (contracts and documents, M2, are next).
 
@@ -130,6 +136,18 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Tabs as a `linkedSignal` vs child routes; reload after writes | 14 | `src/app/features/employees/employee-detail.page.ts` |
 | `DecimalPipe` with an explicit locale (money as a string) | 14, 13 | `src/app/features/employees/employee-detail.page.html` |
 | Language-aware name pipe (`displayName`) | 14, 13 | `src/app/shared/display-name/display-name.pipe.ts` |
+| Live preview: `toSignal(valueChanges.pipe(debounceTime…))` → POST `httpResource` | 15 | `src/app/shared/leave/leave-request-form.ts`, `src/app/core/leave/leave-api.ts` |
+| Root store shared by a nav badge and a page; `aria-live` count | 15 | `src/app/core/tasks/tasks-badge.ts`, `src/app/app.html` |
+| Refresh on `NavigationEnd` / `visibilitychange` (vs polling with `interval`) | 15 | `src/app/core/tasks/tasks-badge.ts` |
+| Optimistic update + rollback (derived list = truth minus hidden ids) | 15 | `src/app/core/tasks/tasks-badge.ts`, `src/app/features/tasks/tasks.page.ts` |
+| `computed()` as an equality gate before a resource | 15, 03 | `src/app/features/tasks/tasks.page.ts` (`selectedRequestId`) |
+| `afterNextRender` to move focus after a DOM change | 15 | `src/app/features/tasks/tasks.page.ts` |
+| Stepper: pure state function + presentational component, RTL via logical properties | 15 | `src/app/shared/workflow-stepper/workflow-stepper.ts` |
+| Second ControlValueAccessor (employee picker) | 15, 07 | `src/app/shared/employee-picker/employee-picker.ts` |
+| Resources gated on a permission / on another resource | 15, 12 | `src/app/core/leave/my-employment.ts`, `src/app/features/my-leave/my-leave.page.ts` |
+| Per-child permission guards under one lazy route | 05, 15 | `src/app/features/leave/leave.routes.ts` |
+| Inline edit with one FormGroup; number inputs → `number \| null` | 15, 07 | `src/app/features/leave/leave-types-settings.ts` |
+| Day/month names from locale data (`DatePipe` 'EEEE'/'LLLL') | 13 | `src/app/features/leave/policy-settings.ts` |
 | `DeferBlockBehavior.Manual`/`Playthrough`, faked `IntersectionObserver` | 09, 13 | `src/app/shared/timeline/history-tabs.spec.ts`, `src/testing/intersection-observer.ts` |
 
 ## Glossary

@@ -1,0 +1,102 @@
+<!--
+  List | detail panel. The list is the store's `items()` (shared with the nav badge). Each row is a button that
+  selects the task (`aria-pressed` says which one is shown in the panel).
+  Headings that receive focus programmatically get `tabindex="-1"` (focusable by script, not in the Tab order).
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('tasks.title') }}</h1>
+    <button class="btn secondary" type="button" data-action="refresh" (click)="store.refresh()">{{ t('tasks.refresh') }}</button>
+  </header>
+
+  @if (feedback(); as message) {
+    <p [class]="message.kind === 'ok' ? 'feedback' : 'warning'" role="status" data-feedback>{{ t(message.key, { name: message.name }) }}</p>
+  }
+
+  <div class="panes">
+    <section class="list" [attr.aria-busy]="store.isLoading()" aria-labelledby="tasks-list-title">
+      <h2 id="tasks-list-title" #listHeading tabindex="-1">{{ t('tasks.open', { count: store.count() }) }}</h2>
+      @if (store.error() && !store.loaded()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('tasks.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="store.refresh()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (store.loaded()) {
+        <ul class="task-list">
+          @for (task of store.items(); track task.id) {
+            <li>
+              <button type="button" class="task" [attr.data-task]="task.id" [attr.aria-pressed]="task.id === selectedId()" (click)="select(task)">
+                <span class="who">{{ task.subject.employee.person | displayName: lang() }}</span>
+                <span class="what">
+                  {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
+                  {{ t('leave.fields.range', { from: (task.subject.startDate | date: 'mediumDate' : undefined : locale()), to: (task.subject.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                  · {{ t('leave.fields.daysCount', { days: (task.subject.days | number: '1.0-1' : locale()) }) }}
+                </span>
+                <span class="step">
+                  {{ t('tasks.step', { step: catalog.labelOf(task.stepLabels) }) }}
+                  @if (task.escalated) {
+                    · {{ t('workflow.escalated') }}
+                  }
+                </span>
+              </button>
+            </li>
+          } @empty {
+            <li class="muted" data-state="empty">{{ t('tasks.empty') }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <section class="panel detail" aria-labelledby="task-panel-title">
+      @if (selected(); as task) {
+        <h2 id="task-panel-title" #panelHeading tabindex="-1">{{ task.subject.employee.person | displayName: lang() }}</h2>
+        @if (detail.error()) {
+          <div class="form-error" role="alert">
+            <p>{{ t('tasks.detailError') }}</p>
+            <button class="btn secondary" type="button" (click)="detail.reload()">{{ t('common.retry') }}</button>
+          </div>
+        } @else if (detail.hasValue()) {
+          <app-leave-request-view [request]="detail.value()" />
+          <h3>{{ t('tasks.balance') }}</h3>
+          <app-balance-cards [balances]="detailBalances()" />
+        } @else {
+          <p class="muted">{{ t('common.loading') }}</p>
+        }
+        <div class="form-actions decide">
+          <button class="btn" type="button" data-action="approve" [disabled]="acting()" (click)="approve(task)">{{ t('tasks.approve') }}</button>
+          <button class="btn secondary" type="button" data-action="reject" [disabled]="acting()" (click)="openReject(task)">{{ t('tasks.reject') }}</button>
+        </div>
+      } @else {
+        <h2 id="task-panel-title" class="visually-hidden">{{ t('tasks.panel') }}</h2>
+        <p class="muted" data-state="no-selection">{{ t('tasks.selectHint') }}</p>
+      }
+    </section>
+  </div>
+
+  <dialog #rejectDialog class="modal" aria-labelledby="reject-title" (close)="onRejectClosed()">
+    @if (rejecting(); as task) {
+      <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" novalidate>
+        <h2 id="reject-title">{{ t('tasks.rejectTitle') }}</h2>
+        <p>{{ task.subject.employee.person | displayName: lang() }} — {{ catalog.nameOf(task.subject.leaveTypeId) }}</p>
+        @let comment = rejectForm.controls.comment;
+        <div class="field">
+          <label for="reject-comment">{{ t('tasks.comment') }}</label>
+          <textarea id="reject-comment" formControlName="comment" rows="3" required dir="auto"
+            [attr.aria-invalid]="comment.invalid && comment.touched" aria-describedby="reject-comment-hint reject-comment-error"></textarea>
+          <p class="field-hint" id="reject-comment-hint">{{ t('tasks.commentHint') }}</p>
+          @if (comment.invalid && comment.touched) {
+            <p class="field-error" id="reject-comment-error" data-error="comment">
+              {{ comment.hasError('maxlength') ? t('leave.form.errors.tooLong') : t('tasks.commentRequired') }}
+            </p>
+          }
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="confirm-reject">{{ t('tasks.confirmReject') }}</button>
+          <button class="btn secondary" type="button" (click)="closeReject()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    }
+  </dialog>
+</ng-container>

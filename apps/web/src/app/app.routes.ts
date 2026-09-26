@@ -10,7 +10,8 @@
  *   browser.
  * - `canMatch: [authGuard, permissionGuard()]` + `data: { permission }` on features that need a permission
  *   (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs `access.read`, Employees
- *   needs `employee.read` (docs/contracts/employment.md › Web). Without
+ *   needs `employee.read` (docs/contracts/employment.md › Web), My leave needs `leave.request_self`
+ *   (docs/contracts/leave.md › Web). Without
  *   it the route does not match and the visitor lands on `**` (404) — see core/auth/permission.guard.ts.
  * Order still matters (first match wins, `**` last); a guard only decides whether its route may match.
  */
@@ -59,6 +60,25 @@ export const routes: Routes = [
     canMatch: [authGuard, permissionGuard()],
     data: { permission: 'access.read' },
     loadChildren: () => import('./features/access/access.routes').then((m) => m.ACCESS_ROUTES),
+  },
+  {
+    // My leave (self-service): needs leave.request_self; the page itself handles "no linked employment".
+    path: 'me/leave',
+    canMatch: [authGuard, permissionGuard()],
+    data: { permission: 'leave.request_self' },
+    loadComponent: () => import('./features/my-leave/my-leave.page').then((m) => m.MyLeavePage),
+  },
+  {
+    // My tasks: every signed-in user may be a candidate (a unit head needs no permission), so no permission guard.
+    path: 'tasks',
+    canMatch: [authGuard],
+    loadComponent: () => import('./features/tasks/tasks.page').then((m) => m.TasksPage),
+  },
+  {
+    // HR leave: list/detail need leave.read, settings leave.configure — checked per child (see leave.routes.ts).
+    path: 'leave',
+    canMatch: [authGuard],
+    loadChildren: () => import('./features/leave/leave.routes').then((m) => m.LEAVE_ROUTES),
   },
   {
     path: 'settings',

@@ -1,0 +1,108 @@
+<!--
+  One table; the edited row swaps its cells for inputs (same columns, so the layout does not jump).
+  `formGroupName="labels"` scopes the three label inputs to the nested group.
+-->
+<section *transloco="let t" aria-labelledby="types-title">
+  <div class="toolbar">
+    <h2 id="types-title">{{ t('leave.settings.types.title') }}</h2>
+  </div>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+  @if (catalog.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('leave.settings.types.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="catalog.reload()">{{ t('common.retry') }}</button>
+    </div>
+  }
+  <div class="table-scroll">
+    <table class="data" data-table="types" [formGroup]="form">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('leave.settings.types.code') }}</th>
+          <th scope="col">{{ t('leave.settings.types.labels') }}</th>
+          <th scope="col">{{ t('leave.settings.types.countMode') }}</th>
+          <th scope="col" class="num">{{ t('leave.settings.types.accrual') }}</th>
+          <th scope="col" class="num">{{ t('leave.settings.types.maxYear') }}</th>
+          <th scope="col" class="num">{{ t('leave.settings.types.maxRequest') }}</th>
+          <th scope="col">{{ t('leave.settings.types.document') }}</th>
+          <th scope="col">{{ t('leave.settings.types.active') }}</th>
+          <th scope="col"><span class="visually-hidden">{{ t('leave.settings.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (type of catalog.types(); track type.id) {
+          @if (editingId() === type.id) {
+            @let c = form.controls;
+            <tr [attr.data-type]="type.id" class="editing">
+              <td class="code">{{ type.code }}</td>
+              <td formGroupName="labels">
+                @for (lang of ['fr', 'ar', 'en']; track lang) {
+                  <label class="visually-hidden" [for]="'type-label-' + lang">{{ t('leave.settings.labelIn.' + lang) }}</label>
+                  <input [id]="'type-label-' + lang" type="text" [formControlName]="lang" [attr.lang]="lang" dir="auto"
+                    [placeholder]="t('leave.settings.labelIn.' + lang)" />
+                }
+                @if (c.labels.invalid && c.labels.touched) {
+                  <p class="field-error">{{ t('leave.settings.labelsRequired') }}</p>
+                }
+              </td>
+              <td>{{ t('leave.form.countModeShort.' + type.countMode) }}</td>
+              <td class="num">
+                <label class="visually-hidden" for="type-accrual">{{ t('leave.settings.types.accrual') }}</label>
+                <input id="type-accrual" type="number" min="0" step="0.5" formControlName="accrualDaysPerMonth" />
+              </td>
+              <td class="num">
+                <label class="visually-hidden" for="type-max-year">{{ t('leave.settings.types.maxYear') }}</label>
+                <input id="type-max-year" type="number" min="0" step="1" formControlName="maxDaysPerYear" />
+              </td>
+              <td class="num">
+                <label class="visually-hidden" for="type-max-request">{{ t('leave.settings.types.maxRequest') }}</label>
+                <input id="type-max-request" type="number" min="0" step="1" formControlName="maxDaysPerRequest" />
+              </td>
+              <td>
+                <label class="visually-hidden" for="type-document">{{ t('leave.settings.types.document') }}</label>
+                <input id="type-document" type="checkbox" formControlName="requiresDocument" />
+              </td>
+              <td>
+                <label class="visually-hidden" for="type-active">{{ t('leave.settings.types.active') }}</label>
+                <input id="type-active" type="checkbox" formControlName="active" />
+              </td>
+              <td class="form-actions">
+                <button class="btn" type="button" data-action="save" [disabled]="saving()" (click)="save(type)">{{ t('common.save') }}</button>
+                <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+              </td>
+            </tr>
+            @if (c.accrualDaysPerMonth.invalid || c.maxDaysPerYear.invalid || c.maxDaysPerRequest.invalid) {
+              <tr>
+                <td colspan="9"><p class="field-error" data-error="numbers">{{ t('leave.form.errors.number') }}</p></td>
+              </tr>
+            }
+          } @else {
+            <tr [attr.data-type]="type.id" [class.muted]="!type.active">
+              <td class="code">{{ type.code }}</td>
+              <td data-field="name">{{ catalog.nameOf(type.id) }}</td>
+              <td>{{ t('leave.form.countModeShort.' + type.countMode) }}</td>
+              <td class="num">{{ type.accrualDaysPerMonth === null ? '—' : (type.accrualDaysPerMonth | number: '1.0-2' : locale()) }}</td>
+              <td class="num">{{ type.maxDaysPerYear ?? '—' }}</td>
+              <td class="num">{{ type.maxDaysPerRequest ?? '—' }}</td>
+              <td>{{ type.requiresDocument ? t('leave.settings.yes') : t('leave.settings.no') }}</td>
+              <td>{{ type.active ? t('leave.settings.yes') : t('leave.settings.no') }}</td>
+              <td>
+                <button class="btn secondary" type="button" data-action="edit" [disabled]="editingId() !== null" (click)="edit(type)">
+                  {{ t('leave.settings.edit') }}
+                </button>
+              </td>
+            </tr>
+          }
+        } @empty {
+          <tr>
+            <td colspan="9" class="muted">{{ catalog.loaded() ? t('leave.settings.types.empty') : t('common.loading') }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

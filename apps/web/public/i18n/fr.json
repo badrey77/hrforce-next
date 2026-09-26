@@ -9,7 +9,12 @@
     "employees": "Employés",
     "organization": "Organisation",
     "access": "Accès",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "myLeave": "Mes congés",
+    "tasks": "Mes tâches",
+    "leave": "Congés",
+    "tasksWithCount": "Mes tâches, {{count}} en attente",
+    "tasksLive": "{{count}} tâche(s) en attente"
   },
   "language": {
     "label": "Langue",
@@ -214,6 +219,21 @@
       "error": "La recherche a échoué.",
       "results": "{{count}} résultat(s)",
       "path": "Rattachement"
+    },
+    "head": {
+      "title": "Responsable de l'unité",
+      "none": "Aucun responsable désigné.",
+      "since": "depuis le {{date}}",
+      "change": "Désigner un responsable",
+      "employee": "Employé",
+      "validFrom": "À compter du",
+      "employeeRequired": "Choisissez un employé dans la liste.",
+      "dateRequired": "Indiquez une date valide.",
+      "saved": "Responsable enregistré.",
+      "problems": {
+        "date": "Un responsable commence déjà à cette date ou après, ou l'employé n'est pas en poste à cette date.",
+        "ended": "Cet emploi est terminé."
+      }
     }
   },
   "access": {
@@ -351,6 +371,25 @@
       "roleCodeTaken": "Ce code de rôle est déjà utilisé.",
       "roleEscalation": "Vous ne pouvez pas ajouter à un rôle des permissions que vous ne détenez pas.",
       "roleSystemImmutable": "Les rôles système ne peuvent pas être modifiés."
+    },
+    "link": {
+      "title": "Employé lié",
+      "none": "Ce compte n'est lié à aucun employé.",
+      "employee": "Lier à l'employé",
+      "replace": "Lier à un autre employé",
+      "hint": "Le compte agit en libre-service (Mes congés) et approuve en tant que responsable pour cet employé.",
+      "link": "Lier",
+      "unlink": "Délier",
+      "confirmUnlink": "Délier ce compte de l'employé ?",
+      "linked": "Compte lié à l'employé.",
+      "unlinked": "Lien supprimé.",
+      "employeeRequired": "Choisissez un employé dans la liste.",
+      "needsEmployeeRead": "Il faut la permission de consulter les employés pour rechercher un employé à lier.",
+      "problems": {
+        "taken": "Cet employé est déjà lié à un autre compte.",
+        "ended": "Cet emploi est terminé.",
+        "self": "Vous ne pouvez pas lier votre propre compte."
+      }
     }
   },
   "audit": {
@@ -701,6 +740,290 @@
       "forbiddenField": "Vous n'avez pas le droit de renseigner ce champ.",
       "forbiddenWrite": "Vous pouvez consulter cet employé mais pas le modifier.",
       "notFound": "Employé introuvable."
+    },
+    "picker": {
+      "placeholder": "Nom, prénom ou matricule…",
+      "loading": "Recherche…",
+      "error": "La recherche a échoué.",
+      "results": "{{count}} employé(s) trouvé(s)",
+      "noResults": "Aucun employé trouvé."
+    }
+  },
+  "leave": {
+    "status": {
+      "pending": "En attente",
+      "approved": "Approuvé",
+      "rejected": "Refusé",
+      "cancelled": "Annulé"
+    },
+    "statusFilter": {
+      "pending": "En attente",
+      "approved": "Approuvés",
+      "rejected": "Refusés",
+      "cancelled": "Annulés",
+      "all": "Tous"
+    },
+    "fields": {
+      "employee": "Employé",
+      "type": "Type de congé",
+      "dates": "Dates",
+      "range": "du {{from}} au {{to}}",
+      "days": "Jours",
+      "daysCount": "{{days}} j",
+      "status": "Statut",
+      "reason": "Motif",
+      "documentRef": "Justificatif",
+      "requestedBy": "Demandé par",
+      "halfDaysNote": "avec demi-journée"
+    },
+    "balances": {
+      "title": "Soldes",
+      "year": "Année {{year}}",
+      "available": "jours disponibles",
+      "balance": "Solde",
+      "pending": "En attente",
+      "accrued": "Acquis",
+      "taken": "Pris",
+      "adjusted": "Ajustements",
+      "empty": "Aucun solde pour l'instant.",
+      "loadError": "Impossible de charger les soldes."
+    },
+    "form": {
+      "title": "Nouvelle demande de congé",
+      "titleOnBehalf": "Demande de congé pour l'employé",
+      "type": "Type de congé",
+      "typePlaceholder": "Choisissez un type…",
+      "startDate": "Premier jour",
+      "endDate": "Dernier jour",
+      "halfDayStart": "Commencer l'après-midi (demi-journée)",
+      "halfDayEnd": "Finir à midi (demi-journée)",
+      "documentRef": "Référence du justificatif",
+      "documentHint": "Par exemple le numéro du certificat médical.",
+      "required": "(obligatoire pour ce type)",
+      "reason": "Motif (facultatif)",
+      "submit": "Envoyer la demande",
+      "sending": "Envoi…",
+      "countMode": {
+        "calendar": "Compté en jours calendaires.",
+        "working": "Compté en jours ouvrables (hors week-end et jours fériés)."
+      },
+      "countModeShort": {
+        "calendar": "Calendaires",
+        "working": "Ouvrables"
+      },
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "date": "Indiquez une date valide.",
+        "tooLong": "Texte trop long.",
+        "documentRequired": "Ce type de congé exige un justificatif.",
+        "dateOrder": "Le dernier jour doit être le même jour ou après le premier.",
+        "halfDays": "Une demande d'un seul jour ne peut pas être une demi-journée au début et à la fin.",
+        "number": "Nombre invalide."
+      }
+    },
+    "preview": {
+      "title": "Aperçu",
+      "idle": "Choisissez un type et des dates pour voir le décompte.",
+      "loading": "Calcul…",
+      "error": "Aperçu indisponible pour l'instant.",
+      "days": "{{days}} jour(s) décompté(s)",
+      "calendarDays": "Jours calendaires",
+      "weekendDays": "Jours de week-end",
+      "halfDays": "Demi-journées",
+      "holidays": "Jours fériés dans la période :",
+      "balanceAfter": "Solde après la demande",
+      "overBalance": "Cette demande dépasse le solde disponible.",
+      "warning": "Cette demande ne respecte pas une règle de congé."
+    },
+    "problems": {
+      "overlap": "Une autre demande en attente ou approuvée couvre déjà ces dates.",
+      "dates": "Dates invalides : la fin précède le début, ou la période sort de l'emploi.",
+      "balance": "Solde insuffisant (demandes en attente comprises).",
+      "maxRequest": "Ce type de congé est limité en nombre de jours par demande.",
+      "oncePerCareer": "Ce congé ne peut être accordé qu'une fois dans la carrière.",
+      "documentRequired": "Un justificatif est obligatoire pour ce type de congé.",
+      "notLinked": "Votre compte n'est lié à aucun dossier employé. Demandez aux RH de le lier pour utiliser le libre-service.",
+      "employeeNotFound": "Employé introuvable.",
+      "cannotCancel": "Cette demande ne peut plus être annulée."
+    },
+    "feedback": {
+      "requested": "Demande envoyée. Elle suit maintenant le circuit d'approbation.",
+      "cancelled": "Demande annulée.",
+      "adjusted": "Ajustement enregistré.",
+      "requestedOnBehalf": "Demande enregistrée pour l'employé."
+    },
+    "mine": {
+      "title": "Mes congés",
+      "newRequest": "Demander un congé",
+      "requests": "Mes demandes",
+      "empty": "Aucune demande pour l'instant.",
+      "cancel": "Annuler la demande",
+      "cancelTitle": "Annuler cette demande ?",
+      "confirmCancel": "Oui, annuler",
+      "keep": "Non, la garder"
+    },
+    "list": {
+      "title": "Congés",
+      "filters": "Filtrer les demandes",
+      "search": "Recherche",
+      "searchPlaceholder": "Nom ou matricule",
+      "allTypes": "Tous les types",
+      "unit": "Unité",
+      "from": "Du",
+      "to": "Au",
+      "total": "{{count}} demande(s)",
+      "empty": "Aucune demande de congé.",
+      "noMatch": "Aucune demande ne correspond aux filtres.",
+      "loadError": "Impossible de charger les demandes."
+    },
+    "detail": {
+      "title": "Demande de congé",
+      "back": "← Retour aux congés",
+      "employee": "Fiche de l'employé",
+      "notFound": "Demande introuvable.",
+      "loadError": "Impossible de charger la demande."
+    },
+    "employee": {
+      "requestOnBehalf": "Demander pour l'employé",
+      "adjust": "Ajuster un solde",
+      "adjustTitle": "Ajustement de solde",
+      "adjustIntro": "Ajoute ou retire des jours d'une année de référence (récupération, correction). L'opération est tracée.",
+      "period": "Année de référence (premier jour)",
+      "periodHint": "Par exemple 2026-07-01 pour l'année 2026–2027.",
+      "days": "Jours (+/−)",
+      "daysHint": "Nombre non nul, au plus une décimale (ex. 2 ou -0,5).",
+      "note": "Motif"
+    },
+    "ledger": {
+      "title": "Mouvements",
+      "date": "Date",
+      "period": "Année",
+      "kind": "Mouvement",
+      "note": "Note",
+      "by": "Par",
+      "system": "Automatique",
+      "empty": "Aucun mouvement.",
+      "loadError": "Impossible de charger les mouvements.",
+      "kinds": {
+        "accrual": "Acquisition",
+        "taken": "Pris",
+        "adjustment": "Ajustement",
+        "reversal": "Restitution"
+      }
+    },
+    "settings": {
+      "title": "Paramètres des congés",
+      "intro": "Les règles par défaut (loi 90-11) sont des données modifiables. Chaque modification est tracée.",
+      "actions": "Actions",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "yes": "Oui",
+      "no": "Non",
+      "labelIn": {
+        "fr": "Libellé (français)",
+        "ar": "Libellé (arabe)",
+        "en": "Libellé (anglais)"
+      },
+      "labelsRequired": "Les trois libellés sont obligatoires.",
+      "types": {
+        "title": "Types de congé",
+        "code": "Code",
+        "labels": "Libellé",
+        "countMode": "Décompte",
+        "accrual": "Acquis / mois",
+        "maxYear": "Max / an",
+        "maxRequest": "Max / demande",
+        "document": "Justificatif",
+        "active": "Actif",
+        "saved": "Type de congé enregistré.",
+        "empty": "Aucun type de congé.",
+        "loadError": "Impossible de charger les types de congé."
+      },
+      "holidays": {
+        "title": "Jours fériés",
+        "year": "Année",
+        "add": "Ajouter un jour férié",
+        "date": "Date",
+        "name": "Nom",
+        "approximate": "Date approximative (fête lunaire à confirmer)",
+        "approximateBadge": "À confirmer",
+        "hint": "Les fêtes lunaires sont saisies à une date estimée : confirmez-les chaque année.",
+        "confirmDelete": "Supprimer ce jour férié ?",
+        "added": "Jour férié ajouté.",
+        "saved": "Jour férié enregistré.",
+        "deleted": "Jour férié supprimé.",
+        "empty": "Aucun jour férié pour cette année.",
+        "loadError": "Impossible de charger les jours fériés."
+      },
+      "policy": {
+        "title": "Règles générales",
+        "weekend": "Jours de week-end",
+        "tooMany": "Au plus {{max}} jours de week-end.",
+        "referenceMonth": "Début de l'année de référence",
+        "referenceHint": "Loi 90-11 : du 1er juillet au 30 juin.",
+        "saved": "Règles enregistrées.",
+        "loadError": "Impossible de charger les règles."
+      }
+    }
+  },
+  "tasks": {
+    "title": "Mes tâches",
+    "refresh": "Actualiser",
+    "open": "{{count}} tâche(s) en attente",
+    "empty": "Rien à approuver pour l'instant.",
+    "loadError": "Impossible de charger vos tâches.",
+    "detailError": "Impossible de charger la demande.",
+    "panel": "Détail de la tâche",
+    "selectHint": "Choisissez une tâche pour voir la demande.",
+    "step": "Étape : {{step}}",
+    "balance": "Solde de l'employé",
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "rejectTitle": "Refuser la demande",
+    "comment": "Commentaire",
+    "commentHint": "Expliquez le refus : l'employé verra ce commentaire.",
+    "commentRequired": "Un commentaire est obligatoire pour refuser.",
+    "confirmReject": "Refuser",
+    "feedback": {
+      "approved": "Demande de {{name}} approuvée.",
+      "rejected": "Demande de {{name}} refusée."
+    },
+    "problems": {
+      "closed": "La demande de {{name}} a déjà été traitée par quelqu'un d'autre.",
+      "selfApproval": "Vous ne pouvez pas traiter votre propre demande.",
+      "notCandidate": "Cette tâche ne vous est plus attribuée."
+    }
+  },
+  "workflow": {
+    "title": "Circuit d'approbation",
+    "escalated": "transmise aux RH (pas de responsable joignable)",
+    "stepper": {
+      "label": "Étapes d'approbation"
+    },
+    "state": {
+      "done": "Approuvée",
+      "current": "En attente",
+      "rejected": "Refusée",
+      "cancelled": "Annulée",
+      "upcoming": "À venir",
+      "skipped": "Passée"
+    },
+    "history": {
+      "title": "Historique",
+      "step": "Étape",
+      "outcome": "Décision",
+      "by": "Par",
+      "at": "Le",
+      "comment": "Commentaire"
+    },
+    "outcome": {
+      "approve": "Approuvée",
+      "reject": "Refusée",
+      "escalated": "Transmise",
+      "open": "En attente",
+      "done": "Traitée",
+      "skipped": "Passée",
+      "cancelled": "Annulée"
     }
   }
 }

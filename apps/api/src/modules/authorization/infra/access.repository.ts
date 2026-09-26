@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { sql } from 'kysely';
 import type { UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { currentTx } from '../../../platform/context/request-context.js';
+import type { LinkedEmploymentView } from '../application/access-views.js';
 import type { Names } from '../domain/catalogue.js';
 
 export interface PermissionRow {
@@ -150,6 +151,22 @@ export class AccessRepository {
       .values(codes.map((code) => ({ company_id: companyId, role_id: roleId, permission_code: code })))
       .onConflict((oc) => oc.columns(['role_id', 'permission_code']).doNothing())
       .execute();
+  }
+
+  /** Linked employments of members (user id → employee), docs/contracts/leave.md › user_employment. */
+  async linkedEmployments(companyId: string): Promise<Map<string, LinkedEmploymentView>> {
+    const { rows } = await sql<{ user_id: string; id: string; matricule: string; last_name: string; first_name: string; last_name_ar: string | null; first_name_ar: string | null }>`
+      select ue.user_id, e.id, e.matricule, p.last_name, p.first_name, p.last_name_ar, p.first_name_ar
+        from user_employment ue
+        join employment e on e.company_id = ue.company_id and e.id = ue.employment_id
+        join person p on p.company_id = e.company_id and p.id = e.person_id
+       where ue.company_id = ${companyId}::uuid`.execute(currentTx());
+    return new Map(
+      rows.map((r) => [
+        r.user_id,
+        { id: r.id, matricule: r.matricule, person: { lastName: r.last_name, firstName: r.first_name, lastNameAr: r.last_name_ar, firstNameAr: r.first_name_ar } },
+      ]),
+    );
   }
 
   /** Members of the caller's company (auth.company_members refuses any other company). */

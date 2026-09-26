@@ -55,6 +55,7 @@ import { dateWithin, END_GRANT_SLUGS, fieldErrorKey, grantState, isoDate } from 
 import { AccessNav } from './access-nav';
 import { accessAuditNames } from './audit-names';
 import { GrantForm } from './grant-form';
+import { LinkedEmployee } from './linked-employee';
 
 function loadErrorKey(error: unknown, fallback: string, notFound = fallback): string {
   if (!isApiProblemError(error)) return fallback;
@@ -66,7 +67,7 @@ function loadErrorKey(error: unknown, fallback: string, notFound = fallback): st
 
 @Component({
   selector: 'app-access-user-detail-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective, HistoryTabs],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective, HistoryTabs, LinkedEmployee],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-detail.page.html',
   styleUrl: './access.css',

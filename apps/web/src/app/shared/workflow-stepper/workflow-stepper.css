@@ -1,0 +1,87 @@
+/*
+ * Horizontal stepper. Everything is along the INLINE axis (flex row + inset-inline-*), so Arabic mirrors it.
+ * The connector is each step's ::before, drawn from the previous dot to this one.
+ */
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex: 1 1 8rem;
+  min-inline-size: 8rem;
+  padding-inline-end: var(--space-3);
+}
+
+li + li::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.75rem;
+  inset-inline-start: calc(-1 * var(--space-3));
+  inline-size: var(--space-3);
+  border-block-start: 2px solid var(--color-border);
+}
+
+li[data-state='done'] + li::before,
+li[data-state='done'] + li[data-state='current']::before {
+  border-block-start-color: var(--color-primary);
+}
+
+.dot {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+[data-state='done'] .dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+[data-state='current'] .dot {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+[data-state='rejected'] .dot,
+[data-state='cancelled'] .dot {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.name {
+  font-weight: 600;
+}
+
+[data-state='upcoming'] .name,
+[data-state='skipped'] .name {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.state {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}

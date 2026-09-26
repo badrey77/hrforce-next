@@ -13,6 +13,7 @@
     "migrate": "tsc -p tsconfig.build.json && node dist/platform/db/migrate.js",
     "seed:dev": "tsc -p tsconfig.build.json && node dist/scripts/seed-dev.js",
     "user:invite": "tsc -p tsconfig.build.json && node dist/scripts/user-invite.js",
+    "bootstrap": "tsc -p tsconfig.build.json && node dist/scripts/bootstrap.js",
     "db:codegen": "kysely-codegen",
     "db:codegen:verify": "kysely-codegen --verify"
   },

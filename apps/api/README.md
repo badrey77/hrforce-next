@@ -490,6 +490,55 @@ curl -s -b jar "http://localhost:3000/api/employees/0190a5d0-0000-7000-8002-0000
 (Tlemcen, 2026-03-31); moves: EMP-0015 (Blida → Alger Centre), EMP-0029 (Constantine → Annaba), EMP-0039 (Oran →
 Tlemcen); salaries for all, with a raise on 2026-01-01 for every third one. Most units get an Arabic name.
 
+## Leave & workflow (`src/modules/{staffing,workflow,leave}`)
+
+Contract: `docs/contracts/leave.md`; engine design: `docs/adr/006-workflow-engine.md`; migration `0011_leave_workflow.sql`.
+
+**Model.**
+- *Staffing* — `user_employment` (a user IS an employee; self-service needs it; `PUT /access/users/:id/employment`,
+  shown as `employment` on `GET /access/users/:id`) and `org_unit_head` (date-effective head per unit, no overlap;
+  `PUT /org/units/:id/head` closes the previous head; today's head is `head` on `GET /org/units/:id`).
+  **Manager** of an employee on D = head (on D) of their unit, else — or if they are that head — the nearest ancestor's
+  head (tree as of D); the approving user is the head's linked user (`GET /me/employment` shows it as `manager`).
+- *Workflow* — `workflow_definition` (ordered `manager` / `permission` steps), `workflow_instance`, `workflow_task`.
+  Candidates of a permission task are computed at read time through `ScopeService`; the requester and the employee's
+  linked user never act (409 `workflow-self-approval`, also a DB trigger); a manager step that nobody can take
+  (no head, head not linked, head = requester) is recorded as a `skipped` task with outcome `escalated` and the HR
+  step opens. Acting row-locks the task: a concurrent second approver gets 409 `workflow-task-closed`.
+  Events `workflow.{start,approve,reject,escalate,cancel}` go to `audit.event`.
+- *Leave* — `leave_policy` (reference year start month 7, weekend `{5,6}`, `entitlement_delay_months` 12),
+  `leave_type` (Algerian defaults, all editable), `public_holiday`, `leave_request` (days computed by the API; no two
+  pending/approved requests of an employment overlap — partial exclusion constraint), `leave_ledger` (append-only:
+  `accrual` / `taken` / `adjustment` / `reversal`; balance = sum per employment, type, reference year).
+- Days (`domain/days.ts`): `calendar` counts every day; `working` skips weekend days and holidays; half days are
+  0.5 on the first / last day. A year's accrued days are usable from `period_start + entitlement_delay_months` (days
+  earned July N-1 → June N are taken from 1 July N); non-accrued balance types (recovery) at once. On final approval
+  `taken` rows go to the oldest usable year first (409 `leave-balance` if it no longer suffices); cancelling an approved
+  request that has not started writes `reversal` rows.
+
+**Accruals.** `POST /api/leave/accruals/run {"month":"YYYY-MM"}` (`leave.adjust`; months after the current one → 422)
+writes one `accrual` row per employment × accrual type × month (unique index → idempotent, safe to re-run or run
+concurrently) for the employees of the caller's `leave.adjust` scope. A month **counts when ≥ 15 of its days fall
+inside the employment** (absences are not tracked yet); it earns `accrual_days_per_month` (2.5), capped at
+`max_days_per_year` (30) per reference year, plus the site's `south_supplement_days` spread over the 12 months with
+cumulative rounding. `seed:dev` runs July 2025 → September 2026.
+
+```bash
+curl -s -b jar -c jar -H "X-XSRF-TOKEN: $XSRF" -H 'Content-Type: application/json' \
+  -d '{"month":"2026-09"}' http://localhost:3000/api/leave/accruals/run
+# {"month":"2026-09","employees":40,"eligible":39,"created":0,"alreadyAccrued":39}
+```
+
+**What the M2 worker will take over** (ADR 005 job queue): the monthly accrual run (1st of the month, previous
+month), reminders / auto-escalation of tasks open for N days, re-assigning open manager tasks when a unit head changes,
+the daily closure refresh for future-dated org changes, and notifications (mail) on task creation and decisions.
+
+**Demo** (`seed:dev`, password `demo-password-2026`): `agent.annaba@demo.dz` (EMP-0030, Agence Annaba, role
+`employe`), `chef.annaba@demo.dz` (EMP-0029, head of Agence Annaba), `rh.est@demo.dz` linked to EMP-0022 (head of
+Région Est: Karim is HR and a manager). Heads: DG, DEP-RH, REG-EST, AG-ANNABA (from 2026-04-01), AG-CNE (EMP-0025
+until 2026-06-30, then EMP-0026 — not linked: requests there escalate to HR). Seven requests cover every status
+(approved, cancelled, rejected, pending at manager, pending at HR, escalated, the chef's own request approved by Karim).
+
 ## Tests
 
 ```bash
@@ -530,3 +579,10 @@ docker build -f apps/api/Dockerfile -t hrforce-api .   # from the repo root
 ```
 
 Multi-stage `node:22-alpine`, runs as the non-root `node` user, `HEALTHCHECK` on `/api/health`.
+
+## First company on an empty database (`bootstrap`)
+
+`npm run bootstrap -w @hrforce/api -- --company-code X --company-name "…" --root-code DG --root-name "…" [--root-name-ar "…"] --site-code HQ --site-name "…" --wilaya "…" --admin-email a@b --admin-name "…" [--locale fr]`
+(as `MIGRATOR_DATABASE_URL`) creates the company, root unit + site, system roles, leave defaults and workflows, and the
+first admin (invited, setup link mailed) with `admin_rh_central` on the whole company. Refuses an existing company code.
+Logic in `src/scripts/bootstrap-company.ts`, tested in `test/bootstrap.e2e-spec.ts`.

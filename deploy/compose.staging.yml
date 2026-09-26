@@ -1,0 +1,170 @@
+# HRForce staging stack — any single Linux host with Docker (docs/contracts/staging.md, deploy/README.md).
+# Run from this directory; deploy/.env supplies every ${VAR} below (COMPOSE_FILE points here, so plain
+# `docker compose …` works). Normal flow: ./deploy.sh <git-sha>  (pull → migrate → up → wait for health).
+#
+# Networks:  db      internal (no internet): postgres, api, migrate, backup
+#            app     internal (no internet): proxy, api, web
+#            egress  outbound + published ports: proxy (ACME, :80/:443), api and migrate (SMTP relay)
+# Postgres is never published; api and web are only reachable through the proxy.
+
+x-api-image: &api-image ${HRFORCE_REGISTRY:-ghcr.io/badrey77}/hrforce-api:${HRFORCE_TAG:?HRFORCE_TAG is set by deploy.sh}
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: [/tmp]
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      POSTGRES_DB: postgres
+      # Read once, by the init hook below, on the very first start (empty volume) to create hrforce_migrator,
+      # hrforce_app and the hrforce database. Changing them later needs create-roles.sql again (README).
+      HRFORCE_MIGRATOR_PASSWORD: ${HRFORCE_MIGRATOR_PASSWORD:?}
+      HRFORCE_APP_PASSWORD: ${HRFORCE_APP_PASSWORD:?}
+      HRFORCE_DB: hrforce
+    volumes:
+      - ../apps/api/scripts/create-roles.sql:/hrforce/create-roles.sql:ro
+      - ../apps/api/scripts/docker-init-roles.sh:/docker-entrypoint-initdb.d/10-roles.sh:ro
+      - pgdata:/var/lib/postgresql
+    networks: [db]
+    shm_size: 256m
+    healthcheck:
+      # Over TCP: during first-start initialisation the server only listens on its socket, so this stays
+      # unhealthy until init (roles + database) is finished and the real server is up.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d hrforce"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # One-shot: forward-only SQL migrations as hrforce_migrator (schema owner). Not started by `up`;
+  # deploy.sh runs `docker compose run --rm migrate` before `up -d`. Also the container for the CLIs that run as
+  # the migrator (user:invite, optional demo seed) — see README.
+  migrate:
+    image: *api-image
+    profiles: [ops]
+    restart: "no"
+    <<: [*hardening, *logging]
+    command: ["node", "dist/platform/db/migrate.js"]
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      MIGRATOR_DATABASE_URL: postgres://hrforce_migrator:${HRFORCE_MIGRATOR_PASSWORD:?}@postgres:5432/hrforce
+      # For user:invite (mailed setup links):
+      WEB_BASE_URL: https://${STAGING_DOMAIN:?}
+      MAIL_TRANSPORT: smtp
+      SMTP_URL: ${SMTP_URL:?}
+      MAIL_FROM: ${MAIL_FROM:?}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [db, egress]
+
+  api:
+    image: *api-image
+    restart: unless-stopped
+    <<: [*hardening, *logging]
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # hrforce_app: DML only, subject to RLS. The API never receives the migrator or superuser password.
+      DATABASE_URL: postgres://hrforce_app:${HRFORCE_APP_PASSWORD:?}@postgres:5432/hrforce
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      COOKIE_SECRET: ${COOKIE_SECRET:?}
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:?}
+      AUTH_XSRF_SECRET: ${AUTH_XSRF_SECRET:?}
+      COOKIE_SECURE: "true"
+      # Exactly one proxy (Caddy) in front of the API.
+      TRUST_PROXY_HOPS: "1"
+      WEB_BASE_URL: https://${STAGING_DOMAIN:?}
+      MAIL_TRANSPORT: smtp
+      SMTP_URL: ${SMTP_URL:?}
+      MAIL_FROM: ${MAIL_FROM:?}
+      # Deliberately absent: DEV_AUTH, DEV_PERMISSIONS (the API refuses them with NODE_ENV=production).
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [db, app, egress]
+    # Health: the image's HEALTHCHECK (GET /api/health, which also checks the database).
+
+  web:
+    image: ${HRFORCE_REGISTRY:-ghcr.io/badrey77}/hrforce-web:${HRFORCE_TAG:?HRFORCE_TAG is set by deploy.sh}
+    restart: unless-stopped
+    <<: [*hardening, *logging]
+    networks: [app]
+    # Health: the image's HEALTHCHECK (GET /index.html on :8080).
+
+  proxy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    <<: *logging
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:?}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # certificates + ACME account: keep it (Let's Encrypt rate limits)
+      - caddy-config:/config
+    depends_on: [api, web]
+    networks: [app, egress]
+
+  # Nightly pg_dump (custom format) into the `backups` volume, 14-day retention (deploy/backup/backup.sh).
+  backup:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    <<: *logging
+    entrypoint: ["/bin/sh", "/hrforce/backup.sh"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
+      PGDATABASE: hrforce
+      BACKUP_TIME_UTC: ${BACKUP_TIME_UTC:-01:30}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backup/backup.sh:/hrforce/backup.sh:ro
+      - backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [db]
+
+networks:
+  db:
+    internal: true
+  app:
+    internal: true
+  egress: {}
+
+volumes:
+  pgdata:
+  backups:
+  caddy-data:
+  caddy-config:

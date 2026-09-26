@@ -14,15 +14,21 @@ src/
     auth/        Identity: AuthApi, Session (root signal store, permissions), guards (auth, guest, permission), refresh interceptor, session initializer
     date/        todayIso(), isIsoDate() — plain TS, no Angular
     employees/   EmployeesApi + Employment contract types (money as a decimal string)
+    leave/       LeaveApi (preview = POST httpResource) + Leave contract types + LeaveCatalog + MyEmployment
+    tasks/       TasksApi + TasksBadge (root store: nav count and /tasks list, optimistic hide/show)
     http/        ApiProblem + apiProblemInterceptor + applyServerErrors() + problemToForm() + retryAfterSeconds() + XSRF names
     i18n/        languages, LanguageService, TranslocoHttpLoader
     org/         OrgApi + Organization contract types + KindCatalog (kind catalogue, once per app)
   shared/        reusable UI used by more than one feature
     can/         *appCan structural directive (show a template only with a permission)
     org-unit-picker/
+    employee-picker/  the second ControlValueAccessor (value = employment id)
+    workflow-stepper/ approval steps, RTL-safe
+    leave/       balance cards, request form with live preview, read-only request view, leave rules
     display-name/ displayName pipe (Arabic name in the Arabic UI, else Latin) — people and units
     timeline/    audit timeline + <app-history-tabs>
-  features/<name>/  one page/flow per feature: access, auth, employees, home, organization, not-found, placeholder
+  features/<name>/  one page/flow per feature: access, auth, employees, home, leave, my-leave, organization, tasks,
+                 not-found, placeholder
   shell/         app-chrome widgets (language switcher, user menu) — not a route, not shared feature UI
   testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
@@ -371,7 +377,7 @@ sends the fields that actually changed.
 ## Recipe: add a reusable form control
 
 Follow `org-unit-picker.ts`/`.html`/`.css` (chapter 07 walks through it) as the
-reference:
+reference — `shared/employee-picker/` is a second example built from it (chapter 15 §6):
 
 1. Put it in **`shared/<name>/`** (it must not know about any specific feature).
 2. Implement `ControlValueAccessor`: `writeValue`, `registerOnChange`,
@@ -390,6 +396,44 @@ reference:
 7. Test it bound to a real `FormControl` inside a small test-only host component, per
    `org-unit-picker.spec.ts` (chapter 09) — a CVA in isolation, with no form around it,
    doesn't exercise the actual integration.
+
+## Recipe: add an approval step UI
+
+For a new kind of request that goes through the workflow engine (docs/contracts/leave.md ›
+Workflow engine) — say a training request. Chapter 15 explains the patterns.
+
+1. **Types and API in `core/<subject>/`**: list items carry `workflow: WorkflowProgress`
+   (reuse the type from `core/leave/leave.models.ts`), the detail adds `history`.
+2. **Show progress** with `<app-workflow-stepper [progress]="item.workflow" [history]="detail.history" />`
+   (shared/workflow-stepper). Step labels come from the definition; nothing to translate.
+3. **"My tasks" needs nothing new** if the subject registers a summary in the API: the
+   tasks page lists every open task. Add a branch on `task.subject.type` in
+   `features/tasks/tasks.page.html` for the new subject's line and detail view.
+4. **Decisions**: call `TasksApi.approve/reject` through the page's `decide()` so the
+   optimistic hide / rollback and the badge stay consistent. Map new 409 slugs in
+   `decisionErrorKey()`.
+5. **Requester side**: a list with the stepper and a Cancel from `_actions` (or the
+   contract's rule, see `canCancel()` in shared/leave/leave-forms.ts), reloading the list
+   after the write.
+6. **Test** the optimistic flow: assert between click and flush, then a 409 rollback
+   (`features/tasks/tasks.page.spec.ts`).
+
+## Recipe: add a live preview
+
+When a form should show a server-computed consequence before submit (days of leave, a
+salary simulation…):
+
+1. In the `*Api`, expose the endpoint as a **resource** even if it is a POST, as long as it
+   writes nothing: `httpResource(() => body() ? { url, method: 'POST', body: body() } : undefined)`
+   (`LeaveApi.previewResource`).
+2. In the form, build the body signal with
+   `toSignal(form.valueChanges.pipe(startWith(null), debounceTime(…), map(toBodyOrUndefined), distinctUntilChanged(sameJson)), { initialValue: undefined })`.
+   Return `undefined` while the form cannot be counted (missing or inconsistent fields).
+3. Render `preview.isLoading()` / `error()` / `value()` in a `role="status"` region; map
+   problem slugs to the same messages as the submit's.
+4. Keep the real submit an explicit `subscribe()` in the click handler.
+5. Test with fake timers: `await vi.advanceTimersByTimeAsync(debounce)`, `TestBed.tick()`,
+   assert one request, change the input, assert `firstRequest.cancelled`.
 
 These recipes are what the next screens (contracts, documents — M2) should follow; if a
 new situation doesn't fit one of them cleanly, extend this chapter (and the concept

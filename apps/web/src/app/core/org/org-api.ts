@@ -41,6 +41,7 @@ import type {
   OrgUnitSearch,
   OrgUnitSearchResult,
   Site,
+  SetOrgUnitHead,
   SiteList,
 } from './org.models';
 
@@ -120,6 +121,11 @@ export class OrgApi {
   /** `PATCH /org/units/:id` → 200 with the unit's new state. */
   change(id: string, body: ChangeOrgUnit): Observable<OrgUnitDetail> {
     return this.http.patch<OrgUnitDetail>(orgUnitUrl(id), body);
+  }
+
+  /** `PUT /org/units/:id/head` (`org_unit.update`) — a new head from `validFrom`; the page reloads the detail. */
+  setHead(id: string, body: SetOrgUnitHead): Observable<unknown> {
+    return this.http.put<unknown>(`${orgUnitUrl(id)}/head`, body);
   }
 
   /** `POST /org/sites` → 201 with the created site. */

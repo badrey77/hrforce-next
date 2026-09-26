@@ -15,6 +15,9 @@
       <p class="feedback" role="status">{{ t(message.key, { role: message.role }) }}</p>
     }
 
+    <!-- Linked employee (self-service and unit-head approvals, docs/contracts/leave.md › Links). -->
+    <app-linked-employee [user]="person" (changed)="member.reload()" />
+
     <!-- Grants = the "Details" tab; the member's audit history is the other one (shared/timeline/history-tabs.ts). -->
     <app-history-tabs [subject]="'user:' + person.id" [resolver]="auditNames">
       <div class="toolbar">

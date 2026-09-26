@@ -110,6 +110,19 @@ describe('EmployeeDetailPage', () => {
     expect(el().querySelector('[data-action="assign"]')).toBeNull();
   });
 
+  it('adds a Leave tab for leave.read holders (balances and ledger load only when it is opened)', async () => {
+    TestBed.inject(Session).set(meWith(['employee.read', 'leave.read']));
+    await open(redactedDetail());
+    expect(tabs()).toEqual(['identity', 'assignments', 'leave']);
+    http.expectNone('/api/employees/e-1/leave/balances');
+    await tab('leave');
+    http.expectOne('/api/leave/types').flush({ items: [] });
+    http.expectOne('/api/employees/e-1/leave/balances').flush({ items: [] });
+    http.expectOne('/api/employees/e-1/leave/ledger').flush({ items: [] });
+    await settle();
+    expect(el().querySelector('[data-panel="leave"] [data-state="no-balance"]')).not.toBeNull();
+  });
+
   it('shows the Bank & NSS tab when only one block is readable, with only that block', async () => {
     const { bank: _b, ...rest } = detail();
     await open({ ...rest, _redacted: ['bank'], _actions: ['update_nss'] });

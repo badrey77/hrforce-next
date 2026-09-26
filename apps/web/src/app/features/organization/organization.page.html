@@ -91,6 +91,8 @@
                 </div>
               }
               <app-unit-detail [unit]="unit" [names]="names()" [siteNames]="siteNames()" />
+              <!-- Head of unit (leave approvals): edit needs the unit's own \`update\` action. -->
+              <app-unit-head [unit]="unit" [canEdit]="can('update')" (saved)="detail.reload()" />
             </app-history-tabs>
           }
         }

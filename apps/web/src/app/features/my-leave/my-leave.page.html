@@ -1,0 +1,105 @@
+<!--
+  Three states from MyEmployment.linked(): null → asking; false → "not linked" explanation; true → the page.
+  Requests: one card each, with the approval stepper (step labels from the workflow definition, in the UI language).
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('leave.mine.title') }}</h1>
+  </header>
+
+  @if (linked()) {
+    @if (me.employment(); as employment) {
+      <p class="muted" data-field="me">
+        {{ employment.person | displayName: lang() }} · <span class="code">{{ employment.matricule }}</span> ·
+        {{ employment.unit | displayName: lang() }}
+      </p>
+    }
+
+    @if (feedback(); as key) {
+      <p class="feedback" role="status">{{ t(key) }}</p>
+    }
+
+    <section aria-labelledby="balances-title" [attr.aria-busy]="balances.isLoading()">
+      <h2 id="balances-title">{{ t('leave.balances.title') }}</h2>
+      @if (balances.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('leave.balances.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="balances.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (balances.hasValue()) {
+        <app-balance-cards [balances]="balanceItems()" />
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <section aria-labelledby="new-request-title">
+      <h2 id="new-request-title">{{ t('leave.mine.newRequest') }}</h2>
+      <app-leave-request-form (saved)="onSaved()" (notLinked)="onNotLinked()" />
+    </section>
+
+    <section aria-labelledby="requests-title" [attr.aria-busy]="requests.isLoading()">
+      <h2 id="requests-title">{{ t('leave.mine.requests') }}</h2>
+      @if (requests.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('leave.list.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="requests.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (requests.hasValue()) {
+        <ul class="requests">
+          @for (request of requestItems(); track request.id) {
+            <li [attr.data-request]="request.id">
+              <div class="head">
+                <p>
+                  <strong>{{ catalog.nameOf(request.leaveTypeId) }}</strong> ·
+                  {{ t('leave.fields.range', { from: (request.startDate | date: 'mediumDate' : undefined : locale()), to: (request.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                  · {{ t('leave.fields.daysCount', { days: (request.days | number: '1.0-1' : locale()) }) }}
+                </p>
+                <p>
+                  <span class="badge" [attr.data-status]="request.status">{{ t('leave.status.' + request.status) }}</span>
+                  @if (canCancel(request, today)) {
+                    &ngsp;<button class="btn secondary" type="button" data-action="cancel" (click)="openCancel(request)">
+                      {{ t('leave.mine.cancel') }}
+                    </button>
+                  }
+                </p>
+              </div>
+              @if (request.workflow; as workflow) {
+                <app-workflow-stepper [progress]="workflow" />
+              }
+            </li>
+          } @empty {
+            <li class="muted" data-state="empty">{{ t('leave.mine.empty') }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+  } @else if (me.linked() === null && !lostLink()) {
+    <p class="muted">{{ t('common.loading') }}</p>
+  } @else {
+    <div class="warning" role="alert" data-state="not-linked">
+      <p>{{ t('leave.problems.notLinked') }}</p>
+    </div>
+  }
+
+  <dialog #cancelDialog class="modal" aria-labelledby="cancel-title" (close)="onCancelClosed()">
+    @if (cancelling(); as request) {
+      <h2 id="cancel-title">{{ t('leave.mine.cancelTitle') }}</h2>
+      <p>
+        {{ catalog.nameOf(request.leaveTypeId) }} —
+        {{ t('leave.fields.range', { from: (request.startDate | date: 'mediumDate' : undefined : locale()), to: (request.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+      </p>
+      @if (cancelError(); as key) {
+        <p class="form-error" role="alert">{{ t(key) }}</p>
+      }
+      <div class="form-actions">
+        <button class="btn" type="button" data-action="confirm-cancel" [disabled]="cancelSubmitting()" (click)="confirmCancel()">
+          {{ t('leave.mine.confirmCancel') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="closeCancel()">{{ t('leave.mine.keep') }}</button>
+      </div>
+    }
+  </dialog>
+</ng-container>

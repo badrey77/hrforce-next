@@ -94,6 +94,11 @@ export class AccessApi {
     return this.http.post<GrantView>(`${ACCESS_API_BASE}/grants`, body);
   }
 
+  /** `PUT /access/users/:id/employment` (`access.grant`) — `{ employmentId }` links, `{ employmentId: null }` unlinks. */
+  linkEmployment(userId: string, employmentId: string | null): Observable<unknown> {
+    return this.http.put<unknown>(`${ACCESS_API_BASE}/users/${encodeURIComponent(userId)}/employment`, { employmentId });
+  }
+
   /** `POST /access/grants/:id/end` with `{ validTo }` → 200 GrantView. A grant is never deleted, only ended. */
   endGrant(id: string, validTo: string): Observable<GrantView> {
     return this.http.post<GrantView>(`${ACCESS_API_BASE}/grants/${encodeURIComponent(id)}/end`, { validTo });

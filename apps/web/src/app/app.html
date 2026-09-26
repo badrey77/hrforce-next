@@ -18,11 +18,19 @@
                 routerLinkActive="active"
                 ariaCurrentWhenActive="page"
                 [routerLinkActiveOptions]="{ exact: link.exact }"
-                >{{ t(link.labelKey) }}</a
+                [attr.aria-label]="link.badge && tasks.count() ? t('nav.tasksWithCount', { count: tasks.count() }) : null"
+                >{{ t(link.labelKey) }}
+                @if (link.badge && tasks.count()) {
+                  <span class="count" aria-hidden="true" data-badge="tasks">{{ tasks.count() }}</span>
+                }</a
               >
             </li>
           }
         </ul>
+        <!-- Announces count changes politely; always rendered so assistive tech is already watching it. -->
+        <p class="visually-hidden" aria-live="polite" data-live="tasks">
+          {{ tasks.loaded() ? t('nav.tasksLive', { count: tasks.count() }) : '' }}
+        </p>
       </nav>
     }
     <main id="main" class="content" tabindex="-1">

@@ -481,11 +481,13 @@
         "org_unit_id": "الوحدة",
         "site_id": "الموقع",
         "job_title": "المنصب",
-        "valid": "مدة السريان"
+        "valid": "مدة السريان",
+        "created_at": "أُنشئ في"
       },
       "employment_salary": {
         "base_salary": "الأجر القاعدي",
-        "valid": "مدة السريان"
+        "valid": "مدة السريان",
+        "created_at": "أُنشئ في"
       }
     },
     "events": {

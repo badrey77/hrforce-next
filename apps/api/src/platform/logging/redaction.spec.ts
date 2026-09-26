@@ -1,7 +1,7 @@
 import { Writable } from 'node:stream';
 import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
-import { REDACT_CENSOR, REDACT_PATHS } from './redaction.js';
+import { REDACT_CENSOR, REDACT_PATHS, redactQueryString, serializeRequestForLog } from './redaction.js';
 
 describe('log redaction', () => {
   it('censors credentials, cookies and secret-like fields', () => {
@@ -58,5 +58,21 @@ describe('log redaction (identity)', () => {
     expect(entry['req']?.['body']).toEqual({ email: 'a@b.dz', password: REDACT_CENSOR });
     expect(entry['req']?.['cookies']).toBe(REDACT_CENSOR);
     expect(entry['jar']).toEqual({ hrf_at: REDACT_CENSOR, hrf_rt: REDACT_CENSOR, 'XSRF-TOKEN': REDACT_CENSOR });
+  });
+});
+
+describe('query-string redaction', () => {
+  it('keeps the path and parameter names, drops the values', () => {
+    expect(redactQueryString('/api/employees?q=123456789012345678&page=2')).toBe(
+      `/api/employees?q=${REDACT_CENSOR}&page=${REDACT_CENSOR}`,
+    );
+    expect(redactQueryString('/api/org/tree')).toBe('/api/org/tree');
+    expect(redactQueryString(undefined)).toBeUndefined();
+  });
+
+  it('removes the parsed query from the serialized request', () => {
+    const out = serializeRequestForLog({ url: '/api/employees?q=benali', query: { q: 'benali' }, method: 'GET' });
+    expect(out).toEqual({ url: `/api/employees?q=${REDACT_CENSOR}`, query: undefined, method: 'GET' });
+    expect(JSON.stringify(out)).not.toContain('benali');
   });
 });

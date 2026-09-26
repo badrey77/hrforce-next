@@ -202,9 +202,10 @@ The audit timeline is one shared component; a page only wraps its detail view
    go in `REFERENCE_FIELDS` so the resolver is asked.
 6. **Test** the tab like `user-detail.page.spec.ts`: hidden with
    `meWith(...without 'audit.read')`; with it, click `[data-tab="history"]`,
-   `installIntersectionObserver()` + `enterViewport()` to play the `@defer` block through,
-   then `http.expectOne(r => r.url === '/api/audit/timeline')` and check the `subject`
-   param and a resolved name.
+   `installIntersectionObserver()`, then
+   `await untilDeferredRequest(http, r => r.url === '/api/audit/timeline', settle)` to play
+   the `@defer` block through (it polls: a fixed number of ticks is flaky under a full run),
+   and check the `subject` param and a resolved name.
 
 ## Recipe: add a list page with filters in the URL
 

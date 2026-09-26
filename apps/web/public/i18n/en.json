@@ -481,11 +481,13 @@
         "org_unit_id": "Unit",
         "site_id": "Site",
         "job_title": "Job title",
-        "valid": "Validity"
+        "valid": "Validity",
+        "created_at": "Created"
       },
       "employment_salary": {
         "base_salary": "Base salary",
-        "valid": "Validity"
+        "valid": "Validity",
+        "created_at": "Created"
       }
     },
     "events": {

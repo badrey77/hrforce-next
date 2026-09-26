@@ -13,7 +13,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { type ComponentFixture, DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
 import { PAGE_2 } from '../../../testing/audit-fixtures';
 import { ME_FIXTURE, ME_LECTURE } from '../../../testing/auth-fixtures';
-import { enterViewport, installIntersectionObserver } from '../../../testing/intersection-observer';
+import { installIntersectionObserver, untilDeferredRequest } from '../../../testing/intersection-observer';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { HistoryTabs } from './history-tabs';
@@ -120,12 +120,11 @@ describe('<app-history-tabs>', () => {
     expect(el().querySelector('[data-defer="placeholder"]')).not.toBeNull();
     http.expectNone(isTimeline);
 
-    enterViewport(); // the placeholder "scrolled into view": the `on viewport` trigger fires
-    // The dependency chunk is a dynamic import(): give it a few turns of the event loop.
-    for (let i = 0; i < 20 && !el().querySelector('app-timeline'); i++) await settle();
+    // The placeholder "scrolled into view": the `on viewport` trigger fires; the dependency chunk is a dynamic
+    // import() (slower under a loaded test run), then the timeline's resource sends its request.
+    const req = await untilDeferredRequest(http, isTimeline, settle);
     expect(el().querySelector('app-timeline')).not.toBeNull();
-    await settle(); // the timeline's resource sends its request on the next tick
-    http.expectOne(isTimeline).flush(PAGE_2);
+    req.flush(PAGE_2);
     await settle();
     expect(el().querySelectorAll('app-timeline .entry').length).toBe(1);
   });

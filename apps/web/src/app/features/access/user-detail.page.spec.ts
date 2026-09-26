@@ -7,7 +7,7 @@ import { flushAccessCatalog, grant, GRANT_SAMIR, ROLE_CUSTOM, USER_SAMIR } from 
 import { GRANT_ROW, GRANTED } from '../../../testing/audit-fixtures';
 import { ADMIN_PERMISSIONS, ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
-import { enterViewport, installIntersectionObserver } from '../../../testing/intersection-observer';
+import { installIntersectionObserver, untilDeferredRequest } from '../../../testing/intersection-observer';
 import { flushKinds } from '../../../testing/org-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import type { GrantView } from '../../core/access/access.models';
@@ -148,11 +148,8 @@ describe('Access › User detail', () => {
 
       (el().querySelector('[data-tab="history"]') as HTMLButtonElement).click();
       await settle();
-      enterViewport(); // `@defer (on viewport)`: the placeholder is "seen"
-      for (let i = 0; i < 20 && !el().querySelector('app-timeline'); i++) await settle();
-      await settle();
-
-      const req = http.expectOne((r) => r.url === '/api/audit/timeline');
+      // `@defer (on viewport)`: the placeholder is "seen", the chunk loads, the timeline sends its request
+      const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
       expect(req.request.params.get('subject')).toBe('user:u-samir');
       req.flush({ items: [GRANTED, GRANT_ROW], nextCursor: null });
       await settle();

@@ -220,9 +220,11 @@ a.btn {
   font-size: 1.125rem;
 }
 
+/* Labels take their natural width but at most 40%: a long label ("NIN (numéro d’identification national)")
+   wraps on a phone instead of pushing the values off-screen. minmax(0, 1fr) lets the value column shrink. */
 .facts {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
   gap: var(--space-1) var(--space-4);
   margin-block: 0 var(--space-4);
 }

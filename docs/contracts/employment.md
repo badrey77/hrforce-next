@@ -44,6 +44,15 @@ Also: `org_unit_version.name_ar` (optional) — Arabic unit name, date-effective
 
 409 slugs: `matricule-taken` (matricule), `nin-taken` (nin), `employment-open` (personId: already has an open employment), `employment-ended` (form: writes on an ended employment), `assignment-date` (validFrom: must be after the current assignment's start and within the employment), `salary-date` (validFrom), `end-date` (endDate: ≥ current assignment start, ≥ hire date).
 
+**Settled by the build (the contract left these open):**
+- `hire-date` (409, field `hireDate`): a rehire's hire date must be after the end of the person's previous employment (also the backstop for the per-person no-overlap constraint).
+- `POST /employees` body is **flat** for person and first-assignment fields — `{personId? | lastName, firstName, lastNameAr?, firstNameAr?, birthDate?, birthPlace?, sex?, nationality?, nin?}, matricule, hireDate, orgUnitId, siteId?, jobTitle` — with the sensitive blocks **nested** as in the detail: `salary: {baseSalary}`, `bank: {rib, bankName}`, `nss: {nss}`. With `personId` the person fields are refused (422). The first assignment and the first salary start at `hireDate`. The matricule is trimmed and upper-cased by the API (the web form asks for upper case).
+- `forbidden-field` is checked against the `.update` permission over the first unit; `errors[].field` is the block name (`salary`/`bank`/`nss`). Nothing is written when it fires. A `PUT /employees/:id/{salary,bank,nss}` by a caller who holds that `.update` permission nowhere is a plain 403 `forbidden` from the guard (before the id is looked up, so it reveals nothing).
+- Money in request bodies must be a JSON **string** (`"85000"`, `"85000.5"`, `"85000.50"`; > 0, at most 10 digits before the point and 2 after); a JSON number is a 422. Responses always carry two decimals.
+- Once `endDate` is recorded (even a future one) the employment is closed for writes: every write answers `employment-ended` and `_actions` is empty. `status` stays `active` until the end date has passed.
+- `assignments[].unit.path` items also carry `nameAr` (`{id, name, nameAr}`).
+- An unknown `orgUnitId` / `siteId` in a body is a 422 `not_found` on that field (a unit of another company counts as unknown).
+
 ```ts
 interface NamePair { lastName: string; firstName: string; lastNameAr: string | null; firstNameAr: string | null }
 interface UnitRef { id: string; code: string; name: string; nameAr: string | null; kind: string }

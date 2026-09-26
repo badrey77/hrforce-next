@@ -5,7 +5,7 @@ import { provideRouter, Router, withComponentInputBinding } from '@angular/route
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ORG_KIND_LIST, SITE_ANNABA, SITE_CNE, SITE_HQ, SITES } from '../../../testing/org-fixtures';
 import { ADMIN_PERMISSIONS, ME_FIXTURE, ME_LECTURE, meWith } from '../../../testing/auth-fixtures';
-import { enterViewport, installIntersectionObserver } from '../../../testing/intersection-observer';
+import { installIntersectionObserver, untilDeferredRequest } from '../../../testing/intersection-observer';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
@@ -286,10 +286,7 @@ describe('OrganizationPage', () => {
 
     (el().querySelector('[data-tab="history"]') as HTMLButtonElement).click();
     await settle();
-    enterViewport();
-    for (let i = 0; i < 60 && !el().querySelector('app-timeline'); i++) await settle();
-    await settle();
-    const req = http.expectOne((r) => r.url === '/api/audit/timeline');
+    const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
     expect(req.request.params.get('subject')).toBe('org_unit:r-est');
     req.flush({
       items: [

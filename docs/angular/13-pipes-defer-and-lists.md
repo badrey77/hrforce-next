@@ -371,7 +371,11 @@ tests.
     the chunk loads, then the content renders. jsdom has no `IntersectionObserver`, so
     `on viewport` needs the fake in
     [`src/testing/intersection-observer.ts`](../../apps/web/src/testing/intersection-observer.ts).
-    `enterViewport()` says "the placeholder was seen".
+    `enterViewport()` says "the placeholder was seen". Do not wait a fixed number of ticks
+    for what follows: the chunk arrives through a dynamic `import()`, which is slower when the
+    whole suite runs in parallel workers (a fixed count made these specs flaky). Use
+    `untilDeferredRequest(http, match, settle)` from the same file: it re-fires the viewport
+    and polls against a time budget until the block's request is out, then returns it.
   - `DeferBlockBehavior.Manual` ignores triggers. The block stays on `@placeholder` until
     the test renders a state explicitly:
 

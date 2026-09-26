@@ -157,7 +157,7 @@ describe('Access › User detail', () => {
       req.flush({ items: [GRANTED, GRANT_ROW], nextCursor: null });
       await settle();
 
-      expect(text('[data-entry="e:7"] [data-kind="event"]')).toBe('Rôle « Lecture » attribué sur Région Ouest à partir du 2026-10-01');
+      expect(text('[data-entry="e:7"] [data-kind="event"]')).toBe('Rôle « Lecture » attribué sur Région Ouest à partir du 1 oct. 2026');
       expect(text('[data-entry="c:40"] [data-field="role_id"] .after')).toBe('Lecture');
       // The grants table is only hidden (projected content), still in the DOM.
       expect(el().querySelector('tr[data-grant="g-samir"]')).not.toBeNull();

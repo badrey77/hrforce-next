@@ -44,7 +44,7 @@ describe('buildTimeline (pure view model)', () => {
     expect(change.lines.map((l) => l.after)).toEqual([
       { kind: 'text', text: 'Lecture' },
       { kind: 'bool', value: true },
-      { kind: 'text', text: '2026-10-01' },
+      { kind: 'date', iso: '2026-10-01' },
       { kind: 'empty' },
       { kind: 'timestamp', iso: '2026-09-25T11:00:00Z' },
     ]);
@@ -72,5 +72,14 @@ describe('buildTimeline (pure view model)', () => {
       unit: 'Région Ouest',
       validFrom: '2026-10-01',
     });
+  });
+
+  it('event dates go through the day formatter; unknown people fall back to the actors of the entries', () => {
+    const event = buildTimeline([GRANTED], names, NOW, (day) => `<${day}>`)[0]?.entries[0] as EventView;
+    expect(event.params['validFrom']).toBe('<2026-10-01>');
+    const actorId = RENAMED.actor?.id ?? 'none';
+    const row = { ...GRANT_ROW, changes: [{ field: 'granted_by', before: null, after: actorId, masked: false }] };
+    const change = buildTimeline([RENAMED, row], NO_NAMES, NOW).flatMap((g) => g.entries).find((e) => e.id === GRANT_ROW.id) as ChangeView;
+    expect(change.lines[0]?.after).toEqual({ kind: 'text', text: RENAMED.actor?.displayName ?? actorId });
   });
 });

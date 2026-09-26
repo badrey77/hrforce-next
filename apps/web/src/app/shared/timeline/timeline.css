@@ -42,7 +42,8 @@
   font-size: 0.875rem;
 }
 
-.field {
+/* not `.field`: that global class (styles.css) lays out form fields as a column */
+.field-name {
   color: var(--color-text-muted);
   margin-inline-end: var(--space-1);
 }

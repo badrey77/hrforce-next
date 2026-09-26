@@ -88,8 +88,15 @@ it is a `computed()`:
 
 ```ts
 // apps/web/src/app/shared/timeline/timeline.ts
-protected readonly groups = computed(() => buildTimeline(this.entries(), this.resolver()));
+protected readonly groups = computed(() => {
+  const locale = this.locale();
+  return buildTimeline(this.entries(), this.resolver(), new Date(), (day) => formatDate(day, 'mediumDate', locale));
+});
 ```
+
+`formatDate()` is the function behind `DatePipe`, for code outside a template: here it formats
+the dates inside event sentences (`validFrom`…). Reading `this.locale()` inside the `computed()`
+makes a language switch re-build the sentences.
 
 | Use a **pipe** when… | Use a **`computed()`** when… |
 |---|---|

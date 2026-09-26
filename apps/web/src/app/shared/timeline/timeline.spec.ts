@@ -78,14 +78,14 @@ describe('<app-timeline>', () => {
     expect(text('[data-entry="c:41"] .what')).toBe('Modification · Version de l’unité');
     const line = (field: string) => {
       const part = (cls: string) => text(`[data-entry="c:41"] [data-field="${field}"] .${cls}`);
-      return [part('field'), part('before'), part('after')];
+      return [part('field-name'), part('before'), part('after')];
     };
     expect(line('name')).toEqual(['Nom', 'Région Est', 'Région Est-Algérie']);
     expect(line('parent_id')).toEqual(['Unité parente', 'dept-ops', 'Direction générale']);
     expect(text('[data-entry="c:41"] [data-field="name"] .visually-hidden')).toBe('devient');
     expect(el().querySelector('[data-entry="c:41"] [data-field="id"]')).toBeNull();
     // Unknown column: no key → the column name.
-    expect(text('[data-entry="c:12"] [data-field="legacy_col"] .field')).toBe('legacy_col');
+    expect(text('[data-entry="c:12"] [data-field="legacy_col"] .field-name')).toBe('legacy_col');
     // Insert: only "after"; booleans translated.
     expect(text('[data-entry="c:40"] [data-field="include_descendants"]')).toBe('Sous-unités incluses Oui');
     expect(text('[data-entry="c:40"] [data-field="valid_to"]')).toBe('Valable jusqu’au (exclu) (vide)');
@@ -107,7 +107,7 @@ describe('<app-timeline>', () => {
   it('events render as a translated sentence with their data', async () => {
     (await create('user:u-samir', GRANT_NAMES)).flush(PAGE_1);
     await settle();
-    expect(text('[data-entry="e:7"] [data-kind="event"]')).toBe('Rôle « Lecture » attribué sur Région Ouest à partir du 2026-10-01');
+    expect(text('[data-entry="e:7"] [data-kind="event"]')).toBe('Rôle « Lecture » attribué sur Région Ouest à partir du 1 oct. 2026');
   });
 
   it('"load more" sends the cursor, APPENDS the next page, and disappears when nextCursor is null', async () => {
@@ -132,7 +132,7 @@ describe('<app-timeline>', () => {
       'c:12',
       CREATED.id,
     ]);
-    expect(text(`[data-entry="${CREATED.id}"] [data-field="valid"]`)).toBe('Validité du 2026-01-01 au 2027-01-01');
+    expect(text(`[data-entry="${CREATED.id}"] [data-field="valid"]`)).toBe('Validité du 1 janv. 2026 au 1 janv. 2027');
     expect(el().querySelector('[data-action="load-more"]')).toBeNull();
   });
 

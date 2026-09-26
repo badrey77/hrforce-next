@@ -510,6 +510,14 @@ describe('GET /api/audit/timeline', () => {
     expect(grantRows).toContain(GRANTS.targetCne);
     expect(grantRows).not.toContain(GRANTS.targetOran);
     expect((await timeline('admin', `user:${USERS.target.id}`)).items.filter((i) => i.table === 'role_grant').length).toBeGreaterThan(target.items.filter((i) => i.table === 'role_grant').length);
+    // grant events follow the grant's unit: one on AG-ORAN (out of scope) is not listed for acces
+    const oran = await client('admin')
+      .post('/api/access/grants')
+      .send({ userId: USERS.target.id, roleId: fx.rolesA['lecture'], orgUnitId: unitA('AG-ORAN'), includeDescendants: false, validFrom: '2031-01-01' });
+    expect(oran.status).toBe(201);
+    const eventUnits = (who: ActorName) => timeline(who, `user:${USERS.target.id}`).then((t) => t.items.filter((i) => i.kind === 'event').map((i) => i.event?.data['unitId']));
+    expect(await eventUnits('admin')).toContain(unitA('AG-ORAN'));
+    expect(await eventUnits('acces')).not.toContain(unitA('AG-ORAN'));
     // roles and sites: company-wide with audit.read anywhere
     expect((await timeline('acces', `role:${fx.customA}`)).status).toBe(200);
     // other company / unknown / malformed

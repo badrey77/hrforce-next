@@ -49,7 +49,7 @@
                         @let label = t(line.labelKey);
                         <li [attr.data-field]="line.field">
                           <!-- &ngsp; = a space Angular keeps (whitespace between tags is removed at compile time). -->
-                          <span class="field">{{ label === line.labelKey ? line.field : label }}</span>&ngsp;
+                          <span class="field-name">{{ label === line.labelKey ? line.field : label }}</span>&ngsp;
                           @if (line.before) {
                             <span class="before"><app-timeline-value [value]="line.before" /></span>&ngsp;
                           }

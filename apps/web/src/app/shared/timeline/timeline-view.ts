@@ -12,7 +12,7 @@
 import type { AuditChange, AuditOp, TimelineEntry } from '../../core/audit/audit.models';
 
 /** What an id-like value refers to, so a page can name it. */
-export type AuditRefKind = 'unit' | 'site' | 'role' | 'roleCode' | 'permission' | 'user';
+export type AuditRefKind = 'unit' | 'site' | 'role' | 'roleCode' | 'permission' | 'user' | 'kind';
 
 /**
  * Names a referenced value (a unit id, a role code…) from data the host page already has, or `undefined` to show
@@ -31,6 +31,7 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   user_id: 'user',
   granted_by: 'user',
   ended_by: 'user',
+  kind: 'kind',
 };
 
 /**
@@ -49,6 +50,8 @@ export type DisplayValue =
   | { readonly kind: 'bool'; readonly value: boolean }
   /** A Postgres `daterange` as stored (`[2026-01-01,2027-01-01)`); `to: null` = open end. */
   | { readonly kind: 'range'; readonly from: string; readonly to: string | null }
+  /** A `date` as stored (`YYYY-MM-DD`) — formatted by `DatePipe` in the UI language (Angular reads it as a local day: no timezone shift). */
+  | { readonly kind: 'date'; readonly iso: string }
   /** A `timestamptz` as stored (ISO) — formatted by `DatePipe` in the UI language. */
   | { readonly kind: 'timestamp'; readonly iso: string }
   | { readonly kind: 'text'; readonly text: string };
@@ -95,6 +98,11 @@ export interface DayGroup {
 
 const RANGE = /^\[(\d{4}-\d{2}-\d{2}),(\d{4}-\d{2}-\d{2})?\)$/;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Formats a `YYYY-MM-DD` day for an event sentence (the Timeline passes one bound to the UI language). */
+export type DayFormatter = (isoDay: string) => string;
+const RAW_DAY: DayFormatter = (isoDay) => isoDay;
 export const MASK = '***';
 
 function pad(n: number): string {
@@ -113,6 +121,7 @@ function displayValue(value: unknown, masked: boolean, ref: AuditRefKind | undef
   if (typeof value === 'string') {
     const range = RANGE.exec(value);
     if (range?.[1]) return { kind: 'range', from: range[1], to: range[2] ?? null };
+    if (DATE.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'date', iso: value };
     if (TIMESTAMP.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'timestamp', iso: value };
     return { kind: 'text', text: (ref && resolve(ref, value)) || value };
   }
@@ -134,18 +143,19 @@ function fieldLine(table: string, op: AuditOp, change: AuditChange, resolve: Aud
   };
 }
 
-function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditNameResolver): Record<string, string> {
+function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditNameResolver, formatDay: DayFormatter): Record<string, string> {
   const params: Record<string, string> = {};
   for (const [key, value] of Object.entries(data)) {
     if (value === null || value === undefined) continue;
-    params[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    if (typeof value === 'string' && DATE.test(value)) params[key] = formatDay(value);
+    else params[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
   }
   if (params['unitId']) params['unit'] = resolve('unit', params['unitId']) || params['unitId'];
   if (params['roleCode']) params['role'] = resolve('roleCode', params['roleCode']) || params['roleCode'];
   return params;
 }
 
-export function toEntryView(entry: TimelineEntry, resolve: AuditNameResolver): EntryView {
+export function toEntryView(entry: TimelineEntry, resolve: AuditNameResolver, formatDay: DayFormatter = RAW_DAY): EntryView {
   const base = { id: entry.id, at: entry.at, actor: entry.actor?.displayName ?? null };
   if (entry.kind === 'event' && entry.event) {
     return {
@@ -153,7 +163,7 @@ export function toEntryView(entry: TimelineEntry, resolve: AuditNameResolver): E
       kind: 'event',
       type: entry.event.type,
       sentenceKey: `audit.events.${entry.event.type}`,
-      params: eventParams(entry.event.data, resolve),
+      params: eventParams(entry.event.data, resolve, formatDay),
     };
   }
   const table = entry.table ?? '';
@@ -172,7 +182,11 @@ export function buildTimeline(
   entries: readonly TimelineEntry[],
   resolve: AuditNameResolver,
   now: Date = new Date(),
+  formatDay: DayFormatter = RAW_DAY,
 ): DayGroup[] {
+  // People the page does not know (e.g. `granted_by`) are often the actors of these very entries: name them too.
+  const actors = new Map(entries.flatMap((e) => (e.actor ? [[e.actor.id, e.actor.displayName] as const] : [])));
+  const names: AuditNameResolver = (kind, value) => resolve(kind, value) ?? (kind === 'user' ? actors.get(value) : undefined);
   const today = localDay(now);
   const yesterday = localDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   // A Map keeps insertion order (newest day first) and guarantees one group per day — `day` is the `@for` track key,
@@ -185,7 +199,7 @@ export function buildTimeline(
       group = { day, relative: day === today ? 'today' : day === yesterday ? 'yesterday' : null, entries: [] };
       groups.set(day, group);
     }
-    group.entries.push(toEntryView(entry, resolve));
+    group.entries.push(toEntryView(entry, names, formatDay));
   }
   return [...groups.values()];
 }

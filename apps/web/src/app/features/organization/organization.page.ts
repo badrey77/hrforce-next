@@ -121,10 +121,11 @@ export class OrganizationPage {
     return root ? collectNames(root, new Map()) : new Map<string, string>();
   });
 
-  /** Names for ids in the audit history: units from the tree, sites from the sites list. */
+  /** Names for ids in the audit history: units from the tree, sites from the sites list, kinds from the catalogue. */
   protected readonly auditNames: AuditNameResolver = (kind, value) => {
     if (kind === 'unit') return this.names().get(value);
     if (kind === 'site') return this.siteNames().get(value);
+    if (kind === 'kind') return this.kindCatalog.labelOf(value);
     return undefined;
   };
 

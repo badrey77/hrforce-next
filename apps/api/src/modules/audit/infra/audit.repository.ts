@@ -122,6 +122,7 @@ export class AuditRepository {
                null, null, null, null, null, e.type, e.data
           from audit.event e
          where e.company_id = ${companyId}::uuid and e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid
+           and (${this.eventFilter(options.unitScope)})
       ) x
       where ${after}
       order by x.at desc, x.kind desc, x.id desc
@@ -141,6 +142,14 @@ export class AuditRepository {
       type: r.type,
       data: r.data,
     }));
+  }
+
+  /**
+   * Events about a unit (`data.unitId`, e.g. access.grant_created / grant_ended) are listed only when that unit is in
+   * the caller's audit.read scope, like the role_grant rows they accompany (alias `e`).
+   */
+  private eventFilter(unitScope: UnitIdQuery): RawBuilder<boolean> {
+    return sql<boolean>`e.data ->> 'unitId' is null or (e.data ->> 'unitId')::uuid in (${unitScope})`;
   }
 
   /** Which change_log rows belong to the subject (alias `c`). */

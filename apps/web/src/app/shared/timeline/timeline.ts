@@ -47,7 +47,7 @@
  * Field labels come from `audit.fields.<table>.<column>`; an unknown key falls back to the column name (the
  * template compares `t(key)` with the key, which is what Transloco returns for a missing key).
  */
-import { DatePipe } from '@angular/common';
+import { DatePipe, formatDate } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AuditApi } from '../../core/audit/audit-api';
@@ -98,7 +98,11 @@ export class Timeline {
   });
 
   protected readonly entries = computed(() => this.pages().flatMap((page) => page.items));
-  protected readonly groups = computed(() => buildTimeline(this.entries(), this.resolver()));
+  protected readonly groups = computed(() => {
+    const locale = this.locale();
+    // dates in event sentences (validFrom/validTo), like the field lines: medium format (Angular reads YYYY-MM-DD as a local day)
+    return buildTimeline(this.entries(), this.resolver(), new Date(), (day) => formatDate(day, 'mediumDate', locale));
+  });
   /** `null` once the last page said so: the "load more" button disappears. */
   protected readonly nextCursor = computed(() => this.pages().at(-1)?.nextCursor ?? null);
   protected readonly started = computed(() => this.pages().length > 0);

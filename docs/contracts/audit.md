@@ -38,7 +38,7 @@ Events are written inside the request transaction when one exists; for `/api/aut
 
 ## Permission
 
-New catalogue code `audit.read` (group `access`, labels fr/ar/en), added by the migration to the system roles `admin_rh_central` and `admin_acces` in every company. Scope: an entry is visible if its subject is in the caller's `audit.read` scope — org units/versions by unit, grants by the grant's unit, users (events and grants) if any of the user's grants is in scope or the user has none, roles/sites/company company-wide (needs `audit.read` anywhere).
+New catalogue code `audit.read` (group `access`, labels fr/ar/en), added by the migration to the system roles `admin_rh_central` and `admin_acces` in every company. Scope: an entry is visible if its subject is in the caller's `audit.read` scope — org units/versions by unit, grants by the grant's unit, users (events and grants) if any of the user's grants is in scope or the user has none; an `access.grant_*` event is shown only if its `unitId` is in scope (same filter as the grant rows), roles/sites/company company-wide (needs `audit.read` anywhere).
 
 ## Endpoint
 

@@ -38,7 +38,12 @@ import type { DisplayValue } from './timeline-view';
           {{ v.value ? t('audit.yes') : t('audit.no') }}
         }
         @case ('range') {
-          {{ v.to ? t('audit.range', { from: v.from, to: v.to }) : t('audit.rangeOpen', { from: v.from }) }}
+          @let from = v.from | date: 'mediumDate' : undefined : locale();
+          @let to = v.to ? (v.to | date: 'mediumDate' : undefined : locale()) : null;
+          {{ to ? t('audit.range', { from, to }) : t('audit.rangeOpen', { from }) }}
+        }
+        @case ('date') {
+          {{ v.iso | date: 'mediumDate' : undefined : locale() }}
         }
         @case ('timestamp') {
           {{ v.iso | date: 'medium' : undefined : locale() }}

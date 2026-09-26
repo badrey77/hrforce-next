@@ -75,7 +75,7 @@ export class Timeline {
   private readonly api = inject(AuditApi);
   private readonly language = inject(LanguageService);
 
-  /** `<type>:<id>` — `org_unit`, `site`, `role` or `user`. */
+  /** `<type>:<id>` — `org_unit`, `site`, `role`, `user` or `employee`. */
   readonly subject = input.required<AuditSubject>();
   /** Names ids the host page knows (see header). Default: show values as stored. */
   readonly resolver = input<AuditNameResolver>(NO_NAMES);

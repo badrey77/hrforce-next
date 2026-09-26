@@ -95,6 +95,8 @@ export class XController {
   @Get('b') @RequirePermission('employee') b() {}
   @Get('c') @RequirePermission(CODE) c() {}
   @Get('d') @Public() @RequirePermission('employee.read') d() {}
+  @Get('e') @RequirePermission('employee.salary.update') e() {}
+  @Get('f') @RequirePermission('employee.salary.update.more') f() {}
 }`);
     const messages = violations.map((v) => v.message);
     expect(messages).toEqual([
@@ -102,6 +104,7 @@ export class XController {
       expect.stringMatching(/XController\.b: invalid permission code "employee"/),
       expect.stringMatching(/XController\.c: .*must be a string literal/),
       expect.stringMatching(/XController\.d: both @Public\(\) and @RequirePermission\(\)/),
+      expect.stringMatching(/XController\.f: invalid permission code "employee\.salary\.update\.more"/),
     ]);
   });
 

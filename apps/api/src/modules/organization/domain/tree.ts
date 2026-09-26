@@ -6,6 +6,8 @@ export interface OrgSnapshotUnit {
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
+  /** Optional Arabic name of the version. */
+  readonly nameAr?: string | null;
   readonly parentId: string | null;
   /** Own site of the version (null = inherited). */
   readonly siteId: string | null;
@@ -47,13 +49,13 @@ export function buildTree<T extends OrgSnapshotUnit>(units: readonly T[], kinds:
 export function ancestorPath(
   parentId: string | null,
   byId: ReadonlyMap<string, OrgSnapshotUnit>,
-): { id: string; name: string }[] {
-  const path: { id: string; name: string }[] = [];
+): { id: string; name: string; nameAr: string | null }[] {
+  const path: { id: string; name: string; nameAr: string | null }[] = [];
   const seen = new Set<string>();
   let current = parentId ? byId.get(parentId) : undefined;
   while (current && !seen.has(current.id)) {
     seen.add(current.id);
-    path.unshift({ id: current.id, name: current.name });
+    path.unshift({ id: current.id, name: current.name, nameAr: current.nameAr ?? null });
     current = current.parentId ? byId.get(current.parentId) : undefined;
   }
   return path;

@@ -25,6 +25,8 @@ export interface OrgTreeNode {
   kind: OrgUnitKind;
   code: string;
   name: string;
+  /** Arabic name (optional, date-effective like `name`). */
+  nameAr: string | null;
   /** Effective site (own, else the nearest ancestor's). */
   site: SiteRef | null;
   /** false for context nodes: ancestors of in-scope units shown only to place them (no actions). */
@@ -43,9 +45,12 @@ export interface OrgUnitSummary {
   kind: OrgUnitKind;
   code: string;
   name: string;
+  /** Arabic name (optional, date-effective like `name`). */
+  nameAr: string | null;
   /** Effective site. */
   site: SiteRef | null;
-  path: { id: string; name: string }[];
+  /** Ancestors root → parent; `nameAr` is an addition to the contract's `{id, name}` (Arabic UI). */
+  path: { id: string; name: string; nameAr: string | null }[];
 }
 
 export interface OrgUnitSearchView {
@@ -56,6 +61,7 @@ export interface OrgUnitVersionView {
   validFrom: string;
   validTo: string | null;
   name: string;
+  nameAr: string | null;
   parentId: string | null;
   /** Own site on that version (null = inherited). */
   siteId: string | null;

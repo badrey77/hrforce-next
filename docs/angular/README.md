@@ -48,9 +48,14 @@ the files it discusses, so you can jump straight to the source.
     and `DatePipe`, locale data (`registerLocaleData`, why not `LOCALE_ID`), cursor
     pagination with "load more", content projection, and `@defer` (triggers, prefetch,
     sub-blocks, separate chunks, testing it).
+14. [14-big-forms-and-url-state.md](./14-big-forms-and-url-state.md) — the Employees
+    screens: URL as state (query params → signal inputs → resource, `merge`,
+    `replaceUrl` for keystrokes, back/forward), nested typed `FormGroup`s, validator
+    factories, cross-section rules, optional sections as disabled groups,
+    `control.events`, the list/detail pattern, tabs as a local signal.
 
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
-(the Employees module is next).
+(contracts and documents, M2, are next).
 
 ## Concept → chapter → file index
 
@@ -114,6 +119,17 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `@defer` (triggers, `prefetch`, `@placeholder`/`@loading`/`@error`, lazy chunk) | 13 | `src/app/shared/timeline/history-tabs.ts` |
 | Content projection (`<ng-content />`), `[hidden]` vs `@if` | 13 | `src/app/shared/timeline/history-tabs.ts` |
 | Inputs vs DI for a callback the host supplies (`resolver`) | 13 | `src/app/shared/timeline/timeline.ts`, `src/app/features/organization/organization.page.ts` |
+| URL as state: query params → signal inputs → `computed` query → resource; `merge`, `replaceUrl` | 14, 05 | `src/app/features/employees/employees.page.ts`, `employee-list-state.ts` |
+| Sortable headers (`aria-sort`), server paging | 14 | `src/app/features/employees/employees.page.html` |
+| Standalone `FormControl` for a CVA outside a form; `setValue(…, { emitEvent: false })` | 14 | `src/app/features/employees/employees.page.ts` |
+| Nested typed `FormGroup`s, `formGroupName`, flattening to the API body | 14, 07 | `src/app/features/employees/employee-create.page.ts` / `.html` |
+| Validator factory (`digits(min, max)`), error parameters in messages | 14, 07 | `src/app/features/employees/employee-forms.ts` |
+| Root-group (cross-section) validator | 14 | `src/app/features/employees/employee-forms.ts` (`birthBeforeHire`) |
+| Optional sections as disabled groups toggled by an `effect()` | 14 | `src/app/features/employees/employee-create.page.ts` |
+| `AbstractControl.events` + `toObservable`/`switchMap`/`toSignal` in a child | 14 | `src/app/features/employees/field-error.ts` |
+| Tabs as a `linkedSignal` vs child routes; reload after writes | 14 | `src/app/features/employees/employee-detail.page.ts` |
+| `DecimalPipe` with an explicit locale (money as a string) | 14, 13 | `src/app/features/employees/employee-detail.page.html` |
+| Language-aware name pipe (`displayName`) | 14, 13 | `src/app/shared/display-name/display-name.pipe.ts` |
 | `DeferBlockBehavior.Manual`/`Playthrough`, faked `IntersectionObserver` | 09, 13 | `src/app/shared/timeline/history-tabs.spec.ts`, `src/testing/intersection-observer.ts` |
 
 ## Glossary

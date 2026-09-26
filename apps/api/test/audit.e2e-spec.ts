@@ -11,7 +11,7 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DEMO_PASSWORD, inviteUser } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
-import { as, COMPANY_A, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { as, COMPANY_A, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
 import { createTestApp } from './support/test-app.js';
@@ -54,7 +54,10 @@ interface Entry {
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const AUDITED_TABLES = ['company', 'org_unit', 'org_unit_version', 'role', 'role_grant', 'role_permission', 'site'];
+const AUDITED_TABLES = [
+  'assignment', 'company', 'employment', 'employment_salary', 'org_unit', 'org_unit_version', 'person', 'person_sensitive',
+  'role', 'role_grant', 'role_permission', 'site',
+];
 const C = '0190a5d0-0000-7000-8000-00000000c0de';
 
 let db: TestDatabase;
@@ -212,6 +215,10 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
     const version = '0190a5d0-0000-7000-8000-00000000c003';
     const site = '0190a5d0-0000-7000-8000-00000000c004';
     const grant = '0190a5d0-0000-7000-8000-00000000c005';
+    const person = '0190a5d0-0000-7000-8000-00000000c006';
+    const employment = '0190a5d0-0000-7000-8000-00000000c007';
+    const assignment = '0190a5d0-0000-7000-8000-00000000c008';
+    const salary = '0190a5d0-0000-7000-8000-00000000c009';
     const before = await query<{ n: string }>(db.superuserUrl, 'select coalesce(max(id), 0)::text as n from audit.change_log');
     await asRole(db.migratorUrl, [
       `insert into company (id, code, name) values ('${C}', 'AUDIT-C', 'Audit Co')`,
@@ -227,6 +234,21 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
       `insert into role_permission (company_id, role_id, permission_code) values ('${C}', '${role}', 'site.read')`,
       `insert into role_grant (id, company_id, user_id, role_id, org_unit_id, valid_from) values ('${grant}', '${C}', '${USERS.newbie.id}', '${role}', '${unit}', '2026-01-01')`,
       `update role_grant set valid_to = '2026-06-01', ended_at = now() where id = '${grant}'`,
+      `insert into person (id, company_id, last_name, first_name) values ('${person}', '${C}', 'Test', 'Audit')`,
+      `update person set first_name = 'Audité' where id = '${person}'`,
+      `insert into person_sensitive (person_id, company_id, nss) values ('${person}', '${C}', '991234567890')`,
+      `update person_sensitive set nss = '990000000000' where person_id = '${person}'`,
+      `insert into employment (id, company_id, person_id, matricule, hire_date) values ('${employment}', '${C}', '${person}', 'AUD-1', '2026-01-01')`,
+      `insert into assignment (id, company_id, employment_id, org_unit_id, job_title, valid) values ('${assignment}', '${C}', '${employment}', '${unit}', 'Agent', '[2026-01-01,)')`,
+      `update assignment set job_title = 'Chef' where id = '${assignment}'`,
+      `insert into employment_salary (id, company_id, employment_id, base_salary, valid) values ('${salary}', '${C}', '${employment}', 50000, '[2026-01-01,)')`,
+      `update employment_salary set base_salary = 55000 where id = '${salary}'`,
+      `update employment set end_date = '2026-12-31', end_reason = 'other' where id = '${employment}'`,
+      `delete from employment_salary where id = '${salary}'`,
+      `delete from assignment where id = '${assignment}'`,
+      `delete from employment where id = '${employment}'`,
+      `delete from person_sensitive where person_id = '${person}'`,
+      `delete from person where id = '${person}'`,
       `delete from role_grant where id = '${grant}'`,
       `delete from role_permission where role_id = '${role}'`,
       `delete from role where id = '${role}'`,
@@ -256,6 +278,11 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
     // role_permission is keyed on its role; company rows on their own id
     expect(byTable('role_permission').map((r) => r.row_id)).toEqual([role, role]);
     expect(byTable('role_permission')[0]?.after).toEqual({ company_id: C, role_id: role, permission_code: 'site.read' });
+    // person_sensitive is keyed on its person; masked columns hold "***"
+    expect(byTable('person_sensitive').map((r) => r.row_id)).toEqual([person, person, person]);
+    expect(byTable('person_sensitive')[1]).toMatchObject({ changed: ['nss'], before: { nss: '***' }, after: { nss: '***' } });
+    expect(byTable('employment_salary')[1]).toMatchObject({ changed: ['base_salary'], before: { base_salary: '***' }, after: { base_salary: '***' } });
+    expect(JSON.stringify(rows)).not.toMatch(/99123456|55000/);
     expect(byTable('company')[1]).toMatchObject({ row_id: C, changed: ['name'], before: { id: C, name: 'Audit Co' }, after: { id: C, name: 'Audit Company' } });
   });
 
@@ -326,6 +353,25 @@ describe('exit criterion: every write through the API produces an audit row with
       tables: ['role_grant'],
     },
     'POST /api/access/grants/:id/end': { request: () => ({ path: `/api/access/grants/${GRANTS.targetOran}/end`, body: { validTo: '2029-01-01' } }), tables: ['role_grant'] },
+    'POST /api/employees': {
+      request: () => ({
+        path: '/api/employees',
+        body: {
+          lastName: 'Audit', firstName: 'Nouvel', matricule: 'AUD-NEW', hireDate: '2026-09-01', orgUnitId: unitA('AG-CNE'), jobTitle: 'Agent',
+          salary: { baseSalary: '60000.00' }, bank: { rib: '00799999000000000555', bankName: 'CPA' }, nss: { nss: '990000000555' },
+        },
+      }),
+      tables: ['person', 'person_sensitive', 'employment', 'assignment', 'employment_salary'],
+    },
+    'PATCH /api/employees/:id/person': { request: () => ({ path: `/api/employees/${employeeA(1)}/person`, body: { birthPlace: 'Médéa' } }), tables: ['person'] },
+    'POST /api/employees/:id/assignments': {
+      request: () => ({ path: `/api/employees/${employeeA(15)}/assignments`, body: { orgUnitId: unitA('AG-BLIDA'), jobTitle: 'Chef d’agence', validFrom: '2026-11-01' } }),
+      tables: ['assignment'],
+    },
+    'POST /api/employees/:id/end': { request: () => ({ path: `/api/employees/${employeeA(3)}/end`, body: { endDate: '2026-12-31', reason: 'resignation' } }), tables: ['employment', 'assignment', 'employment_salary'] },
+    'PUT /api/employees/:id/salary': { request: () => ({ path: `/api/employees/${employeeA(4)}/salary`, body: { baseSalary: '99000.00', validFrom: '2026-10-01' } }), tables: ['employment_salary'] },
+    'PUT /api/employees/:id/bank': { request: () => ({ path: `/api/employees/${employeeA(5)}/bank`, body: { rib: '00799999000000000005', bankName: 'BEA' } }), tables: ['person_sensitive'] },
+    'PUT /api/employees/:id/nss': { request: () => ({ path: `/api/employees/${employeeA(9)}/nss`, body: { nss: '990000000009' } }), tables: ['person_sensitive'] },
   };
 
   it('covers every write route of the route-scan outside /api/auth', () => {
@@ -340,7 +386,7 @@ describe('exit criterion: every write through the API produces an audit row with
     if (!spec) throw new Error(key);
     const { path: url, body } = spec.request();
     const requestId = rid('write');
-    const call = key.startsWith('PATCH') ? client('admin').patch(url) : client('admin').post(url);
+    const call = key.startsWith('PATCH') ? client('admin').patch(url) : key.startsWith('PUT') ? client('admin').put(url) : client('admin').post(url);
     const res = await call.set('X-Request-Id', requestId).send(body);
     expect(res.status, JSON.stringify(res.body)).toBeLessThan(300);
     const rows = await changes('request_id = $1', [requestId]);
@@ -358,7 +404,11 @@ describe('exit criterion: every write through the API produces an audit row with
     }
     // an update carries both values of every changed column
     for (const row of rows.filter((r) => r.op === 'update')) {
-      for (const field of row.changed) expect(row.before?.[field], field).not.toEqual(row.after?.[field]);
+      // (a masked column shows "***" on both sides: the change itself is recorded, not the values)
+      for (const field of row.changed) {
+        if (row.before?.[field] === '***' && row.after?.[field] === '***') continue;
+        expect(row.before?.[field], field).not.toEqual(row.after?.[field]);
+      }
     }
   });
 });
@@ -527,7 +577,9 @@ describe('GET /api/audit/timeline', () => {
     expect((await timeline('beta', `user:${USERS.admin.id}`)).status).toBe(404);
     expect((await timeline('admin', 'site:0190a5d0-0000-7000-8000-00000000dead')).status).toBe(404);
     expect((await timeline('admin', 'org_unit:not-a-uuid')).status).toBe(404);
-    const badType = await timeline('admin', `employee:${USERS.admin.id}`);
+    expect((await timeline('admin', `employee:${USERS.admin.id}`)).status).toBe(404); // not an employment id
+    expect((await timeline('admin', `employee:${EMPLOYEE_B.employmentId}`)).status).toBe(404); // other company
+    const badType = await timeline('admin', `payslip:${USERS.admin.id}`);
     expect(badType.status).toBe(422);
     expect(badType.body).toMatchObject({ errors: [{ field: 'subject', code: 'invalid_subject' }] });
     expect((await client('admin').get('/api/audit/timeline')).status).toBe(422);
@@ -537,6 +589,33 @@ describe('GET /api/audit/timeline', () => {
     expect((await timeline('admin', `org_unit:${unitA('DG')}`, '&limit=0')).status).toBe(422);
     // the other company sees its own history
     expect((await timeline('beta', `org_unit:${unitB('BETA-RH')}`)).items.length).toBeGreaterThan(0);
+  });
+
+  it('employee: employment + assignments + salaries + person + person_sensitive rows; masked values; employee scope', async () => {
+    const emp = employeeA(23); // EMP-0023, Service Administration Est (Région Est)
+    const salary = await client('admin').put(`/api/employees/${emp}/salary`).send({ baseSalary: '123456.78', validFrom: '2026-10-15' });
+    expect(salary.status, JSON.stringify(salary.body)).toBe(200);
+    const bank = await client('admin').put(`/api/employees/${emp}/bank`).send({ rib: '00799999000000000777', bankName: 'BADR' });
+    expect(bank.status).toBe(200);
+    const person = await client('admin').patch(`/api/employees/${emp}/person`).send({ birthPlace: 'Guelma' });
+    expect(person.status).toBe(200);
+
+    const { status, items, body } = await timeline('admin', `employee:${emp}`, '&limit=100');
+    expect(status).toBe(200);
+    assertNoSecrets(body);
+    expect(new Set(items.map((i) => i.table))).toEqual(new Set(['employment', 'assignment', 'employment_salary', 'person', 'person_sensitive']));
+    const salaryInsert = items.find((i) => i.table === 'employment_salary' && i.op === 'insert' && i.actor?.id === USERS.admin.id);
+    expect(salaryInsert?.changes).toEqual(expect.arrayContaining([{ field: 'base_salary', before: null, after: '***', masked: true }]));
+    const bankUpdate = items.find((i) => i.table === 'person_sensitive' && i.actor?.id === USERS.admin.id);
+    expect(bankUpdate?.changes).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'rib', after: '***', masked: true })]));
+    expect(JSON.stringify(body)).not.toMatch(/123456|00799999000000000777|BADR/);
+    expect(items.find((i) => i.table === 'person' && i.op === 'update')?.changes).toEqual([{ field: 'birth_place', before: expect.any(String), after: 'Guelma', masked: false }]);
+    // scope: admin_acces holds audit.read on REG-EST only; rh_regional has no audit.read; other company → 404
+    expect((await timeline('acces', `employee:${emp}`)).status).toBe(200);
+    expect((await timeline('acces', `employee:${employeeA(35)}`)).status).toBe(404); // Agence Oran
+    expect((await timeline('est', `employee:${emp}`)).status).toBe(403);
+    expect((await timeline('beta', `employee:${emp}`)).status).toBe(404);
+    expect((await timeline('beta', `employee:${EMPLOYEE_B.employmentId}`)).status).toBe(200);
   });
 
   it('pagination: stable cursor over (at, kind, id); pages concatenate to the full list', async () => {

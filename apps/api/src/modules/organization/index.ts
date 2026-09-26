@@ -16,7 +16,8 @@ export type {
   SitesView,
 } from './application/org-views.js';
 export type { OrgAction, OrgKind, OrgUnitKind } from './domain/org-unit.js';
-export { toIsoDate } from './domain/versions.js';
+export { isIsoDate, toIsoDate } from './domain/versions.js';
+export { ancestorPath, effectiveSite, type EffectiveSite, type OrgSnapshotUnit } from './domain/tree.js';
 export {
   DEMO_COMPANY_ID,
   DEMO_ORGANIZATION,

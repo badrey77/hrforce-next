@@ -73,8 +73,8 @@
                       >
                     </td>
                     <td>{{ grant.includeDescendants ? t('access.grants.yes') : t('access.grants.no') }}</td>
-                    <td>{{ grant.validFrom }}</td>
-                    <td>{{ grant.validTo ?? t('access.grants.open') }}</td>
+                    <td class="nowrap">{{ grant.validFrom }}</td>
+                    <td class="nowrap">{{ grant.validTo ?? t('access.grants.open') }}</td>
                     <td>{{ grant.grantedBy?.displayName ?? '—' }}</td>
                     <td>
                       @if (canEnd(grant)) {

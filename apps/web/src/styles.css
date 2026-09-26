@@ -244,3 +244,21 @@ time {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/*
+ * Dates and codes never wrap (employment contract › Web › Polish). "2026-01-01", "AG-ANNABA" and "EMP-0042" contain
+ * hyphens, where browsers happily break a line — a date split over two lines in a narrow table cell reads as two
+ * values. Use `class="nowrap"` on a cell (or any element); `<time>` and `.code` inside a table cell get it for free.
+ * The table then scrolls inside its `.table-scroll` wrapper instead of wrapping (overflow-x: auto).
+ */
+.nowrap,
+td time,
+td .code,
+td.code {
+  white-space: nowrap;
+}
+
+/* Wide tables scroll horizontally inside this wrapper rather than squeezing their cells. */
+.table-scroll {
+  overflow-x: auto;
+}

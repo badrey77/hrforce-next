@@ -28,6 +28,25 @@
     }
   </div>
 
+  @let nameAr = form.controls.nameAr;
+  <div class="field">
+    <label for="change-unit-name-ar">{{ t('org.form.nameAr') }} <span class="field-hint">{{ t('org.form.optional') }}</span></label>
+    <input
+      id="change-unit-name-ar"
+      type="text"
+      formControlName="nameAr"
+      dir="rtl"
+      lang="ar"
+      [attr.aria-invalid]="nameAr.invalid && nameAr.touched"
+      [attr.aria-describedby]="nameAr.invalid && nameAr.touched ? 'change-unit-name-ar-error' : null"
+    />
+    @if (nameAr.invalid && nameAr.touched) {
+      <p class="field-error" id="change-unit-name-ar-error">
+        {{ nameAr.hasError('server') ? nameAr.getError('server') : t(fieldErrorKey(nameAr)) }}
+      </p>
+    }
+  </div>
+
   @let parent = form.controls.parentId;
   <div class="field">
     @if (!isRoot()) {

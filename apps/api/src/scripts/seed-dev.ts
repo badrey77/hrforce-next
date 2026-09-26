@@ -1,7 +1,8 @@
 /**
  * CLI: seed the demo company, its organisation (docs/contracts/organization.md), the demo users
  * (docs/contracts/identity.md › CLI and seed: rh.admin@demo.dz, rh.est@demo.dz, lecture.ouest@demo.dz, password
- * DEMO_PASSWORD), the system roles and the demo grants (docs/contracts/authorization.md › Dev seed).
+ * DEMO_PASSWORD), the system roles, the demo grants (docs/contracts/authorization.md › Dev seed) and 40 fictitious
+ * employees (docs/contracts/employment.md › Seed — TEST DATA).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -11,6 +12,7 @@ import { migratorEnvSchema } from '../platform/config/env.schema.js';
 import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess } from '../modules/authorization/index.js';
+import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
 
@@ -28,7 +30,8 @@ async function main(): Promise<void> {
       await seedOrganization(tx, DEMO_ORGANIZATION, toIsoDate(new Date()));
       await seedIdentity(tx, DEMO_ORGANIZATION.company.id);
       await seedDemoAccess(tx);
-    });
+      return seedDemoEmployees(tx);
+    }).then((employees) => logger.info({ employees }, 'demo employees seeded (fictitious test data)'));
     logger.info(
       { companyId: DEMO_ORGANIZATION.company.id, units: DEMO_ORGANIZATION.units.length },
       'demo organisation seeded',

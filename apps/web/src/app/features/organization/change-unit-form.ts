@@ -46,6 +46,8 @@ export class ChangeUnitForm implements OnInit {
 
   protected readonly form = this.fb.group({
     name: ['', [Validators.required, notBlank, Validators.maxLength(ORG_NAME_MAX)]],
+    // Optional Arabic name; clearing it sends `nameAr: null` (removes it from `validFrom`).
+    nameAr: ['', [Validators.maxLength(ORG_NAME_MAX)]],
     // `string | null`: "no parent chosen" is null, which is what the picker writes.
     parentId: this.fb.control<string | null>(null),
     // `string | null`: null = inherit the parent's site (not offered for the root).
@@ -71,6 +73,7 @@ export class ChangeUnitForm implements OnInit {
     (this.isRoot() ? controls.siteId : controls.parentId).addValidators(Validators.required);
     this.form.reset({
       name: this.unit().name,
+      nameAr: this.unit().nameAr ?? '',
       parentId: this.currentParentId(),
       siteId: this.currentSiteId(),
       validFrom: this.defaultValidFrom(),
@@ -87,10 +90,12 @@ export class ChangeUnitForm implements OnInit {
     const name = value.name.trim();
     const body: { -readonly [K in keyof ChangeOrgUnit]: ChangeOrgUnit[K] } = { validFrom: value.validFrom };
     if (name !== this.unit().name) body.name = name;
+    const nameAr = value.nameAr.trim() || null;
+    if (nameAr !== (this.unit().nameAr ?? null)) body.nameAr = nameAr;
     if (!this.isRoot() && value.parentId && value.parentId !== this.currentParentId()) body.parentId = value.parentId;
     // `null` is a real change here ("inherit from now on"), so compare, don't test truthiness.
     if (value.siteId !== this.currentSiteId()) body.siteId = value.siteId;
-    if (body.name === undefined && body.parentId === undefined && body.siteId === undefined) {
+    if (body.name === undefined && body.nameAr === undefined && body.parentId === undefined && body.siteId === undefined) {
       this.formError.set({ key: 'org.form.errors.nothingChanged' });
       return;
     }

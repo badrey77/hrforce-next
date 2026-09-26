@@ -13,13 +13,16 @@ src/
     access/      AccessApi + Authorization contract types + AccessCatalog (permissions, roles; labels in the active language)
     auth/        Identity: AuthApi, Session (root signal store, permissions), guards (auth, guest, permission), refresh interceptor, session initializer
     date/        todayIso(), isIsoDate() — plain TS, no Angular
+    employees/   EmployeesApi + Employment contract types (money as a decimal string)
     http/        ApiProblem + apiProblemInterceptor + applyServerErrors() + problemToForm() + retryAfterSeconds() + XSRF names
     i18n/        languages, LanguageService, TranslocoHttpLoader
     org/         OrgApi + Organization contract types + KindCatalog (kind catalogue, once per app)
   shared/        reusable UI used by more than one feature
     can/         *appCan structural directive (show a template only with a permission)
     org-unit-picker/
-  features/<name>/  one page/flow per feature: access, auth, home, organization, not-found, placeholder
+    display-name/ displayName pipe (Arabic name in the Arabic UI, else Latin) — people and units
+    timeline/    audit timeline + <app-history-tabs>
+  features/<name>/  one page/flow per feature: access, auth, employees, home, organization, not-found, placeholder
   shell/         app-chrome widgets (language switcher, user menu) — not a route, not shared feature UI
   testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
@@ -54,8 +57,8 @@ here, not in `shared/`, because nothing outside the shell composes it.
 
 ## Recipe: add a new page
 
-Using the Employees screen as a running example (the routes/placeholder already exist
-— `app.routes.ts`'s `'employees'` entry currently points at `PlaceholderPage`).
+Using the Employees screens as the example (`features/employees/`, mounted with
+`loadChildren` in `app.routes.ts`; they started as a `PlaceholderPage` entry).
 
 1. **Decide `loadComponent` vs `loadChildren`.** One page, no sub-routes planned yet →
    `loadComponent` (see `PlaceholderPage`'s current wiring). Expect sub-routes soon (a
@@ -166,8 +169,11 @@ The audit timeline is one shared component; a page only wraps its detail view
 (chapter 13 explains every piece).
 
 1. **Pick the subject.** One of the contract's types (`org_unit`, `site`, `role`,
-   `user`; `docs/contracts/audit.md` › Endpoint) plus the record's id. A new subject
-   type (e.g. `employee`) needs the API first.
+   `user`; `docs/contracts/audit.md` › Endpoint; `employee` from
+   `docs/contracts/employment.md` › Audit) plus the record's id. A new subject type needs
+   the API first, then `AuditSubjectType` in `core/audit/audit.models.ts`. A page that
+   already has its own tab bar (the employee detail) puts `<app-timeline>` in a `@defer`
+   block in its own History tab instead of using `<app-history-tabs>`.
 2. **Wrap the detail content** in `<app-history-tabs>` (import `HistoryTabs` from
    `shared/timeline/history-tabs.ts`):
 
@@ -199,6 +205,74 @@ The audit timeline is one shared component; a page only wraps its detail view
    `installIntersectionObserver()` + `enterViewport()` to play the `@defer` block through,
    then `http.expectOne(r => r.url === '/api/audit/timeline')` and check the `subject`
    param and a resolved name.
+
+## Recipe: add a list page with filters in the URL
+
+`features/employees/employees.page.ts` is the worked example; chapter 14 §1 explains it.
+
+1. **List the state** the list needs (filters, sort, direction, page, page size) and give
+   each a URL name. Write two pure functions in `<feature>-list-state.ts`: `resolveQuery(params)`
+   (raw strings → a typed query with defaults; never throws on garbage) and
+   `toQueryParams(change)` (`null` for defaults, so they leave the URL). Unit-test both.
+2. **One signal `input()` per query param**, same name (`withComponentInputBinding()`),
+   and one `query = computed(() => resolveQuery({...}))`. Do not keep a second copy of any
+   filter in a signal.
+3. **An `httpResource` keyed on `query`** in `core/<domain>/<domain>-api.ts`, with its
+   params built by an exported pure function (`employeeListParams`) that always sends sort
+   and paging and leaves empty filters out.
+4. **Widgets display the URL and navigate.** `[value]="query().q"`, `<option
+   [selected]>`; on change call one `update(change)` that does
+   `router.navigate([], { relativeTo, queryParams: toQueryParams({ page: 1, ...change }),
+   queryParamsHandling: 'merge' })`. Reset the page on every filter/sort change.
+5. **Keystrokes**: a `Subject` + `debounceTime` + `filter(q => q !== query().q)`, then
+   `update({ q }, { replaceUrl: true })` so typing does not flood the history.
+6. **Custom controls** (the org-unit picker): a standalone `FormControl`; URL → control in
+   an `effect()` with `{ emitEvent: false }`, control → URL through `valueChanges`.
+7. **Sortable headers**: a `<button>` in the `<th>`, `aria-sort` on the sorted column
+   only. **Paging**: previous/next disabled at the ends, "page X of Y", a page-size select.
+8. **States**: error with retry; the table kept during a reload (`aria-busy`); loading;
+   "no match" (a filter is set, offer "clear filters") vs "empty".
+9. **Filters that need another permission** (sites need `site.read`): keep a
+   `session.allows(...)` field, hide the filter, and keep its resource idle
+   (`OrgApi.sitesResource(q, enabled)`).
+10. **Tests** with `RouterTestingHarness` (see `employees.page.spec.ts`): URL → request
+    params and widgets; clicks → `router.url` query params; `replaceUrl` via
+    `vi.spyOn(router, 'navigate')`; navigating to a new URL (what Back does) updates the
+    widgets.
+
+## Recipe: add a sensitive section
+
+A block of data some users may not read or write (salary, bank, NSS; later medical). The
+API omits a block the caller may not read and lists it in `_redacted`, and answers 403
+`forbidden-field` for a write without the `.update` permission
+(`docs/contracts/employment.md` › Scope).
+
+1. **Types**: make the block optional in the detail type (`salary?: …`) and read it through
+   a helper that also treats a missing block as redacted (`isRedacted()` in
+   `core/employees/employees.models.ts`). Never show a placeholder value for a redacted block;
+   hide the tab or section.
+2. **Reading** (detail page): compute the visible tabs from `_redacted`
+   (`employee-detail.page.ts`, `tabs`), and fall back to a visible tab if a reload
+   redacts the current one.
+3. **Writing on a record**: the button comes from `_actions` (`update_salary`…), never from
+   `Session.can()`: the permission must cover this employee's unit.
+4. **Writing on a create form**: the section exists in the form for everyone, and an
+   `effect()` disables it unless `session.allows('<block>.update')`; the template shows it
+   `@if` allowed. Disabled groups do not count for validity; check `.enabled` before
+   putting the block in the body (`getRawValue()` includes disabled controls).
+5. **Validation**: reuse the validator factories (`digits(20)`, `money`) so create and
+   edit agree; normalise (strip spaces, 2-decimal money string) in the same helper the
+   validator uses.
+6. **403 `forbidden-field`**: map `errors[].field` (a block name or a field) onto the
+   control through the form's path table (`CREATE_FIELD_PATHS`), with a translated message.
+7. **Audit**: the API masks the values; add `audit.tables.<table>` and
+   `audit.fields.<table>.<column>` keys and hide pure link columns in `HIDDEN_FIELDS`
+   (`shared/timeline/timeline-view.ts`).
+8. **Styling**: `class="section sensitive"` marks the fieldset; keep sensitive values out
+   of `title` attributes, logs and error texts.
+9. **Tests**: `meWith([...])` with and without the `.update` permission (sections shown or
+   not), a detail with `_redacted: ['salary']` (tab hidden), and a 403 `forbidden-field`
+   response landing on the field.
 
 ## Recipe: an API call that must not redirect to login
 
@@ -316,7 +390,7 @@ reference:
    `org-unit-picker.spec.ts` (chapter 09) — a CVA in isolation, with no form around it,
    doesn't exercise the actual integration.
 
-These recipes are what the next screens (starting with Employees) should follow; if a
+These recipes are what the next screens (contracts, documents — M2) should follow; if a
 new situation doesn't fit one of them cleanly, extend this chapter (and the concept
 chapters it links to) rather than improvising a one-off pattern — per `CLAUDE.md`, this
 guide grows with the code.

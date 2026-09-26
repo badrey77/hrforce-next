@@ -26,19 +26,37 @@
  * - **Injecting an app-wide signal cache** (`KindCatalog`): the kind badge of each option is
  *   `kindCatalog.labelOf(unit.kind)`, which follows the active language (see core/org/kind-catalog.ts).
  * - **`host` metadata** binds events on the component's own element (`(focusout)`), no wrapper div needed.
+ * - **Names in the UI language** (employment contract: units gain `nameAr`): options and breadcrumbs go through the
+ *   `displayName` pipe with `lang()` as its argument. The chosen unit's text in the input is a signal we set
+ *   ourselves, so an `effect()` re-writes it when the language changes — the one place where a pipe cannot help,
+ *   because an `<input>`'s value is state, not a template expression. `untracked()` reads `selected` without
+ *   making it a dependency: the effect re-runs on a language switch only (picking a unit sets the text directly).
  *
  * Accessibility: WAI-ARIA combobox pattern ("list autocomplete"): the text input has `role="combobox"`,
  * `aria-expanded`, `aria-controls` (the listbox) and `aria-activedescendant` (the highlighted option). Focus
  * stays in the input; ArrowDown/ArrowUp move the highlight, Enter selects, Escape closes (then clears), Home/End jump.
  */
-import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  forwardRef,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { catchError, debounceTime, map, of, Subject, switchMap } from 'rxjs';
+import { LanguageService } from '../../core/i18n/language.service';
+import type { AppLanguage } from '../../core/i18n/languages';
 import { KindCatalog } from '../../core/org/kind-catalog';
 import { OrgApi } from '../../core/org/org-api';
 import type { OrgUnitKind, OrgUnitSummary } from '../../core/org/org.models';
+import { DisplayNamePipe, displayNameOf } from '../display-name/display-name.pipe';
 
 /** How long typing must pause before a search is sent. */
 export const ORG_UNIT_PICKER_DEBOUNCE_MS = 250;
@@ -53,13 +71,14 @@ interface SearchRequest {
   readonly asOf: string | undefined;
 }
 
-export function orgUnitLabel(unit: Pick<OrgUnitSummary, 'code' | 'name'>): string {
-  return `${unit.name} (${unit.code})`;
+/** "Name (CODE)", the name in `lang` (Arabic when the unit has one and the UI is Arabic). */
+export function orgUnitLabel(unit: Pick<OrgUnitSummary, 'code' | 'name' | 'nameAr'>, lang: AppLanguage = 'fr'): string {
+  return `${displayNameOf(unit, lang)} (${unit.code})`;
 }
 
 @Component({
   selector: 'app-org-unit-picker',
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, DisplayNamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './org-unit-picker.html',
   styleUrl: './org-unit-picker.css',
@@ -69,6 +88,7 @@ export function orgUnitLabel(unit: Pick<OrgUnitSummary, 'code' | 'name'>): strin
 export class OrgUnitPicker implements ControlValueAccessor {
   private readonly api = inject(OrgApi);
   protected readonly kindCatalog = inject(KindCatalog);
+  protected readonly lang = inject(LanguageService).current;
 
   /**
    * Only offer these kinds (e.g. `['department', 'region']`). Sent to the API as repeated params
@@ -107,6 +127,12 @@ export class OrgUnitPicker implements ControlValueAccessor {
   private onTouched: () => void = () => undefined;
 
   constructor() {
+    effect(() => {
+      const lang = this.lang();
+      const unit = untracked(this.selected);
+      if (unit) this.query.set(orgUnitLabel(unit, lang));
+    });
+
     this.searches
       .pipe(
         debounceTime(ORG_UNIT_PICKER_DEBOUNCE_MS),
@@ -135,7 +161,7 @@ export class OrgUnitPicker implements ControlValueAccessor {
       .subscribe((unit) => {
         if (unit) {
           this.selected.set(unit);
-          this.query.set(orgUnitLabel(unit));
+          this.query.set(orgUnitLabel(unit, this.lang()));
         }
       });
   }
@@ -226,7 +252,7 @@ export class OrgUnitPicker implements ControlValueAccessor {
 
   protected choose(unit: OrgUnitSummary): void {
     this.selected.set(unit);
-    this.query.set(orgUnitLabel(unit));
+    this.query.set(orgUnitLabel(unit, this.lang()));
     this.close();
     this.onChange(unit.id);
   }

@@ -15,6 +15,13 @@ const name = z
   .trim()
   .min(1, { message: 'Name is required' })
   .max(ORG_UNIT_NAME_MAX, { message: `At most ${ORG_UNIT_NAME_MAX} characters` });
+/** Optional Arabic name: trimmed, 1–120 characters; empty / blank / null → null (no Arabic name). */
+const nameAr = z
+  .string()
+  .trim()
+  .max(ORG_UNIT_NAME_MAX, { message: `At most ${ORG_UNIT_NAME_MAX} characters` })
+  .nullable()
+  .transform((v) => (v ? v : null));
 const code = z.string().refine(isOrgUnitCode, { message: 'Code must match ^[A-Z0-9][A-Z0-9_-]{1,31}$' });
 /**
  * Kind codes are data (GET /org/kinds): the DTO checks the shape, the service checks the catalogue (unknown → 422
@@ -47,6 +54,7 @@ export class CreateOrgUnitDto extends createZodDto(
     kind: kindCode,
     code,
     name,
+    nameAr: nameAr.optional(),
     parentId: uuid,
     siteId: siteId.optional(),
     validFrom: isoDate.optional(),
@@ -57,13 +65,14 @@ export class ChangeOrgUnitDto extends createZodDto(
   z
     .object({
       name: name.optional(),
+      nameAr: nameAr.optional(),
       parentId: uuid.optional(),
       siteId: siteId.optional(),
       validFrom: isoDate.optional(),
     })
     .superRefine((body, ctx) => {
-      if (body.name === undefined && body.parentId === undefined && body.siteId === undefined) {
-        ctx.addIssue({ code: 'custom', path: ['name'], message: 'Provide a new name, parentId and/or siteId' });
+      if (body.name === undefined && body.nameAr === undefined && body.parentId === undefined && body.siteId === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['name'], message: 'Provide a new name, nameAr, parentId and/or siteId' });
       }
     }),
 ) {}

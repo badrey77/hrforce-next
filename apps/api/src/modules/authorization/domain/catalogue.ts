@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -25,8 +25,11 @@ export const PERMISSION_CODES = [
   'employee.create',
   'employee.update',
   'employee.salary.read',
+  'employee.salary.update',
   'employee.bank.read',
+  'employee.bank.update',
   'employee.nss.read',
+  'employee.nss.update',
   'employee.medical.read',
 ] as const;
 

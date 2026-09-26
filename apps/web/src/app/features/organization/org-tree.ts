@@ -15,6 +15,9 @@
  *   `(selectedIdChange)`, or both at once with the "banana in a box" syntax `[(selectedId)]="signal"`.
  *   Calling `this.selectedId.set(id)` inside updates the parent's signal.
  * - **`input.required<T>()`**: the template must bind it; reading it before binding throws.
+ * - **Unit names in the UI language**: `item | displayName: lang()` (shared/display-name) shows the Arabic name in
+ *   the Arabic UI when the unit has one (employment contract), else the Latin name. `lang` is the LanguageService
+ *   signal, passed as the pipe's argument so a language switch re-renders every row.
  * - **Data labels vs i18n labels**: the kind badge is `kindCatalog.labelOf(kind)` — a label that comes from the API
  *   (the kind catalogue) in the active language — while fixed UI texts still come from `t()`.
  *
@@ -36,12 +39,14 @@
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input, model, signal } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { LanguageService } from '../../core/i18n/language.service';
 import { KindCatalog } from '../../core/org/kind-catalog';
 import type { OrgTreeNode } from '../../core/org/org.models';
+import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 
 @Component({
   selector: 'app-org-tree-item',
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, DisplayNamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -53,7 +58,7 @@ import type { OrgTreeNode } from '../../core/org/org.models';
             type="button"
             class="toggle"
             [attr.aria-expanded]="expanded()"
-            [attr.aria-label]="t('org.tree.toggle', { name: item.name })"
+            [attr.aria-label]="t('org.tree.toggle', { name: (item | displayName: lang()) })"
             (click)="tree.toggle(item.id)"
           >
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -74,7 +79,7 @@ import type { OrgTreeNode } from '../../core/org/org.models';
         >
           <!-- Angular drops whitespace-only text between tags; &ngsp; keeps a real space so the button's
                accessible name reads "Région CENTRE Région Centre", not "RégionCENTRERégion Centre". -->
-          <span class="badge">{{ kindCatalog.labelOf(item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
+          <span class="badge">{{ kindCatalog.labelOf(item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item | displayName: lang() }}</span>
           @if (ownSite(); as site) {
             &ngsp;<span class="site" [attr.title]="t('org.detail.site')">{{ site.name }}</span>
           }
@@ -121,6 +126,7 @@ export class OrgTreeItem {
   /** Resolved from the nearest ancestor `<app-org-tree>` (see header: hierarchical DI). */
   protected readonly tree = inject(OrgTree);
   protected readonly kindCatalog = inject(KindCatalog);
+  protected readonly lang = inject(LanguageService).current;
   readonly node = input.required<OrgTreeNode>();
   /** Effective site of the parent row (`null` for the root or an unsited parent). */
   readonly parentSiteId = input<string | null>(null);

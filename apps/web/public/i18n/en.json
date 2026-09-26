@@ -136,7 +136,9 @@
       "site": "Site",
       "siteInherited": "inherited from a parent unit",
       "inherited": "Inherited",
-      "notFound": "Unit not found."
+      "notFound": "Unit not found.",
+      "nameLatin": "Name",
+      "nameAr": "Name (Arabic)"
     },
     "actions": {
       "createChild": "Add a sub-unit",
@@ -155,12 +157,13 @@
         "codePattern": "Invalid code format.",
         "nameTooLong": "120 characters at most.",
         "invalidDate": "Invalid date.",
-        "nothingChanged": "Change the name, the parent unit or the site."
+        "nothingChanged": "Change the name, the Arabic name, the parent unit or the site."
       },
       "kindPlaceholder": "Choose a type",
       "site": "Site",
       "siteInherit": "Inherit from the parent unit",
-      "optional": "(optional)"
+      "optional": "(optional)",
+      "nameAr": "Name (Arabic)"
     },
     "create": {
       "title": "New sub-unit of {{parent}}"
@@ -379,7 +382,12 @@
       "site": "Site",
       "role": "Role",
       "role_permission": "Role permission",
-      "role_grant": "Role grant"
+      "role_grant": "Role grant",
+      "person": "Person",
+      "person_sensitive": "Sensitive data",
+      "employment": "Employment",
+      "assignment": "Assignment",
+      "employment_salary": "Salary"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -409,7 +417,8 @@
         "parent_id": "Parent unit",
         "site_id": "Site",
         "valid": "Validity",
-        "created_at": "Created on"
+        "created_at": "Created on",
+        "name_ar": "Name (Arabic)"
       },
       "site": {
         "code": "Code",
@@ -442,6 +451,41 @@
         "granted_at": "Granted on",
         "ended_by": "Ended by",
         "ended_at": "Ended on"
+      },
+      "person": {
+        "last_name": "Last name",
+        "first_name": "First name",
+        "last_name_ar": "Last name (Arabic)",
+        "first_name_ar": "First name (Arabic)",
+        "birth_date": "Date of birth",
+        "birth_place": "Place of birth",
+        "sex": "Sex",
+        "nationality": "Nationality",
+        "nin": "NIN",
+        "created_at": "Created"
+      },
+      "person_sensitive": {
+        "nss": "Social security number",
+        "rib": "RIB",
+        "bank_name": "Bank",
+        "updated_at": "Updated"
+      },
+      "employment": {
+        "matricule": "Employee no.",
+        "hire_date": "Hire date",
+        "end_date": "End date",
+        "end_reason": "Reason for leaving",
+        "created_at": "Created"
+      },
+      "assignment": {
+        "org_unit_id": "Unit",
+        "site_id": "Site",
+        "job_title": "Job title",
+        "valid": "Validity"
+      },
+      "employment_salary": {
+        "base_salary": "Base salary",
+        "valid": "Validity"
       }
     },
     "events": {
@@ -456,6 +500,205 @@
         "grant_ended": "Role “{{role}}” on {{unit}} ended on {{validTo}}"
       },
       "unknown": "Event {{type}}"
+    }
+  },
+  "employees": {
+    "title": "Employees",
+    "list": {
+      "new": "New employee",
+      "matricule": "Employee no.",
+      "name": "Name",
+      "unit": "Unit",
+      "site": "Site",
+      "jobTitle": "Job title",
+      "hireDate": "Hire date",
+      "status": "Status",
+      "total": "{{count}} employee(s)",
+      "loadError": "Could not load the employees.",
+      "loading": "Loading employees…",
+      "noMatch": "No employee matches these filters.",
+      "empty": "No employee yet.",
+      "pageOutOfRange": "This page does not exist (the list is shorter)."
+    },
+    "filters": {
+      "label": "Filter employees",
+      "search": "Search",
+      "searchPlaceholder": "Name, employee no. or NIN",
+      "unit": "Unit",
+      "includeSubUnits": "Include sub-units",
+      "site": "Site",
+      "allSites": "All sites",
+      "status": "Status",
+      "statuses": {
+        "active": "Active",
+        "ended": "Ended",
+        "all": "All"
+      },
+      "clear": "Clear filters"
+    },
+    "pager": {
+      "label": "Pagination",
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {{page}} of {{count}}",
+      "pageSize": "Per page",
+      "first": "First page"
+    },
+    "status": {
+      "active": "Active",
+      "ended": "Ended",
+      "future": "Starting soon"
+    },
+    "sections": {
+      "identity": "Identity",
+      "employment": "Employment",
+      "assignment": "First assignment",
+      "salary": "Salary",
+      "bank": "Bank details",
+      "nss": "Social security"
+    },
+    "fields": {
+      "lastName": "Last name",
+      "firstName": "First name",
+      "lastNameAr": "Last name (Arabic)",
+      "firstNameAr": "First name (Arabic)",
+      "birthDate": "Date of birth",
+      "birthPlace": "Place of birth",
+      "sex": "Sex",
+      "nationality": "Nationality",
+      "nin": "NIN (national ID number)",
+      "matricule": "Employee no.",
+      "hireDate": "Hire date",
+      "unit": "Unit",
+      "site": "Site",
+      "siteOfUnit": "The unit's site",
+      "jobTitle": "Job title",
+      "baseSalary": "Base salary (DZD)",
+      "rib": "Bank account (RIB)",
+      "bankName": "Bank",
+      "nss": "Social security number",
+      "validFrom": "Effective date",
+      "validTo": "Until",
+      "endDate": "End date",
+      "endReason": "Reason for leaving"
+    },
+    "hints": {
+      "nationality": "2-letter country code (e.g. DZ).",
+      "nin": "18 digits.",
+      "matricule": "Capitals, digits or \"-\", up to 20 characters. Cannot be changed later.",
+      "firstAssignment": "The assignment starts on the hire date.",
+      "salary": "Monthly amount, at most 2 decimals (e.g. 85000.00).",
+      "rib": "20 digits (spaces are ignored).",
+      "nss": "10 to 15 digits."
+    },
+    "sex": {
+      "M": "Male",
+      "F": "Female",
+      "unknown": "Not stated"
+    },
+    "form": {
+      "optional": "(optional)",
+      "saving": "Saving…",
+      "errors": {
+        "required": "This field is required.",
+        "pattern": "Invalid format.",
+        "tooLong": "At most 120 characters.",
+        "invalidDate": "Invalid date.",
+        "digits": "{{count}} digits expected.",
+        "money": "A positive amount, at most 2 decimals.",
+        "notBefore": "The date must be on or after {{date}}.",
+        "birthAfterHire": "The hire date must be after the date of birth.",
+        "bankIncomplete": "Fill in both the RIB and the bank, or leave both empty.",
+        "nothingChanged": "Nothing to save."
+      }
+    },
+    "create": {
+      "title": "New employee",
+      "submit": "Create employee",
+      "fixErrors": "Fix the highlighted fields before saving."
+    },
+    "detail": {
+      "back": "Back to the employee list",
+      "loading": "Loading employee…",
+      "loadError": "Could not load this employee."
+    },
+    "tabs": {
+      "label": "Employee record sections",
+      "identity": "Identity",
+      "assignments": "Assignments",
+      "pay": "Pay",
+      "bank": "Bank & NSS",
+      "history": "History"
+    },
+    "identity": {
+      "edit": "Edit",
+      "editTitle": "Edit identity"
+    },
+    "assignments": {
+      "title": "Assignments",
+      "new": "New assignment",
+      "newTitle": "New assignment",
+      "newIntro": "The current assignment ends the day before the effective date.",
+      "open": "Current",
+      "path": "Reports to",
+      "siteInherited": "(the unit's site)",
+      "empty": "No assignment."
+    },
+    "pay": {
+      "title": "Pay",
+      "new": "New salary",
+      "newTitle": "New salary",
+      "current": "Current base salary:",
+      "currency": "DZD",
+      "since": "since {{date}}",
+      "none": "No salary recorded."
+    },
+    "bank": {
+      "title": "Bank details",
+      "edit": "Edit",
+      "editTitle": "Edit bank details"
+    },
+    "nss": {
+      "title": "Social security",
+      "edit": "Edit",
+      "editTitle": "Edit social security number"
+    },
+    "end": {
+      "action": "End employment",
+      "title": "End employment",
+      "intro": "The current assignment and salary will be closed on this date (inclusive).",
+      "reasonPlaceholder": "Choose a reason",
+      "hint": "No earlier than the start of the current assignment.",
+      "submit": "Confirm"
+    },
+    "endReasons": {
+      "resignation": "Resignation",
+      "retirement": "Retirement",
+      "dismissal": "Dismissal",
+      "end_of_contract": "End of contract",
+      "death": "Death",
+      "other": "Other"
+    },
+    "feedback": {
+      "personSaved": "Identity updated.",
+      "assigned": "New assignment saved.",
+      "salarySaved": "New salary saved.",
+      "bankSaved": "Bank details saved.",
+      "nssSaved": "Social security number saved.",
+      "ended": "Employment ended."
+    },
+    "problems": {
+      "matriculeTaken": "This employee number is already taken.",
+      "ninTaken": "This NIN is already recorded for another person.",
+      "employmentOpen": "This person already has an open employment.",
+      "employmentEnded": "This employment has ended and can no longer be changed.",
+      "assignmentDate": "The effective date must follow the start of the current assignment and fall within the employment.",
+      "salaryDate": "The effective date must follow the current salary’s.",
+      "endDate": "The end date must be on or after the current assignment’s start and the hire date.",
+      "forbiddenScope": "You may not assign an employee to this unit.",
+      "forbiddenField": "You may not fill in this field.",
+      "forbiddenWrite": "You may view this employee but not change it.",
+      "notFound": "Employee not found."
     }
   }
 }

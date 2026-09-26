@@ -7,10 +7,11 @@ describe('timeline subject', () => {
   it('parses <type>:<uuid> and lower-cases the id', () => {
     expect(parseSubject(`org_unit:${ID}`)).toEqual({ ok: true, subject: { type: 'org_unit', id: ID.toLowerCase() } });
     expect(parseSubject(`user:${ID}`).ok).toBe(true);
+    expect(parseSubject(`employee:${ID}`).ok).toBe(true);
   });
 
   it('rejects unknown types and bad syntax (422) but reports a malformed id as unknown (404)', () => {
-    expect(parseSubject(`employee:${ID}`)).toEqual({ ok: false, reason: 'syntax' });
+    expect(parseSubject(`payslip:${ID}`)).toEqual({ ok: false, reason: 'syntax' });
     expect(parseSubject(ID)).toEqual({ ok: false, reason: 'syntax' });
     expect(parseSubject(':x')).toEqual({ ok: false, reason: 'syntax' });
     expect(parseSubject('site:not-a-uuid')).toEqual({ ok: false, reason: 'unknown' });

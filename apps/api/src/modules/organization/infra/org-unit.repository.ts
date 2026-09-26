@@ -75,7 +75,7 @@ export class OrgUnitRepository {
   async listVersions(companyId: string, unitId: string): Promise<OrgUnitVersionRow[]> {
     const rows = await currentTx()
       .selectFrom('org_unit_version as v')
-      .select(['v.id', 'v.name', 'v.parent_id as parentId', 'v.site_id as siteId', VALID_FROM.as('validFrom'), VALID_TO.as('validTo')])
+      .select(['v.id', 'v.name', 'v.name_ar as nameAr', 'v.parent_id as parentId', 'v.site_id as siteId', VALID_FROM.as('validFrom'), VALID_TO.as('validTo')])
       .where('v.company_id', '=', companyId)
       .where('v.org_unit_id', '=', unitId)
       .orderBy(sql`lower(v.valid)`)
@@ -90,15 +90,16 @@ export class OrgUnitRepository {
       .innerJoin('org_unit_version as v', (join) =>
         join.onRef('v.company_id', '=', 'u.company_id').onRef('v.org_unit_id', '=', 'u.id'),
       )
-      .select(['u.id', 'u.kind', 'u.code', 'v.name', 'v.parent_id as parentId', 'v.site_id as siteId'])
+      .select(['u.id', 'u.kind', 'u.code', 'v.name', 'v.name_ar as nameAr', 'v.parent_id as parentId', 'v.site_id as siteId'])
       .where('u.company_id', '=', companyId)
       .where(sql<boolean>`v.valid @> ${asOf}::date`)
       .execute();
   }
 
   /**
-   * Units valid on `asOf` whose code or name contains `q`, ignoring case and accents (search_normalize(), see
-   * migration 0005: lower() + translate() of accented Latin letters, backing the generated `name_search` column).
+   * Units valid on `asOf` whose code, name or Arabic name contains `q`, ignoring case and accents (search_normalize():
+   * lower() + translate() of accented Latin letters (0005) and Arabic normalisation — tashkeel stripped, alef forms
+   * unified… (0010) — backing the generated `name_search` column over `name` + `name_ar`).
    */
   async search(
     companyId: string,
@@ -140,6 +141,7 @@ export class OrgUnitRepository {
         company_id: companyId,
         org_unit_id: unitId,
         name: version.name,
+        name_ar: version.nameAr ?? null,
         parent_id: version.parentId,
         site_id: version.siteId,
         valid: sql<string>`daterange(${version.validFrom}::date, ${version.validTo}::date, '[)')`,

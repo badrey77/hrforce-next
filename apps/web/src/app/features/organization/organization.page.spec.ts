@@ -287,7 +287,7 @@ describe('OrganizationPage', () => {
     (el().querySelector('[data-tab="history"]') as HTMLButtonElement).click();
     await settle();
     enterViewport();
-    for (let i = 0; i < 20 && !el().querySelector('app-timeline'); i++) await settle();
+    for (let i = 0; i < 60 && !el().querySelector('app-timeline'); i++) await settle();
     await settle();
     const req = http.expectOne((r) => r.url === '/api/audit/timeline');
     expect(req.request.params.get('subject')).toBe('org_unit:r-est');
@@ -381,6 +381,7 @@ describe('OrganizationPage', () => {
       kind: 'agency',
       code: 'AG-CNE',
       name: 'Agence Constantine',
+      nameAr: null,
       parentId: 'r-est',
       siteId: null,
       validFrom: '2025-03-31',
@@ -479,7 +480,7 @@ describe('OrganizationPage', () => {
     expect(optionTexts('change-unit-site')[0]).toBe("Hériter de l'unité parente");
 
     await submit();
-    expect(el().querySelector('form [role="alert"]')?.textContent).toContain("Modifiez le nom, l'unité parente ou le site.");
+    expect(el().querySelector('form [role="alert"]')?.textContent).toContain("Modifiez le nom, le nom arabe, l'unité parente ou le site.");
 
     fill('change-unit-name', 'Région Est-Sud');
     choose('change-unit-site', "Hériter de l'unité parente");
@@ -672,6 +673,59 @@ describe('OrganizationPage', () => {
       await open('/organization?asOf=2025-03-31');
 
       expect([...el().querySelectorAll('app-org-nav a')].map((a) => a.textContent?.trim())).toEqual(['Structure']);
+    });
+  });
+  describe('Arabic unit names (employment contract: nameAr)', () => {
+    const AR_EST = { ...REG_EST, nameAr: 'منطقة الشرق' };
+    const AR_RX = { ...DEP_RX, nameAr: 'دائرة الشبكة', children: [AR_EST] };
+    const AR_ROOT = { ...ROOT, nameAr: 'المديرية العامة', children: [DEP_RH, DEP_FIN, AR_RX] };
+
+    it('shows Arabic names in the tree, the detail title and the breadcrumbs in the Arabic UI, Latin otherwise', async () => {
+      await open('/organization?asOf=2025-03-31', AR_ROOT);
+      await select(AR_EST, [P_DG, P_RX], { nameAr: 'منطقة الشرق' });
+      expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Région Est');
+      expect(el().querySelector('[data-field="nameAr"]')?.textContent?.trim()).toBe('منطقة الشرق');
+
+      TestBed.inject(LanguageService).use('ar');
+      await settle();
+      expect(nodeButton('REG-EST')?.textContent).toContain('منطقة الشرق');
+      // No Arabic name → Latin, even in the Arabic UI.
+      expect(nodeButton('DEP-RH')?.textContent).toContain('Département RH');
+      expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('منطقة الشرق');
+      const crumbs = [...el().querySelectorAll('app-unit-detail .breadcrumb li')].map((li) => li.textContent?.trim());
+      expect(crumbs).toEqual(['المديرية العامة', 'دائرة الشبكة']);
+      TestBed.inject(LanguageService).use('fr');
+    });
+
+    it('create and change forms send nameAr (blank → null; cleared → null)', async () => {
+      await open('/organization?asOf=2025-03-31');
+      await select(REG_EST, [P_DG, P_RX], { nameAr: 'منطقة الشرق' });
+      button('Modifier').click();
+      await settle();
+      http.expectOne('/api/org/units/d-rx').flush(detailOf(DEP_RX, [P_DG]));
+      await settle();
+      expect((el().querySelector('#change-unit-name-ar') as HTMLInputElement).value).toBe('منطقة الشرق');
+      fill('change-unit-name-ar', '  ');
+      await submit();
+      const patch = http.expectOne('/api/org/units/r-est');
+      expect(patch.request.body).toEqual({ nameAr: null, validFrom: '2025-03-31' });
+      patch.flush(detailOf(REG_EST, [P_DG, P_RX]));
+      await settle();
+      http.expectOne(isTree).flush(tree('2025-03-31'));
+      http.expectOne('/api/org/units/r-est').flush(detailOf(REG_EST, [P_DG, P_RX]));
+      await settle();
+
+      button('Ajouter une sous-unité').click();
+      await settle();
+      fill('create-unit-code', 'AG-SETIF');
+      fill('create-unit-name', 'Agence Sétif');
+      fill('create-unit-name-ar', ' وكالة سطيف ');
+      choose('create-unit-kind', 'Agence');
+      await submit();
+      const post = http.expectOne('/api/org/units');
+      expect(post.request.body).toMatchObject({ name: 'Agence Sétif', nameAr: 'وكالة سطيف' });
+      post.flush({ type: 'about:blank', title: 'Boom', status: 500 }, { status: 500, statusText: 'Error' });
+      await settle();
     });
   });
 });

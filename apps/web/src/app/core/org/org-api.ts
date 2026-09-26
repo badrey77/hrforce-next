@@ -83,9 +83,14 @@ export class OrgApi {
     });
   }
 
-  /** `GET /org/sites?q=` as a resource; each new `q` re-fetches. A blank `q` lists all (max 200). */
-  sitesResource(q: () => string | undefined): HttpResourceRef<SiteList | undefined> {
+  /**
+   * `GET /org/sites?q=` as a resource; each new `q` re-fetches. A blank `q` lists all (max 200).
+   * `enabled` lets a page that only MAY show sites (the employee list's site filter needs `site.read`) keep the
+   * resource idle instead of collecting a 403.
+   */
+  sitesResource(q: () => string | undefined, enabled: () => boolean = () => true): HttpResourceRef<SiteList | undefined> {
     return httpResource<SiteList>(() => {
+      if (!enabled()) return undefined;
       const text = q()?.trim();
       const params: Record<string, string> = text ? { q: text } : {};
       return { url: `${ORG_API_BASE}/sites`, params };

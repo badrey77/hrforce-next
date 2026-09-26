@@ -7,8 +7,9 @@
  *   Only `en-US` is built in. Any other locale must be REGISTERED once, with `registerLocaleData(data, id)`,
  *   before a pipe formats with it — otherwise the pipe throws "Missing locale data for the locale 'fr'".
  *   The data files are small (~2.5 kB each) and are plain ES modules, so they end up in whichever bundle chunk
- *   imports this file: today only the timeline does, and the timeline is `@defer`red — so the locale data is
- *   downloaded with the History tab, not with the app (see docs/angular/13-pipes-defer-and-lists.md).
+ *   imports this file: the timeline (`@defer`red — downloaded with the History tab, not with the app; see
+ *   docs/angular/13-pipes-defer-and-lists.md) and the employee detail page (salaries through `DecimalPipe`, in
+ *   the Employees lazy chunk). Number formatting reads the same locale data (group and decimal separators).
  * - **`LOCALE_ID` vs the Transloco language.** `LOCALE_ID` is a DI token (default `'en-US'`) that `DatePipe` reads
  *   ONCE, when the pipe instance is created. It is an application-wide constant: providing it
  *   (`{ provide: LOCALE_ID, useValue: 'fr' }`) fixes it at bootstrap, and there is no supported way to change it

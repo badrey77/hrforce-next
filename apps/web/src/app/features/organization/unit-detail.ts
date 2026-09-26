@@ -11,34 +11,44 @@
  *   tracking by position is fine here.
  * - **`@empty`** after `@for` renders when the list is empty.
  * - The kind badge comes from `KindCatalog.labelOf()` (API data in the active language), not from `t()`.
+ * - Names in the UI language: the title and the version names go through the `displayName` pipe (Arabic name in the
+ *   Arabic UI when there is one). The breadcrumb names come from the `names` input first — the page builds that map
+ *   from the tree in the active language, because the contract's `path` items carry only the Latin `name`.
+ * - `class="nowrap"` on date and code cells (global utility, styles.css): "2026-01-01" must not break at a hyphen.
  *
  * Site: `unit.site` is the EFFECTIVE site; when `siteInherited` is true it comes from an ancestor, which the view
  * says. In the history, a version's `siteId` is its OWN site, so `null` reads "inherited".
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { LanguageService } from '../../core/i18n/language.service';
 import { KindCatalog } from '../../core/org/kind-catalog';
-import type { OrgUnitDetail } from '../../core/org/org.models';
+import type { OrgUnitDetail, OrgUnitPathItem } from '../../core/org/org.models';
+import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 
 @Component({
   selector: 'app-unit-detail',
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, DisplayNamePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
       @let u = unit();
       <h2 class="title">
-        <span class="badge">{{ kindCatalog.labelOf(u.kind) }}</span>&ngsp;{{ u.name }}
+        <span class="badge">{{ kindCatalog.labelOf(u.kind) }}</span>&ngsp;{{ u | displayName: lang() }}
       </h2>
       <dl class="facts">
         <dt>{{ t('org.detail.code') }}</dt>
         <dd class="code">{{ u.code }}</dd>
+        <dt>{{ t('org.detail.nameLatin') }}</dt>
+        <dd data-field="name">{{ u.name }}</dd>
+        <dt>{{ t('org.detail.nameAr') }}</dt>
+        <dd data-field="nameAr" dir="auto">{{ u.nameAr || t('org.detail.none') }}</dd>
         <dt>{{ t('org.detail.path') }}</dt>
         <dd>
           @if (u.path.length) {
             <ol class="breadcrumb">
               @for (step of u.path; track step.id) {
-                <li>{{ step.name }}</li>
+                <li>{{ pathName(step) }}</li>
               }
             </ol>
           } @else {
@@ -75,9 +85,9 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
           <tbody>
             @for (version of u.versions; track $index) {
               <tr>
-                <td>{{ version.validFrom }}</td>
-                <td>{{ version.validTo ?? t('org.detail.open') }}</td>
-                <td>{{ version.name }}</td>
+                <td class="nowrap">{{ version.validFrom }}</td>
+                <td class="nowrap">{{ version.validTo ?? t('org.detail.open') }}</td>
+                <td>{{ version | displayName: lang() }}</td>
                 <td>{{ version.parentId ? parentName(version.parentId) : t('org.detail.none') }}</td>
                 <td>{{ version.siteId ? siteName(version.siteId) : t('org.detail.inherited') }}</td>
               </tr>
@@ -108,6 +118,7 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
 })
 export class UnitDetail {
   protected readonly kindCatalog = inject(KindCatalog);
+  protected readonly lang = inject(LanguageService).current;
   readonly unit = input.required<OrgUnitDetail>();
   /** id → name of units known from the tree, to name the parent of older versions. */
   readonly names = input<ReadonlyMap<string, string>>(new Map());
@@ -116,7 +127,7 @@ export class UnitDetail {
 
   private readonly lookup = computed(() => {
     const map = new Map(this.names());
-    for (const step of this.unit().path) map.set(step.id, step.name);
+    for (const step of this.unit().path) if (!map.has(step.id)) map.set(step.id, displayNameOf(step, this.lang()));
     return map;
   });
 
@@ -126,6 +137,11 @@ export class UnitDetail {
     if (site && !map.has(site.id)) map.set(site.id, `${site.name} (${site.code})`);
     return map;
   });
+
+  /** A breadcrumb step in the UI language: from the page's (language-aware) name map, else the step itself. */
+  protected pathName(step: OrgUnitPathItem): string {
+    return this.names().get(step.id) ?? displayNameOf(step, this.lang());
+  }
 
   protected parentName(id: string): string {
     return this.lookup().get(id) ?? id;

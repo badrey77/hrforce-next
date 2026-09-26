@@ -1,0 +1,214 @@
+<!--
+  One <fieldset formGroupName="…"> per section: inside it, `formControlName="nin"` means `form.controls.identity
+  .controls.nin` — the markup mirrors the nested model. `@let` names a control once for its aria bindings; the
+  message itself is <app-field-error> (field-error.ts).
+  `dir="rtl" lang="ar"` on the Arabic name inputs; `inputmode="numeric"` / `"decimal"` brings up the right mobile
+  keyboard for digit and money fields without `type="number"` (which would drop leading zeros of a RIB or NSS and
+  turn "85000,50" into nothing).
+-->
+<ng-container *transloco="let t">
+  <p><a routerLink="/employees">{{ t('employees.detail.back') }}</a></p>
+  <h1>{{ t('employees.create.title') }}</h1>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    @if (formError(); as error) {
+      <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    <!-- Identity ------------------------------------------------------------------------------------------ -->
+    @let identity = form.controls.identity.controls;
+    <fieldset class="section" formGroupName="identity" data-section="identity">
+      <legend>{{ t('employees.sections.identity') }}</legend>
+      <div class="grid">
+        <div class="field">
+          <label for="new-last-name">{{ t('employees.fields.lastName') }}</label>
+          <input id="new-last-name" type="text" formControlName="lastName" autocomplete="off" required
+            [attr.aria-invalid]="identity.lastName.invalid && identity.lastName.touched" aria-describedby="new-last-name-error" />
+          <app-field-error [control]="identity.lastName" errorId="new-last-name-error" />
+        </div>
+        <div class="field">
+          <label for="new-first-name">{{ t('employees.fields.firstName') }}</label>
+          <input id="new-first-name" type="text" formControlName="firstName" autocomplete="off" required
+            [attr.aria-invalid]="identity.firstName.invalid && identity.firstName.touched" aria-describedby="new-first-name-error" />
+          <app-field-error [control]="identity.firstName" errorId="new-first-name-error" />
+        </div>
+        <div class="field">
+          <label for="new-last-name-ar">{{ t('employees.fields.lastNameAr') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="new-last-name-ar" type="text" formControlName="lastNameAr" autocomplete="off" dir="rtl" lang="ar"
+            [attr.aria-invalid]="identity.lastNameAr.invalid && identity.lastNameAr.touched" aria-describedby="new-last-name-ar-error" />
+          <app-field-error [control]="identity.lastNameAr" errorId="new-last-name-ar-error" />
+        </div>
+        <div class="field">
+          <label for="new-first-name-ar">{{ t('employees.fields.firstNameAr') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="new-first-name-ar" type="text" formControlName="firstNameAr" autocomplete="off" dir="rtl" lang="ar"
+            [attr.aria-invalid]="identity.firstNameAr.invalid && identity.firstNameAr.touched" aria-describedby="new-first-name-ar-error" />
+          <app-field-error [control]="identity.firstNameAr" errorId="new-first-name-ar-error" />
+        </div>
+        <div class="field">
+          <label for="new-birth-date">{{ t('employees.fields.birthDate') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="new-birth-date" type="date" formControlName="birthDate"
+            [attr.aria-invalid]="identity.birthDate.invalid && identity.birthDate.touched" aria-describedby="new-birth-date-error" />
+          <app-field-error [control]="identity.birthDate" errorId="new-birth-date-error" />
+        </div>
+        <div class="field">
+          <label for="new-birth-place">{{ t('employees.fields.birthPlace') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="new-birth-place" type="text" formControlName="birthPlace" autocomplete="off" dir="auto"
+            [attr.aria-invalid]="identity.birthPlace.invalid && identity.birthPlace.touched" aria-describedby="new-birth-place-error" />
+          <app-field-error [control]="identity.birthPlace" errorId="new-birth-place-error" />
+        </div>
+        <div class="field">
+          <label for="new-sex">{{ t('employees.fields.sex') }}</label>
+          <!-- `[ngValue]`: the model holds `null` / 'M' / 'F', not strings of them (chapter 07). -->
+          <select id="new-sex" formControlName="sex">
+            <option [ngValue]="null">{{ t('employees.sex.unknown') }}</option>
+            <option [ngValue]="'F'">{{ t('employees.sex.F') }}</option>
+            <option [ngValue]="'M'">{{ t('employees.sex.M') }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="new-nationality">{{ t('employees.fields.nationality') }}</label>
+          <input id="new-nationality" type="text" formControlName="nationality" autocomplete="off" maxlength="2" required
+            [attr.aria-invalid]="identity.nationality.invalid && identity.nationality.touched"
+            aria-describedby="new-nationality-hint new-nationality-error" />
+          <p class="field-hint" id="new-nationality-hint">{{ t('employees.hints.nationality') }}</p>
+          <app-field-error [control]="identity.nationality" errorId="new-nationality-error" />
+        </div>
+        <div class="field">
+          <label for="new-nin">{{ t('employees.fields.nin') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="new-nin" type="text" inputmode="numeric" formControlName="nin" autocomplete="off"
+            [attr.aria-invalid]="identity.nin.invalid && identity.nin.touched" aria-describedby="new-nin-hint new-nin-error" />
+          <p class="field-hint" id="new-nin-hint">{{ t('employees.hints.nin') }}</p>
+          <app-field-error [control]="identity.nin" errorId="new-nin-error" />
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Employment -------------------------------------------------------------------------------------------- -->
+    @let employment = form.controls.employment.controls;
+    <fieldset class="section" formGroupName="employment" data-section="employment">
+      <legend>{{ t('employees.sections.employment') }}</legend>
+      <div class="grid">
+        <div class="field">
+          <label for="new-matricule">{{ t('employees.fields.matricule') }}</label>
+          <input id="new-matricule" type="text" formControlName="matricule" autocomplete="off" maxlength="20" required
+            [attr.aria-invalid]="employment.matricule.invalid && employment.matricule.touched"
+            aria-describedby="new-matricule-hint new-matricule-error" />
+          <p class="field-hint" id="new-matricule-hint">{{ t('employees.hints.matricule') }}</p>
+          <app-field-error [control]="employment.matricule" errorId="new-matricule-error" />
+        </div>
+        <div class="field">
+          <label for="new-hire-date">{{ t('employees.fields.hireDate') }}</label>
+          <input id="new-hire-date" type="date" formControlName="hireDate" required
+            [attr.aria-invalid]="employment.hireDate.invalid && employment.hireDate.touched"
+            aria-describedby="new-hire-date-error new-cross-error" />
+          <app-field-error [control]="employment.hireDate" errorId="new-hire-date-error" />
+          <!-- A ROOT-group error (reads two sections): shown here, next to the field the user will change. -->
+          @if (submitted() && form.hasError('birthAfterHire')) {
+            <p class="field-error" id="new-cross-error" data-error="birthAfterHire">{{ t('employees.form.errors.birthAfterHire') }}</p>
+          }
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- First assignment -------------------------------------------------------------------------------------- -->
+    @let assignment = form.controls.assignment.controls;
+    <fieldset class="section" formGroupName="assignment" data-section="assignment">
+      <legend>{{ t('employees.sections.assignment') }}</legend>
+      <div class="grid">
+        <div class="field">
+          <label for="new-unit">{{ t('employees.fields.unit') }}</label>
+          <app-org-unit-picker
+            formControlName="orgUnitId"
+            inputId="new-unit"
+            [asOf]="hireDate() || undefined"
+            [invalid]="assignment.orgUnitId.invalid && assignment.orgUnitId.touched"
+            describedBy="new-unit-error"
+          />
+          <app-field-error [control]="assignment.orgUnitId" errorId="new-unit-error" />
+        </div>
+        @if (canSites()) {
+          <div class="field">
+            <label for="new-site">{{ t('employees.fields.site') }}</label>
+            <select id="new-site" formControlName="siteId">
+              <option [ngValue]="null">{{ t('employees.fields.siteOfUnit') }}</option>
+              @for (site of sites(); track site.id) {
+                <option [ngValue]="site.id">{{ site.name }} ({{ site.code }})</option>
+              }
+            </select>
+          </div>
+        }
+        <div class="field">
+          <label for="new-job-title">{{ t('employees.fields.jobTitle') }}</label>
+          <input id="new-job-title" type="text" formControlName="jobTitle" autocomplete="off" dir="auto" required
+            [attr.aria-invalid]="assignment.jobTitle.invalid && assignment.jobTitle.touched" aria-describedby="new-job-title-error" />
+          <app-field-error [control]="assignment.jobTitle" errorId="new-job-title-error" />
+        </div>
+      </div>
+      <p class="field-hint">{{ t('employees.hints.firstAssignment') }}</p>
+    </fieldset>
+
+    <!-- Sensitive sections: only when the session may write them (see the class header). -------------------- -->
+    @if (canSalary()) {
+      @let salary = form.controls.salary.controls;
+      <fieldset class="section sensitive" formGroupName="salary" data-section="salary">
+        <legend>{{ t('employees.sections.salary') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></legend>
+        <div class="field">
+          <label for="new-salary">{{ t('employees.fields.baseSalary') }}</label>
+          <input id="new-salary" type="text" inputmode="decimal" formControlName="baseSalary" autocomplete="off"
+            [attr.aria-invalid]="salary.baseSalary.invalid && salary.baseSalary.touched"
+            aria-describedby="new-salary-hint new-salary-error" />
+          <p class="field-hint" id="new-salary-hint">{{ t('employees.hints.salary') }}</p>
+          <app-field-error [control]="salary.baseSalary" errorId="new-salary-error" />
+        </div>
+      </fieldset>
+    }
+
+    @if (canBank()) {
+      @let bank = form.controls.bank;
+      <fieldset class="section sensitive" formGroupName="bank" data-section="bank">
+        <legend>{{ t('employees.sections.bank') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></legend>
+        <div class="grid">
+          <div class="field">
+            <label for="new-rib">{{ t('employees.fields.rib') }}</label>
+            <input id="new-rib" type="text" inputmode="numeric" formControlName="rib" autocomplete="off"
+              [attr.aria-invalid]="bank.controls.rib.invalid && bank.controls.rib.touched"
+              aria-describedby="new-rib-hint new-rib-error" />
+            <p class="field-hint" id="new-rib-hint">{{ t('employees.hints.rib') }}</p>
+            <app-field-error [control]="bank.controls.rib" errorId="new-rib-error" />
+          </div>
+          <div class="field">
+            <label for="new-bank-name">{{ t('employees.fields.bankName') }}</label>
+            <input id="new-bank-name" type="text" formControlName="bankName" autocomplete="off" dir="auto"
+              [attr.aria-invalid]="bank.controls.bankName.invalid && bank.controls.bankName.touched"
+              aria-describedby="new-bank-name-error" />
+            <app-field-error [control]="bank.controls.bankName" errorId="new-bank-name-error" />
+          </div>
+        </div>
+        @if (bank.hasError('incomplete') && (bank.controls.rib.touched || bank.controls.bankName.touched)) {
+          <p class="field-error" data-error="bankIncomplete">{{ t('employees.form.errors.bankIncomplete') }}</p>
+        }
+      </fieldset>
+    }
+
+    @if (canNss()) {
+      @let nss = form.controls.nss.controls;
+      <fieldset class="section sensitive" formGroupName="nss" data-section="nss">
+        <legend>{{ t('employees.sections.nss') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></legend>
+        <div class="field">
+          <label for="new-nss">{{ t('employees.fields.nss') }}</label>
+          <input id="new-nss" type="text" inputmode="numeric" formControlName="nss" autocomplete="off"
+            [attr.aria-invalid]="nss.nss.invalid && nss.nss.touched" aria-describedby="new-nss-hint new-nss-error" />
+          <p class="field-hint" id="new-nss-hint">{{ t('employees.hints.nss') }}</p>
+          <app-field-error [control]="nss.nss" errorId="new-nss-error" />
+        </div>
+      </fieldset>
+    }
+
+    <div class="form-actions">
+      <button class="btn" type="submit" [disabled]="submitting()">
+        {{ submitting() ? t('employees.form.saving') : t('employees.create.submit') }}
+      </button>
+      <a class="btn secondary" routerLink="/employees">{{ t('common.cancel') }}</a>
+    </div>
+  </form>
+</ng-container>

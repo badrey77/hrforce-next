@@ -65,6 +65,12 @@ export interface OrgTreeNode {
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
+  /**
+   * Arabic name (employment contract: "`OrgTreeNode`, `OrgUnitSummary`, `OrgUnitDetail` and versions gain
+   * `nameAr: string | null`"). Optional here so an API from before that step still type-checks; shown by the
+   * `displayName` pipe in the Arabic UI.
+   */
+  readonly nameAr?: string | null;
   /** Effective site (own, else the nearest ancestor's). */
   readonly site: SiteRef | null;
   /** Sorted by the API (kind sortOrder, then code) — the web keeps that order. */
@@ -88,6 +94,8 @@ export interface OrgTree {
 export interface OrgUnitPathItem {
   readonly id: string;
   readonly name: string;
+  /** Not in the contract's path items; used when an API sends it (else the page resolves names from the tree). */
+  readonly nameAr?: string | null;
 }
 
 export interface OrgUnitSummary {
@@ -95,6 +103,8 @@ export interface OrgUnitSummary {
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
+  /** Arabic name (see OrgTreeNode.nameAr). */
+  readonly nameAr?: string | null;
   /** Effective site. */
   readonly site: SiteRef | null;
   /** Ancestors from the root down to the parent (excludes self); empty for the root. */
@@ -111,6 +121,8 @@ export interface OrgUnitVersion {
   /** Exclusive end; `null` = still open. */
   readonly validTo: string | null;
   readonly name: string;
+  /** Arabic name on that version (date-effective like `name`). */
+  readonly nameAr?: string | null;
   readonly parentId: string | null;
   /** Own site on that version; `null` = inherited from an ancestor. */
   readonly siteId: string | null;
@@ -131,14 +143,18 @@ export interface CreateOrgUnit {
   readonly kind: OrgUnitKind;
   readonly code: string;
   readonly name: string;
+  /** Optional Arabic name (employment contract); `null`/absent = none. */
+  readonly nameAr?: string | null;
   readonly parentId: string;
   readonly siteId?: string | null;
   readonly validFrom?: string;
 }
 
-/** `PATCH /org/units/:id` body — at least one of `name` / `parentId` / `siteId` (`siteId: null` = inherit). */
+/** `PATCH /org/units/:id` body — at least one of `name` / `nameAr` / `parentId` / `siteId` (`siteId: null` = inherit). */
 export interface ChangeOrgUnit {
   readonly name?: string;
+  /** New Arabic name from `validFrom`; `null` removes it. */
+  readonly nameAr?: string | null;
   readonly parentId?: string;
   readonly siteId?: string | null;
   readonly validFrom?: string;

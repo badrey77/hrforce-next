@@ -224,11 +224,12 @@ describe('Organization API v2 (e2e)', () => {
         kind: 'agency',
         code: 'AG-ALG',
         name: 'Agence Alger Centre',
+        nameAr: 'وكالة الجزائر الوسطى',
         site: siteRef('ALG-CTR'),
         path: [
-          { id: unit('DG'), name: 'Direction Générale' },
-          { id: unit('DEP-RX'), name: 'Département RX' },
-          { id: unit('REG-CTR'), name: 'Région Centre' },
+          { id: unit('DG'), name: 'Direction Générale', nameAr: 'المديرية العامة' },
+          { id: unit('DEP-RX'), name: 'Département RX', nameAr: 'دائرة الشبكة' },
+          { id: unit('REG-CTR'), name: 'Région Centre', nameAr: 'منطقة الوسط' },
         ],
       },
     ]);
@@ -238,6 +239,10 @@ describe('Organization API v2 (e2e)', () => {
     expect(await codes(`q=${encodeURIComponent('clientèle')}`)).toEqual(['SRV-CLI-ANB']);
     expect(await codes('q=region')).toEqual(['REG-CTR', 'REG-EST', 'REG-OUEST']);
     expect(await codes('q=srv-adm')).toEqual(['SRV-ADM-EST']); // code match
+    // Arabic names (0010): tashkeel and alef/teh-marbuta variants are normalised on both sides
+    expect(await codes(`q=${encodeURIComponent('عنابة')}`)).toEqual(['AG-ANNABA']);
+    expect(await codes(`q=${encodeURIComponent('عَنّابه')}`)).toEqual(['AG-ANNABA']);
+    expect(await codes(`q=${encodeURIComponent('منطقة الشرق')}`)).toEqual(['REG-EST']);
     expect(await codes('q=%25')).toEqual([]); // LIKE wildcards are literal
     expect(await codes('kind=service')).toEqual(['SRV-ADM-EST', 'SRV-CLI-ANB', 'SRV-COMPTA', 'SRV-FORM', 'SRV-PAIE']);
     expect(await codes('kind=region&kind=agency')).toHaveLength(9);
@@ -290,8 +295,8 @@ describe('Organization API v2 (e2e)', () => {
       assertNoSecrets(res.body);
       expect(res.headers['location']).toBe(`/api/org/units/${res.body.id}`);
       expect(res.body).toMatchObject({ kind, code: `OK-${i}`, name: `${kind} ${i}`, siteInherited: true });
-      expect(res.body.path.at(-1)).toEqual({ id: unit(parent), name: expect.any(String) });
-      expect(res.body.versions).toEqual([{ validFrom: today, validTo: null, name: `${kind} ${i}`, parentId: unit(parent), siteId: null }]);
+      expect(res.body.path.at(-1)).toMatchObject({ id: unit(parent), name: expect.any(String) });
+      expect(res.body.versions).toEqual([{ validFrom: today, validTo: null, name: `${kind} ${i}`, nameAr: null, parentId: unit(parent), siteId: null }]);
       expect(actionsOf(res.body)).toEqual(kind === 'service' ? ['update'] : ['update', 'create_child']);
     }
   });
@@ -381,8 +386,8 @@ describe('Organization API v2 (e2e)', () => {
       .expect(200);
     assertNoSecrets(res.body);
     expect(res.body.versions).toEqual([
-      { validFrom: '2026-03-01', validTo: null, name: 'Agence Oran Port', parentId: unit('REG-CTR'), siteId: site('ORAN') },
-      { validFrom: '2026-01-01', validTo: '2026-03-01', name: 'Agence Oran', parentId: unit('REG-OUEST'), siteId: site('ORAN') },
+      { validFrom: '2026-03-01', validTo: null, name: 'Agence Oran Port', nameAr: 'وكالة وهران', parentId: unit('REG-CTR'), siteId: site('ORAN') },
+      { validFrom: '2026-01-01', validTo: '2026-03-01', name: 'Agence Oran', nameAr: 'وكالة وهران', parentId: unit('REG-OUEST'), siteId: site('ORAN') },
     ]);
     expect(res.body.name).toBe('Agence Oran Port');
     expect(res.body.path.map((p: { name: string }) => p.name)).toEqual(['Direction Générale', 'Département RX', 'Région Centre']);
@@ -422,8 +427,8 @@ describe('Organization API v2 (e2e)', () => {
   it('a site change is a new version; siteId null inherits again', async () => {
     const moved = await demo().patch(`/api/org/units/${unit('SRV-ADM-EST')}`).send({ siteId: site('ANNABA'), validFrom: '2026-05-01' }).expect(200);
     expect(moved.body.versions).toEqual([
-      { validFrom: '2026-05-01', validTo: null, name: 'Service Administration Est', parentId: unit('REG-EST'), siteId: site('ANNABA') },
-      { validFrom: '2026-01-01', validTo: '2026-05-01', name: 'Service Administration Est', parentId: unit('REG-EST'), siteId: null },
+      { validFrom: '2026-05-01', validTo: null, name: 'Service Administration Est', nameAr: null, parentId: unit('REG-EST'), siteId: site('ANNABA') },
+      { validFrom: '2026-01-01', validTo: '2026-05-01', name: 'Service Administration Est', nameAr: null, parentId: unit('REG-EST'), siteId: null },
     ]);
     expect(moved.body).toMatchObject({ site: siteRef('ANNABA'), siteInherited: false });
     const before = await demo().get('/api/org/tree?asOf=2026-04-30').expect(200);

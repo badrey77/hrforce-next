@@ -76,6 +76,22 @@ export class AuditRepository {
     return rows.map((r) => r.org_unit_id);
   }
 
+  /**
+   * The unit deciding an employee's scope (docs/contracts/employment.md › Scope): its assignment valid today, else the
+   * latest one started before today (an ended employment's last one), else its first one. undefined = unknown id.
+   */
+  async employeeScopeUnit(companyId: string, employmentId: string): Promise<string | undefined> {
+    const { rows } = await sql<{ org_unit_id: string }>`
+      select a.org_unit_id
+        from assignment a
+       where a.company_id = ${companyId}::uuid and a.employment_id = ${employmentId}::uuid
+       order by case when a.valid @> current_date then 0 when lower(a.valid) <= current_date then 1 else 2 end,
+                case when lower(a.valid) <= current_date then lower(a.valid) end desc nulls last,
+                lower(a.valid) asc
+       limit 1`.execute(currentTx());
+    return rows[0]?.org_unit_id;
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -170,6 +186,20 @@ export class AuditRepository {
       case 'role':
         // role_permission rows are keyed on their role (audit.capture('role_id'))
         return sql<boolean>`c.table_name in ('role', 'role_permission') and c.row_id = ${id}::uuid`;
+      case 'employee':
+        // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
+        // sensitive row (keyed on person_id: audit.capture('person_id'))
+        return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
+          or (c.table_name in ('assignment', 'employment_salary') and c.row_id in (
+                select a.id from assignment a where a.company_id = ${companyId}::uuid and a.employment_id = ${id}::uuid
+                union
+                select s.id from employment_salary s where s.company_id = ${companyId}::uuid and s.employment_id = ${id}::uuid
+                union
+                select i.row_id from audit.change_log i
+                 where i.company_id = ${companyId}::uuid and i.table_name in ('assignment', 'employment_salary') and i.op = 'insert'
+                   and i.after ->> 'employment_id' = ${id}::text))
+          or (c.table_name in ('person', 'person_sensitive') and c.row_id in (
+                select e.person_id from employment e where e.company_id = ${companyId}::uuid and e.id = ${id}::uuid))`;
       case 'user':
         // the user's grants whose unit is in the caller's audit.read scope (grants are never deleted by the app; an
         // insert row also identifies one removed by hand)

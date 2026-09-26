@@ -1,0 +1,301 @@
+<!--
+  States from the resource: value → the page (kept during a reload after a save); error → 404 "not found" (no retry:
+  out-of-scope ids are 404 by design, ADR 002) or a retryable error; otherwise loading.
+  Tabs: role="tablist"/"tab"/"tabpanel" with aria-selected + aria-controls; only the active panel is rendered
+  (`@switch`), and an open edit form is closed when the tab changes (`select()`).
+-->
+<ng-container *transloco="let t">
+  <p><a routerLink="/employees">{{ t('employees.detail.back') }}</a></p>
+
+  @if (detail(); as e) {
+    <header class="employee-header" [attr.aria-busy]="employee.isLoading()">
+      <div>
+        <h1>{{ e.person | displayName: lang() }}</h1>
+        <p class="meta">
+          <span class="code" data-field="matricule">{{ e.matricule }}</span>
+          <span data-field="unit">{{ e.unit | displayName: lang() }}</span>
+          <span>{{ e.jobTitle }}</span>
+          <span class="badge" data-field="status" [attr.data-status]="e.status">{{ t('employees.status.' + e.status) }}</span>
+        </p>
+      </div>
+      @if (can('end') && e.status !== 'ended') {
+        <button class="btn secondary" type="button" data-action="end" (click)="openEnd()">{{ t('employees.end.action') }}</button>
+      }
+    </header>
+
+    @if (feedback(); as key) {
+      <p class="feedback" role="status">{{ t(key) }}</p>
+    }
+
+    <div class="tabs" role="tablist" [attr.aria-label]="t('employees.tabs.label')">
+      @for (tabName of tabs(); track tabName) {
+        <button
+          type="button"
+          role="tab"
+          [id]="'employee-tab-' + tabName"
+          [attr.data-tab]="tabName"
+          [attr.aria-selected]="activeTab() === tabName"
+          aria-controls="employee-tab-panel"
+          (click)="select(tabName)"
+        >
+          {{ t('employees.tabs.' + tabName) }}
+        </button>
+      }
+    </div>
+
+    <div id="employee-tab-panel" role="tabpanel" [attr.aria-labelledby]="'employee-tab-' + activeTab()">
+      @switch (activeTab()) {
+        <!-- Identity ------------------------------------------------------------------------------------------ -->
+        @case ('identity') {
+          @if (editing() === 'person') {
+            <app-person-form [employee]="e" (saved)="onSaved('employees.feedback.personSaved')" (cancelled)="editing.set(null)" />
+          } @else {
+            <div class="toolbar">
+              <h2>{{ t('employees.sections.identity') }}</h2>
+              @if (can('update')) {
+                <button class="btn secondary" type="button" data-action="edit-person" (click)="edit('person')">
+                  {{ t('employees.identity.edit') }}
+                </button>
+              }
+            </div>
+            <dl class="facts" data-panel="identity">
+              <dt>{{ t('employees.fields.lastName') }}</dt>
+              <dd>{{ e.person.lastName }}</dd>
+              <dt>{{ t('employees.fields.firstName') }}</dt>
+              <dd>{{ e.person.firstName }}</dd>
+              <dt>{{ t('employees.fields.lastNameAr') }}</dt>
+              <dd lang="ar" dir="rtl">{{ e.person.lastNameAr ?? '—' }}</dd>
+              <dt>{{ t('employees.fields.firstNameAr') }}</dt>
+              <dd lang="ar" dir="rtl">{{ e.person.firstNameAr ?? '—' }}</dd>
+              <dt>{{ t('employees.fields.birthDate') }}</dt>
+              <dd class="nowrap">{{ e.person.birthDate ?? '—' }}</dd>
+              <dt>{{ t('employees.fields.birthPlace') }}</dt>
+              <dd>{{ e.person.birthPlace ?? '—' }}</dd>
+              <dt>{{ t('employees.fields.sex') }}</dt>
+              <dd>{{ t('employees.sex.' + (e.person.sex ?? 'unknown')) }}</dd>
+              <dt>{{ t('employees.fields.nationality') }}</dt>
+              <dd class="code">{{ e.person.nationality }}</dd>
+              <dt>{{ t('employees.fields.nin') }}</dt>
+              <dd class="code">{{ e.person.nin ?? '—' }}</dd>
+              <dt>{{ t('employees.fields.matricule') }}</dt>
+              <dd class="code">{{ e.matricule }}</dd>
+              <dt>{{ t('employees.fields.hireDate') }}</dt>
+              <dd class="nowrap">{{ e.hireDate }}</dd>
+              @if (e.endDate) {
+                <dt>{{ t('employees.fields.endDate') }}</dt>
+                <dd class="nowrap">{{ e.endDate }}</dd>
+                <dt>{{ t('employees.fields.endReason') }}</dt>
+                <dd data-field="endReason">{{ e.endReason ? t('employees.endReasons.' + e.endReason) : '—' }}</dd>
+              }
+            </dl>
+          }
+        }
+
+        <!-- Assignments --------------------------------------------------------------------------------------- -->
+        @case ('assignments') {
+          <div class="toolbar">
+            <h2>{{ t('employees.assignments.title') }}</h2>
+            @if (can('assign') && editing() !== 'assignment') {
+              <button class="btn" type="button" data-action="assign" (click)="edit('assignment')">
+                {{ t('employees.assignments.new') }}
+              </button>
+            }
+          </div>
+          @if (editing() === 'assignment') {
+            <app-assignment-form [employee]="e" (saved)="onSaved('employees.feedback.assigned')" (cancelled)="editing.set(null)" />
+          }
+          <div class="table-scroll">
+            <table class="data" data-table="assignments">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('employees.fields.validFrom') }}</th>
+                  <th scope="col">{{ t('employees.fields.validTo') }}</th>
+                  <th scope="col">{{ t('employees.fields.unit') }}</th>
+                  <th scope="col">{{ t('employees.fields.site') }}</th>
+                  <th scope="col">{{ t('employees.fields.jobTitle') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (a of e.assignments; track a.id) {
+                  <tr [attr.data-assignment]="a.id">
+                    <td class="nowrap">{{ a.validFrom }}</td>
+                    <td class="nowrap">{{ a.validTo ?? t('employees.assignments.open') }}</td>
+                    <td>
+                      {{ a.unit | displayName: lang() }}&ngsp;<span class="code">({{ a.unit.code }})</span>
+                      @if (a.unit.path.length) {
+                        <ol class="breadcrumb" [attr.aria-label]="t('employees.assignments.path')">
+                          @for (step of a.unit.path; track step.id) {
+                            <li>{{ step | displayName: lang() }}</li>
+                          }
+                        </ol>
+                      }
+                    </td>
+                    <td>
+                      {{ a.site?.name ?? '—' }}
+                      @if (a.siteInherited) {
+                        &ngsp;<span class="field-hint">{{ t('employees.assignments.siteInherited') }}</span>
+                      }
+                    </td>
+                    <td>{{ a.jobTitle }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5">{{ t('employees.assignments.empty') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <!-- Pay (only rendered when `salary` is not redacted: see tabs()) -------------------------------------- -->
+        @case ('pay') {
+          <div class="toolbar">
+            <h2>{{ t('employees.pay.title') }}</h2>
+            @if (can('update_salary') && editing() !== 'salary') {
+              <button class="btn" type="button" data-action="new-salary" (click)="edit('salary')">{{ t('employees.pay.new') }}</button>
+            }
+          </div>
+          @if (editing() === 'salary') {
+            <app-salary-form [employee]="e" (saved)="onSaved('employees.feedback.salarySaved')" (cancelled)="editing.set(null)" />
+          }
+          @if (e.salary?.current; as current) {
+            <p data-field="currentSalary">
+              {{ t('employees.pay.current') }}
+              <strong class="amount">{{ current.baseSalary | number: '1.2-2' : locale() }} {{ t('employees.pay.currency') }}</strong>
+              {{ t('employees.pay.since', { date: current.validFrom }) }}
+            </p>
+          } @else {
+            <p class="muted">{{ t('employees.pay.none') }}</p>
+          }
+          <div class="table-scroll">
+            <table class="data" data-table="salary">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('employees.fields.validFrom') }}</th>
+                  <th scope="col">{{ t('employees.fields.validTo') }}</th>
+                  <th scope="col">{{ t('employees.fields.baseSalary') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (s of e.salary?.history ?? []; track s.validFrom) {
+                  <tr>
+                    <td class="nowrap">{{ s.validFrom }}</td>
+                    <td class="nowrap">{{ s.validTo ?? t('employees.assignments.open') }}</td>
+                    <td class="amount">{{ s.baseSalary | number: '1.2-2' : locale() }} {{ t('employees.pay.currency') }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="3">{{ t('employees.pay.none') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <!-- Bank & NSS: each block only when not redacted ---------------------------------------------------- -->
+        @case ('bank') {
+          @if (!redacted(e, 'bank')) {
+            <section data-panel="bank">
+              <div class="toolbar">
+                <h2>{{ t('employees.bank.title') }}</h2>
+                @if (can('update_bank') && editing() !== 'bank') {
+                  <button class="btn secondary" type="button" data-action="edit-bank" (click)="edit('bank')">{{ t('employees.bank.edit') }}</button>
+                }
+              </div>
+              @if (editing() === 'bank') {
+                <app-bank-form [employee]="e" (saved)="onSaved('employees.feedback.bankSaved')" (cancelled)="editing.set(null)" />
+              } @else {
+                <dl class="facts">
+                  <dt>{{ t('employees.fields.rib') }}</dt>
+                  <dd class="code">{{ e.bank?.rib ?? '—' }}</dd>
+                  <dt>{{ t('employees.fields.bankName') }}</dt>
+                  <dd>{{ e.bank?.bankName ?? '—' }}</dd>
+                </dl>
+              }
+            </section>
+          }
+          @if (!redacted(e, 'nss')) {
+            <section data-panel="nss">
+              <div class="toolbar">
+                <h2>{{ t('employees.nss.title') }}</h2>
+                @if (can('update_nss') && editing() !== 'nss') {
+                  <button class="btn secondary" type="button" data-action="edit-nss" (click)="edit('nss')">{{ t('employees.nss.edit') }}</button>
+                }
+              </div>
+              @if (editing() === 'nss') {
+                <app-nss-form [employee]="e" (saved)="onSaved('employees.feedback.nssSaved')" (cancelled)="editing.set(null)" />
+              } @else {
+                <dl class="facts">
+                  <dt>{{ t('employees.fields.nss') }}</dt>
+                  <dd class="code">{{ e.nss?.nss ?? '—' }}</dd>
+                </dl>
+              }
+            </section>
+          }
+        }
+
+        <!-- History: the timeline's code is fetched only when this tab is opened (chapter 13). ---------------- -->
+        @case ('history') {
+          <div data-panel="history">
+            @defer (on viewport; prefetch on idle) {
+              <app-timeline [subject]="'employee:' + e.id" [resolver]="auditNames" />
+            } @placeholder {
+              <p class="muted" data-defer="placeholder">{{ t('audit.loading') }}</p>
+            } @loading (after 100ms; minimum 300ms) {
+              <p class="muted">{{ t('audit.loading') }}</p>
+            } @error {
+              <p class="form-error" role="alert">{{ t('audit.chunkError') }}</p>
+            }
+          </div>
+        }
+      }
+    </div>
+  } @else if (employee.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="employee.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('employees.detail.loading') }}</p>
+  }
+
+  <!-- Page-level dialog, always in the DOM (closed until showModal()). -->
+  <dialog #endDialog aria-labelledby="end-title" (close)="onEndClosed()">
+    <form [formGroup]="endForm" (ngSubmit)="submitEnd()" novalidate>
+      <h2 id="end-title">{{ t('employees.end.title') }}</h2>
+      <p>{{ t('employees.end.intro') }}</p>
+      @if (endError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let c = endForm.controls;
+      <div class="field">
+        <label for="end-reason">{{ t('employees.fields.endReason') }}</label>
+        <select id="end-reason" formControlName="reason" required
+          [attr.aria-invalid]="c.reason.invalid && c.reason.touched" aria-describedby="end-reason-error">
+          <option value="" disabled>{{ t('employees.end.reasonPlaceholder') }}</option>
+          @for (reason of endReasons; track reason) {
+            <option [value]="reason">{{ t('employees.endReasons.' + reason) }}</option>
+          }
+        </select>
+        <app-field-error [control]="c.reason" errorId="end-reason-error" />
+      </div>
+      <div class="field">
+        <label for="end-date">{{ t('employees.fields.endDate') }}</label>
+        <input id="end-date" type="date" formControlName="endDate" required
+          [attr.aria-invalid]="c.endDate.invalid && c.endDate.touched" aria-describedby="end-date-hint end-date-error" />
+        <p class="field-hint" id="end-date-hint">{{ t('employees.end.hint') }}</p>
+        <app-field-error [control]="c.endDate" errorId="end-date-error" />
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" [disabled]="endSubmitting()">
+          {{ endSubmitting() ? t('employees.form.saving') : t('employees.end.submit') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="cancelEnd()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

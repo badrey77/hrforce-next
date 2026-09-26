@@ -1,6 +1,7 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { seedDemoAccess, seedGrants, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
+import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
@@ -65,6 +66,45 @@ export function unitB(code: string): string {
   return found.id;
 }
 
+const DEMO_EMPLOYEES = demoEmployees();
+
+/** Employment id of the n-th demo employee (1-based, EMP-000n; see modules/employment/infra/demo-employees.ts). */
+export function employeeA(n: number): string {
+  const found = DEMO_EMPLOYEES[n - 1];
+  if (!found) throw new Error(`demo employee ${n}`);
+  return found.employmentId;
+}
+
+/** The demo employee record (names, unit…) of EMP-000n. */
+export function demoEmployee(n: number): SeedEmployee {
+  const found = DEMO_EMPLOYEES[n - 1];
+  if (!found) throw new Error(`demo employee ${n}`);
+  return found;
+}
+
+/** One employee of the other company (BETA), in BETA-RH. TEST DATA — fictitious. */
+export const EMPLOYEE_B: SeedEmployee = {
+  personId: id('b501'),
+  employmentId: id('b502'),
+  lastName: 'Beta',
+  firstName: 'Salim',
+  lastNameAr: null,
+  firstNameAr: null,
+  sex: 'M',
+  birthDate: '1990-01-01',
+  birthPlace: 'Sétif',
+  nin: '190990000000000001',
+  nss: '990000000001',
+  rib: '00799999000000000999',
+  bankName: 'BNA',
+  matricule: 'B-0001',
+  hireDate: '2020-01-01',
+  endDate: null,
+  endReason: null,
+  assignments: [{ id: id('b503'), orgUnitId: id('b11'), jobTitle: 'Gestionnaire RH', validFrom: '2020-01-01', validTo: null }],
+  salaries: [{ id: id('b504'), baseSalary: '70000.00', validFrom: '2020-01-01', validTo: null }],
+};
+
 /** Fixed grant ids of the fixture (on top of the demo grants …301–303). */
 export const GRANTS = {
   accesEst: id('f01'),
@@ -104,6 +144,8 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
         { id: GRANTS.targetOran, userId: USERS.target.id, roleCode: 'lecture', orgUnitId: unitA('AG-ORAN'), includeDescendants: true, validFrom: '2026-01-01' },
       ];
       await seedGrants(tx, COMPANY_A, extra);
+      await seedDemoEmployees(tx);
+      await seedEmployees(tx, COMPANY_B, [EMPLOYEE_B]);
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },
       ]);
@@ -139,5 +181,6 @@ export function as(app: NestExpressApplication, actor: ActorName | null, xsrf: X
     get: (url: string) => who(agent.get(url)),
     post: (url: string) => withXsrf(who(agent.post(url)), xsrf),
     patch: (url: string) => withXsrf(who(agent.patch(url)), xsrf),
+    put: (url: string) => withXsrf(who(agent.put(url)), xsrf),
   };
 }

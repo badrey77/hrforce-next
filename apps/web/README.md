@@ -40,12 +40,16 @@ src/
                                + KindCatalog (kind catalogue from GET /org/kinds, once per app, labels in the active language)
     core/access/               Authorization contract types + AccessApi + AccessCatalog (permissions, roles; labels in the
                                active language; only fetched with access.read)
+    core/employees/            Employment contract types (money as a decimal string) + EmployeesApi (list/detail resources,
+                               writes)
     shared/                    reusable UI used by several features (may import core/, never features/)
       can/                     *appCan="'code'; else tpl" structural directive
+      display-name/            `displayName` pipe: Arabic name in the Arabic UI when there is one (people, units)
       org-unit-picker/         <app-org-unit-picker>: search-as-you-type combobox, a ControlValueAccessor (value = unit id)
-    features/<name>/           pages (access, auth: login, password setup/forgot; home, organization, not-found, placeholder)
+    features/<name>/           pages (access, auth: login, password setup/forgot; employees: list with URL state, create,
+                               detail with tabs; home, organization, not-found, placeholder)
     shell/                     shell widgets (language switcher, user menu with "Sign out")
-  testing/                     test-only helpers (translocoTesting(), org/auth/access fixtures, <dialog> polyfill), excluded
+  testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill), excluded
                                from the app build
 public/i18n/{fr,ar,en}.json    translations, nested keys
 ```

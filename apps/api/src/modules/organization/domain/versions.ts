@@ -8,6 +8,8 @@ export interface VersionSpan {
 
 export interface OrgUnitVersionData extends VersionSpan {
   readonly name: string;
+  /** Optional Arabic name (date-effective with `name`); absent/null = none. */
+  readonly nameAr?: string | null;
   readonly parentId: string | null;
   /** Own site of the version (null = inherited from the nearest ancestor). */
   readonly siteId: string | null;
@@ -48,6 +50,8 @@ export function sortVersions<T extends VersionSpan>(versions: readonly T[]): T[]
 export interface VersionChange {
   readonly validFrom: string;
   readonly name?: string;
+  /** undefined = unchanged; null = remove the Arabic name. */
+  readonly nameAr?: string | null;
   readonly parentId?: string;
   /** undefined = unchanged; null = inherit from the nearest ancestor. */
   readonly siteId?: string | null;
@@ -78,12 +82,13 @@ export function planNewVersion<T extends OrgUnitVersionData>(versions: readonly 
     );
   }
   const name = change.name ?? current.name;
+  const nameAr = change.nameAr === undefined ? current.nameAr : change.nameAr;
   const parentId = change.parentId ?? current.parentId;
   const siteId = change.siteId === undefined ? current.siteId : change.siteId;
   return {
     current,
-    next: { validFrom: change.validFrom, validTo: null, name, parentId, siteId },
-    renamed: name !== current.name,
+    next: { validFrom: change.validFrom, validTo: null, name, nameAr, parentId, siteId },
+    renamed: name !== current.name || (nameAr ?? null) !== (current.nameAr ?? null),
     moved: parentId !== current.parentId,
     siteChanged: siteId !== current.siteId,
   };

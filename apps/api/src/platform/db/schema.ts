@@ -23,7 +23,20 @@ export type JsonPrimitive = boolean | number | string | null;
 
 export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
+export type Numeric = ColumnType<string, number | string, number | string>;
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface Assignment {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  employment_id: string;
+  id: Generated<string>;
+  job_title: string;
+  org_unit_id: string;
+  site_id: string | null;
+  valid: string;
+}
 
 export interface AuditChangeLog {
   actor_user_id: string | null;
@@ -63,6 +76,28 @@ export interface Company {
   name: string;
 }
 
+export interface Employment {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  end_date: Timestamp | null;
+  end_reason: string | null;
+  hire_date: Timestamp;
+  id: Generated<string>;
+  matricule: string;
+  matricule_search: Generated<string | null>;
+  person_id: string;
+}
+
+export interface EmploymentSalary {
+  base_salary: Numeric;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  currency: Generated<string>;
+  employment_id: string;
+  id: Generated<string>;
+  valid: string;
+}
+
 export interface OrgUnit {
   axis: Generated<string>;
   code: string;
@@ -99,6 +134,7 @@ export interface OrgUnitVersion {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
   name: string;
+  name_ar: string | null;
   name_search: Generated<string | null>;
   org_unit_id: string;
   parent_id: string | null;
@@ -114,6 +150,32 @@ export interface Permission {
   label_fr: string;
   sensitive: Generated<boolean>;
   sort_order: number;
+}
+
+export interface Person {
+  birth_date: Timestamp | null;
+  birth_place: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  first_name: string;
+  first_name_ar: string | null;
+  id: Generated<string>;
+  last_name: string;
+  last_name_ar: string | null;
+  nationality: Generated<string>;
+  nin: string | null;
+  search_text: Generated<string | null>;
+  sex: string | null;
+  sort_name: Generated<string | null>;
+}
+
+export interface PersonSensitive {
+  bank_name: string | null;
+  company_id: string;
+  nss: string | null;
+  person_id: string;
+  rib: string | null;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface Role {
@@ -160,16 +222,21 @@ export interface Site {
 }
 
 export interface DB {
+  assignment: Assignment;
   "audit.change_log": AuditChangeLog;
   "audit.event": AuditEvent;
   "audit.masked_column": AuditMaskedColumn;
   company: Company;
+  employment: Employment;
+  employment_salary: EmploymentSalary;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;
   org_unit_kind: OrgUnitKind;
   org_unit_kind_parent: OrgUnitKindParent;
   org_unit_version: OrgUnitVersion;
   permission: Permission;
+  person: Person;
+  person_sensitive: PersonSensitive;
   role: Role;
   role_grant: RoleGrant;
   role_permission: RolePermission;

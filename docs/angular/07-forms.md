@@ -535,3 +535,7 @@ again. `org-forms.ts` predates the helper and keeps its own copy of the idea.
 
 [08-i18n-and-rtl.md](./08-i18n-and-rtl.md) — Transloco, and the RTL rules `org-forms`
 and every template here follow.
+
+For forms with sections (nested `FormGroup`s), validator factories, rules across sections,
+optional sections and a reusable error line driven by `control.events`, continue with
+[chapter 14](./14-big-forms-and-url-state.md).

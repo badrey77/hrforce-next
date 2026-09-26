@@ -24,6 +24,7 @@ export interface CreateOrgUnitInput {
   kind: OrgUnitKind;
   code: string;
   name: string;
+  nameAr?: string | null | undefined;
   parentId: string;
   siteId?: string | null | undefined;
   validFrom?: string | undefined;
@@ -31,6 +32,8 @@ export interface CreateOrgUnitInput {
 
 export interface ChangeOrgUnitInput {
   name?: string | undefined;
+  /** undefined = unchanged; null = remove the Arabic name. */
+  nameAr?: string | null | undefined;
   parentId?: string | undefined;
   /** undefined = unchanged; null = inherit from the nearest ancestor. */
   siteId?: string | null | undefined;
@@ -107,6 +110,7 @@ export class OrgUnitsService {
         kind: node.unit.kind,
         code: node.unit.code,
         name: node.unit.name,
+        nameAr: node.unit.nameAr ?? null,
         site: siteId ? (siteRefs.get(siteId) ?? null) : null,
         inScope,
         children,
@@ -146,6 +150,7 @@ export class OrgUnitsService {
         kind: unit.kind,
         code: unit.code,
         name: unit.name,
+        nameAr: unit.nameAr ?? null,
         site: siteId ? (siteRefs.get(siteId) ?? null) : null,
         path: ancestorPath(unit.parentId, byId),
       };
@@ -179,6 +184,7 @@ export class OrgUnitsService {
       kind: unit.kind,
       code: unit.code,
       name: shown.name,
+      nameAr: shown.nameAr ?? null,
       site: site.siteId ? (siteRefs.get(site.siteId) ?? null) : null,
       siteInherited: site.inherited,
       path: ancestorPath(shown.parentId, byId),
@@ -187,6 +193,7 @@ export class OrgUnitsService {
         validFrom: v.validFrom,
         validTo: v.validTo,
         name: v.name,
+        nameAr: v.nameAr ?? null,
         parentId: v.parentId,
         siteId: v.siteId,
       })),
@@ -234,7 +241,7 @@ export class OrgUnitsService {
       if (constraintViolation(error)?.constraint === 'org_unit_company_code_uk') throw codeTaken(input.code);
       throw error;
     }
-    await this.repo.insertVersion(companyId, id, { validFrom, validTo: null, name: input.name, parentId: input.parentId, siteId });
+    await this.repo.insertVersion(companyId, id, { validFrom, validTo: null, name: input.name, nameAr: input.nameAr ?? null, parentId: input.parentId, siteId });
     // The closure is the tree as of today: a unit that starts in the future joins it when it takes effect.
     if (validFrom <= today) await this.repo.insertClosureLeaf(companyId, id, input.parentId);
     return this.getUnit(id);
@@ -259,6 +266,7 @@ export class OrgUnitsService {
     const plan = planNewVersion(await this.repo.listVersions(companyId, id), {
       validFrom,
       ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.nameAr !== undefined ? { nameAr: input.nameAr } : {}),
       ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
       ...(input.siteId !== undefined ? { siteId: input.siteId } : {}),
     });

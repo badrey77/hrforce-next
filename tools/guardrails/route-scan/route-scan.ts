@@ -24,7 +24,8 @@ import {
 import { listFiles } from '../lib/files.ts';
 import { type GuardResult, isMain, printResult, REPO_ROOT, relativeTo, runCli, type Violation } from '../lib/report.ts';
 
-export const PERMISSION_CODE_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
+/** `resource.action`, or `resource.field.action` for field-level permissions (e.g. `employee.salary.update`). */
+export const PERMISSION_CODE_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,2}$/;
 export const HTTP_DECORATORS = ['Get', 'Post', 'Put', 'Patch', 'Delete', 'All', 'Options', 'Head'] as const;
 export const GLOBAL_PREFIX = 'api';
 const NEST_COMMON = '@nestjs/common';
@@ -120,7 +121,7 @@ function accessOf(decorators: AstNode[], resolve: Resolver): AccessInfo {
         if (!PERMISSION_CODE_PATTERN.test(code)) {
           info.problems.push({
             node: decorator,
-            message: `invalid permission code "${code}" (expected lowercase resource.action, ${PERMISSION_CODE_PATTERN})`,
+            message: `invalid permission code "${code}" (expected lowercase resource.action or resource.field.action, ${PERMISSION_CODE_PATTERN})`,
           });
         }
         info.permission = code;

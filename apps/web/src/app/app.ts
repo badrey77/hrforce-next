@@ -4,8 +4,8 @@
  * Angular concepts: the nav is shown only when `session.isAuthenticated()` (a `computed()` of the root Session
  * store) is true. Because the template reads that signal, signing in or out re-renders the shell on its own.
  *
- * Permission-aware nav (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs
- * `access.read`. The links are filtered in a `computed()` rather than with `*appCan` on each `<li>`: the rule lives
+ * Permission-aware nav (docs/contracts/authorization.md › Web): Employees needs `employee.read`, Organization needs
+ * `org_unit.read`, Access needs `access.read`. The links are filtered in a `computed()` rather than with `*appCan` on each `<li>`: the rule lives
  * next to the link data (a `permission` field), the template stays one plain `@for`, and the list is rebuilt only
  * when the session's `permissions` change. (`*appCan` — shared/can/can.directive.ts — is the better fit for a
  * one-off element, e.g. the Sites tab in features/organization/org-nav.ts.) Hiding a link is comfort, not
@@ -38,7 +38,7 @@ export class App {
 
   private readonly navLinks: readonly NavLink[] = [
     { path: '/', labelKey: 'nav.home', exact: true },
-    { path: '/employees', labelKey: 'nav.employees', exact: false },
+    { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
     { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     { path: '/access', labelKey: 'nav.access', exact: false, permission: 'access.read' },
     { path: '/settings', labelKey: 'nav.settings', exact: false },

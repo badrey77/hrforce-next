@@ -444,6 +444,52 @@ curl -s -b jar "http://localhost:3000/api/audit/timeline?subject=org_unit:0190a5
 #                       where table_name = 'org_unit_version' order by at desc, id desc limit 20;
 ```
 
+## Employment module (`src/modules/employment`)
+
+Contract: `docs/contracts/employment.md`. Migration `0010_employment.sql`.
+
+**Data.** `person` (Latin names required, Arabic optional, NIN 18 digits unique per company), `person_sensitive`
+(NSS, RIB, bank name — a separate table so field permissions are a join), `employment` (matricule
+`^[A-Z0-9][A-Z0-9-]{0,19}$`, immutable; hire/end date, end date INCLUSIVE; at most one open per person, no overlap per
+person), `assignment` and `employment_salary` (date-effective `[from, to)` ranges, exclusion constraint per employment;
+salary is `numeric(12,2)`, DZD). A **deferred** constraint trigger checks at commit that the first assignment starts on
+the hire date and that nothing starts before the hire date or runs past the end date (the API checks first and answers
+409; the database is the backstop). DELETE is revoked from `hrforce_app` (history is kept). Masked in the audit log:
+`person_sensitive.nss/rib/bank_name`, `employment_salary.base_salary`. `org_unit_version.name_ar` (optional Arabic
+unit name, date-effective like `name`).
+
+**Scope as of a date.** An employee's *scope assignment* on date D is the one valid on D, else the latest one started
+before D (an ended employment → its last one), else its first one. The employee is in scope for P when that
+assignment's unit is in the caller's P scope (grants, today's closure). The list does this in ONE SQL statement: a
+recursive CTE builds the tree on D (each unit's version valid on D, else its earliest), its effective sites and — for
+`unitId` — the sub-units on D; a `LATERAL` sub-select picks each employment's scope assignment; the page and `total`
+(window count) come from the same filtered set. `status=active` (default) = not ended on `asOf` (future hires
+included, `status: 'future'`), `ended` = ended before `asOf`, `all`.
+
+**Field blocks.** `salary` / `bank` / `nss` need `employee.{salary,bank,nss}.read` over the employee's scope unit;
+otherwise the key is omitted and listed in `_redacted`. Writes: `employee.update` over the current unit (a new
+assignment also needs update or create over the new unit → else 403 `forbidden-scope` on `orgUnitId`); sensitive
+blocks in `POST /employees` without `employee.<block>.update` → 403 `forbidden-field` (`errors[{field: 'salary'|'bank'|'nss'}]`).
+Money is a decimal string both ways (`"85000.00"`; JSON numbers are refused).
+
+**Search.** `search_normalize()` (0005, extended in 0010) = lower + Latin accents folded + Arabic normalisation:
+tashkeel (U+064B–U+0652), superscript alef and tatweel stripped; أ إ آ ٱ → ا; ى → ي; ة → ه; ؤ → و; ئ → ي. Generated
+columns `person.search_text` (both name orders, Latin + Arabic, NIN), `employment.matricule_search` and
+`org_unit_version.name_search` (name + name_ar) use it, with `pg_trgm` GIN indexes for `LIKE '%…%'`; the query text
+goes through the same function.
+
+```bash
+curl -s -b jar "http://localhost:3000/api/employees?q=%D8%B3%D8%A7%D8%B1%D9%87&sort=hireDate&dir=desc&pageSize=10"
+curl -s -b jar "http://localhost:3000/api/employees/0190a5d0-0000-7000-8002-00000000001c"     # EMP-0028
+```
+
+**Demo seed** (`src/modules/employment/infra/demo-employees.ts`, run by `seed:dev`): 40 **fictitious** employees
+(TEST DATA — invented names, NIN/NSS/RIB with test markers), deterministic ids `0190a5d0-0000-7000-8001-…` (persons),
+`…-8002-…` (employments, `EMP-0001`…`EMP-0040` = …001…028 hex), `…-8003-…` (assignments), `…-8004-…` (salaries).
+12 in Région Est (11 active), 7 in Région Ouest (6 active); ended: EMP-0025 (Constantine, 2026-06-30) and EMP-0040
+(Tlemcen, 2026-03-31); moves: EMP-0015 (Blida → Alger Centre), EMP-0029 (Constantine → Annaba), EMP-0039 (Oran →
+Tlemcen); salaries for all, with a raise on 2026-01-01 for every third one. Most units get an Arabic name.
+
 ## Tests
 
 ```bash

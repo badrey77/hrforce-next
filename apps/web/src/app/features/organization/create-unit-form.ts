@@ -19,6 +19,9 @@
  * - **`(ngSubmit)`** fires on submit (Enter or the submit button) and suppresses the browser's page reload.
  *   `novalidate` turns off native browser validation bubbles: Angular validators and our messages take over.
  *
+ * `nameAr` (optional Arabic name) is a plain text input with `dir="rtl" lang="ar"`: the caret, punctuation and
+ * the screen reader's voice follow Arabic even in the French UI.
+ *
  * Server errors: `orgWriteError()` maps 422/409 `errors[]` onto controls (e.g. a taken code → `code`, an unknown
  * site → `siteId`) and returns a form-level message for problems not tied to a field.
  */
@@ -62,6 +65,8 @@ export class CreateUnitForm implements OnInit {
     kind: ['', Validators.required],
     code: ['', [Validators.required, Validators.pattern(ORG_CODE_PATTERN)]],
     name: ['', [Validators.required, notBlank, Validators.maxLength(ORG_NAME_MAX)]],
+    // Optional Arabic name (employment contract); blank = none, sent as null.
+    nameAr: ['', [Validators.maxLength(ORG_NAME_MAX)]],
     // The generic widens the type to `string | null`: null = inherit the parent's site (the default).
     siteId: this.fb.control<string | null>(null),
     validFrom: ['', [Validators.required, isoDate]],
@@ -92,6 +97,7 @@ export class CreateUnitForm implements OnInit {
         kind: value.kind,
         code: value.code.trim(),
         name: value.name.trim(),
+        nameAr: value.nameAr.trim() || null,
         parentId: this.parent().id,
         siteId: value.siteId,
         validFrom: value.validFrom,

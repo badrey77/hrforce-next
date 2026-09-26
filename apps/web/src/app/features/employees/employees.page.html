@@ -1,0 +1,172 @@
+<!--
+  The list reads everything from `query()` (the URL) and writes only through `update()` (a navigation).
+  - The search box shows the URL's `q` (`[value]`) and reports keystrokes (`(input)`); it never owns the value.
+  - `<option [selected]="…">` rather than `[value]` on the `<select>`: the options are rendered by `@for`, and a
+    select's value binding can run before its options exist; `selected` on each option is order-proof.
+  - States: error → alert + retry; value → table (kept visible during a reload, `aria-busy` says it is updating);
+    otherwise → loading text.
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('employees.title') }}</h1>
+    <a *appCan="'employee.create'" class="btn" routerLink="/employees/new" data-action="new">{{ t('employees.list.new') }}</a>
+  </header>
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('employees.filters.label')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="employees-q">{{ t('employees.filters.search') }}</label>
+      <input
+        id="employees-q"
+        type="search"
+        autocomplete="off"
+        dir="auto"
+        [value]="current.q"
+        [placeholder]="t('employees.filters.searchPlaceholder')"
+        (input)="onSearchInput($event)"
+      />
+    </div>
+
+    @if (canUnits()) {
+      <div class="field unit-filter">
+        <label for="employees-unit">{{ t('employees.filters.unit') }}</label>
+        <app-org-unit-picker inputId="employees-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input
+            id="employees-sub-units"
+            type="checkbox"
+            [checked]="current.includeSubUnits"
+            [disabled]="!current.unitId"
+            (change)="onIncludeSubUnits($event)"
+          />
+          <label for="employees-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+
+    @if (canSites()) {
+      <div class="field">
+        <label for="employees-site">{{ t('employees.filters.site') }}</label>
+        <select id="employees-site" (change)="onSelect('siteId', $event)">
+          <option value="" [selected]="!current.siteId">{{ t('employees.filters.allSites') }}</option>
+          @for (site of sites(); track site.id) {
+            <option [value]="site.id" [selected]="site.id === current.siteId">{{ site.name }} ({{ site.code }})</option>
+          }
+        </select>
+      </div>
+    }
+
+    <div class="field">
+      <label for="employees-status">{{ t('employees.filters.status') }}</label>
+      <select id="employees-status" (change)="onSelect('status', $event)">
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('employees.filters.statuses.' + status) }}</option>
+        }
+      </select>
+    </div>
+
+    @if (filtered()) {
+      <button class="btn secondary clear" type="button" data-action="clear" (click)="clearFilters()">
+        {{ t('employees.filters.clear') }}
+      </button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="summary" role="status">{{ t('employees.list.total', { count: total() }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data">
+            <thead>
+              <tr>
+                <!--
+                  Sortable headers: a <button> inside the <th> (keyboard + screen reader), and `aria-sort` on the
+                  <th> of the sorted column only. The arrow is decorative (aria-hidden): aria-sort already says it.
+                -->
+                @for (column of columns; track column.key) {
+                  <th scope="col" [attr.aria-sort]="ariaSort(column.key)">
+                    <button type="button" class="sort" [attr.data-sort]="column.key" (click)="sortBy(column.key)">
+                      {{ t(column.labelKey) }}
+                      <span class="arrow" aria-hidden="true">{{
+                        ariaSort(column.key) === 'ascending' ? '▲' : ariaSort(column.key) === 'descending' ? '▼' : '↕'
+                      }}</span>
+                    </button>
+                  </th>
+                }
+                <th scope="col">{{ t('employees.list.site') }}</th>
+                <th scope="col">{{ t('employees.list.jobTitle') }}</th>
+                <th scope="col" [attr.aria-sort]="ariaSort('hireDate')">
+                  <button type="button" class="sort" data-sort="hireDate" (click)="sortBy('hireDate')">
+                    {{ t('employees.list.hireDate') }}
+                    <span class="arrow" aria-hidden="true">{{
+                      ariaSort('hireDate') === 'ascending' ? '▲' : ariaSort('hireDate') === 'descending' ? '▼' : '↕'
+                    }}</span>
+                  </button>
+                </th>
+                <th scope="col">{{ t('employees.list.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of items(); track item.id) {
+                <tr [attr.data-employee]="item.id" [class.ended]="item.status === 'ended'">
+                  <td class="code">{{ item.matricule }}</td>
+                  <td>
+                    <a [routerLink]="['/employees', item.id]">{{ item.person | displayName: lang() }}</a>
+                  </td>
+                  <td>{{ item.unit | displayName: lang() }}</td>
+                  <td>{{ item.site?.name ?? '—' }}</td>
+                  <td>{{ item.jobTitle }}</td>
+                  <td class="nowrap">{{ item.hireDate }}</td>
+                  <td><span class="badge" [attr.data-status]="item.status">{{ t('employees.status.' + item.status) }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <nav class="pager" [attr.aria-label]="t('employees.pager.label')">
+          <button
+            class="btn secondary"
+            type="button"
+            data-action="prev"
+            [disabled]="current.page <= 1"
+            (click)="goToPage(current.page - 1)"
+          >
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span class="page-of" aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button
+            class="btn secondary"
+            type="button"
+            data-action="next"
+            [disabled]="current.page >= pageCount()"
+            (click)="goToPage(current.page + 1)"
+          >
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="employees-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="employees-page-size" (change)="onSelect('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (current.page > 1 && total() > 0) {
+        <p class="muted">{{ t('employees.list.pageOutOfRange') }}</p>
+        <button class="btn secondary" type="button" (click)="goToPage(1)">{{ t('employees.pager.first') }}</button>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('employees.list.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('employees.list.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('employees.list.loading') }}</p>
+    }
+  </section>
+</ng-container>

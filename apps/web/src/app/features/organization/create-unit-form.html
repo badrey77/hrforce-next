@@ -79,6 +79,26 @@
     }
   </div>
 
+  @let nameAr = form.controls.nameAr;
+  <div class="field">
+    <label for="create-unit-name-ar">{{ t('org.form.nameAr') }} <span class="field-hint">{{ t('org.form.optional') }}</span></label>
+    <!-- dir/lang: an Arabic value typed in any UI language (caret, punctuation, screen-reader voice). -->
+    <input
+      id="create-unit-name-ar"
+      type="text"
+      formControlName="nameAr"
+      dir="rtl"
+      lang="ar"
+      [attr.aria-invalid]="nameAr.invalid && nameAr.touched"
+      [attr.aria-describedby]="nameAr.invalid && nameAr.touched ? 'create-unit-name-ar-error' : null"
+    />
+    @if (nameAr.invalid && nameAr.touched) {
+      <p class="field-error" id="create-unit-name-ar-error">
+        {{ nameAr.hasError('server') ? nameAr.getError('server') : t(fieldErrorKey(nameAr)) }}
+      </p>
+    }
+  </div>
+
   @let site = form.controls.siteId;
   @let parentSite = parent().site;
   <div class="field">

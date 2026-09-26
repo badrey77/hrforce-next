@@ -42,6 +42,11 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   '*': ['id', 'company_id'],
   org_unit_version: ['name_search'],
   role_grant: ['valid'],
+  // Employee subject (employment contract › Audit): the link columns only repeat the subject.
+  employment: ['person_id'],
+  assignment: ['employment_id'],
+  employment_salary: ['employment_id', 'currency'],
+  person_sensitive: ['person_id'],
 };
 
 export type DisplayValue =

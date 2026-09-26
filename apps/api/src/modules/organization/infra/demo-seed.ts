@@ -18,6 +18,8 @@ export interface SeedUnit {
   kind: OrgUnitKind;
   code: string;
   name: string;
+  /** Optional Arabic name (org_unit_version.name_ar). */
+  nameAr?: string;
   /** Parent code (null for the root unit). */
   parent: string | null;
   /** Own site code (omitted = inherited from the nearest ancestor; required on the root). */
@@ -55,30 +57,31 @@ export const DEMO_ORGANIZATION: SeedOrganization = {
     { id: id('207'), code: 'TLEMCEN', name: 'Tlemcen', wilaya: 'Tlemcen' },
   ],
   units: [
-    { id: id('101'), kind: 'direction_generale', code: 'DG', name: 'Direction Générale', parent: null, site: 'ALG-HQ' },
-    { id: id('111'), kind: 'department', code: 'DEP-RH', name: 'Département RH', parent: 'DG' },
-    { id: id('112'), kind: 'department', code: 'DEP-FIN', name: 'Département Finances', parent: 'DG' },
-    { id: id('113'), kind: 'department', code: 'DEP-RX', name: 'Département RX', parent: 'DG' },
-    { id: id('121'), kind: 'region', code: 'REG-CTR', name: 'Région Centre', parent: 'DEP-RX', site: 'BLIDA' },
-    { id: id('122'), kind: 'region', code: 'REG-EST', name: 'Région Est', parent: 'DEP-RX', site: 'CNE' },
-    { id: id('123'), kind: 'region', code: 'REG-OUEST', name: 'Région Ouest', parent: 'DEP-RX', site: 'ORAN' },
-    { id: id('131'), kind: 'agency', code: 'AG-ALG', name: 'Agence Alger Centre', parent: 'REG-CTR', site: 'ALG-CTR' },
-    { id: id('132'), kind: 'agency', code: 'AG-BLIDA', name: 'Agence Blida', parent: 'REG-CTR', site: 'BLIDA' },
-    { id: id('133'), kind: 'agency', code: 'AG-CNE', name: 'Agence Constantine', parent: 'REG-EST', site: 'CNE' },
-    { id: id('134'), kind: 'agency', code: 'AG-ANNABA', name: 'Agence Annaba', parent: 'REG-EST', site: 'ANNABA' },
-    { id: id('135'), kind: 'agency', code: 'AG-ORAN', name: 'Agence Oran', parent: 'REG-OUEST', site: 'ORAN' },
-    { id: id('136'), kind: 'agency', code: 'AG-TLEMCEN', name: 'Agence Tlemcen', parent: 'REG-OUEST', site: 'TLEMCEN' },
-    { id: id('141'), kind: 'service', code: 'SRV-PAIE', name: 'Service Paie', parent: 'DEP-RH' },
+    { id: id('101'), kind: 'direction_generale', code: 'DG', name: 'Direction Générale', nameAr: 'المديرية العامة', parent: null, site: 'ALG-HQ' },
+    { id: id('111'), kind: 'department', code: 'DEP-RH', name: 'Département RH', nameAr: 'دائرة الموارد البشرية', parent: 'DG' },
+    { id: id('112'), kind: 'department', code: 'DEP-FIN', name: 'Département Finances', nameAr: 'دائرة المالية', parent: 'DG' },
+    { id: id('113'), kind: 'department', code: 'DEP-RX', name: 'Département RX', nameAr: 'دائرة الشبكة', parent: 'DG' },
+    { id: id('121'), kind: 'region', code: 'REG-CTR', name: 'Région Centre', nameAr: 'منطقة الوسط', parent: 'DEP-RX', site: 'BLIDA' },
+    { id: id('122'), kind: 'region', code: 'REG-EST', name: 'Région Est', nameAr: 'منطقة الشرق', parent: 'DEP-RX', site: 'CNE' },
+    { id: id('123'), kind: 'region', code: 'REG-OUEST', name: 'Région Ouest', nameAr: 'منطقة الغرب', parent: 'DEP-RX', site: 'ORAN' },
+    { id: id('131'), kind: 'agency', code: 'AG-ALG', name: 'Agence Alger Centre', nameAr: 'وكالة الجزائر الوسطى', parent: 'REG-CTR', site: 'ALG-CTR' },
+    { id: id('132'), kind: 'agency', code: 'AG-BLIDA', name: 'Agence Blida', nameAr: 'وكالة البليدة', parent: 'REG-CTR', site: 'BLIDA' },
+    { id: id('133'), kind: 'agency', code: 'AG-CNE', name: 'Agence Constantine', nameAr: 'وكالة قسنطينة', parent: 'REG-EST', site: 'CNE' },
+    { id: id('134'), kind: 'agency', code: 'AG-ANNABA', name: 'Agence Annaba', nameAr: 'وكالة عنابة', parent: 'REG-EST', site: 'ANNABA' },
+    { id: id('135'), kind: 'agency', code: 'AG-ORAN', name: 'Agence Oran', nameAr: 'وكالة وهران', parent: 'REG-OUEST', site: 'ORAN' },
+    { id: id('136'), kind: 'agency', code: 'AG-TLEMCEN', name: 'Agence Tlemcen', nameAr: 'وكالة تلمسان', parent: 'REG-OUEST', site: 'TLEMCEN' },
+    { id: id('141'), kind: 'service', code: 'SRV-PAIE', name: 'Service Paie', nameAr: 'مصلحة الأجور', parent: 'DEP-RH' },
     { id: id('142'), kind: 'service', code: 'SRV-FORM', name: 'Service Formation', parent: 'DEP-RH' },
     { id: id('143'), kind: 'service', code: 'SRV-COMPTA', name: 'Service Comptabilité', parent: 'DEP-FIN' },
     { id: id('144'), kind: 'service', code: 'SRV-ADM-EST', name: 'Service Administration Est', parent: 'REG-EST' },
-    { id: id('145'), kind: 'service', code: 'SRV-CLI-ANB', name: 'Service Clientèle', parent: 'AG-ANNABA' },
+    { id: id('145'), kind: 'service', code: 'SRV-CLI-ANB', name: 'Service Clientèle', nameAr: 'مصلحة الزبائن', parent: 'AG-ANNABA' },
   ],
 };
 
 /**
  * Idempotently creates a company, its sites, its units (one open-ended version each from `validFrom`) and rebuilds
- * its closure as of `today`. Runs with a role that bypasses RLS (the migrator): it writes company_id explicitly.
+ * its closure as of `today`. Arabic names (`nameAr`) are also filled into existing first versions that have none
+ * (databases seeded before migration 0010). Runs with a role that bypasses RLS (the migrator): it writes company_id explicitly.
  * Existing sites/units (same id) and units that already have versions are left untouched.
  */
 export async function seedOrganization(db: Executor, spec: SeedOrganization, today: string): Promise<void> {
@@ -106,9 +109,15 @@ export async function seedOrganization(db: Executor, spec: SeedOrganization, tod
     const siteId = unit.site ? siteIdByCode.get(unit.site) : null;
     if (siteId === undefined) throw new Error(`seed: unknown site code ${unit.site ?? ''}`);
     await sql`
-      insert into org_unit_version (company_id, org_unit_id, name, parent_id, site_id, valid)
-      select ${company.id}::uuid, ${unit.id}::uuid, ${unit.name}, ${parentId}::uuid, ${siteId}::uuid, daterange(${spec.validFrom}::date, null, '[)')
+      insert into org_unit_version (company_id, org_unit_id, name, name_ar, parent_id, site_id, valid)
+      select ${company.id}::uuid, ${unit.id}::uuid, ${unit.name}, ${unit.nameAr ?? null}, ${parentId}::uuid, ${siteId}::uuid,
+             daterange(${spec.validFrom}::date, null, '[)')
        where not exists (select 1 from org_unit_version where org_unit_id = ${unit.id}::uuid)`.execute(db);
+    if (unit.nameAr) {
+      await sql`
+        update org_unit_version set name_ar = ${unit.nameAr}
+         where org_unit_id = ${unit.id}::uuid and name_ar is null and lower(valid) = ${spec.validFrom}::date`.execute(db);
+    }
   }
   await rebuildClosure(db, company.id, today);
 }

@@ -136,7 +136,9 @@
       "site": "Site",
       "siteInherited": "hérité d'une unité parente",
       "inherited": "Hérité",
-      "notFound": "Unité introuvable."
+      "notFound": "Unité introuvable.",
+      "nameLatin": "Nom",
+      "nameAr": "Nom (arabe)"
     },
     "actions": {
       "createChild": "Ajouter une sous-unité",
@@ -155,12 +157,13 @@
         "codePattern": "Format de code invalide.",
         "nameTooLong": "120 caractères au maximum.",
         "invalidDate": "Date invalide.",
-        "nothingChanged": "Modifiez le nom, l'unité parente ou le site."
+        "nothingChanged": "Modifiez le nom, le nom arabe, l'unité parente ou le site."
       },
       "kindPlaceholder": "Choisir un type",
       "site": "Site",
       "siteInherit": "Hériter de l'unité parente",
-      "optional": "(facultatif)"
+      "optional": "(facultatif)",
+      "nameAr": "Nom (arabe)"
     },
     "create": {
       "title": "Nouvelle sous-unité de {{parent}}"
@@ -379,7 +382,12 @@
       "site": "Site",
       "role": "Rôle",
       "role_permission": "Permission du rôle",
-      "role_grant": "Attribution de rôle"
+      "role_grant": "Attribution de rôle",
+      "person": "Personne",
+      "person_sensitive": "Données sensibles",
+      "employment": "Emploi",
+      "assignment": "Affectation",
+      "employment_salary": "Salaire"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -409,7 +417,8 @@
         "parent_id": "Unité parente",
         "site_id": "Site",
         "valid": "Validité",
-        "created_at": "Créé le"
+        "created_at": "Créé le",
+        "name_ar": "Nom (arabe)"
       },
       "site": {
         "code": "Code",
@@ -442,6 +451,41 @@
         "granted_at": "Attribué le",
         "ended_by": "Terminé par",
         "ended_at": "Terminé le"
+      },
+      "person": {
+        "last_name": "Nom",
+        "first_name": "Prénom",
+        "last_name_ar": "Nom (arabe)",
+        "first_name_ar": "Prénom (arabe)",
+        "birth_date": "Date de naissance",
+        "birth_place": "Lieu de naissance",
+        "sex": "Sexe",
+        "nationality": "Nationalité",
+        "nin": "NIN",
+        "created_at": "Créé le"
+      },
+      "person_sensitive": {
+        "nss": "Numéro de sécurité sociale",
+        "rib": "RIB",
+        "bank_name": "Banque",
+        "updated_at": "Modifié le"
+      },
+      "employment": {
+        "matricule": "Matricule",
+        "hire_date": "Date d'embauche",
+        "end_date": "Date de sortie",
+        "end_reason": "Motif de sortie",
+        "created_at": "Créé le"
+      },
+      "assignment": {
+        "org_unit_id": "Unité",
+        "site_id": "Site",
+        "job_title": "Poste",
+        "valid": "Validité"
+      },
+      "employment_salary": {
+        "base_salary": "Salaire de base",
+        "valid": "Validité"
       }
     },
     "events": {
@@ -456,6 +500,205 @@
         "grant_ended": "Rôle « {{role}} » sur {{unit}} terminé au {{validTo}}"
       },
       "unknown": "Événement {{type}}"
+    }
+  },
+  "employees": {
+    "title": "Employés",
+    "list": {
+      "new": "Nouvel employé",
+      "matricule": "Matricule",
+      "name": "Nom",
+      "unit": "Unité",
+      "site": "Site",
+      "jobTitle": "Poste",
+      "hireDate": "Date d'embauche",
+      "status": "Statut",
+      "total": "{{count}} employé(s)",
+      "loadError": "Impossible de charger les employés.",
+      "loading": "Chargement des employés…",
+      "noMatch": "Aucun employé ne correspond à ces filtres.",
+      "empty": "Aucun employé n'est encore enregistré.",
+      "pageOutOfRange": "Cette page n'existe pas (la liste est plus courte)."
+    },
+    "filters": {
+      "label": "Filtrer les employés",
+      "search": "Rechercher",
+      "searchPlaceholder": "Nom, matricule ou NIN",
+      "unit": "Unité",
+      "includeSubUnits": "Inclure les sous-unités",
+      "site": "Site",
+      "allSites": "Tous les sites",
+      "status": "Statut",
+      "statuses": {
+        "active": "En poste",
+        "ended": "Sortis",
+        "all": "Tous"
+      },
+      "clear": "Effacer les filtres"
+    },
+    "pager": {
+      "label": "Pagination",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "pageOf": "Page {{page}} sur {{count}}",
+      "pageSize": "Par page",
+      "first": "Première page"
+    },
+    "status": {
+      "active": "En poste",
+      "ended": "Sorti",
+      "future": "À venir"
+    },
+    "sections": {
+      "identity": "Identité",
+      "employment": "Emploi",
+      "assignment": "Première affectation",
+      "salary": "Salaire",
+      "bank": "Coordonnées bancaires",
+      "nss": "Sécurité sociale"
+    },
+    "fields": {
+      "lastName": "Nom",
+      "firstName": "Prénom",
+      "lastNameAr": "Nom (arabe)",
+      "firstNameAr": "Prénom (arabe)",
+      "birthDate": "Date de naissance",
+      "birthPlace": "Lieu de naissance",
+      "sex": "Sexe",
+      "nationality": "Nationalité",
+      "nin": "NIN (numéro d’identification national)",
+      "matricule": "Matricule",
+      "hireDate": "Date d'embauche",
+      "unit": "Unité",
+      "site": "Site",
+      "siteOfUnit": "Site de l'unité",
+      "jobTitle": "Poste",
+      "baseSalary": "Salaire de base (DZD)",
+      "rib": "RIB",
+      "bankName": "Banque",
+      "nss": "Numéro de sécurité sociale",
+      "validFrom": "Date d'effet",
+      "validTo": "Jusqu’au",
+      "endDate": "Date de sortie",
+      "endReason": "Motif de sortie"
+    },
+    "hints": {
+      "nationality": "Code pays à 2 lettres (ex. DZ).",
+      "nin": "18 chiffres.",
+      "matricule": "Majuscules, chiffres ou « - », 20 caractères au plus. Non modifiable ensuite.",
+      "firstAssignment": "L'affectation commence à la date d'embauche.",
+      "salary": "Montant mensuel, 2 décimales au plus (ex. 85000,00).",
+      "rib": "20 chiffres (les espaces sont ignorés).",
+      "nss": "10 à 15 chiffres."
+    },
+    "sex": {
+      "M": "Homme",
+      "F": "Femme",
+      "unknown": "Non renseigné"
+    },
+    "form": {
+      "optional": "(facultatif)",
+      "saving": "Enregistrement…",
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "pattern": "Format invalide.",
+        "tooLong": "120 caractères au maximum.",
+        "invalidDate": "Date invalide.",
+        "digits": "{{count}} chiffres attendus.",
+        "money": "Montant positif, 2 décimales au plus.",
+        "notBefore": "La date doit être au plus tôt le {{date}}.",
+        "birthAfterHire": "La date d'embauche doit être postérieure à la date de naissance.",
+        "bankIncomplete": "Renseignez le RIB et la banque, ou laissez les deux vides.",
+        "nothingChanged": "Aucune modification à enregistrer."
+      }
+    },
+    "create": {
+      "title": "Nouvel employé",
+      "submit": "Créer l'employé",
+      "fixErrors": "Corrigez les champs signalés avant d’enregistrer."
+    },
+    "detail": {
+      "back": "Retour à la liste des employés",
+      "loading": "Chargement de l'employé…",
+      "loadError": "Impossible de charger cet employé."
+    },
+    "tabs": {
+      "label": "Sections de la fiche employé",
+      "identity": "Identité",
+      "assignments": "Affectations",
+      "pay": "Paie",
+      "bank": "Banque et sécurité sociale",
+      "history": "Historique"
+    },
+    "identity": {
+      "edit": "Modifier",
+      "editTitle": "Modifier l'identité"
+    },
+    "assignments": {
+      "title": "Affectations",
+      "new": "Nouvelle affectation",
+      "newTitle": "Nouvelle affectation",
+      "newIntro": "L'affectation en cours prendra fin la veille de la date d'effet.",
+      "open": "En cours",
+      "path": "Rattachement",
+      "siteInherited": "(site de l'unité)",
+      "empty": "Aucune affectation."
+    },
+    "pay": {
+      "title": "Paie",
+      "new": "Nouveau salaire",
+      "newTitle": "Nouveau salaire",
+      "current": "Salaire de base actuel :",
+      "currency": "DZD",
+      "since": "depuis le {{date}}",
+      "none": "Aucun salaire enregistré."
+    },
+    "bank": {
+      "title": "Coordonnées bancaires",
+      "edit": "Modifier",
+      "editTitle": "Modifier les coordonnées bancaires"
+    },
+    "nss": {
+      "title": "Sécurité sociale",
+      "edit": "Modifier",
+      "editTitle": "Modifier le numéro de sécurité sociale"
+    },
+    "end": {
+      "action": "Mettre fin à l'emploi",
+      "title": "Mettre fin à l'emploi",
+      "intro": "L'affectation et le salaire en cours seront clôturés à cette date (incluse).",
+      "reasonPlaceholder": "Choisir un motif",
+      "hint": "Au plus tôt le début de l'affectation en cours.",
+      "submit": "Confirmer la sortie"
+    },
+    "endReasons": {
+      "resignation": "Démission",
+      "retirement": "Retraite",
+      "dismissal": "Licenciement",
+      "end_of_contract": "Fin de contrat",
+      "death": "Décès",
+      "other": "Autre"
+    },
+    "feedback": {
+      "personSaved": "Identité mise à jour.",
+      "assigned": "Nouvelle affectation enregistrée.",
+      "salarySaved": "Nouveau salaire enregistré.",
+      "bankSaved": "Coordonnées bancaires enregistrées.",
+      "nssSaved": "Numéro de sécurité sociale enregistré.",
+      "ended": "Fin d'emploi enregistrée."
+    },
+    "problems": {
+      "matriculeTaken": "Ce matricule est déjà utilisé.",
+      "ninTaken": "Ce NIN est déjà enregistré pour une autre personne.",
+      "employmentOpen": "Cette personne a déjà un emploi en cours.",
+      "employmentEnded": "Cet emploi est terminé : il ne peut plus être modifié.",
+      "assignmentDate": "La date d'effet doit suivre le début de l'affectation en cours et rester dans la période d'emploi.",
+      "salaryDate": "La date d'effet doit suivre celle du salaire en cours.",
+      "endDate": "La date de sortie doit être postérieure ou égale au début de l'affectation en cours et à la date d'embauche.",
+      "forbiddenScope": "Vous n'avez pas le droit d'affecter un employé à cette unité.",
+      "forbiddenField": "Vous n'avez pas le droit de renseigner ce champ.",
+      "forbiddenWrite": "Vous pouvez consulter cet employé mais pas le modifier.",
+      "notFound": "Employé introuvable."
     }
   }
 }

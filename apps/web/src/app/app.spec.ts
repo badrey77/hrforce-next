@@ -86,7 +86,7 @@ describe('App shell', () => {
       expect(el.querySelector('nav a[href="/access"]')?.textContent?.trim()).toBe('Accès');
     });
 
-    it('hides Access from a read-only user, and both from a user without org_unit.read', async () => {
+    it('hides Access from a read-only user, and Employees/Organization from a user without their read permission', async () => {
       const session = TestBed.inject(Session);
       session.set(ME_LECTURE);
       const { fixture, el } = await render();
@@ -94,7 +94,7 @@ describe('App shell', () => {
 
       session.set(meWith([]));
       await fixture.whenStable();
-      expect(links(el)).toEqual(['/', '/employees', '/settings']);
+      expect(links(el)).toEqual(['/', '/settings']);
     });
 
     it('re-renders when permissions change (e.g. after a reload of /api/me)', async () => {

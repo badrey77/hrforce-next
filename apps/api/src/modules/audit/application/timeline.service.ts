@@ -15,7 +15,8 @@ function subjectNotFound(): NotFoundException {
  * History of one subject (docs/contracts/audit.md › Endpoint, › Permission). Visibility follows the caller's
  * audit.read scope: an org unit (with its versions) when the unit is in scope; a user when any of their grants is in
  * scope or they have none — then their events and their grants whose unit is in scope; roles and sites company-wide
- * (audit.read held anywhere, which the route guard already checked). Anything else — unknown, other company, out of
+ * (audit.read held anywhere, which the route guard already checked); an employee (employment id: the employment, its
+ * assignments and salaries, its person and person_sensitive rows) when the employee's scope unit is in scope. Anything else — unknown, other company, out of
  * scope — is 404.
  */
 @Injectable()
@@ -54,6 +55,12 @@ export class TimelineService {
         // company-wide: audit.read held anywhere (checked by the route's @RequirePermission)
         if (!(await this.repo.rowKnown(companyId, subject.type, subject.id))) throw subjectNotFound();
         return;
+      case 'employee': {
+        // the employee's scope: the unit of its assignment valid today, else its last one (ended), else its first
+        const unitId = await this.repo.employeeScopeUnit(companyId, subject.id);
+        if (!unitId || !(await this.scopes.inScope(AUDIT_READ, unitId))) throw subjectNotFound();
+        return;
+      }
       case 'user': {
         const member = (await this.repo.members(companyId)).some((m) => m.id === subject.id);
         if (!member) throw subjectNotFound();

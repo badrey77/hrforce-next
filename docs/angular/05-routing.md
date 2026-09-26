@@ -176,6 +176,11 @@ follow: it makes the state shareable (paste the URL, get the same view) and make
 browser back/forward buttons work for free, since `asOf` is just re-read as an input
 each time the URL changes.
 
+With many params (the employee list has ten), add two options: page resets on every
+filter change, and **`replaceUrl: true`** for debounced keystrokes so typing does not
+fill the browser history. Chapter 14 §1 ("URL as state") walks through it with
+`features/employees/employees.page.ts`.
+
 ## The not-found route
 
 ```ts

@@ -50,7 +50,7 @@ Boundary rules (dependency-cruiser):
 ### Routes
 - Every controller handler has exactly one of `@RequirePermission('<resource>.<action>')`, `@Authenticated()`
   (signed-in caller, no permission — e.g. `GET /api/me`) or `@Public()`. A method's decorator overrides its controller's.
-  Guardrail `route-scan` fails otherwise. Permission codes: lowercase `resource.action`, e.g. `employee.read`.
+  Guardrail `route-scan` fails otherwise. Permission codes: lowercase `resource.action` (or `resource.field.action` for field-level permissions), e.g. `employee.read`, `employee.salary.update`.
 - Every unsafe method (`POST`/`PUT`/`PATCH`/`DELETE`) under `/api` needs a valid signed `X-XSRF-TOKEN` (ADR 004, contracts/identity.md).
 - Out-of-scope ids return **404**, not 403 (ADR 002).
 - Errors are RFC 9457 `application/problem+json`: `{type, title, status, detail?, instance, requestId, errors?: [{field, code, message}]}`.

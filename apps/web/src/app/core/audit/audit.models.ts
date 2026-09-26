@@ -7,7 +7,7 @@
  */
 
 /** Subject types the timeline endpoint accepts (`?subject=<type>:<id>`). */
-export type AuditSubjectType = 'org_unit' | 'site' | 'role' | 'user';
+export type AuditSubjectType = 'org_unit' | 'site' | 'role' | 'user' | 'employee';
 
 /**
  * `"<type>:<uuid>"`, e.g. `org_unit:0190…` (type one of `AuditSubjectType`). A plain `string`, not the template

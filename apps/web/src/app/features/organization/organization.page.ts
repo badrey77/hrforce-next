@@ -24,6 +24,8 @@
  * - **Scopes** (docs/contracts/authorization.md): the tree holds the caller's units plus their ancestors as muted,
  *   unselectable context nodes (org-tree.ts); buttons still come from the server's `_actions`, never from
  *   `Session.can()` — holding `org_unit.update` somewhere does not mean it applies to THIS unit.
+ * - **Arabic unit names** (employment contract): `names` reads `LanguageService.current()` next to the tree, so the
+ *   id → name map (breadcrumbs, version parents, audit history) is rebuilt in Arabic on a language switch.
  * - `sites` (`GET /org/sites`) is loaded once by the page and handed down as an input to the forms (select options)
  *   and the detail (site names in the history), instead of each child fetching it.
  * - **History tab** (docs/contracts/audit.md › Web): `<app-history-tabs>` wraps the detail view (content projection)
@@ -37,9 +39,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { isIsoDate, todayIso } from '../../core/date/iso-date';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
+import { LanguageService } from '../../core/i18n/language.service';
+import type { AppLanguage } from '../../core/i18n/languages';
 import { KindCatalog } from '../../core/org/kind-catalog';
 import { OrgApi } from '../../core/org/org-api';
 import type { OrgAction, OrgTreeNode, OrgUnitDetail, Site } from '../../core/org/org.models';
+import { displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { HistoryTabs } from '../../shared/timeline/history-tabs';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 import { ChangeUnitForm } from './change-unit-form';
@@ -73,9 +78,9 @@ function findNode(node: OrgTreeNode, id: string): OrgTreeNode | undefined {
   return undefined;
 }
 
-function collectNames(node: OrgTreeNode, into: Map<string, string>): Map<string, string> {
-  into.set(node.id, node.name);
-  for (const child of node.children) collectNames(child, into);
+function collectNames(node: OrgTreeNode, lang: AppLanguage, into: Map<string, string>): Map<string, string> {
+  into.set(node.id, displayNameOf(node, lang));
+  for (const child of node.children) collectNames(child, lang, into);
   return into;
 }
 
@@ -91,6 +96,7 @@ export class OrganizationPage {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   protected readonly kindCatalog = inject(KindCatalog);
+  private readonly lang = inject(LanguageService).current;
 
   /** `?asOf=YYYY-MM-DD`, bound by the router (withComponentInputBinding). Absent → undefined. */
   readonly asOf = input<string>();
@@ -116,9 +122,10 @@ export class OrganizationPage {
   );
 
   protected readonly root = computed(() => (this.tree.hasValue() ? this.tree.value().root : null));
+  /** id → unit name in the UI language (Arabic when present): breadcrumbs, version parents, audit history. */
   protected readonly names = computed(() => {
     const root = this.root();
-    return root ? collectNames(root, new Map()) : new Map<string, string>();
+    return root ? collectNames(root, this.lang(), new Map()) : new Map<string, string>();
   });
 
   /** Names for ids in the audit history: units from the tree, sites from the sites list, kinds from the catalogue. */
@@ -177,13 +184,13 @@ export class OrganizationPage {
   }
 
   protected onCreated(unit: OrgUnitDetail): void {
-    this.feedback.set({ key: 'org.feedback.created', name: unit.name });
+    this.feedback.set({ key: 'org.feedback.created', name: displayNameOf(unit, this.lang()) });
     this.tree.reload();
     this.selectedId.set(unit.id); // loads the new unit's detail; `mode` resets to 'view' (linkedSignal)
   }
 
   protected onChanged(unit: OrgUnitDetail): void {
-    this.feedback.set({ key: 'org.feedback.changed', name: unit.name });
+    this.feedback.set({ key: 'org.feedback.changed', name: displayNameOf(unit, this.lang()) });
     this.mode.set('view');
     this.tree.reload();
     this.detail.reload();

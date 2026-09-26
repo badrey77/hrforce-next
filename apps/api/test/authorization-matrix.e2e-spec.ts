@@ -11,9 +11,9 @@
  *   admin  admin_rh_central on DG (+)       est    rh_regional on REG-EST (+)     ouest  lecture on REG-OUEST (+)
  *   acces  admin_acces on REG-EST (+)       beta   admin_rh_central of the OTHER company (BETA)
  * Targets:
- *   est    a resource inside REG-EST (unit AG-CNE, or a company-A resource for roles)
- *   ouest  a resource inside REG-OUEST (unit AG-ORAN)
- *   other  a resource of the other company (BETA-RH, BETA's role / grant)
+ *   est    a resource inside REG-EST (unit AG-CNE, employee EMP-0027 of AG-CNE, or a company-A resource for roles)
+ *   ouest  a resource inside REG-OUEST (unit AG-ORAN, employee EMP-0036 of AG-ORAN)
+ *   other  a resource of the other company (BETA-RH, BETA's role / grant / employee)
  *   -      no target (collection routes)
  */
 import { spawnSync } from 'node:child_process';
@@ -21,7 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { as, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { as, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, type TestDatabase } from './support/test-database.js';
 import { fetchXsrf, type XsrfPair } from './support/xsrf.js';
@@ -46,6 +46,31 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 
 const unitOf = (t: Target): string => (t === 'est' ? unitA('AG-CNE') : t === 'ouest' ? unitA('AG-ORAN') : unitB('BETA-RH'));
 const roleOf = (t: Target, fx: AccessFixture): string => (t === 'other' ? fx.customB : fx.customA);
+/** Employees (seeded demo data): EMP-0027 (Agence Constantine), EMP-0036 (Agence Oran), BETA's employee. */
+const employeeOf = (t: Target): string => (t === 'est' ? employeeA(27) : t === 'ouest' ? employeeA(36) : EMPLOYEE_B.employmentId);
+/** Ending is final: each successful end gets its own employee (Est: EMP-0030…0032 of Annaba / Clientèle; Ouest: EMP-0037, 0038). */
+const endPools: Record<Target, string[]> = {
+  est: [employeeA(30), employeeA(31), employeeA(32)],
+  ouest: [employeeA(37), employeeA(38)],
+  other: [EMPLOYEE_B.employmentId],
+  '-': [],
+};
+const endTargetOf = (t: Target): string => (endPools[t].length > 1 ? (endPools[t].shift() ?? '') : (endPools[t][0] ?? ''));
+const newUnitOf = (t: Target): string => (t === 'est' ? unitA('AG-ANNABA') : t === 'ouest' ? unitA('AG-TLEMCEN') : unitB('BETA-RH'));
+const EMPLOYEE_WRITE_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404], ['est', 'other', 404],
+  ['ouest', 'ouest', 403], ['ouest', 'est', 403], // lecture has no employee.update
+  ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+];
+/** Sensitive writes: only admin_rh_central holds employee.{salary,bank,nss}.update. */
+const SENSITIVE_WRITE_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 403], ['est', 'ouest', 403],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+];
 const grantOf = (t: Target): string => (t === 'est' ? GRANTS.targetCne : t === 'ouest' ? GRANTS.targetOran : GRANTS.betaAdmin);
 /** A distinct future date per request (versions and grants must not collide between rows). */
 const day = (n: number, plus = 0): string => new Date(Date.UTC(2027, 0, 1 + n * 2 + plus)).toISOString().slice(0, 10);
@@ -204,6 +229,69 @@ const MATRIX: Record<string, RouteSpec> = {
     ],
   },
 
+  // ── employment ────────────────────────────────────────────────────────────────────────────────────────
+  'GET /api/employees': {
+    access: 'employee.read',
+    request: () => ({ path: '/api/employees?q=a&sort=unit&pageSize=5' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 200], ['acces', '-', 403], ['beta', '-', 200]],
+  },
+  'GET /api/employees/:id': {
+    access: 'employee.read',
+    request: (t) => ({ path: `/api/employees/${employeeOf(t)}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['est', 'est', 200], ['est', 'ouest', 404], ['est', 'other', 404],
+      ['ouest', 'ouest', 200], ['ouest', 'est', 404], ['ouest', 'other', 404],
+      ['acces', 'est', 403],
+      ['beta', 'est', 404], ['beta', 'other', 200],
+    ],
+  },
+  'POST /api/employees': {
+    access: 'employee.create',
+    request: (t, n) => ({
+      path: '/api/employees',
+      body: { lastName: 'Matrice', firstName: `Test ${n}`, matricule: `MX-${n}`, hireDate: '2026-09-01', orgUnitId: unitOf(t), jobTitle: 'Agent' },
+    }),
+    rows: [
+      ['admin', 'est', 201], ['admin', 'ouest', 201], ['admin', 'other', 422], // another company's unit does not exist here
+      ['est', 'est', 201], ['est', 'ouest', 403], // rh_regional creates in REG-EST only (forbidden-scope)
+      ['ouest', 'ouest', 403], ['ouest', 'est', 403], // lecture has no employee.create
+      ['acces', 'est', 403],
+      ['beta', 'est', 422], ['beta', 'other', 201],
+    ],
+  },
+  'PATCH /api/employees/:id/person': {
+    access: 'employee.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/person`, body: { birthPlace: `Ville ${n}` } }),
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
+  'POST /api/employees/:id/assignments': {
+    access: 'employee.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/assignments`, body: { orgUnitId: newUnitOf(t), jobTitle: `Poste ${n}`, validFrom: day(n) } }),
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
+  'PUT /api/employees/:id/salary': {
+    access: 'employee.salary.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/salary`, body: { baseSalary: `${50000 + n}.50`, validFrom: day(n) } }),
+    rows: SENSITIVE_WRITE_ROWS,
+  },
+  'PUT /api/employees/:id/bank': {
+    access: 'employee.bank.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/bank`, body: { rib: `0079999900000000${String(n).padStart(4, '0')}`, bankName: 'BNA' } }),
+    rows: SENSITIVE_WRITE_ROWS,
+  },
+  'PUT /api/employees/:id/nss': {
+    access: 'employee.nss.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/nss`, body: { nss: `99000000${String(n).padStart(4, '0')}` } }),
+    rows: SENSITIVE_WRITE_ROWS,
+  },
+  // last of the employee routes: a successful end is final (each one takes a fresh employee, see endTargetOf)
+  'POST /api/employees/:id/end': {
+    access: 'employee.update',
+    request: (t) => ({ path: `/api/employees/${endTargetOf(t)}/end`, body: { endDate: '2030-12-31', reason: 'end_of_contract' } }), // after every day(n) of the other rows
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
     access: 'audit.read',
@@ -267,7 +355,8 @@ describe('Authorization matrix (e2e, real grants)', () => {
     const [method = ''] = key.split(' ');
     const req = spec.request(target, ++counter, fx);
     const client = as(app, actor === 'anon' ? null : actor, xsrf);
-    const call = method === 'GET' ? client.get(req.path) : method === 'POST' ? client.post(req.path) : client.patch(req.path);
+    const call =
+      method === 'GET' ? client.get(req.path) : method === 'POST' ? client.post(req.path) : method === 'PUT' ? client.put(req.path) : client.patch(req.path);
     const res = req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
   });

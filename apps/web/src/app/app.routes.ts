@@ -9,7 +9,8 @@
  * - The password pages have no guard: an emailed link must work whether or not someone is signed in on this
  *   browser.
  * - `canMatch: [authGuard, permissionGuard()]` + `data: { permission }` on features that need a permission
- *   (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs `access.read`. Without
+ *   (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs `access.read`, Employees
+ *   needs `employee.read` (docs/contracts/employment.md › Web). Without
  *   it the route does not match and the visitor lands on `**` (404) — see core/auth/permission.guard.ts.
  * Order still matters (first match wins, `**` last); a guard only decides whether its route may match.
  */
@@ -38,10 +39,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage),
   },
   {
+    // Employees (list, create, detail): its own lazy chunk, never downloaded without employee.read.
     path: 'employees',
-    canMatch: [authGuard],
-    loadComponent: () => import('./features/placeholder/placeholder.page').then((m) => m.PlaceholderPage),
-    data: { titleKey: 'nav.employees' },
+    canMatch: [authGuard, permissionGuard()],
+    data: { permission: 'employee.read' },
+    loadChildren: () => import('./features/employees/employees.routes').then((m) => m.EMPLOYEES_ROUTES),
   },
   {
     // loadChildren: the feature owns its sub-routes (see features/organization/organization.routes.ts).

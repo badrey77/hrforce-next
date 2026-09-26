@@ -36,6 +36,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-25 | ADR 003 (vertical slices, org before permissions) **accepted** |
 | 2026-09-26 | Fonts: **Cairo** for Arabic, **Source Sans 3** for French/English, self-hosted (no Google Fonts CDN — offline sites, Law 18-07) |
 | 2026-09-26 | Local start scripts: `scripts/dev-up.sh` (bash) and `scripts/dev-up.ps1` (PowerShell) |
+| 2026-09-26 | M2 starts with **Leave** using **Algerian defaults** (Law 90-11) as editable data, to be confirmed; default approval chain **unit head → regional HR**. In parallel: a **staging deploy pack** for any Docker Linux host (target still to choose). Workflow engine = ADR 006; SSO moves to ADR 007 |
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -45,7 +46,9 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 ## Open questions for the owner
 
-1. **SSO:** HRForce login should authorize other apps. Which apps, and what are they built with (OIDC-capable web apps / legacy PHP-Java / SAML-only products)? Recommendation: HRForce as the OIDC provider (`oidc-provider` in the API, Postgres only) unless SAML or directory integration is needed (then Keycloak/Zitadel). Record as **ADR 006** once answered. SSO was out of P1 scope.
+0. **Confirm the leave assumptions** listed at the top of `docs/contracts/leave.md` (accrual, reference period, special leaves, holidays, southern supplement).
+
+1. **SSO:** HRForce login should authorize other apps. Which apps, and what are they built with (OIDC-capable web apps / legacy PHP-Java / SAML-only products)? Recommendation: HRForce as the OIDC provider (`oidc-provider` in the API, Postgres only) unless SAML or directory integration is needed (then Keycloak/Zitadel). Record as **ADR 007** once answered. SSO was out of P1 scope.
 2. **Staging target** for "deployed to staging from CI" (server, cloud VM, Kubernetes?).
 3. **App-role trust** (ADR 004 note): accept that a compromised `hrforce_app` DB role could mint sessions / forge audit events, or plan a separate credential service before go-live.
 4. Team size and target date (plan open question).

@@ -563,7 +563,7 @@ describe('Identity (e2e)', () => {
         `select p.proname, p.prosecdef, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
           where n.nspname = 'auth' and has_function_privilege('hrforce_app', p.oid, 'execute')`,
       );
-      expect(definers.length).toBe(13); // 0007's twelve + auth.company_members (0008)
+      expect(definers.length).toBe(15); // 0007's twelve + auth.company_members (0008) + auth.session_owner, auth.default_company (0009)
       for (const f of definers) {
         expect(f.prosecdef, f.proname).toBe(true);
         expect(f.proconfig, f.proname).toEqual(['search_path=pg_catalog, auth']);

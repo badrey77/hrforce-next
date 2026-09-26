@@ -43,5 +43,17 @@
   {
     "table": "auth.login_event",
     "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
+  },
+  {
+    "table": "audit.change_log",
+    "reason": "Audit trail (docs/contracts/audit.md, migration 0009), schema audit: company_id is set by the SECURITY DEFINER trigger audit.capture(); RLS + FORCE with the standard tenant policy, SELECT-only for hrforce_app, monthly partitions not accessible to it."
+  },
+  {
+    "table": "audit.event",
+    "reason": "Audit trail of application events (docs/contracts/audit.md, migration 0009), schema audit: company_id is nullable (e.g. events before a tenant is known) and set by audit.record_event() from app.company_id; RLS + FORCE with the standard tenant policy, SELECT-only for hrforce_app."
+  },
+  {
+    "table": "audit.masked_column",
+    "reason": "Global list of masked columns of the audit trail (docs/contracts/audit.md, migration 0009): metadata, not tenant data; SELECT-only for hrforce_app."
   }
 ]

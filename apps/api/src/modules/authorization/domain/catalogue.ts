@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migration 0008), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -20,6 +20,7 @@ export const PERMISSION_CODES = [
   'access.read',
   'access.grant',
   'access.manage_roles',
+  'audit.read',
   'employee.read',
   'employee.create',
   'employee.update',
@@ -66,7 +67,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     code: 'admin_acces',
     names: { fr: 'Administrateur des accès', ar: 'مسؤول الصلاحيات', en: 'Access administrator' },
-    permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles'],
+    permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read'],
   },
 ];
 

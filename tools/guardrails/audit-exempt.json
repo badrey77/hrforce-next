@@ -1,0 +1,6 @@
+[
+  {
+    "table": "org_unit_closure",
+    "reason": "Derived data: ancestor/descendant pairs of today's tree, recomputed from org_unit_version (rebuilt wholesale by the seed and the daily refresh). Every change it reflects is already audited on org_unit_version (docs/contracts/audit.md › Coverage)."
+  }
+]

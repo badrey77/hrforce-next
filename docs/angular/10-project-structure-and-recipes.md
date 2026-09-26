@@ -160,6 +160,46 @@ The Access feature (`features/access/`) is the worked example.
    fixture, `HttpTestingController` flushes for each resource (including catalogues), and
    the 409 mapping per slug.
 
+## Recipe: add a History tab to a page
+
+The audit timeline is one shared component; a page only wraps its detail view
+(chapter 13 explains every piece).
+
+1. **Pick the subject.** One of the contract's types (`org_unit`, `site`, `role`,
+   `user`; `docs/contracts/audit.md` › Endpoint) plus the record's id. A new subject
+   type (e.g. `employee`) needs the API first.
+2. **Wrap the detail content** in `<app-history-tabs>` (import `HistoryTabs` from
+   `shared/timeline/history-tabs.ts`):
+
+   ```html
+   <app-history-tabs [subject]="'role:' + role.id" [resolver]="auditNames">
+     …what the page showed before (form, tables)…
+   </app-history-tabs>
+   ```
+
+   The content is projected into the "Details" tab (hidden, never destroyed, so forms
+   keep their state). Pass `null` as the subject when there is nothing to show yet
+   (`roles/new` in `features/access/role-editor.page.html`): no tabs at all. Leave page-level
+   UI such as a `<dialog>` outside the wrapper.
+3. **Nothing to do for the permission.** The wrapper shows the tabs only with
+   `audit.read` (`Session.allows`, chapter 12). The API still answers 403/404.
+4. **Name the ids you already have.** Add a `resolver` field, `(kind, value) => name |
+   undefined`, reading data the page holds (`organization.page.ts` uses the tree and
+   the sites; `features/access/audit-names.ts` uses the role catalogue and the page's
+   grants). Keep it a field, not an inline arrow. Never fetch just for names: an unknown
+   id shows as stored.
+5. **New tables or events?** Add `audit.fields.<table>.<column>`, `audit.tables.<table>`
+   and `audit.events.<type>` keys to `fr.json` and `ar.json` (same placeholders; the
+   i18n guardrail checks both). Unknown columns fall back to the column name, unknown
+   events to `audit.events.unknown`. Columns that are pure noise (tenant id, generated
+   columns) go in `HIDDEN_FIELDS` in `shared/timeline/timeline-view.ts`; id-like columns
+   go in `REFERENCE_FIELDS` so the resolver is asked.
+6. **Test** the tab like `user-detail.page.spec.ts`: hidden with
+   `meWith(...without 'audit.read')`; with it, click `[data-tab="history"]`,
+   `installIntersectionObserver()` + `enterViewport()` to play the `@defer` block through,
+   then `http.expectOne(r => r.url === '/api/audit/timeline')` and check the `subject`
+   param and a resolved name.
+
 ## Recipe: an API call that must not redirect to login
 
 The refresh interceptor sends the user to `/login` when a refresh fails. For a call

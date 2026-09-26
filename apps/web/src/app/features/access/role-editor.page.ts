@@ -20,6 +20,11 @@
  *
  * Read-only when the role is a system role (contract: permissions immutable through the API) or when the user lacks
  * `access.manage_roles`. The server stays the authority: `role-system-immutable` is still mapped (form-level).
+ *
+ * History tab: the form is projected into `<app-history-tabs>` (shared/timeline/history-tabs.ts); its subject is
+ * `role:<id>` for a saved role and `null` on `roles/new` (no tabs at all). Because projected content is only hidden,
+ * never destroyed, looking at the history and coming back keeps unsaved edits in the form. Permission codes in the
+ * history (`role_permission` rows) are named from the catalogue (`auditNames`).
  */
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -30,13 +35,15 @@ import { AccessCatalog } from '../../core/access/access-catalog';
 import type { LocalizedText, Role } from '../../core/access/access.models';
 import { Session } from '../../core/auth/session';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
+import { HistoryTabs } from '../../shared/timeline/history-tabs';
 import { atLeastOne, fieldErrorKey, notBlank, ROLE_CODE_PATTERN, ROLE_NAME_MAX, ROLE_SLUGS } from './access-forms';
 import { AccessNav } from './access-nav';
+import { accessAuditNames } from './audit-names';
 import { PermissionChecklist } from './permission-checklist';
 
 @Component({
   selector: 'app-access-role-editor-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, AccessNav, PermissionChecklist],
+  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, AccessNav, PermissionChecklist, HistoryTabs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './role-editor.page.html',
   styleUrl: './access.css',
@@ -72,6 +79,9 @@ export class RoleEditorPage {
     }),
     permissions: this.fb.control<string[]>([], atLeastOne),
   });
+
+  /** Names for the audit history: role ids and permission codes from the catalogue. */
+  protected readonly auditNames = accessAuditNames(this.catalog);
 
   protected readonly submitting = signal(false);
   protected readonly formError = signal<FormMessage | null>(null);

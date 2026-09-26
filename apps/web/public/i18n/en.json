@@ -349,5 +349,113 @@
       "roleEscalation": "You cannot add permissions you do not hold to a role.",
       "roleSystemImmutable": "System roles cannot be changed."
     }
+  },
+  "audit": {
+    "tabs": {
+      "label": "Record sections",
+      "details": "Details",
+      "history": "History"
+    },
+    "loading": "Loading history…",
+    "loadError": "Could not load the history.",
+    "notFound": "History not found or not accessible.",
+    "chunkError": "Could not display the history. Reload the page.",
+    "none": "No history yet.",
+    "loadMore": "Show more",
+    "system": "System",
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "ops": {
+      "insert": "Created",
+      "update": "Changed",
+      "delete": "Deleted"
+    },
+    "tables": {
+      "company": "Company",
+      "org_unit": "Unit",
+      "org_unit_version": "Unit version",
+      "site": "Site",
+      "role": "Role",
+      "role_permission": "Role permission",
+      "role_grant": "Role grant"
+    },
+    "masked": "hidden",
+    "emptyValue": "(empty)",
+    "yes": "Yes",
+    "no": "No",
+    "range": "from {{from}} to {{to}}",
+    "rangeOpen": "from {{from}}",
+    "arrow": "→",
+    "becomes": "becomes",
+    "fields": {
+      "company": {
+        "code": "Code",
+        "name": "Company name",
+        "created_at": "Created on"
+      },
+      "org_unit": {
+        "code": "Code",
+        "name": "Name",
+        "kind": "Type",
+        "is_root": "Root unit",
+        "axis": "Axis",
+        "created_at": "Created on"
+      },
+      "org_unit_version": {
+        "org_unit_id": "Unit",
+        "name": "Name",
+        "parent_id": "Parent unit",
+        "site_id": "Site",
+        "valid": "Validity",
+        "created_at": "Created on"
+      },
+      "site": {
+        "code": "Code",
+        "name": "Name",
+        "wilaya": "Wilaya",
+        "address": "Address",
+        "created_at": "Created on"
+      },
+      "role": {
+        "code": "Code",
+        "name_fr": "Name (French)",
+        "name_ar": "Name (Arabic)",
+        "name_en": "Name (English)",
+        "is_system": "System role",
+        "created_at": "Created on"
+      },
+      "role_permission": {
+        "role_id": "Role",
+        "permission_code": "Permission"
+      },
+      "role_grant": {
+        "user_id": "User",
+        "role_id": "Role",
+        "org_unit_id": "Unit",
+        "include_descendants": "Sub-units included",
+        "valid_from": "Valid from",
+        "valid_to": "Valid until (exclusive)",
+        "valid": "Validity",
+        "granted_by": "Granted by",
+        "granted_at": "Granted on",
+        "ended_by": "Ended by",
+        "ended_at": "Ended on"
+      }
+    },
+    "events": {
+      "auth": {
+        "login": "Signed in (IP address {{ip}})",
+        "logout": "Signed out",
+        "password_set": "Password set",
+        "session_reuse": "Session reuse detected"
+      },
+      "access": {
+        "grant_created": "Role “{{role}}” granted on {{unit}} from {{validFrom}}",
+        "grant_ended": "Role “{{role}}” on {{unit}} ended on {{validTo}}"
+      },
+      "unknown": "Event {{type}}"
+    }
   }
 }

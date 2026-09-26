@@ -15,85 +15,88 @@
       <p class="feedback" role="status">{{ t(message.key, { role: message.role }) }}</p>
     }
 
-    <div class="toolbar">
-      <h3>{{ t('access.grants.title') }}</h3>
-      @if (!adding()) {
-        <!-- A page-level permission (held anywhere): the structural directive. -->
-        <button *appCan="'access.grant'" class="btn" type="button" data-action="add-grant" (click)="startAdd()">
-          {{ t('access.grants.add') }}
-        </button>
+    <!-- Grants = the "Details" tab; the member's audit history is the other one (shared/timeline/history-tabs.ts). -->
+    <app-history-tabs [subject]="'user:' + person.id" [resolver]="auditNames">
+      <div class="toolbar">
+        <h3>{{ t('access.grants.title') }}</h3>
+        @if (!adding()) {
+          <!-- A page-level permission (held anywhere): the structural directive. -->
+          <button *appCan="'access.grant'" class="btn" type="button" data-action="add-grant" (click)="startAdd()">
+            {{ t('access.grants.add') }}
+          </button>
+        }
+      </div>
+
+      @if (adding()) {
+        <app-grant-form [userId]="person.id" (saved)="onGranted($event)" (cancelled)="adding.set(false)" />
       }
-    </div>
 
-    @if (adding()) {
-      <app-grant-form [userId]="person.id" (saved)="onGranted($event)" (cancelled)="adding.set(false)" />
-    }
+      <div class="check">
+        <input id="grants-ended" type="checkbox" [checked]="includeEnded()" (change)="toggleEnded($event)" />
+        <label for="grants-ended">{{ t('access.grants.showEnded') }}</label>
+      </div>
 
-    <div class="check">
-      <input id="grants-ended" type="checkbox" [checked]="includeEnded()" (change)="toggleEnded($event)" />
-      <label for="grants-ended">{{ t('access.grants.showEnded') }}</label>
-    </div>
-
-    <section [attr.aria-busy]="grants.isLoading()">
-      @if (grants.error()) {
-        <div class="form-error" role="alert">
-          <p>{{ t(grantsErrorKey()) }}</p>
-          <button class="btn secondary" type="button" (click)="grants.reload()">{{ t('common.retry') }}</button>
-        </div>
-      } @else if (grants.hasValue()) {
-        <div class="table-scroll">
-          <table class="data grants">
-            <thead>
-              <tr>
-                <th scope="col">{{ t('access.grants.role') }}</th>
-                <th scope="col">{{ t('access.grants.unit') }}</th>
-                <th scope="col">{{ t('access.grants.subUnits') }}</th>
-                <th scope="col">{{ t('access.grants.from') }}</th>
-                <th scope="col">{{ t('access.grants.to') }}</th>
-                <th scope="col">{{ t('access.grants.grantedBy') }}</th>
-                <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (grant of grantItems(); track grant.id) {
-                @let state = grantState(grant, today);
-                <tr [class.ended]="state === 'ended'" [attr.data-grant]="grant.id">
-                  <td>
-                    {{ catalog.roleName(grant.role) }}
-                    @if (state !== 'current') {
-                      &ngsp;<span class="badge">{{ t('access.grants.state.' + state) }}</span>
-                    }
-                  </td>
-                  <td>
-                    <span class="badge">{{ kinds.labelOf(grant.unit.kind) }}</span>&ngsp;{{ grant.unit.name }}&ngsp;<span
-                      class="code"
-                      >({{ grant.unit.code }})</span
-                    >
-                  </td>
-                  <td>{{ grant.includeDescendants ? t('access.grants.yes') : t('access.grants.no') }}</td>
-                  <td>{{ grant.validFrom }}</td>
-                  <td>{{ grant.validTo ?? t('access.grants.open') }}</td>
-                  <td>{{ grant.grantedBy?.displayName ?? '—' }}</td>
-                  <td>
-                    @if (canEnd(grant)) {
-                      <button class="btn secondary" type="button" data-action="end" (click)="openEnd(grant)">
-                        {{ t('access.grants.end') }}
-                      </button>
-                    }
-                  </td>
-                </tr>
-              } @empty {
+      <section [attr.aria-busy]="grants.isLoading()">
+        @if (grants.error()) {
+          <div class="form-error" role="alert">
+            <p>{{ t(grantsErrorKey()) }}</p>
+            <button class="btn secondary" type="button" (click)="grants.reload()">{{ t('common.retry') }}</button>
+          </div>
+        } @else if (grants.hasValue()) {
+          <div class="table-scroll">
+            <table class="data grants">
+              <thead>
                 <tr>
-                  <td colspan="7">{{ t('access.grants.empty') }}</td>
+                  <th scope="col">{{ t('access.grants.role') }}</th>
+                  <th scope="col">{{ t('access.grants.unit') }}</th>
+                  <th scope="col">{{ t('access.grants.subUnits') }}</th>
+                  <th scope="col">{{ t('access.grants.from') }}</th>
+                  <th scope="col">{{ t('access.grants.to') }}</th>
+                  <th scope="col">{{ t('access.grants.grantedBy') }}</th>
+                  <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
                 </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <p class="muted">{{ t('access.grants.loading') }}</p>
-      }
-    </section>
+              </thead>
+              <tbody>
+                @for (grant of grantItems(); track grant.id) {
+                  @let state = grantState(grant, today);
+                  <tr [class.ended]="state === 'ended'" [attr.data-grant]="grant.id">
+                    <td>
+                      {{ catalog.roleName(grant.role) }}
+                      @if (state !== 'current') {
+                        &ngsp;<span class="badge">{{ t('access.grants.state.' + state) }}</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="badge">{{ kinds.labelOf(grant.unit.kind) }}</span>&ngsp;{{ grant.unit.name }}&ngsp;<span
+                        class="code"
+                        >({{ grant.unit.code }})</span
+                      >
+                    </td>
+                    <td>{{ grant.includeDescendants ? t('access.grants.yes') : t('access.grants.no') }}</td>
+                    <td>{{ grant.validFrom }}</td>
+                    <td>{{ grant.validTo ?? t('access.grants.open') }}</td>
+                    <td>{{ grant.grantedBy?.displayName ?? '—' }}</td>
+                    <td>
+                      @if (canEnd(grant)) {
+                        <button class="btn secondary" type="button" data-action="end" (click)="openEnd(grant)">
+                          {{ t('access.grants.end') }}
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7">{{ t('access.grants.empty') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="muted">{{ t('access.grants.loading') }}</p>
+        }
+      </section>
+    </app-history-tabs>
   } @else if (member.error()) {
     <div class="form-error" role="alert">
       <p>{{ t(memberErrorKey()) }}</p>

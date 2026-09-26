@@ -5,106 +5,111 @@
   @if (notFound()) {
     <p class="form-error" role="alert">{{ t('access.roles.notFound') }}</p>
   } @else if (isNew() || role()) {
-    <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="role-title" novalidate>
-      <h2 id="role-title">
-        @if (role(); as current) {
-          {{ catalog.roleName(current) }}
-          @if (current.isSystem) {
-            &ngsp;<span class="badge">{{ t('access.roles.system') }}</span>
+    <!-- `@let` names a template value once; it is re-evaluated whenever `role()` changes. -->
+    @let current = role();
+    <h2 id="role-title">
+      @if (current) {
+        {{ catalog.roleName(current) }}
+        @if (current.isSystem) {
+          &ngsp;<span class="badge">{{ t('access.roles.system') }}</span>
+        }
+      } @else {
+        {{ t('access.roles.createTitle') }}
+      }
+    </h2>
+
+    <!-- The form is the "Details" tab; a saved role also gets a "History" tab (shared/timeline/history-tabs.ts). -->
+    <app-history-tabs [subject]="current ? 'role:' + current.id : null" [resolver]="auditNames">
+      <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="role-title" novalidate>
+        @if (created(); as code) {
+          <p class="feedback" role="status">{{ t('access.roles.created', { code }) }}</p>
+        }
+        @if (saved()) {
+          <p class="feedback" role="status">{{ t('access.roles.saved') }}</p>
+        }
+        @if (role()?.isSystem) {
+          <p class="muted" data-note="system">{{ t('access.roles.systemNote') }}</p>
+        } @else if (readOnly()) {
+          <p class="muted" data-note="read-only">{{ t('access.roles.readOnlyNote') }}</p>
+        }
+
+        @if (formError(); as error) {
+          <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+
+        @let code = form.controls.code;
+        <div class="field">
+          <label for="role-code">{{ t('access.roles.code') }}</label>
+          <input
+            id="role-code"
+            type="text"
+            formControlName="code"
+            autocomplete="off"
+            maxlength="32"
+            required
+            [attr.aria-invalid]="code.invalid && code.touched"
+            aria-describedby="role-code-hint role-code-error"
+          />
+          @if (isNew()) {
+            <p class="field-hint" id="role-code-hint">{{ t('access.roles.codeHint') }}</p>
           }
-        } @else {
-          {{ t('access.roles.createTitle') }}
-        }
-      </h2>
+          @if (code.invalid && code.touched) {
+            <p class="field-error" id="role-code-error">
+              {{ code.hasError('server') ? code.getError('server') : t(fieldErrorKey(code)) }}
+            </p>
+          }
+        </div>
 
-      @if (created(); as code) {
-        <p class="feedback" role="status">{{ t('access.roles.created', { code }) }}</p>
-      }
-      @if (saved()) {
-        <p class="feedback" role="status">{{ t('access.roles.saved') }}</p>
-      }
-      @if (role()?.isSystem) {
-        <p class="muted" data-note="system">{{ t('access.roles.systemNote') }}</p>
-      } @else if (readOnly()) {
-        <p class="muted" data-note="read-only">{{ t('access.roles.readOnlyNote') }}</p>
-      }
+        <!-- formGroupName: the controls below belong to the nested `names` group ({ fr, ar, en }). -->
+        <div formGroupName="names">
+          @for (lang of nameLanguages; track lang) {
+            @let name = form.controls.names.controls[lang];
+            <div class="field">
+              <label [for]="'role-name-' + lang">{{ t('access.roles.nameIn.' + lang) }}</label>
+              <!-- Each name is typed in its own language: `lang`/`dir="auto"` let an Arabic name read right-to-left even in the French UI. -->
+              <input
+                [id]="'role-name-' + lang"
+                type="text"
+                [formControlName]="lang"
+                [attr.lang]="lang"
+                dir="auto"
+                required
+                [attr.aria-invalid]="name.invalid && name.touched"
+                [attr.aria-describedby]="name.invalid && name.touched ? 'role-name-' + lang + '-error' : null"
+              />
+              @if (name.invalid && name.touched) {
+                <p class="field-error" [id]="'role-name-' + lang + '-error'">
+                  {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+                </p>
+              }
+            </div>
+          }
+        </div>
 
-      @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
-      }
-
-      @let code = form.controls.code;
-      <div class="field">
-        <label for="role-code">{{ t('access.roles.code') }}</label>
-        <input
-          id="role-code"
-          type="text"
-          formControlName="code"
-          autocomplete="off"
-          maxlength="32"
-          required
-          [attr.aria-invalid]="code.invalid && code.touched"
-          aria-describedby="role-code-hint role-code-error"
-        />
-        @if (isNew()) {
-          <p class="field-hint" id="role-code-hint">{{ t('access.roles.codeHint') }}</p>
-        }
-        @if (code.invalid && code.touched) {
-          <p class="field-error" id="role-code-error">
-            {{ code.hasError('server') ? code.getError('server') : t(fieldErrorKey(code)) }}
+        @let permissions = form.controls.permissions;
+        <h3 id="role-permissions-title">{{ t('access.roles.permissions') }}</h3>
+        @if (permissions.invalid && permissions.touched) {
+          <p class="field-error" id="role-permissions-error" role="alert">
+            {{ permissions.hasError('server') ? permissions.getError('server') : t(fieldErrorKey(permissions)) }}
           </p>
         }
-      </div>
+        <app-permission-checklist
+          formControlName="permissions"
+          idPrefix="role-perm"
+          [invalid]="permissions.invalid && permissions.touched"
+          [describedBy]="permissions.invalid && permissions.touched ? 'role-permissions-error' : null"
+        />
 
-      <!-- formGroupName: the controls below belong to the nested `names` group ({ fr, ar, en }). -->
-      <div formGroupName="names">
-        @for (lang of nameLanguages; track lang) {
-          @let name = form.controls.names.controls[lang];
-          <div class="field">
-            <label [for]="'role-name-' + lang">{{ t('access.roles.nameIn.' + lang) }}</label>
-            <!-- Each name is typed in its own language: `lang`/`dir="auto"` let an Arabic name read right-to-left even in the French UI. -->
-            <input
-              [id]="'role-name-' + lang"
-              type="text"
-              [formControlName]="lang"
-              [attr.lang]="lang"
-              dir="auto"
-              required
-              [attr.aria-invalid]="name.invalid && name.touched"
-              [attr.aria-describedby]="name.invalid && name.touched ? 'role-name-' + lang + '-error' : null"
-            />
-            @if (name.invalid && name.touched) {
-              <p class="field-error" [id]="'role-name-' + lang + '-error'">
-                {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
-              </p>
-            }
+        @if (!readOnly()) {
+          <div class="form-actions">
+            <button class="btn" type="submit" [disabled]="submitting()">
+              {{ submitting() ? t('access.form.saving') : t('common.save') }}
+            </button>
+            <a class="btn secondary" routerLink="/access/roles">{{ t('common.cancel') }}</a>
           </div>
         }
-      </div>
-
-      @let permissions = form.controls.permissions;
-      <h3 id="role-permissions-title">{{ t('access.roles.permissions') }}</h3>
-      @if (permissions.invalid && permissions.touched) {
-        <p class="field-error" id="role-permissions-error" role="alert">
-          {{ permissions.hasError('server') ? permissions.getError('server') : t(fieldErrorKey(permissions)) }}
-        </p>
-      }
-      <app-permission-checklist
-        formControlName="permissions"
-        idPrefix="role-perm"
-        [invalid]="permissions.invalid && permissions.touched"
-        [describedBy]="permissions.invalid && permissions.touched ? 'role-permissions-error' : null"
-      />
-
-      @if (!readOnly()) {
-        <div class="form-actions">
-          <button class="btn" type="submit" [disabled]="submitting()">
-            {{ submitting() ? t('access.form.saving') : t('common.save') }}
-          </button>
-          <a class="btn secondary" routerLink="/access/roles">{{ t('common.cancel') }}</a>
-        </div>
-      }
-    </form>
+      </form>
+    </app-history-tabs>
   } @else if (catalog.rolesError()) {
     <div class="form-error" role="alert">
       <p>{{ t('access.roles.loadError') }}</p>

@@ -155,6 +155,20 @@ export class IdentityRepository {
     return rows[0]?.sid ?? null;
   }
 
+  /** Owner (user, company) and family of a refresh token's session, whatever its state. */
+  async sessionOwner(refreshHash: Buffer): Promise<{ userId: string; companyId: string; familyId: string } | null> {
+    const { rows } = await sql<{ user_id: string; company_id: string; family_id: string }>`
+      select user_id, company_id, family_id from auth.session_owner(${refreshHash})`.execute(this.executor());
+    const row = rows[0];
+    return row ? { userId: row.user_id, companyId: row.company_id, familyId: row.family_id } : null;
+  }
+
+  /** The user's default company (else the lowest company code), whatever the account status. */
+  async defaultCompany(userId: string): Promise<string | null> {
+    const { rows } = await sql<{ company_id: string | null }>`select auth.default_company(${userId}::uuid) as company_id`.execute(this.executor());
+    return rows[0]?.company_id ?? null;
+  }
+
   async revokeFamily(refreshHash: Buffer | null, sid: string | null, userId: string | null): Promise<void> {
     await sql`select auth.revoke_family(${refreshHash}, ${sid}::uuid, ${userId}::uuid)`.execute(this.executor());
   }

@@ -74,7 +74,8 @@ describe('Access › Roles', () => {
 
       const cells = (code: string) =>
         [...el().querySelectorAll(`tr[data-role="${code}"] td`)].map((td) => td.textContent?.replace(/\s+/g, ' ').trim());
-      expect(cells('admin_rh_central')).toEqual(['Administrateur RH central', 'admin_rh_central', 'Rôle système', '14 3 sensible(s)']);
+      // 15 = the authorization catalogue minus employee.medical.read, plus audit.read (docs/contracts/audit.md).
+      expect(cells('admin_rh_central')).toEqual(['Administrateur RH central', 'admin_rh_central', 'Rôle système', '15 3 sensible(s)']);
       expect(cells('GEST-PAIE')).toEqual(['Gestionnaire paie', 'GEST-PAIE', 'Personnalisé', '2 1 sensible(s)']);
       expect(el().querySelector('[data-action="new-role"]')?.getAttribute('href')).toBe('/access/roles/new');
     });
@@ -89,6 +90,17 @@ describe('Access › Roles', () => {
   });
 
   describe('editor', () => {
+    it('History tab: none while creating a role; present on a saved role (audit.read)', async () => {
+      await open('/access/roles/new');
+      expect(el().querySelector('form')).not.toBeNull();
+      expect(el().querySelector('[data-tab="history"]')).toBeNull();
+
+      await harness.navigateByUrl('/access/roles/role-paie');
+      await settle();
+      expect(el().querySelector('[data-tab="history"]')).not.toBeNull();
+      expect(el().querySelector('[data-tab="details"]')?.getAttribute('aria-selected')).toBe('true');
+    });
+
     it('a system role is read-only: disabled fields and checklist, no save button', async () => {
       await open(`/access/roles/${ROLE_ADMIN.id}`);
 

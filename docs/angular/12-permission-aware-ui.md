@@ -295,3 +295,5 @@ with a 409 slug, and the forms map it (chapter 07,
 
 Back to [10-project-structure-and-recipes.md](./10-project-structure-and-recipes.md) for
 the recipes "hide a button by permission" and "add an admin page".
+Then [13-pipes-defer-and-lists.md](./13-pipes-defer-and-lists.md): the History tab, shown
+only with `audit.read`, uses the same `Session.allows()` pattern.

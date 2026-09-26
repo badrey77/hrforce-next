@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ENV } from '../../../platform/config/config.module.js';
 import type { Env } from '../../../platform/config/env.schema.js';
 import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
@@ -32,6 +33,7 @@ export class PasswordService {
     private readonly repo: IdentityRepository,
     private readonly hasher: PasswordHasher,
     private readonly mail: MailSender,
+    private readonly audit: AuditEvents,
   ) {}
 
   /**
@@ -49,6 +51,14 @@ export class PasswordService {
     }
     const userId = await this.repo.consumePasswordToken(tokenHash, await this.hasher.hash(password));
     if (!userId) throw tokenInvalid(); // consumed concurrently / expired meanwhile
+    // docs/contracts/audit.md: under the user's default company (the account is global)
+    const companyId = await this.repo.defaultCompany(userId);
+    if (companyId) {
+      await this.audit.recordFor(
+        { companyId, actorUserId: userId },
+        { type: 'auth.password_set', subject: { type: 'user', id: userId }, data: { purpose: target.purpose } },
+      );
+    }
   }
 
   /**

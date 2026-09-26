@@ -349,5 +349,113 @@
       "roleEscalation": "لا يمكنك إضافة صلاحيات لا تملكها إلى دور.",
       "roleSystemImmutable": "لا يمكن تعديل أدوار النظام."
     }
+  },
+  "audit": {
+    "tabs": {
+      "label": "أقسام البطاقة",
+      "details": "التفاصيل",
+      "history": "السجل"
+    },
+    "loading": "جارٍ تحميل السجل…",
+    "loadError": "تعذّر تحميل السجل.",
+    "notFound": "السجل غير موجود أو غير متاح.",
+    "chunkError": "تعذّر عرض السجل. أعد تحميل الصفحة.",
+    "none": "لا يوجد سجل حتى الآن.",
+    "loadMore": "عرض المزيد",
+    "system": "النظام",
+    "day": {
+      "today": "اليوم",
+      "yesterday": "أمس"
+    },
+    "ops": {
+      "insert": "إنشاء",
+      "update": "تعديل",
+      "delete": "حذف"
+    },
+    "tables": {
+      "company": "المؤسسة",
+      "org_unit": "الوحدة",
+      "org_unit_version": "نسخة الوحدة",
+      "site": "الموقع",
+      "role": "الدور",
+      "role_permission": "صلاحية الدور",
+      "role_grant": "إسناد الدور"
+    },
+    "masked": "مخفي",
+    "emptyValue": "(فارغ)",
+    "yes": "نعم",
+    "no": "لا",
+    "range": "من {{from}} إلى {{to}}",
+    "rangeOpen": "ابتداءً من {{from}}",
+    "arrow": "←",
+    "becomes": "أصبح",
+    "fields": {
+      "company": {
+        "code": "الرمز",
+        "name": "التسمية الاجتماعية",
+        "created_at": "تاريخ الإنشاء"
+      },
+      "org_unit": {
+        "code": "الرمز",
+        "name": "الاسم",
+        "kind": "النوع",
+        "is_root": "الوحدة الجذرية",
+        "axis": "المحور",
+        "created_at": "تاريخ الإنشاء"
+      },
+      "org_unit_version": {
+        "org_unit_id": "الوحدة",
+        "name": "الاسم",
+        "parent_id": "الوحدة الأم",
+        "site_id": "الموقع",
+        "valid": "مدة الصلاحية",
+        "created_at": "تاريخ الإنشاء"
+      },
+      "site": {
+        "code": "الرمز",
+        "name": "الاسم",
+        "wilaya": "الولاية",
+        "address": "العنوان",
+        "created_at": "تاريخ الإنشاء"
+      },
+      "role": {
+        "code": "الرمز",
+        "name_fr": "الاسم (بالفرنسية)",
+        "name_ar": "الاسم (بالعربية)",
+        "name_en": "الاسم (بالإنجليزية)",
+        "is_system": "دور نظامي",
+        "created_at": "تاريخ الإنشاء"
+      },
+      "role_permission": {
+        "role_id": "الدور",
+        "permission_code": "الصلاحية"
+      },
+      "role_grant": {
+        "user_id": "المستخدم",
+        "role_id": "الدور",
+        "org_unit_id": "الوحدة",
+        "include_descendants": "تشمل الوحدات الفرعية",
+        "valid_from": "ساري من",
+        "valid_to": "ساري إلى (غير مشمول)",
+        "valid": "مدة الصلاحية",
+        "granted_by": "أُسند من طرف",
+        "granted_at": "تاريخ الإسناد",
+        "ended_by": "أُنهي من طرف",
+        "ended_at": "تاريخ الإنهاء"
+      }
+    },
+    "events": {
+      "auth": {
+        "login": "تسجيل الدخول (عنوان IP‏ {{ip}})",
+        "logout": "تسجيل الخروج",
+        "password_set": "تعيين كلمة المرور",
+        "session_reuse": "رُصدت إعادة استخدام جلسة"
+      },
+      "access": {
+        "grant_created": "إسناد الدور «{{role}}» على {{unit}} ابتداءً من {{validFrom}}",
+        "grant_ended": "إنهاء الدور «{{role}}» على {{unit}} في {{validTo}}"
+      },
+      "unknown": "حدث {{type}}"
+    }
   }
 }

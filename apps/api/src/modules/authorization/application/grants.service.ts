@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { ValidationProblemException } from '../../../platform/http/problem-details.js';
 import {
@@ -56,6 +57,7 @@ export class GrantsService {
     private readonly repo: AccessRepository,
     private readonly scopes: ScopeService,
     private readonly clock: AccessClock,
+    private readonly audit: AuditEvents,
   ) {}
 
   async listGrants(input: ListGrantsInput): Promise<ItemsView<GrantView>> {
@@ -176,7 +178,9 @@ export class GrantsService {
       }
       throw error;
     }
-    return this.getGrant(companyId, id, members);
+    const view = await this.getGrant(companyId, id, members);
+    await this.recordGrantEvent('access.grant_created', view);
+    return view;
   }
 
   async endGrant(id: string, validTo: string): Promise<GrantView> {
@@ -189,7 +193,18 @@ export class GrantsService {
     }
     assertEndDate(grant, validTo);
     await this.repo.endGrant(companyId, id, validTo, caller);
-    return this.getGrant(companyId, id, await this.repo.members(companyId));
+    const view = await this.getGrant(companyId, id, await this.repo.members(companyId));
+    await this.recordGrantEvent('access.grant_ended', view);
+    return view;
+  }
+
+  /** docs/contracts/audit.md › Application events (in addition to the role_grant row trigger). */
+  private recordGrantEvent(type: 'access.grant_created' | 'access.grant_ended', grant: GrantView): Promise<void> {
+    return this.audit.record({
+      type,
+      subject: { type: 'user', id: grant.userId },
+      data: { grantId: grant.id, roleCode: grant.role.code, unitId: grant.unit.id, validFrom: grant.validFrom, validTo: grant.validTo },
+    });
   }
 
   /** A grant whose unit is in the caller's access.read scope; else 404. */

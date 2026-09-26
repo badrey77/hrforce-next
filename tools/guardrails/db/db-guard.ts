@@ -2,7 +2,8 @@
  * DB-backed guardrails, run against ONE freshly migrated throwaway database:
  *   company-id       every public table: company_id uuid not null + ENABLE/FORCE RLS + tenant policy (or exempt);
  *                    the auth schema (no app privileges at all) is listed in the exemption file for documentation
- *   audit-per-write  `-- @audited` tables have an audit* trigger
+ *   audit-per-write  every tenant table of public (company_id, plus company) has an audit% trigger
+ *                    (AFTER INSERT OR UPDATE OR DELETE FOR EACH ROW), unless in tools/guardrails/audit-exempt.json
  *   schema-drift     `npm run db:codegen:verify -w @hrforce/api` (src/platform/db/schema.ts is up to date)
  *
  *   TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres npm run guard:db
@@ -11,9 +12,10 @@
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import type { Client } from 'pg';
 import { type GuardResult, isMain, printResult, REPO_ROOT, type Violation } from '../lib/report.ts';
 import { MIGRATIONS_DIR } from '../migrations/migrations.ts';
-import { evaluateAudited, evaluateCompanyId, loadCatalog, loadExempt, parseMigrationTables } from './catalog.ts';
+import { evaluateAudited, evaluateCompanyId, isTenantTable, loadAuditExempt, loadCatalog, loadExempt, parseMigrationTables } from './catalog.ts';
 import { createThrowawayDb, superuserUrlFromEnv, withClient } from './throwaway-db.ts';
 
 const API_DIR = path.join(REPO_ROOT, 'apps/api');
@@ -41,6 +43,15 @@ export function schemaDriftViolation(output: string): Violation {
   };
 }
 
+/** Tables of schema audit that are not partitions (change_log, event, masked_column). */
+async function loadAuditParents(client: Client): Promise<string[]> {
+  const { rows } = await client.query<{ name: string }>(
+    `select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'audit' and c.relkind in ('r', 'p') and not c.relispartition order by 1`,
+  );
+  return rows.map((r) => r.name);
+}
+
 export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): Promise<GuardResult[]> {
   const db = await createThrowawayDb(superuserUrl);
   try {
@@ -50,20 +61,24 @@ export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): P
     }
     const catalog = await withClient(db.superuserUrl, (client) => loadCatalog(client));
     const authTables = (await withClient(db.superuserUrl, (client) => loadCatalog(client, 'auth'))).map((t) => `auth.${t.name}`);
+    // audit schema: only the partitioned parents and the masking list are documented (monthly partitions come and go)
+    const auditTables = (await withClient(db.superuserUrl, (client) => loadAuditParents(client))).map((name) => `audit.${name}`);
     const tables = parseMigrationTables(root, MIGRATIONS_DIR);
     const exempt = loadExempt(root);
+    const auditExempt = loadAuditExempt(root);
+    const tenants = catalog.filter(isTenantTable);
     // same command as `npm run db:codegen:verify -w @hrforce/api`
     const drift = codegen(db.migratorUrl);
     return [
       {
         name: 'company-id',
-        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables, undefined, authTables)],
+        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables, undefined, [...authTables, ...auditTables])],
         info: `company-id: ${catalog.length} tables in public (${exempt.entries.length} exempt)`,
       },
       {
         name: 'audit-per-write',
-        violations: evaluateAudited(catalog, tables),
-        info: `audit-per-write: ${tables.filter((t) => t.audited).length} table(s) marked -- @audited`,
+        violations: [...auditExempt.violations, ...evaluateAudited(catalog, auditExempt.entries, tables)],
+        info: `audit-per-write: ${tenants.length} tenant tables in public (${auditExempt.entries.length} exempt)`,
       },
       { name: 'schema-drift', violations: drift.ok ? [] : [schemaDriftViolation(drift.output)] },
     ];

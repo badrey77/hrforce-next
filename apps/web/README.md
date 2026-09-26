@@ -146,6 +146,28 @@ in as `lecture.ouest@demo.dz` to see the read-only organization and no Access en
   link to `/password/forgot`) and `/password/forgot` (always the same confirmation, no account enumeration).
 - **Sign out** (header): `POST /api/auth/logout`, then signed out locally and `/login`, even if the call failed.
 
+## Typography
+
+- **Fonts.** Arabic UI: **Cairo**. French/English UI: **Source Sans 3**. Both are variable fonts (one file covers
+  weights 200–900/1000), OFL-1.1, from npm: `@fontsource-variable/cairo` and `@fontsource-variable/source-sans-3`.
+- **Self-hosted, never a font CDN.** The `@font-face` rules at the top of `src/styles.css` point at the packages'
+  `.woff2` files (`url('@fontsource-variable/…/files/…')`); the Angular build copies them to `dist/…/media/` with a
+  content hash. The browser never contacts Google Fonts or any third party: the app works on an offline intranet, and
+  HR screens make no third-party request that would leak who looks at what (Algerian law 18-07 on personal data).
+  Do not add a `<link>` to fonts.googleapis.com or a CDN `@import`.
+- **Subsets.** Only arabic + latin + latin-ext (Cairo) and latin + latin-ext (Source Sans 3) are declared; each
+  `@font-face` has a `unicode-range`, so a French screen downloads one file (~29 kB) and an Arabic screen two
+  (~31 + 34 kB). Five files (~170 kB) are emitted in all; the initial JS/CSS grows by ~0.6 kB.
+- **Per language.** `:root` defines `--font-ui` (Source Sans 3 → Cairo for any Arabic text → system fonts) and
+  `--line-height-ui: 1.5`; `:root:lang(ar)` switches to Cairo first and `line-height: 1.6` (Cairo's vowel marks
+  collide at 1.5). Same font-size in both: Cairo's Arabic body is as tall as Source Sans 3's x-height. `LanguageService`
+  sets `<html lang>`, so nothing else is needed. Tokens `--font-latin`, `--font-arabic`, `--font-mono` are available.
+- **Rules.** Never set a `font-family` in a component except `ui-monospace, monospace` (or `var(--font-mono)`) for
+  codes. Form controls and `<dialog>` get `font: inherit` globally; `table` and `time` use `tabular-nums`.
+- **No preload.** The language is only known at runtime (device choice or account locale) and the files are
+  hash-named by the build, so `index.html` cannot preload the right file; a French preload would be wasted (and warned
+  about by Chrome) on Arabic sessions. `font-display: swap` shows text in a system font until the file arrives.
+
 ## Conventions
 
 - **i18n.** `fr` is the default and fallback language. `ar` is RTL. `en` may be missing some keys.

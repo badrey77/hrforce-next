@@ -69,9 +69,17 @@ Boundary rules (dependency-cruiser):
 - `sql.raw` is banned (lint/guardrail). Use Kysely builders or `sql` tagged templates.
 - `src/platform/db/schema.ts` holds the Kysely `DB` interface; the drift check regenerates it from a migrated DB and diffs.
 
-### Audit (foundation hook, filled in by the Audit module)
+### Audit (docs/contracts/audit.md, migration 0009)
 - Writes happen inside the request transaction so the DB trigger can read `app.user_id`/`app.request_id`.
-- Tables that must be audited are marked in their migration with a trailing comment `-- @audited` on the CREATE TABLE line; the guardrail checks each one has the audit trigger attached.
+- **Every tenant table is audited**: each table of `public` with a `company_id` column (and `company`) gets
+  `create trigger audit_capture_tg after insert or update or delete on public.<t> for each row execute function audit.capture();`
+  in the migration that creates it (pass the row-id column as argument when the table has no `id`, e.g. `audit.capture('role_id')`).
+  Exceptions (derived data only, e.g. `org_unit_closure`) are listed with a reason in `tools/guardrails/audit-exempt.json`.
+  `guard:db` (audit-per-write) fails on a tenant table without an `audit%` AFTER INSERT/UPDATE/DELETE row trigger and on stale exemptions.
+  (The former `-- @audited` marker is retired.)
+- Sensitive columns are masked in the stored diff: add a row to `audit.masked_column(table_name, column_name)` in the same migration.
+- Use-case events that are not a row change go through the platform port `AuditEvents` (`platform/audit`), never by writing
+  `audit.*` directly: `hrforce_app` only has SELECT there; the log is append-only.
 
 ### Security
 - Pino redaction paths include: `req.headers.authorization`, `req.headers.cookie`, `res.headers["set-cookie"]`, `*.password`, `*.passwordHash`, `*.token`, `*.refreshToken`, `*.secret`.

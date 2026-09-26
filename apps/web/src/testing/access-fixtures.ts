@@ -15,6 +15,7 @@ export const PERMISSIONS: readonly Permission[] = [
   permission('access.read', 'access', 'Consulter les accès', 'الاطلاع على الصلاحيات', 'View access'),
   permission('access.grant', 'access', 'Attribuer des rôles', 'إسناد الأدوار', 'Grant roles'),
   permission('access.manage_roles', 'access', 'Gérer les rôles', 'إدارة الأدوار', 'Manage roles'),
+  permission('audit.read', 'access', 'Consulter l’historique', 'الاطلاع على السجل', 'View history'),
   permission('employee.read', 'employee', 'Consulter les employés', 'الاطلاع على الموظفين', 'View employees'),
   permission('employee.create', 'employee', 'Créer des employés', 'إنشاء الموظفين', 'Create employees'),
   permission('employee.update', 'employee', 'Modifier des employés', 'تعديل الموظفين', 'Change employees'),

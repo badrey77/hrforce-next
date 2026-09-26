@@ -1,0 +1,95 @@
+<!--
+  States:
+    no page yet + error      → alert + retry
+    no page yet              → loading
+    pages but no entry       → empty
+    entries                  → day groups, then the footer: error of "load more" (retry) / loading / "load more"
+  Pipes: `a | date: format : timezone : locale` (built-in DatePipe), `day | dayHeading: lang` (ours, pure).
+-->
+<ng-container *transloco="let t">
+  <div class="timeline" [attr.aria-busy]="page.isLoading()">
+    @if (!started()) {
+      @if (page.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(errorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="retry()">{{ t('common.retry') }}</button>
+        </div>
+      } @else {
+        <p class="muted" data-state="loading">{{ t('audit.loading') }}</p>
+      }
+    } @else if (entries().length === 0) {
+      <p class="muted" data-state="empty">{{ t('audit.none') }}</p>
+    } @else {
+      @for (group of groups(); track group.day) {
+        <section class="day" [attr.data-day]="group.day">
+          <h3>
+            @if (group.relative) {
+              {{ t('audit.day.' + group.relative) }} —
+            }
+            {{ group.day | dayHeading: lang() }}
+          </h3>
+          <ol class="entries">
+            @for (entry of group.entries; track entry.id) {
+              <li class="entry" [attr.data-entry]="entry.id">
+                <p class="meta">
+                  <span class="actor">{{ entry.actor ?? t('audit.system') }}</span>
+                  <time [attr.datetime]="entry.at" [title]="entry.at | date: 'medium' : undefined : locale()">{{
+                    entry.at | date: 'shortTime' : undefined : locale()
+                  }}</time>
+                </p>
+                @if (entry.kind === 'change') {
+                  @let tableKey = 'audit.tables.' + entry.table;
+                  @let tableLabel = t(tableKey);
+                  <p class="what">
+                    {{ t('audit.ops.' + entry.op) }} · {{ tableLabel === tableKey ? entry.table : tableLabel }}
+                  </p>
+                  @if (entry.lines.length) {
+                    <ul class="changes">
+                      @for (line of entry.lines; track line.field) {
+                        @let label = t(line.labelKey);
+                        <li [attr.data-field]="line.field">
+                          <!-- &ngsp; = a space Angular keeps (whitespace between tags is removed at compile time). -->
+                          <span class="field">{{ label === line.labelKey ? line.field : label }}</span>&ngsp;
+                          @if (line.before) {
+                            <span class="before"><app-timeline-value [value]="line.before" /></span>&ngsp;
+                          }
+                          @if (line.before && line.after) {
+                            <span class="arrow" aria-hidden="true">{{ t('audit.arrow') }}</span>
+                            <span class="visually-hidden">{{ t('audit.becomes') }}</span>&ngsp;
+                          }
+                          @if (line.after) {
+                            <span class="after"><app-timeline-value [value]="line.after" /></span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  }
+                } @else if (entry.kind === 'event') {
+                  @let sentence = t(entry.sentenceKey, entry.params);
+                  <p class="what" data-kind="event">
+                    {{ sentence === entry.sentenceKey ? t('audit.events.unknown', { type: entry.type }) : sentence }}
+                  </p>
+                }
+              </li>
+            }
+          </ol>
+        </section>
+      }
+
+      <div class="footer">
+        @if (page.error()) {
+          <div class="form-error" role="alert">
+            <p>{{ t(errorKey()) }}</p>
+            <button class="btn secondary" type="button" (click)="retry()">{{ t('common.retry') }}</button>
+          </div>
+        } @else if (page.isLoading()) {
+          <p class="muted" data-state="loading-more">{{ t('audit.loading') }}</p>
+        } @else if (nextCursor()) {
+          <button class="btn secondary" type="button" data-action="load-more" (click)="loadMore()">
+            {{ t('audit.loadMore') }}
+          </button>
+        }
+      </div>
+    }
+  </div>
+</ng-container>

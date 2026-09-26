@@ -74,21 +74,24 @@
             />
           }
           @default {
-            @if (canCreateUnder(unit) || can('update')) {
-              <div class="actions">
-                @if (canCreateUnder(unit)) {
-                  <button class="btn" type="button" data-action="create" (click)="startMode('create')">
-                    {{ t('org.actions.createChild') }}
-                  </button>
-                }
-                @if (can('update')) {
-                  <button class="btn secondary" type="button" data-action="change" (click)="startMode('change')">
-                    {{ t('org.actions.change') }}
-                  </button>
-                }
-              </div>
-            }
-            <app-unit-detail [unit]="unit" [names]="names()" [siteNames]="siteNames()" />
+            <!-- Content between the tags is projected into the "Details" tab (shared/timeline/history-tabs.ts). -->
+            <app-history-tabs [subject]="'org_unit:' + unit.id" [resolver]="auditNames">
+              @if (canCreateUnder(unit) || can('update')) {
+                <div class="actions">
+                  @if (canCreateUnder(unit)) {
+                    <button class="btn" type="button" data-action="create" (click)="startMode('create')">
+                      {{ t('org.actions.createChild') }}
+                    </button>
+                  }
+                  @if (can('update')) {
+                    <button class="btn secondary" type="button" data-action="change" (click)="startMode('change')">
+                      {{ t('org.actions.change') }}
+                    </button>
+                  }
+                </div>
+              }
+              <app-unit-detail [unit]="unit" [names]="names()" [siteNames]="siteNames()" />
+            </app-history-tabs>
           }
         }
       } @else {

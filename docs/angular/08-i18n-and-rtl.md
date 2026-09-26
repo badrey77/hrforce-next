@@ -188,6 +188,63 @@ chevron transform above). This guardrail exists precisely because "forgot one
 switches to Arabic and looks closely — the guardrail catches it at commit/CI time
 instead.
 
+## Fonts per language
+
+The UI uses **Cairo** for Arabic and **Source Sans 3** for French and English. Both come
+from npm (`@fontsource-variable/*`) and are **bundled by the Angular build** — the app
+never asks Google Fonts or another CDN for a font, so it works offline and HR screens
+make no third-party request (law 18-07). The `@font-face` rules live at the top of
+`src/styles.css`:
+
+```css
+@font-face {
+  font-family: 'Cairo Variable';
+  font-weight: 200 1000;             /* variable font: one file, every weight */
+  font-display: swap;                /* show text in a system font until the file arrives */
+  src: url('@fontsource-variable/cairo/files/cairo-arabic-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0600-06FF, …;     /* downloaded only if the page shows an Arabic character */
+}
+```
+
+The `url()` is a **package path**: the Angular builder (esbuild) resolves it in
+`node_modules`, copies the file to `dist/…/media/` and adds a content hash to its name,
+exactly like an `import` in TypeScript. `unicode-range` is what keeps the cost down: each
+package ships a file per script subset (latin, latin-ext, arabic, cyrillic…), we declare
+only the subsets we need, and the browser downloads a file only when a character on the
+page falls in its range.
+
+The language is applied with a **custom property** and the `:lang()` pseudo-class —
+`LanguageService.use()` already sets `<html lang>`, so no TypeScript is involved:
+
+```css
+:root {
+  --font-ui: 'Source Sans 3 Variable', 'Cairo Variable', system-ui, …, sans-serif;
+  --line-height-ui: 1.5;
+  font-family: var(--font-ui);
+  line-height: var(--line-height-ui);
+}
+
+:root:lang(ar) {
+  --font-ui: 'Cairo Variable', 'Source Sans 3 Variable', …, sans-serif;
+  --line-height-ui: 1.6;
+}
+```
+
+A font stack is resolved **per character**: in French, Latin letters come from Source
+Sans 3 and an Arabic name falls through to Cairo; in Arabic, Cairo draws both scripts
+(its Latin letters are designed to sit next to its Arabic). Cairo keeps the same
+`font-size` (its Arabic letter bodies are as tall as Source Sans 3's x-height, measured)
+but gets a taller line: with vowel marks its glyphs span 1.59em, which would touch the
+next line at 1.5. Custom properties inherit like any property, so the whole page follows
+without per-component CSS.
+
+Two traps handled globally in `styles.css`: browsers' default stylesheets give
+`<input>`, `<button>`, `<select>` and `<textarea>` their own system font instead of the
+page's (hence `font: inherit`, also applied to `<dialog>` so a modal always matches), and table columns of dates or counts only
+line up with equal-width digits (`font-variant-numeric: tabular-nums` on `table` and
+`time`). Components never set `font-family`, except the `ui-monospace, monospace` stack
+for codes.
+
 ## The i18n parity guardrail
 
 `tools/guardrails/i18n/i18n-parity.ts` checks the three translation files against each

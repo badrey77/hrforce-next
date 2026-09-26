@@ -349,5 +349,113 @@
       "roleEscalation": "Vous ne pouvez pas ajouter à un rôle des permissions que vous ne détenez pas.",
       "roleSystemImmutable": "Les rôles système ne peuvent pas être modifiés."
     }
+  },
+  "audit": {
+    "tabs": {
+      "label": "Sections de la fiche",
+      "details": "Détails",
+      "history": "Historique"
+    },
+    "loading": "Chargement de l’historique…",
+    "loadError": "Impossible de charger l’historique.",
+    "notFound": "Historique introuvable ou non accessible.",
+    "chunkError": "Impossible d’afficher l’historique. Rechargez la page.",
+    "none": "Aucun historique pour l’instant.",
+    "loadMore": "Afficher plus",
+    "system": "Système",
+    "day": {
+      "today": "Aujourd’hui",
+      "yesterday": "Hier"
+    },
+    "ops": {
+      "insert": "Création",
+      "update": "Modification",
+      "delete": "Suppression"
+    },
+    "tables": {
+      "company": "Entreprise",
+      "org_unit": "Unité",
+      "org_unit_version": "Version de l’unité",
+      "site": "Site",
+      "role": "Rôle",
+      "role_permission": "Permission du rôle",
+      "role_grant": "Attribution de rôle"
+    },
+    "masked": "masqué",
+    "emptyValue": "(vide)",
+    "yes": "Oui",
+    "no": "Non",
+    "range": "du {{from}} au {{to}}",
+    "rangeOpen": "à partir du {{from}}",
+    "arrow": "→",
+    "becomes": "devient",
+    "fields": {
+      "company": {
+        "code": "Code",
+        "name": "Raison sociale",
+        "created_at": "Créé le"
+      },
+      "org_unit": {
+        "code": "Code",
+        "name": "Nom",
+        "kind": "Type",
+        "is_root": "Unité racine",
+        "axis": "Axe",
+        "created_at": "Créé le"
+      },
+      "org_unit_version": {
+        "org_unit_id": "Unité",
+        "name": "Nom",
+        "parent_id": "Unité parente",
+        "site_id": "Site",
+        "valid": "Validité",
+        "created_at": "Créé le"
+      },
+      "site": {
+        "code": "Code",
+        "name": "Nom",
+        "wilaya": "Wilaya",
+        "address": "Adresse",
+        "created_at": "Créé le"
+      },
+      "role": {
+        "code": "Code",
+        "name_fr": "Nom (français)",
+        "name_ar": "Nom (arabe)",
+        "name_en": "Nom (anglais)",
+        "is_system": "Rôle système",
+        "created_at": "Créé le"
+      },
+      "role_permission": {
+        "role_id": "Rôle",
+        "permission_code": "Permission"
+      },
+      "role_grant": {
+        "user_id": "Utilisateur",
+        "role_id": "Rôle",
+        "org_unit_id": "Unité",
+        "include_descendants": "Sous-unités incluses",
+        "valid_from": "Valable à partir du",
+        "valid_to": "Valable jusqu’au (exclu)",
+        "valid": "Validité",
+        "granted_by": "Attribué par",
+        "granted_at": "Attribué le",
+        "ended_by": "Terminé par",
+        "ended_at": "Terminé le"
+      }
+    },
+    "events": {
+      "auth": {
+        "login": "Connexion (adresse IP {{ip}})",
+        "logout": "Déconnexion",
+        "password_set": "Mot de passe défini",
+        "session_reuse": "Réutilisation d’une session détectée"
+      },
+      "access": {
+        "grant_created": "Rôle « {{role}} » attribué sur {{unit}} à partir du {{validFrom}}",
+        "grant_ended": "Rôle « {{role}} » sur {{unit}} terminé au {{validTo}}"
+      },
+      "unknown": "Événement {{type}}"
+    }
   }
 }

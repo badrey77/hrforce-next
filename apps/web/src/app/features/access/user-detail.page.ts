@@ -23,6 +23,11 @@
  * - **A resource keyed on a route param**: `member` is `AccessApi.userResource(this.id)` (`GET /access/users/:id`).
  *   Navigating from one user to another reuses this component; the `id` input changes and the resource re-fetches.
  *   A 404 (unknown id, or a member this caller may not see — ADR 002) is shown as "not found", never "forbidden".
+ * - **History tab** (docs/contracts/audit.md › Web): the grants part of the page is projected into
+ *   `<app-history-tabs [subject]="'user:' + person.id">` (shared/timeline/history-tabs.ts), which adds the member's
+ *   audit timeline (grant rows + login/password events) for `audit.read` holders. `auditNames` names role ids and
+ *   codes from the catalogue, and units / people from the grants this page already loaded — no extra request.
+ *   The End dialog stays OUTSIDE the tabs: it is page-level UI, and a `<dialog>` hidden with its panel could not open.
  */
 import {
   ChangeDetectionStrategy,
@@ -45,8 +50,10 @@ import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-pro
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { KindCatalog } from '../../core/org/kind-catalog';
 import { CanDirective } from '../../shared/can/can.directive';
+import { HistoryTabs } from '../../shared/timeline/history-tabs';
 import { dateWithin, END_GRANT_SLUGS, fieldErrorKey, grantState, isoDate } from './access-forms';
 import { AccessNav } from './access-nav';
+import { accessAuditNames } from './audit-names';
 import { GrantForm } from './grant-form';
 
 function loadErrorKey(error: unknown, fallback: string, notFound = fallback): string {
@@ -59,7 +66,7 @@ function loadErrorKey(error: unknown, fallback: string, notFound = fallback): st
 
 @Component({
   selector: 'app-access-user-detail-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective, HistoryTabs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-detail.page.html',
   styleUrl: './access.css',
@@ -91,6 +98,18 @@ export class UserDetailPage {
   );
   protected readonly grantItems = computed<readonly GrantView[]>(() => (this.grants.hasValue() ? this.grants.value().items : []));
   protected readonly grantsErrorKey = computed(() => loadErrorKey(this.grants.error(), 'access.grants.loadError'));
+
+  /** Names for the audit history: roles from the catalogue; units and people from the member and their grants. */
+  protected readonly auditNames = accessAuditNames(this.catalog, {
+    units: computed(() => new Map(this.grantItems().map((g) => [g.unit.id, g.unit.name]))),
+    users: computed(() => {
+      const names = new Map<string, string>();
+      for (const g of this.grantItems()) if (g.grantedBy) names.set(g.grantedBy.id, g.grantedBy.displayName);
+      const person = this.user();
+      if (person) names.set(person.id, person.displayName);
+      return names;
+    }),
+  });
 
   // --- End dialog -------------------------------------------------------------------------------------------
 

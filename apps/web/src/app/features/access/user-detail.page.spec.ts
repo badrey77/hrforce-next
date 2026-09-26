@@ -4,8 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { flushAccessCatalog, grant, GRANT_SAMIR, ROLE_CUSTOM, USER_SAMIR } from '../../../testing/access-fixtures';
-import { ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
+import { GRANT_ROW, GRANTED } from '../../../testing/audit-fixtures';
+import { ADMIN_PERMISSIONS, ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
+import { enterViewport, installIntersectionObserver } from '../../../testing/intersection-observer';
 import { flushKinds } from '../../../testing/org-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import type { GrantView } from '../../core/access/access.models';
@@ -129,6 +131,37 @@ describe('Access › User detail', () => {
   afterEach(() => {
     vi.useRealTimers();
     http.verify();
+  });
+
+  describe('history tab (audit.read)', () => {
+    it('hidden without audit.read: the grants show without tabs', async () => {
+      TestBed.inject(Session).set(meWith(ADMIN_PERMISSIONS.filter((code) => code !== 'audit.read')));
+      await open();
+      expect(el().querySelector('[role="tablist"]')).toBeNull();
+      expect(el().querySelector('tr[data-grant="g-samir"]')).not.toBeNull();
+    });
+
+    it('with audit.read: History loads the member\'s timeline (deferred), naming roles and units the page knows', async () => {
+      installIntersectionObserver();
+      await open();
+      expect(el().querySelector('[data-tab="details"]')?.getAttribute('aria-selected')).toBe('true');
+
+      (el().querySelector('[data-tab="history"]') as HTMLButtonElement).click();
+      await settle();
+      enterViewport(); // `@defer (on viewport)`: the placeholder is "seen"
+      for (let i = 0; i < 20 && !el().querySelector('app-timeline'); i++) await settle();
+      await settle();
+
+      const req = http.expectOne((r) => r.url === '/api/audit/timeline');
+      expect(req.request.params.get('subject')).toBe('user:u-samir');
+      req.flush({ items: [GRANTED, GRANT_ROW], nextCursor: null });
+      await settle();
+
+      expect(text('[data-entry="e:7"] [data-kind="event"]')).toBe('Rôle « Lecture » attribué sur Région Ouest à partir du 2026-10-01');
+      expect(text('[data-entry="c:40"] [data-field="role_id"] .after')).toBe('Lecture');
+      // The grants table is only hidden (projected content), still in the DOM.
+      expect(el().querySelector('tr[data-grant="g-samir"]')).not.toBeNull();
+    });
   });
 
   describe('grants table', () => {

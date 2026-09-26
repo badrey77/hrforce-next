@@ -4,7 +4,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ORG_KIND_LIST, SITE_ANNABA, SITE_CNE, SITE_HQ, SITES } from '../../../testing/org-fixtures';
-import { ME_FIXTURE, ME_LECTURE } from '../../../testing/auth-fixtures';
+import { ADMIN_PERMISSIONS, ME_FIXTURE, ME_LECTURE, meWith } from '../../../testing/auth-fixtures';
+import { enterViewport, installIntersectionObserver } from '../../../testing/intersection-observer';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
@@ -276,6 +277,52 @@ describe('OrganizationPage', () => {
     expect(el().querySelector('app-unit-detail [data-field="site"]')?.textContent).not.toContain('hérité');
     expect(el().querySelector('[data-action="create"]')).not.toBeNull();
     expect(el().querySelector('[data-action="change"]')).not.toBeNull();
+  });
+
+  it('History tab (audit.read): the unit\'s timeline, with parent units and sites named from the tree and sites list', async () => {
+    installIntersectionObserver();
+    await open('/organization?asOf=2025-03-31');
+    await select(REG_EST, [P_DG, P_RX]);
+
+    (el().querySelector('[data-tab="history"]') as HTMLButtonElement).click();
+    await settle();
+    enterViewport();
+    for (let i = 0; i < 20 && !el().querySelector('app-timeline'); i++) await settle();
+    await settle();
+    const req = http.expectOne((r) => r.url === '/api/audit/timeline');
+    expect(req.request.params.get('subject')).toBe('org_unit:r-est');
+    req.flush({
+      items: [
+        {
+          id: 'c:9',
+          at: '2026-03-01T10:00:00Z',
+          actor: { id: 'u-amina', displayName: 'Amina Benali' },
+          requestId: 'r-9',
+          kind: 'change',
+          table: 'org_unit_version',
+          op: 'update',
+          changes: [
+            { field: 'parent_id', before: 'd-rx', after: 'dg', masked: false },
+            { field: 'site_id', before: 's-cne', after: 's-hq', masked: false },
+          ],
+        },
+      ],
+      nextCursor: null,
+    });
+    await settle();
+    const values = (field: string) =>
+      [...el().querySelectorAll(`[data-field="${field}"] app-timeline-value`)].map((v) => v.textContent?.trim());
+    expect(values('parent_id')).toEqual(['Département RX', 'Direction Générale']);
+    expect(values('site_id')).toEqual(['Constantine (CNE)', 'Alger – Siège (ALG-HQ)']);
+    expect(el().querySelector('app-unit-detail')).not.toBeNull(); // hidden, not destroyed
+  });
+
+  it('no History tab without audit.read', async () => {
+    TestBed.inject(Session).set(meWith(ADMIN_PERMISSIONS.filter((code) => code !== 'audit.read')));
+    await open('/organization?asOf=2025-03-31');
+    await select(REG_EST, [P_DG, P_RX]);
+    expect(el().querySelector('app-unit-detail')).not.toBeNull();
+    expect(el().querySelector('[data-tab="history"]')).toBeNull();
   });
 
   it('hides "add a sub-unit" when the catalogue allows no child kind, even with create_child', async () => {

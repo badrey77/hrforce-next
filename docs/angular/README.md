@@ -44,6 +44,11 @@ the files it discusses, so you can jump straight to the source.
     `ViewContainerRef`, the `*` microsyntax), permission guards with route `data`, and
     why the server's `_actions` stay the authority.
 
+13. [13-pipes-defer-and-lists.md](./13-pipes-defer-and-lists.md) — custom pure pipes
+    and `DatePipe`, locale data (`registerLocaleData`, why not `LOCALE_ID`), cursor
+    pagination with "load more", content projection, and `@defer` (triggers, prefetch,
+    sub-blocks, separate chunks, testing it).
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (the Employees module is next).
 
@@ -103,6 +108,13 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `FormControl<string[]>` + CVA vs `FormArray`; nested `FormGroup`; checkbox control | 07 | `src/app/features/access/permission-checklist.ts`, `role-editor.page.ts`, `grant-form.ts` |
 | Validator reading a signal; 409 slug table → fields (`problemToForm`) | 07 | `src/app/features/access/access-forms.ts`, `src/app/core/http/problem-form.ts` |
 | Resources that wait for a permission / a company id | 12 | `src/app/core/access/access-catalog.ts` |
+| Custom pure pipe (`@Pipe`, `pure`, arguments) | 13 | `src/app/shared/timeline/day-heading.pipe.ts` |
+| `DatePipe` with an explicit locale; `registerLocaleData`; `LOCALE_ID` vs the UI language | 13 | `src/app/shared/timeline/timeline.html`, `src/app/core/i18n/date-locale.ts` |
+| Cursor pagination: resource keyed on a cursor + accumulating `linkedSignal` | 13 | `src/app/shared/timeline/timeline.ts`, `src/app/core/audit/audit-api.ts` |
+| `@defer` (triggers, `prefetch`, `@placeholder`/`@loading`/`@error`, lazy chunk) | 13 | `src/app/shared/timeline/history-tabs.ts` |
+| Content projection (`<ng-content />`), `[hidden]` vs `@if` | 13 | `src/app/shared/timeline/history-tabs.ts` |
+| Inputs vs DI for a callback the host supplies (`resolver`) | 13 | `src/app/shared/timeline/timeline.ts`, `src/app/features/organization/organization.page.ts` |
+| `DeferBlockBehavior.Manual`/`Playthrough`, faked `IntersectionObserver` | 09, 13 | `src/app/shared/timeline/history-tabs.spec.ts`, `src/testing/intersection-observer.ts` |
 
 ## Glossary
 
@@ -124,9 +136,15 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   inserted (`createEmbeddedView`) or removed (`clear`). See chapter 12.
 - **View query (`viewChild()`)** — a signal that returns an element, directive or
   component found in the component's own template (e.g. `#endDialog`). See chapter 02.
-- **Pipe** — a template function that transforms a displayed value, `{{ value | pipe }}`.
-  Not used much in this codebase (Transloco's `t()` function largely replaces the
-  translate pipe); see chapter 08.
+- **Pipe** — a template function that transforms a displayed value, `{{ value | pipe:
+  arg }}`. A *pure* pipe (the default) re-runs only when its value or an argument
+  changes. Used for dates (`DatePipe`, our `dayHeading`); Transloco's `t()` function
+  replaces the translate pipe. See chapters 13 and 08.
+- **`@defer`** — a template block whose content (and the code of the components used only
+  inside it) is loaded and rendered later, on a trigger (`on viewport`, `on idle`,
+  `when …`). See chapter 13.
+- **Content projection** — `<ng-content />` in a component's template marks where the
+  content written between its tags by the parent is inserted. See chapter 13.
 - **Signal** — a reactive container for one value: `count()` reads it, `count.set(n)` /
   `count.update(fn)` writes it. Anything that reads a signal (a template, a `computed`,
   an `effect`) is automatically re-run when that signal changes. See chapter 03.
@@ -176,6 +194,6 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   chapter 09.
 
 Concepts not yet in this codebase (`NgModule`, zone-based apps, the `@ViewChild`
-decorator (the signal `viewChild()` is used instead), content projection with
-`<ng-content>`) are intentionally left out — this guide only
+decorator (the signal `viewChild()` is used instead), multi-slot projection with
+`<ng-content select="…">`) are intentionally left out — this guide only
 teaches what the code actually uses, and grows as the code does (see `CLAUDE.md`).

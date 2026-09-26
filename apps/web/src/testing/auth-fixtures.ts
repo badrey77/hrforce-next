@@ -1,10 +1,14 @@
 import type { Me } from '../app/core/auth/auth.models';
 
-/** `admin_rh_central`: everything except `employee.medical.read` (docs/contracts/authorization.md › Catalogue). */
+/**
+ * `admin_rh_central`: everything except `employee.medical.read` (docs/contracts/authorization.md › Catalogue), plus
+ * `audit.read` (docs/contracts/audit.md › Permission).
+ */
 export const ADMIN_PERMISSIONS: readonly string[] = [
   'access.grant',
   'access.manage_roles',
   'access.read',
+  'audit.read',
   'employee.bank.read',
   'employee.create',
   'employee.nss.read',

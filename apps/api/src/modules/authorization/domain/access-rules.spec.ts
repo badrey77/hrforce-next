@@ -69,7 +69,7 @@ describe('system roles', () => {
   it('match the contract table', () => {
     expect(byCode.get('rh_regional')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);
-    expect(byCode.get('admin_acces')?.permissions).toEqual(['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles']);
+    expect(byCode.get('admin_acces')?.permissions).toEqual(['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read']);
     for (const role of SYSTEM_ROLES) {
       expect(role.code).toMatch(ROLE_CODE_PATTERN);
       expect(role.names.ar).toMatch(/[؀-ۿ]/);

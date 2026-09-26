@@ -26,6 +26,11 @@
  *   `Session.can()` — holding `org_unit.update` somewhere does not mean it applies to THIS unit.
  * - `sites` (`GET /org/sites`) is loaded once by the page and handed down as an input to the forms (select options)
  *   and the detail (site names in the history), instead of each child fetching it.
+ * - **History tab** (docs/contracts/audit.md › Web): `<app-history-tabs>` wraps the detail view (content projection)
+ *   and adds a "History" tab with the unit's audit timeline for `audit.read` holders. `auditNames` is the
+ *   `resolver` input: it names parent units and sites from the tree and the sites list this page already holds. It
+ *   is a FIELD (one stable function), and it reads signals (`names()`, `siteNames()`), so the timeline's `computed()`
+ *   re-runs when they load. See shared/timeline/history-tabs.ts for the `@defer` block behind the tab.
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -35,6 +40,8 @@ import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-pro
 import { KindCatalog } from '../../core/org/kind-catalog';
 import { OrgApi } from '../../core/org/org-api';
 import type { OrgAction, OrgTreeNode, OrgUnitDetail, Site } from '../../core/org/org.models';
+import { HistoryTabs } from '../../shared/timeline/history-tabs';
+import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 import { ChangeUnitForm } from './change-unit-form';
 import { CreateUnitForm } from './create-unit-form';
 import { OrgNav } from './org-nav';
@@ -74,7 +81,7 @@ function collectNames(node: OrgTreeNode, into: Map<string, string>): Map<string,
 
 @Component({
   selector: 'app-organization-page',
-  imports: [TranslocoDirective, OrgNav, OrgTree, UnitDetail, CreateUnitForm, ChangeUnitForm],
+  imports: [TranslocoDirective, OrgNav, OrgTree, UnitDetail, CreateUnitForm, ChangeUnitForm, HistoryTabs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './organization.page.html',
   styleUrl: './organization.page.css',
@@ -113,6 +120,13 @@ export class OrganizationPage {
     const root = this.root();
     return root ? collectNames(root, new Map()) : new Map<string, string>();
   });
+
+  /** Names for ids in the audit history: units from the tree, sites from the sites list. */
+  protected readonly auditNames: AuditNameResolver = (kind, value) => {
+    if (kind === 'unit') return this.names().get(value);
+    if (kind === 'site') return this.siteNames().get(value);
+    return undefined;
+  };
 
   /** What the user may do on the selected unit: from its tree node, else (not in the tree at this date) its detail. */
   protected readonly actions = computed<readonly OrgAction[]>(() => {

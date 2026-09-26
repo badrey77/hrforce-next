@@ -5,9 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { REPO_ROOT } from '../lib/report.ts';
 import { MIGRATIONS_DIR } from '../migrations/migrations.ts';
 import {
+  type AuditExemptEntry,
+  decodeTriggerType,
   evaluateAudited,
   evaluateCompanyId,
   type ExemptEntry,
+  loadAuditExempt,
   loadCatalog,
   loadExempt,
   parseMigrationTables,
@@ -22,6 +25,11 @@ const FIXTURE_EXEMPT: ExemptEntry[] = [
   { table: 'company', reason: 'tenant table', rls: true },
   { table: 'ghost', reason: 'stale on purpose' },
 ];
+const FIXTURE_AUDIT_EXEMPT: AuditExemptEntry[] = [
+  { table: 'derived', reason: 'derived data' },
+  { table: 'ghost', reason: 'stale on purpose' },
+  { table: 'no_company', reason: 'not a tenant table: stale' },
+];
 
 const tenant = (name: string, overrides: Partial<TableInfo> = {}): TableInfo => ({
   name,
@@ -35,9 +43,9 @@ const tenant = (name: string, overrides: Partial<TableInfo> = {}): TableInfo => 
 });
 
 describe('company-id / audit: pure evaluation', () => {
-  it('parses CREATE TABLE lines and -- @audited markers from migrations', () => {
+  it('parses CREATE TABLE lines from migrations', () => {
     const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
-    expect(tables.map((t) => `${t.table}${t.audited ? ' @audited' : ''} ${path.basename(t.file)}:${t.line}`)).toEqual([
+    expect(tables.map((t) => `${t.table} ${path.basename(t.file)}:${t.line}`)).toEqual([
       'company 0001_tenancy.sql:2',
       'good_tenant 0001_tenancy.sql:8',
       'no_company 0001_tenancy.sql:17',
@@ -45,9 +53,10 @@ describe('company-id / audit: pure evaluation', () => {
       'text_company 0002_violations.sql:4',
       'not_forced 0002_violations.sql:9',
       'wrong_policy 0002_violations.sql:13',
-      'audited_ok @audited 0003_audit.sql:8',
-      'audited_missing @audited 0003_audit.sql:17',
-      ' @audited 0003_audit.sql:22',
+      'audited_ok 0003_audit.sql:8',
+      'audited_missing 0003_audit.sql:18',
+      'audited_partial 0003_audit.sql:26',
+      'derived 0003_audit.sql:34',
     ]);
   });
 
@@ -90,17 +99,51 @@ describe('company-id / audit: pure evaluation', () => {
     ]);
   });
 
-  it('flags @audited tables without an audit trigger', () => {
-    const tables = parseMigrationTables(FIXTURE_ROOT, FIXTURE_DIR);
+  it('audit-per-write: every tenant table (company_id, plus company) needs an AFTER I/U/D row trigger named audit%', () => {
+    const auditTg = { name: 'audit_capture_tg', function: 'capture', functionSchema: 'audit', ...decodeTriggerType(1 | 4 | 8 | 16) };
     const catalog = [
-      tenant('audited_ok', { triggers: [{ name: 'audited_ok_audit', function: 'audit_row_change' }] }),
-      tenant('audited_missing', { triggers: [{ name: 'touch', function: 'set_updated_at' }] }),
+      tenant('ok', { triggers: [auditTg] }),
+      tenant('company', { companyIdType: null, triggers: [] }),
+      tenant('missing', { triggers: [{ name: 'touch', function: 'set_updated_at' }] }),
+      tenant('statement', { triggers: [{ ...auditTg, ...decodeTriggerType(4 | 8 | 16) }] }),
+      tenant('before', { triggers: [{ ...auditTg, ...decodeTriggerType(1 | 2 | 4 | 8 | 16) }] }),
+      tenant('no_delete', { triggers: [{ ...auditTg, ...decodeTriggerType(1 | 4 | 16) }] }),
+      tenant('derived'),
+      tenant('lookup', { companyIdType: null }),
     ];
-    expect(evaluateAudited(catalog, tables).map((v) => `${path.basename(v.file)}:${v.line} ${v.message}`)).toEqual([
-      expect.stringMatching(/0003_audit\.sql:17 table audited_missing is marked @audited but has no audit trigger/),
-      expect.stringMatching(/0003_audit\.sql:22 `-- @audited` must be on the CREATE TABLE line/),
+    const exempt = [
+      { table: 'derived', reason: 'rebuilt' },
+      { table: 'lookup', reason: 'not a tenant table' },
+      { table: 'gone', reason: 'x' },
+    ];
+    expect(evaluateAudited(catalog, exempt, [{ table: 'missing', file: 'm.sql', line: 3 }], 'audit.json').map((v) => `${v.file}${v.line ? `:${v.line}` : ''} ${v.message}`)).toEqual([
+      expect.stringMatching(/^audit\.json stale entry: table "lookup" is not a tenant table/),
+      expect.stringMatching(/^audit\.json stale entry: table "gone" does not exist/),
+      expect.stringMatching(/^\(database\) public\.company table company has no audit trigger/),
+      expect.stringMatching(/^m\.sql:3 table missing has no audit trigger/),
+      expect.stringMatching(/^\(database\) public\.statement table statement: trigger audit_capture_tg must be AFTER INSERT OR UPDATE OR DELETE … FOR EACH ROW/),
+      expect.stringMatching(/table before: trigger audit_capture_tg must be AFTER/),
+      expect.stringMatching(/table no_delete: trigger audit_capture_tg must be AFTER/),
     ]);
-    expect(evaluateAudited([], [{ table: 'renamed', file: 'x.sql', line: 1, audited: true }])[0]?.message).toMatch(/does not exist after migrating/);
+    expect(evaluateAudited([tenant('ok', { triggers: [auditTg] })], [])).toEqual([]);
+  });
+
+  it('decodes pg_trigger.tgtype', () => {
+    expect(decodeTriggerType(29)).toEqual({ row: true, timing: 'after', events: ['insert', 'update', 'delete'] });
+    expect(decodeTriggerType(19)).toEqual({ row: true, timing: 'before', events: ['update'] });
+    expect(decodeTriggerType(32)).toEqual({ row: false, timing: 'after', events: ['truncate'] });
+  });
+
+  it('validates the audit exempt file shape', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'guard-audit-exempt-'));
+    try {
+      writeFileSync(path.join(root, 'audit.json'), JSON.stringify([{ table: 'a', reason: 'ok' }, { table: 'a', reason: 'dup' }, { table: 'b', reason: ' ' }]));
+      const { entries, violations } = loadAuditExempt(root, 'audit.json');
+      expect(entries.map((e) => e.table)).toEqual(['a', 'a']);
+      expect(violations.map((v) => v.message)).toEqual([expect.stringMatching(/duplicate entry for "a"/), expect.stringMatching(/entry 2 must be/)]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('validates the exempt file shape', () => {
@@ -120,11 +163,15 @@ describe('company-id / audit: pure evaluation', () => {
     }
   });
 
-  it("the repo's exempt list is well-formed and names tables the migrations create", () => {
+  it("the repo's exempt lists are well-formed and name tables the migrations create", () => {
     const { entries, violations } = loadExempt(REPO_ROOT);
     expect(violations).toEqual([]);
     const created = new Set(['schema_migrations', ...parseMigrationTables(REPO_ROOT, MIGRATIONS_DIR).map((t) => t.table)]);
     for (const e of entries) expect(created, e.table).toContain(e.table);
+    const audit = loadAuditExempt(REPO_ROOT);
+    expect(audit.violations).toEqual([]);
+    expect(audit.entries.map((e) => e.table)).toEqual(['org_unit_closure']);
+    for (const e of audit.entries) expect(created, e.table).toContain(e.table);
   });
 });
 
@@ -152,7 +199,9 @@ describe.skipIf(!superuserUrl)('company-id / audit / schema-drift against Postgr
     expect(catalog.map((t) => t.name)).toEqual([
       'audited_missing',
       'audited_ok',
+      'audited_partial',
       'company',
+      'derived',
       'good_tenant',
       'no_company',
       'not_forced',
@@ -178,10 +227,23 @@ describe.skipIf(!superuserUrl)('company-id / audit / schema-drift against Postgr
       expect.stringMatching(/^0002_violations\.sql:4 text_company\.company_id must be uuid \(is text\)/),
       expect.stringMatching(/^0002_violations\.sql:13 table wrong_policy: no policy references/),
     ]);
-    const audited = evaluateAudited(catalog, tables).map((v) => `${path.basename(v.file)}:${v.line} ${v.message}`);
+    expect(catalog.find((t) => t.name === 'audited_ok')?.triggers).toEqual([
+      { name: 'audit_capture_tg', function: 'audit_row_change', functionSchema: 'public', row: true, timing: 'after', events: ['insert', 'update', 'delete'] },
+    ]);
+    const audited = evaluateAudited(catalog, FIXTURE_AUDIT_EXEMPT, tables, 'audit.json').map(
+      (v) => `${path.basename(v.file)}${v.line ? `:${v.line}` : ''} ${v.message}`,
+    );
     expect(audited).toEqual([
-      expect.stringMatching(/^0003_audit\.sql:17 table audited_missing is marked @audited but has no audit trigger/),
-      expect.stringMatching(/^0003_audit\.sql:22 /),
+      expect.stringMatching(/^audit\.json stale entry: table "ghost" does not exist/),
+      expect.stringMatching(/^audit\.json stale entry: table "no_company" is not a tenant table/),
+      expect.stringMatching(/^0003_audit\.sql:18 table audited_missing has no audit trigger/),
+      expect.stringMatching(/^0003_audit\.sql:26 table audited_partial: trigger audit_partial_tg must be AFTER INSERT OR UPDATE OR DELETE/),
+      expect.stringMatching(/^0001_tenancy\.sql:2 table company has no audit trigger/),
+      expect.stringMatching(/^0001_tenancy\.sql:8 table good_tenant has no audit trigger/),
+      expect.stringMatching(/^0002_violations\.sql:9 table not_forced has no audit trigger/),
+      expect.stringMatching(/^0002_violations\.sql:2 table nullable_company has no audit trigger/),
+      expect.stringMatching(/^0002_violations\.sql:4 table text_company has no audit trigger/),
+      expect.stringMatching(/^0002_violations\.sql:13 table wrong_policy has no audit trigger/),
     ]);
   });
 

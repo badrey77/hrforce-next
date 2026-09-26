@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ENV } from '../../../platform/config/config.module.js';
 import type { Env } from '../../../platform/config/env.schema.js';
 import { identityOf, RequestIdentityResolver } from '../../../platform/context/request-identity.js';
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly hasher: PasswordHasher,
     private readonly cookies: AuthCookies,
     private readonly identityResolver: RequestIdentityResolver,
+    private readonly audit: AuditEvents,
   ) {}
 
   /**
@@ -85,6 +87,11 @@ export class AuthService {
       throw new ProblemException(403, 'account-disabled', 'This account has no access to any company.');
     }
     await record('success', account.userId);
+    // docs/contracts/audit.md: own short transaction under the session's company (no request transaction here)
+    await this.audit.recordFor(
+      { companyId: session.companyId, actorUserId: account.userId },
+      { type: 'auth.login', subject: { type: 'user', id: account.userId }, data: { ip, userAgent } },
+    );
     // this browser's previous session (if any) is replaced: revoke its family
     const previous = hashOpaqueToken(readCookie(req, REFRESH_COOKIE));
     if (previous) await this.repo.revokeFamily(previous, null, null);
@@ -104,6 +111,7 @@ export class AuthService {
     if (rotation.outcome === 'race') {
       throw new ProblemException(409, 'refresh-race', 'The session was refreshed concurrently; retry the original request.');
     }
+    if (rotation.outcome === 'reuse') await this.recordReuse(oldHash);
     if (rotation.outcome !== 'ok' || !rotation.session) {
       this.cookies.clearSession(res);
       throw sessionExpired();
@@ -117,7 +125,30 @@ export class AuthService {
     const identity = await identityOf(this.identityResolver, req);
     const sid = identity.sessionId ?? null;
     if (refreshHash || sid) await this.repo.revokeFamily(refreshHash, sid, sid ? identity.userId : null);
+    // who signed out: the access token's user, else the owner of the presented refresh token
+    const owner =
+      sid && identity.userId && identity.companyId
+        ? { userId: identity.userId, companyId: identity.companyId }
+        : refreshHash
+          ? await this.repo.sessionOwner(refreshHash)
+          : null;
+    if (owner) {
+      await this.audit.recordFor(
+        { companyId: owner.companyId, actorUserId: owner.userId },
+        { type: 'auth.logout', subject: { type: 'user', id: owner.userId }, data: {} },
+      );
+    }
     this.cookies.clearSession(res);
+  }
+
+  /** A revoked / long-rotated refresh token was presented: its family was revoked (actor: system). */
+  private async recordReuse(oldHash: Buffer): Promise<void> {
+    const owner = await this.repo.sessionOwner(oldHash);
+    if (!owner) return;
+    await this.audit.recordFor(
+      { companyId: owner.companyId, actorUserId: null },
+      { type: 'auth.session_reuse', subject: { type: 'user', id: owner.userId }, data: { familyId: owner.familyId } },
+    );
   }
 
   /**

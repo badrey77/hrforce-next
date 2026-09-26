@@ -9,7 +9,52 @@ export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
   ? ColumnType<S, I | undefined, U>
   : ColumnType<T, T | undefined, T>;
 
+export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+
+export type Json = JsonValue;
+
+export type JsonArray = JsonValue[];
+
+export type JsonObject = {
+  [x: string]: JsonValue | undefined;
+};
+
+export type JsonPrimitive = boolean | number | string | null;
+
+export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
+
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
+
+export interface AuditChangeLog {
+  actor_user_id: string | null;
+  after: Json | null;
+  at: Generated<Timestamp>;
+  before: Json | null;
+  changed: string[];
+  company_id: string;
+  id: Generated<Int8>;
+  op: string;
+  request_id: string | null;
+  row_id: string | null;
+  table_name: string;
+}
+
+export interface AuditEvent {
+  actor_user_id: string | null;
+  at: Generated<Timestamp>;
+  company_id: string | null;
+  data: Generated<Json>;
+  id: Generated<Int8>;
+  request_id: string | null;
+  subject_id: string | null;
+  subject_type: string | null;
+  type: string;
+}
+
+export interface AuditMaskedColumn {
+  column_name: string;
+  table_name: string;
+}
 
 export interface Company {
   code: string;
@@ -115,6 +160,9 @@ export interface Site {
 }
 
 export interface DB {
+  "audit.change_log": AuditChangeLog;
+  "audit.event": AuditEvent;
+  "audit.masked_column": AuditMaskedColumn;
   company: Company;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;

@@ -203,6 +203,18 @@ const MATRIX: Record<string, RouteSpec> = {
       ['beta', 'est', 404], ['beta', 'other', 409], // BETA's own grant: grant-self
     ],
   },
+
+  // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
+  'GET /api/audit/timeline': {
+    access: 'audit.read',
+    request: (t) => ({ path: `/api/audit/timeline?subject=org_unit:${unitOf(t)}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['acces', 'est', 200], ['acces', 'ouest', 404], ['acces', 'other', 404], // admin_acces holds audit.read on REG-EST only
+      ['est', 'est', 403], ['ouest', 'ouest', 403], // rh_regional and lecture have no audit.read
+      ['beta', 'est', 404], ['beta', 'other', 200],
+    ],
+  },
 };
 
 interface ScannedRoute {

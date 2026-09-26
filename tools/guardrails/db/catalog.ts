@@ -5,8 +5,10 @@
  *    (tools/guardrails/company-id-exempt.json: [{ table, reason, rls? }]; `rls: true` still requires RLS + policy;
  *    stale or malformed entries fail). Schema-qualified entries (e.g. `auth.user_account`) document tables of other
  *    schemas, which the check does not cover; they only have to exist.
- *  - audit-per-write: tables whose CREATE TABLE line carries `-- @audited` have an audit trigger
- *    (a trigger whose function name starts with "audit").
+ *  - audit-per-write: every tenant table of schema public (it has a `company_id` column, plus `company` itself) has an
+ *    audit trigger — a trigger named `audit%`, AFTER … FOR EACH ROW, firing on INSERT, UPDATE and DELETE — unless
+ *    listed with a reason in tools/guardrails/audit-exempt.json ([{ table, reason }]); stale entries (unknown or
+ *    non-tenant table) and malformed ones fail. (Replaces the retired `-- @audited` migration marker.)
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -14,7 +16,26 @@ import type { Client } from 'pg';
 import type { Violation } from '../lib/report.ts';
 
 export const EXEMPT_FILE = 'tools/guardrails/company-id-exempt.json';
+export const AUDIT_EXEMPT_FILE = 'tools/guardrails/audit-exempt.json';
 export const TENANT_SETTING = 'app.company_id';
+/** The tenant table itself: no company_id column (its id is the company id), audited like every tenant table. */
+export const COMPANY_TABLE = 'company';
+
+export type TriggerEvent = 'insert' | 'update' | 'delete' | 'truncate';
+
+export interface TriggerInfo {
+  name: string;
+  /** function name (unqualified) */
+  function: string;
+  /** schema of the function (optional in hand-written test catalogs) */
+  functionSchema?: string;
+  /** FOR EACH ROW (false = statement) — optional in hand-written test catalogs, defaults to true */
+  row?: boolean;
+  /** BEFORE / AFTER / INSTEAD OF — optional in hand-written test catalogs, defaults to 'after' */
+  timing?: 'before' | 'after' | 'instead';
+  /** optional in hand-written test catalogs, defaults to all three row events */
+  events?: TriggerEvent[];
+}
 
 export interface TableInfo {
   name: string;
@@ -23,7 +44,7 @@ export interface TableInfo {
   rowSecurity: boolean;
   forceRowSecurity: boolean;
   policies: { name: string; using: string | null; withCheck: string | null }[];
-  triggers: { name: string; function: string }[];
+  triggers: TriggerInfo[];
 }
 
 export interface ExemptEntry {
@@ -37,7 +58,27 @@ export interface MigrationTable {
   table: string;
   file: string;
   line: number;
-  audited: boolean;
+}
+
+export interface AuditExemptEntry {
+  table: string;
+  reason: string;
+}
+
+/** pg_trigger.tgtype bits (src/include/catalog/pg_trigger.h). */
+const TG = { row: 1, before: 2, insert: 4, delete: 8, update: 16, truncate: 32, instead: 64 } as const;
+
+export function decodeTriggerType(tgtype: number): Pick<TriggerInfo, 'row' | 'timing' | 'events'> {
+  const events: TriggerEvent[] = [];
+  if (tgtype & TG.insert) events.push('insert');
+  if (tgtype & TG.update) events.push('update');
+  if (tgtype & TG.delete) events.push('delete');
+  if (tgtype & TG.truncate) events.push('truncate');
+  return {
+    row: (tgtype & TG.row) !== 0,
+    timing: tgtype & TG.instead ? 'instead' : tgtype & TG.before ? 'before' : 'after',
+    events,
+  };
 }
 
 export async function loadCatalog(client: Client, schema = 'public'): Promise<TableInfo[]> {
@@ -48,7 +89,7 @@ export async function loadCatalog(client: Client, schema = 'public'): Promise<Ta
     rls: boolean;
     force_rls: boolean;
     policies: { name: string; using: string | null; withCheck: string | null }[];
-    triggers: { name: string; function: string }[];
+    triggers: { name: string; function: string; functionSchema: string; tgtype: number }[];
   }>(
     `select c.relname as name,
             format_type(a.atttypid, a.atttypmod) as company_id_type,
@@ -60,8 +101,12 @@ export async function loadCatalog(client: Client, schema = 'public'): Promise<Ta
                                                         'withCheck', pg_get_expr(p.polwithcheck, p.polrelid))
                                       order by p.polname)
                       from pg_policy p where p.polrelid = c.oid), '[]') as policies,
-            coalesce((select json_agg(json_build_object('name', t.tgname, 'function', f.proname) order by t.tgname)
-                      from pg_trigger t join pg_proc f on f.oid = t.tgfoid
+            coalesce((select json_agg(json_build_object('name', t.tgname, 'function', f.proname,
+                                                        'functionSchema', fn.nspname, 'tgtype', t.tgtype)
+                                      order by t.tgname)
+                      from pg_trigger t
+                      join pg_proc f on f.oid = t.tgfoid
+                      join pg_namespace fn on fn.oid = f.pronamespace
                       where t.tgrelid = c.oid and not t.tgisinternal), '[]') as triggers
        from pg_class c
        join pg_namespace n on n.oid = c.relnamespace
@@ -77,16 +122,15 @@ export async function loadCatalog(client: Client, schema = 'public'): Promise<Ta
     rowSecurity: r.rls,
     forceRowSecurity: r.force_rls,
     policies: r.policies,
-    triggers: r.triggers,
+    triggers: r.triggers.map((t) => ({ name: t.name, function: t.function, functionSchema: t.functionSchema, ...decodeTriggerType(t.tgtype) })),
   }));
 }
 
 /** Captures [schema?, table]; tables outside `public` are reported schema-qualified (e.g. `auth.user_account`). */
 const CREATE_TABLE =
   /^\s*create\s+(?:(?:global\s+|local\s+)?(?:temporary|temp|unlogged)\s+)?table\s+(?:if\s+not\s+exists\s+)?(?:"?([a-z_][a-z0-9_]*)"?\s*\.\s*)?"?([a-z_][a-z0-9_$]*)"?/i;
-const AUDITED_MARKER = /--\s*@audited\b/;
 
-/** Tables created by the migrations (file:line of their CREATE TABLE) and whether they are marked `-- @audited`. */
+/** Tables created by the migrations (file:line of their CREATE TABLE). */
 export function parseMigrationTables(root: string, dir: string): MigrationTable[] {
   const out: MigrationTable[] = [];
   let files: string[];
@@ -103,9 +147,7 @@ export function parseMigrationTables(root: string, dir: string): MigrationTable[
         const schema = match[1]?.toLowerCase();
         const name = match[2].toLowerCase();
         const table = schema && schema !== 'public' ? `${schema}.${name}` : name;
-        out.push({ table, file: `${dir}/${file}`, line: index + 1, audited: AUDITED_MARKER.test(text) });
-      } else if (AUDITED_MARKER.test(text)) {
-        out.push({ table: '', file: `${dir}/${file}`, line: index + 1, audited: true });
+        out.push({ table, file: `${dir}/${file}`, line: index + 1 });
       }
     });
   }
@@ -183,20 +225,75 @@ export function evaluateCompanyId(
   return violations;
 }
 
-export function evaluateAudited(catalog: TableInfo[], migrationTables: MigrationTable[]): Violation[] {
+export function loadAuditExempt(root: string, file = AUDIT_EXEMPT_FILE): { entries: AuditExemptEntry[]; violations: Violation[] } {
   const violations: Violation[] = [];
-  for (const m of migrationTables.filter((t) => t.audited)) {
-    const where = { file: m.file, line: m.line, rule: 'audit-per-write' };
-    if (!m.table) {
-      violations.push({ ...where, message: '`-- @audited` must be on the CREATE TABLE line' });
-      continue;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+  } catch (error) {
+    return { entries: [], violations: [{ file, rule: 'audit-per-write/exempt', message: `cannot read: ${(error as Error).message}` }] };
+  }
+  if (!Array.isArray(raw)) return { entries: [], violations: [{ file, rule: 'audit-per-write/exempt', message: 'must be a JSON array of {table, reason}' }] };
+  const entries: AuditExemptEntry[] = [];
+  const seen = new Set<string>();
+  raw.forEach((item: unknown, index) => {
+    const e = item as Partial<AuditExemptEntry>;
+    if (typeof e.table !== 'string' || typeof e.reason !== 'string' || !e.reason.trim()) {
+      violations.push({ file, rule: 'audit-per-write/exempt', message: `entry ${index} must be {table: string, reason: non-empty string}` });
+      return;
     }
-    const table = catalog.find((t) => t.name === m.table);
+    if (seen.has(e.table)) violations.push({ file, rule: 'audit-per-write/exempt', message: `duplicate entry for "${e.table}"` });
+    seen.add(e.table);
+    entries.push({ table: e.table, reason: e.reason });
+  });
+  return { entries, violations };
+}
+
+/** Tenant tables of public: a company_id column, or the company table itself. */
+export function isTenantTable(t: TableInfo): boolean {
+  return t.companyIdType !== null || t.name === COMPANY_TABLE;
+}
+
+/** An audit trigger: named audit%, AFTER … FOR EACH ROW on INSERT, UPDATE and DELETE. */
+export function isAuditTrigger(tg: TriggerInfo): boolean {
+  const events = tg.events ?? ['insert', 'update', 'delete'];
+  return (
+    /^audit/i.test(tg.name) &&
+    (tg.row ?? true) &&
+    (tg.timing ?? 'after') === 'after' &&
+    events.includes('insert') &&
+    events.includes('update') &&
+    events.includes('delete')
+  );
+}
+
+export function evaluateAudited(
+  catalog: TableInfo[],
+  exempt: AuditExemptEntry[],
+  migrationTables: MigrationTable[] = [],
+  exemptFile = AUDIT_EXEMPT_FILE,
+): Violation[] {
+  const violations: Violation[] = [];
+  const tenants = catalog.filter(isTenantTable);
+  for (const e of exempt) {
+    const table = catalog.find((t) => t.name === e.table);
     if (!table) {
-      violations.push({ ...where, message: `table ${m.table} is marked @audited but does not exist after migrating (dropped/renamed?)` });
-    } else if (!table.triggers.some((tg) => /^audit/i.test(tg.function))) {
-      violations.push({ ...where, message: `table ${m.table} is marked @audited but has no audit trigger (trigger function audit*) attached` });
+      violations.push({ file: exemptFile, rule: 'audit-per-write/exempt', message: `stale entry: table "${e.table}" does not exist — remove it` });
+    } else if (!isTenantTable(table)) {
+      violations.push({ file: exemptFile, rule: 'audit-per-write/exempt', message: `stale entry: table "${e.table}" is not a tenant table (no company_id) — remove it` });
     }
+  }
+  for (const t of tenants) {
+    if (exempt.some((e) => e.table === t.name)) continue;
+    if (t.triggers.some(isAuditTrigger)) continue;
+    const near = t.triggers.find((tg) => /^audit/i.test(tg.name));
+    violations.push({
+      ...locate(migrationTables, t.name),
+      rule: 'audit-per-write',
+      message: near
+        ? `table ${t.name}: trigger ${near.name} must be AFTER INSERT OR UPDATE OR DELETE … FOR EACH ROW (execute function audit.capture())`
+        : `table ${t.name} has no audit trigger: add \`create trigger audit_capture_tg after insert or update or delete on public.${t.name} for each row execute function audit.capture()\`, or exempt it with a reason in ${exemptFile}`,
+    });
   }
   return violations;
 }

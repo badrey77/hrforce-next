@@ -295,6 +295,16 @@ A few patterns the auth specs introduced:
 - **Router navigation as an outcome.** `vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true)`
   when the test only needs to know *where* the page wants to go, not to render it.
 
+## `@defer` blocks and pending resources
+
+`@defer` blocks have two test modes (`deferBlockBehavior` in
+`configureTestingModule`): `Playthrough` (default, browser-like; `on viewport` needs the
+fake `IntersectionObserver` from `src/testing/intersection-observer.ts`) and `Manual`
+(`fixture.getDeferBlocks()` then `block.render(DeferBlockState.Complete)`). And a
+component with a request in flight never becomes "stable", so `await fixture.whenStable()`
+hangs until you flush it; tick and yield instead. Both are explained in chapter 13, §6
+(`src/app/shared/timeline/history-tabs.spec.ts`, `timeline.spec.ts`).
+
 ## Running a single test
 
 From the repo root: `npm test -w @hrforce/web` runs everything. To run one file or

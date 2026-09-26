@@ -1,0 +1,7 @@
+# Keep LF endings everywhere. Shell scripts are run inside Linux containers (docker-init-roles.sh is mounted
+# into Postgres); a Windows checkout with CRLF would make them fail with "\r: command not found".
+* text=auto eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.woff2 binary

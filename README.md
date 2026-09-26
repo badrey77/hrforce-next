@@ -14,6 +14,13 @@ Current state: **Phase 1 foundations** (ADRs, platform skeleton, CI guardrails).
 ./scripts/dev-up.sh --reset  # same, starting from an empty database
 ```
 
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-up.ps1          # API and web open in two new windows
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-up.ps1 -Reset
+```
+
 Then open http://localhost:4200 (demo users in apps/api/README.md, password `demo-password-2026`).
 
 ## Quick start

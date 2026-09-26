@@ -2,6 +2,8 @@
 
 Read `CONVENTIONS.md` (binding) and the ADRs in `docs/adr/` before changing code. Feature contracts live in `docs/contracts/`.
 
+**Project state, owner decisions, assumptions and open questions:** @docs/HANDOFF.md — read it first, and update it whenever a decision is made or a question is answered.
+
 ## The web app is Angular, and it is also a teaching codebase
 
 The team chose to stay on Angular and wants Angular explained extensively as the project grows.

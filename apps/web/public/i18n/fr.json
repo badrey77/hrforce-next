@@ -184,7 +184,8 @@
       "notFound": "Cette unité n'existe plus.",
       "rootSiteRequired": "L'unité racine doit avoir un site.",
       "siteCodeTaken": "Ce code de site est déjà utilisé.",
-      "siteNotFound": "Ce site n'existe pas ou plus."
+      "siteNotFound": "Ce site n'existe pas ou plus.",
+      "forbiddenScope": "Vous n'avez pas le droit de créer ou de déplacer une unité sous cette unité parente."
     },
     "sites": {
       "title": "Sites",

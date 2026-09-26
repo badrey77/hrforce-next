@@ -69,6 +69,7 @@ Dev seed grants (valid from 2026-01-01): `rh.admin@demo.dz` → `admin_rh_centra
 | `POST /access/roles` | `access.manage_roles` | `{code, names, permissions}` → 201 role. 409 `role-code-taken`; 422 unknown permission |
 | `PATCH /access/roles/:id` | `access.manage_roles` | `{names?, permissions?}`; system role → 409 `role-system-immutable` |
 | `GET /access/users?q=` | `access.read` | members of the company: `{items: [{id, email, displayName, status, grants: GrantView[] (current and future only)}]}` — visible only if the member has at least one grant inside the caller's `access.read` scope **or** no grant at all (so new users can be granted) |
+| `GET /access/users/:id` | `access.read` | one member, same shape as an item of `GET /access/users` (`grants`: current and future, only those in the caller's `access.read` scope) and same visibility rule; otherwise — unknown id, other company, malformed id — **404** |
 | `GET /access/grants?userId=&unitId=&includeEnded=` | `access.read` | `{items: GrantView[]}`, limited to grants whose unit is in the caller's `access.read` scope |
 | `POST /access/grants` | `access.grant` | `{userId, roleId, orgUnitId, includeDescendants, validFrom, validTo?}` → 201 `GrantView` |
 | `POST /access/grants/:id/end` | `access.grant` | `{validTo}` (≥ validFrom, ≤ current end) → 200 `GrantView` |

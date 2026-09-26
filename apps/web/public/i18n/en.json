@@ -184,7 +184,8 @@
       "notFound": "This unit no longer exists.",
       "rootSiteRequired": "The root unit must have a site.",
       "siteCodeTaken": "This site code is already in use.",
-      "siteNotFound": "This site does not exist (any more)."
+      "siteNotFound": "This site does not exist (any more).",
+      "forbiddenScope": "You are not allowed to create or move a unit under this parent unit."
     },
     "sites": {
       "title": "Sites",

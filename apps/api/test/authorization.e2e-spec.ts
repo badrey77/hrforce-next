@@ -298,6 +298,23 @@ describe('Authorization (e2e, real grants)', () => {
       expect((q.body.items as { id: string }[]).map((u) => u.id)).toEqual([USERS.est.id]);
     });
 
+    it('GET /access/users/:id: one member, same shape and visibility rule; else 404', async () => {
+      const target = await client('acces').get(`/api/access/users/${USERS.target.id}`).expect(200);
+      assertNoSecrets(target.body);
+      expect(target.body).toMatchObject({ id: USERS.target.id, email: 'target@demo.dz', displayName: 'Lina Cible', status: 'active' });
+      expect((target.body.grants as { unit: { code: string } }[]).map((g) => g.unit.code)).toEqual(['AG-CNE']); // AG-ORAN hidden
+      const list = (await client('acces').get('/api/access/users').expect(200)).body.items as { id: string }[];
+      expect(target.body).toEqual(list.find((u) => u.id === USERS.target.id));
+      expect((await client('acces').get(`/api/access/users/${USERS.newbie.id}`).expect(200)).body.grants).toEqual([]); // no grant at all
+      await client('acces').get(`/api/access/users/${USERS.ouest.id}`).expect(404); // grants only outside the scope
+      await client('acces').get(`/api/access/users/${USERS.admin.id}`).expect(404);
+      await client('acces').get(`/api/access/users/${USERS.beta.id}`).expect(404); // other company
+      await client('acces').get('/api/access/users/0190a5d0-0000-7000-8000-0000000fffff').expect(404);
+      await client('acces').get('/api/access/users/not-a-uuid').expect(404);
+      expect((await client('admin').get(`/api/access/users/${USERS.ouest.id}`).expect(200)).body.grants).toHaveLength(1);
+      await client('est').get(`/api/access/users/${USERS.est.id}`).expect(403);
+    });
+
     it('GET /access/grants: limited to the access.read scope; GrantView shape; `end` never on one’s own grant', async () => {
       const res = await client('acces').get('/api/access/grants').expect(200);
       const grants = res.body.items as { id: string; userId: string; unit: { code: string }; _actions: string[] }[];

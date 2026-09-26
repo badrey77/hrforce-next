@@ -164,6 +164,17 @@ const MATRIX: Record<string, RouteSpec> = {
     request: () => ({ path: '/api/access/users' }),
     rows: [['admin', '-', 200], ['acces', '-', 200], ['est', '-', 403], ['ouest', '-', 403], ['beta', '-', 200]],
   },
+  'GET /api/access/users/:id': {
+    access: 'access.read',
+    // est: target (grants on AG-CNE and AG-ORAN) · ouest: lecture.ouest (REG-OUEST only) · other: BETA's admin
+    request: (t) => ({ path: `/api/access/users/${t === 'est' ? USERS.target.id : t === 'ouest' ? USERS.ouest.id : USERS.beta.id}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['acces', 'est', 200], ['acces', 'ouest', 404], ['acces', 'other', 404],
+      ['est', 'est', 403], ['ouest', 'ouest', 403],
+      ['beta', 'est', 404], ['beta', 'other', 200],
+    ],
+  },
   'GET /api/access/grants': {
     access: 'access.read',
     request: () => ({ path: '/api/access/grants' }),

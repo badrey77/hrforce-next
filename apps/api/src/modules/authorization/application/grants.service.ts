@@ -36,6 +36,10 @@ function fold(value: string): string {
   return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 }
 
+function userNotFound(): NotFoundException {
+  return new NotFoundException('User not found');
+}
+
 function grantNotFound(): NotFoundException {
   return new NotFoundException('Grant not found');
 }
@@ -91,6 +95,30 @@ export class GrantsService {
       .slice(0, USER_LIST_LIMIT)
       .map((m) => ({ id: m.id, email: m.email, displayName: m.displayName, status: m.status, grants: visibleGrants.get(m.id) ?? [] }));
     return { items };
+  }
+
+  /**
+   * One member (GET /access/users/:id), same shape and visibility rule as an item of {@link listUsers}: listed only
+   * when they have ≥ 1 current/future grant in the caller's access.read scope, or none at all; otherwise — like an
+   * unknown or other-company id — 404.
+   */
+  async getUser(id: string): Promise<AccessUserView> {
+    const companyId = tenant();
+    const today = this.clock.today();
+    const members = await this.repo.members(companyId);
+    const member = members.find((m) => m.id === id);
+    if (!member) throw userNotFound();
+    const all = await this.repo.grants(companyId, { userId: id, includeEnded: false, today });
+    const readable = await this.scopes.unitIds(ACCESS_PERMISSIONS.read);
+    const inScope = all.filter((g) => readable.has(g.unit.id));
+    if (all.length > 0 && inScope.length === 0) throw userNotFound();
+    return {
+      id: member.id,
+      email: member.email,
+      displayName: member.displayName,
+      status: member.status,
+      grants: await this.toViews(inScope, members),
+    };
   }
 
   async createGrant(input: CreateGrantInput): Promise<GrantView> {

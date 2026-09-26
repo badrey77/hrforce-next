@@ -69,7 +69,8 @@ régions → agences, services under a department, a region or an agency) and si
   change form sends only what changed: name, parent (org-unit picker restricted to the allowed parent kinds, sent as
   repeated `kind=` params) and/or site ("inherit" = `siteId: null`). The root cannot move and must keep a site
   (no "inherit" option). 422 and 409 `errors[]` land on the matching field; `org-unit-root-site-required` and
-  `site-not-found` land on the site field and `site-code-taken` on the code field even without `errors[]`; other
+  `site-not-found` land on the site field and `site-code-taken` on the code field even without `errors[]`;
+  a 403 `forbidden-scope` (parent not creatable/movable-into) lands on the move form's parent picker; other
   409s without a field show as a form-level message. A successful write reloads the tree and the detail.
 - **Sites** (`/organization/sites`, `features/organization/sites.page.ts`): a sub-route of the feature, linked from
   both pages by `<app-org-nav>`, lazy-loaded as its own chunk. Lists sites (code, name, wilaya, address) with a
@@ -111,7 +112,7 @@ re-checks everything. Permissions reach the web through `GET /api/me` (`permissi
   units, `end` on grants). Organization: units outside the caller's scope that are sent as context
   (`inScope: false`) are muted and cannot be selected; an out-of-scope id reads "not found".
 - **Users** (`/access/users?q=`): company members (name, e-mail, status, current and future grants as chips).
-  **User detail** (`/access/users/:id`, member found in `GET /access/users`): grants table (role, unit with kind and
+  **User detail** (`/access/users/:id`, `GET /access/users/:id`; 404 → "not found"): grants table (role, unit with kind and
   code, sub-units, from, to, granted by), "show ended grants" (`includeEnded=true`), **End** (native `<dialog>`
   with a date, default today; must be ≥ the grant's start and ≤ its current end) and **Add a grant** (role, org-unit
   picker, sub-units checked by default, from = today, optional to ≥ from). 409s: `grant-escalation` → role,

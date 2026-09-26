@@ -67,6 +67,12 @@ export class AccessController {
     return this.grants.listUsers(query.q);
   }
 
+  @Get('users/:id')
+  @RequirePermission('access.read')
+  user(@Param('id') id: string): Promise<AccessUserView> {
+    return this.grants.getUser(idParam(id, 'User'));
+  }
+
   @Get('grants')
   @RequirePermission('access.read')
   listGrants(@Query() query: GrantsQueryDto): Promise<ItemsView<GrantView>> {

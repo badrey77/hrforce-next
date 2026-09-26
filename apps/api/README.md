@@ -248,6 +248,7 @@ the matrix test below proves it for every route.
 | `POST /api/access/roles` | `access.manage_roles` | `{code, names, permissions}` → 201 · 409 `role-code-taken` (case-insensitive) · 409 `role-escalation` · 422 unknown permission |
 | `PATCH /api/access/roles/:id` | `access.manage_roles` | `{names?, permissions?}` · 409 `role-system-immutable` · 409 `role-escalation` (added permissions only) |
 | `GET /api/access/users?q=` | `access.read` | members (via `auth.company_members`) with ≥ 1 current/future grant in the caller's `access.read` scope, or none at all; `grants` = those in scope; max 200 |
+| `GET /api/access/users/:id` | `access.read` | one item of the list above (same shape, same visibility rule); otherwise, unknown, other-company or malformed id → 404 |
 | `GET /api/access/grants?userId=&unitId=&includeEnded=` | `access.read` | `GrantView[]` whose unit is in the caller's `access.read` scope (`unitId` = grants on that exact unit) |
 | `POST /api/access/grants` | `access.grant` | → 201 `GrantView` |
 | `POST /api/access/grants/:id/end` | `access.grant` | `{validTo}` → 200 `GrantView`; out-of-scope id → 404 |

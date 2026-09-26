@@ -15,6 +15,10 @@
  * - 409 → business rule, `type: urn:hrforce:problem:<slug>`; with `errors[]` when tied to a field (e.g. code taken
  *   → the `code` control). A 409 with no field, or whose field has no control in this form, becomes a form-level
  *   message, translated from the slug when we know it, else the server's `detail`/`title`.
+ * - 403 `forbidden-scope` (authorization contract: the parent is readable but not creatable/movable-into) is a
+ *   business rule too, with `errors[{field:'parentId'}]`: it goes through the same slug path as a 409, so the move
+ *   form shows it on its `parentId` picker; the create form (whose parent is fixed, no control) shows it form-level.
+ *   Any other 403 stays the generic "forbidden".
  * - v2 site slugs are always about one field, even if the server omits `errors[]`: `org-unit-root-site-required`
  *   and `site-not-found` → `siteId`, `site-code-taken` → `code` (see SLUG_FIELDS).
  */
@@ -36,6 +40,7 @@ const SLUG_KEYS: Readonly<Record<OrgProblemSlug, string>> = {
   'org-unit-root-site-required': 'org.problems.rootSiteRequired',
   'site-code-taken': 'org.problems.siteCodeTaken',
   'site-not-found': 'org.problems.siteNotFound',
+  'forbidden-scope': 'org.problems.forbiddenScope',
 };
 
 /** Field a slug is about when the problem carries no `errors[]` (contract: these always concern one field). */
@@ -43,6 +48,7 @@ const SLUG_FIELDS: Readonly<Partial<Record<OrgProblemSlug, string>>> = {
   'org-unit-root-site-required': 'siteId',
   'site-not-found': 'siteId',
   'site-code-taken': 'code',
+  'forbidden-scope': 'parentId',
 };
 
 function slugOf(type: string): OrgProblemSlug | undefined {
@@ -88,7 +94,8 @@ export function orgWriteError(form: FormGroup, error: unknown): FormError | null
     return { key: 'errors.generic' };
   }
   const { problem } = error;
-  switch (problem.status) {
+  const status = problem.status === 403 && slugOf(problem.type) === 'forbidden-scope' ? 409 : problem.status;
+  switch (status) {
     case 400:
     case 409:
     case 422: {

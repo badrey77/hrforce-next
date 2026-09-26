@@ -161,4 +161,6 @@ export type OrgProblemSlug =
   | 'org-unit-root-immutable'
   | 'org-unit-root-site-required'
   | 'site-code-taken'
-  | 'site-not-found';
+  | 'site-not-found'
+  /** 403 (Authorization contract): the parent is readable but `org_unit.create`/`update` does not cover it. */
+  | 'forbidden-scope';

@@ -143,7 +143,12 @@ The Access feature (`features/access/`) is the worked example.
 5. **Section tabs** inside the feature: a small nav component like
    `features/access/access-nav.ts` (`routerLink` + `routerLinkActive`).
 6. **Lists**: a query param (`?q=`) → signal input → `httpResource` (`users.page.ts`).
-   **Details**: a route param → input → resource. **Forms**: typed reactive forms, a
+   **Details**: a route param → input → a resource **keyed on that input**, e.g.
+   `member = api.userResource(this.id)` in `user-detail.page.ts` (`GET /access/users/:id`).
+   A first version loaded the whole list and picked the member by id. Don't do that: it
+   downloads every member to show one, and it can't tell "not visible" from "not loaded
+   yet". The detail endpoint answers **404**, and the page shows "not found" (no retry
+   button, since retrying can't help). **Forms**: typed reactive forms, a
    `SlugTable` for the 409s, `problemToForm` on error. **Confirmations with input**: a
    native `<dialog>` reached through `viewChild.required` (chapter 02).
 7. **Write actions** behind `*appCan` (page level) or `_actions` (record level); **read-only

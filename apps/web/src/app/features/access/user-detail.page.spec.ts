@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { flushAccessCatalog, grant, GRANT_SAMIR, ROLE_CUSTOM, USERS } from '../../../testing/access-fixtures';
+import { flushAccessCatalog, grant, GRANT_SAMIR, ROLE_CUSTOM, USER_SAMIR } from '../../../testing/access-fixtures';
 import { ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { flushKinds } from '../../../testing/org-fixtures';
@@ -44,13 +44,13 @@ let http: HttpTestingController;
 
 const el = () => harness.routeNativeElement as HTMLElement;
 const isGrants = (r: { url: string }) => r.url === '/api/access/grants';
-const isUsers = (r: { url: string }) => r.url === '/api/access/users';
+const SAMIR_URL = '/api/access/users/u-samir';
 const text = (selector: string) => el().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
 
 async function open(grants: readonly GrantView[] = [GRANT_SAMIR]): Promise<void> {
   await harness.navigateByUrl('/access/users/u-samir');
   await settle();
-  http.expectOne(isUsers).flush({ items: USERS });
+  http.expectOne(SAMIR_URL).flush(USER_SAMIR);
   const req = http.expectOne(isGrants);
   expect(req.request.params.get('userId')).toBe('u-samir');
   expect(req.request.params.has('includeEnded')).toBe(false);
@@ -164,16 +164,37 @@ describe('Access › User detail', () => {
       expect(rowCells('g-old')[4]).toBe('2025-12-31');
     });
 
-    it('an unknown (or invisible) member reads "not found"', async () => {
+    it('an unknown (or invisible) member: GET /access/users/:id answers 404 → "not found", no retry', async () => {
       await harness.navigateByUrl('/access/users/u-ghost');
       await settle();
-      http.expectOne(isUsers).flush({ items: USERS });
+      http
+        .expectOne('/api/access/users/u-ghost')
+        .flush({ type: 'about:blank', title: 'Not Found', status: 404 }, { status: 404, statusText: 'Not Found' });
       http.expectOne(isGrants).flush({ items: [] });
       flushAccessCatalog(http);
       flushKinds(http);
       await settle();
 
       expect(text('[role="alert"]')).toBe('Utilisateur introuvable.');
+      expect(el().querySelector('[role="alert"] button')).toBeNull();
+      expect(el().querySelector('table')).toBeNull();
+    });
+
+    it('another error offers a retry that fetches the member again', async () => {
+      await harness.navigateByUrl('/access/users/u-samir');
+      await settle();
+      http.expectOne(SAMIR_URL).flush({ type: 'about:blank', title: 'Boom', status: 500 }, { status: 500, statusText: 'Error' });
+      http.expectOne(isGrants).flush({ items: [] });
+      flushAccessCatalog(http);
+      flushKinds(http);
+      await settle();
+
+      expect(text('[role="alert"] p')).toBe('Impossible de charger les utilisateurs.');
+      (el().querySelector('[role="alert"] button') as HTMLButtonElement).click();
+      await settle();
+      http.expectOne(SAMIR_URL).flush(USER_SAMIR);
+      await settle();
+      expect(text('h2')).toBe('Samir Belkacem');
     });
   });
 
@@ -241,7 +262,7 @@ describe('Access › User detail', () => {
       expect(dialog().open).toBe(false);
       expect(text('[role="status"]')).toBe('Attribution du rôle « Lecture » terminée.');
       http.expectOne(isGrants).flush({ items: [{ ...GRANT_SAMIR, validTo: '2026-10-01', _actions: [] }] });
-      http.expectOne(isUsers).flush({ items: USERS });
+      http.expectOne(SAMIR_URL).flush(USER_SAMIR);
     });
   });
 
@@ -357,7 +378,7 @@ describe('Access › User detail', () => {
       expect(el().querySelector('app-grant-form')).toBeNull();
       expect(text('[role="status"]')).toBe('Rôle « Gestionnaire paie » attribué.');
       http.expectOne(isGrants).flush({ items: [GRANT_SAMIR, created] });
-      http.expectOne(isUsers).flush({ items: USERS });
+      http.expectOne(SAMIR_URL).flush(USER_SAMIR);
     });
   });
 });

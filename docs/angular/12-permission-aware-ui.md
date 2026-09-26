@@ -249,6 +249,32 @@ renders those rows muted, with a `[disabled]` button, so they cannot be selected
 adds a visually hidden hint for screen readers. A detail that answers 404 reads
 "Unité introuvable", never "forbidden" (`detailErrorKey` in `organization.page.ts`).
 
+The same rule applies to a whole record the caller may not see. `GET /access/users/:id`
+answers **404** for a member outside the caller's `access.read` scope, exactly as for an
+unknown id. The page reads it through a resource keyed on the route param:
+
+```ts
+// apps/web/src/app/core/access/access-api.ts
+userResource(id: () => string | undefined): HttpResourceRef<AccessUser | undefined> {
+  return httpResource<AccessUser>(() => {
+    const userId = id();
+    return userId ? `${ACCESS_API_BASE}/users/${encodeURIComponent(userId)}` : undefined;
+  });
+}
+```
+
+`user-detail.page.ts` turns that 404 into "Utilisateur introuvable", never "forbidden",
+and offers a retry only for other errors. The first version picked the member out of
+`GET /access/users`. The server now owns that visibility decision in one place, so the
+web no longer re-derives it.
+
+Permission errors that concern **one field** land on that field, even when the status is
+403. `POST`/`PATCH /org/units` answer `403 forbidden-scope` with
+`errors[{field:'parentId'}]` when the parent is readable but not creatable/movable-into.
+`features/organization/org-forms.ts` routes that slug through the same path as a 409.
+The move form shows it on its parent picker. The create form, whose parent is fixed,
+shows it as a form message. Any other 403 stays the generic "forbidden".
+
 When the UI and the server disagree anyway (a stale page, a race), the server answers
 with a 409 slug, and the forms map it (chapter 07,
 [`core/http/problem-form.ts`](../../apps/web/src/app/core/http/problem-form.ts)).

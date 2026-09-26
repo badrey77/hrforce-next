@@ -20,8 +20,9 @@
  *   decided (scope, not-yourself). "Add a grant" uses `*appCan="'access.grant'"`: a page-level permission check.
  *   Both are comfort; the API re-checks everything (409 slugs are mapped in the forms).
  *
- * Contract interpretation: there is no `GET /access/users/:id`, so the page reads `GET /access/users` and picks the
- * member by id (not in the list → "not found": the server did not make them visible to this caller).
+ * - **A resource keyed on a route param**: `member` is `AccessApi.userResource(this.id)` (`GET /access/users/:id`).
+ *   Navigating from one user to another reuses this component; the `id` input changes and the resource re-fetches.
+ *   A 404 (unknown id, or a member this caller may not see — ADR 002) is shown as "not found", never "forbidden".
  */
 import {
   ChangeDetectionStrategy,
@@ -48,10 +49,11 @@ import { dateWithin, END_GRANT_SLUGS, fieldErrorKey, grantState, isoDate } from 
 import { AccessNav } from './access-nav';
 import { GrantForm } from './grant-form';
 
-function loadErrorKey(error: unknown, fallback: string): string {
+function loadErrorKey(error: unknown, fallback: string, notFound = fallback): string {
   if (!isApiProblemError(error)) return fallback;
   if (error.problem.type === PROBLEM_TYPE_NETWORK) return 'errors.network';
   if (error.status === 403) return 'errors.forbidden';
+  if (error.status === 404) return notFound;
   return fallback;
 }
 
@@ -76,12 +78,17 @@ export class UserDetailPage {
   protected readonly today = todayIso();
   protected readonly grantState = grantState;
 
-  protected readonly users = this.api.usersResource(() => undefined);
+  protected readonly member = this.api.userResource(this.id);
   protected readonly grants = this.api.grantsResource(() => ({ userId: this.id(), includeEnded: this.includeEnded() }));
 
-  protected readonly user = computed(() => (this.users.hasValue() ? this.users.value().items.find((u) => u.id === this.id()) : undefined));
-  protected readonly usersLoaded = computed(() => this.users.hasValue());
-  protected readonly usersErrorKey = computed(() => loadErrorKey(this.users.error(), 'access.users.loadError'));
+  protected readonly user = computed(() => (this.member.hasValue() ? this.member.value() : undefined));
+  protected readonly memberNotFound = computed(() => {
+    const error = this.member.error();
+    return isApiProblemError(error) && error.status === 404;
+  });
+  protected readonly memberErrorKey = computed(() =>
+    loadErrorKey(this.member.error(), 'access.users.loadError', 'access.users.notFound'),
+  );
   protected readonly grantItems = computed<readonly GrantView[]>(() => (this.grants.hasValue() ? this.grants.value().items : []));
   protected readonly grantsErrorKey = computed(() => loadErrorKey(this.grants.error(), 'access.grants.loadError'));
 
@@ -123,7 +130,7 @@ export class UserDetailPage {
     this.adding.set(false);
     this.feedback.set({ key: 'access.grants.added', role: this.catalog.roleName(grant.role) });
     this.grants.reload();
-    this.users.reload();
+    this.member.reload();
   }
 
   protected openEnd(grant: GrantView): void {
@@ -160,7 +167,7 @@ export class UserDetailPage {
         this.endDialog().nativeElement.close();
         this.feedback.set({ key: 'access.grants.ended', role: this.catalog.roleName(ended.role) });
         this.grants.reload();
-        this.users.reload();
+        this.member.reload();
       },
       error: (error: unknown) => {
         this.endError.set(problemToForm(this.endForm, error, END_GRANT_SLUGS, 'access.problems.grantNotFound'));

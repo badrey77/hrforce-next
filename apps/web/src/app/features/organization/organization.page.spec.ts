@@ -450,6 +450,66 @@ describe('OrganizationPage', () => {
     expect(el().querySelector('[role="status"]')?.textContent).toContain('Région Est-Sud');
   });
 
+  const forbiddenScope = [
+    {
+      type: 'urn:hrforce:problem:forbidden-scope',
+      title: 'Forbidden',
+      status: 403,
+      errors: [{ field: 'parentId', code: 'forbidden_scope', message: 'Not allowed under this parent.' }],
+    },
+    { status: 403, statusText: 'Forbidden' },
+  ] as const;
+
+  it('a 403 forbidden-scope on a move lands on the parent picker, not as a generic message', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(SRV_PAIE, [P_DG, { id: 'd-rh', name: 'Département RH' }]);
+    button('Modifier').click();
+    await settle();
+    http.expectOne('/api/org/units/d-rh').flush(detailOf(DEP_RH, [P_DG]));
+    await settle();
+
+    fill('change-unit-parent', 'Fin');
+    await new Promise((resolve) => setTimeout(resolve, ORG_UNIT_PICKER_DEBOUNCE_MS + 20));
+    http
+      .expectOne((r) => r.url === '/api/org/units')
+      .flush({ items: [{ id: 'd-fin', kind: 'department', code: 'DEP-FIN', name: 'Département Finances', site: HQ, path: [P_DG] }] });
+    await settle();
+    (el().querySelector('app-org-unit-picker [role="option"]') as HTMLElement).click();
+    await submit();
+
+    const patch = http.expectOne('/api/org/units/s-paie');
+    expect(patch.request.body).toMatchObject({ parentId: 'd-fin' });
+    patch.flush(...forbiddenScope);
+    await settle();
+
+    expect(el().querySelector('#change-unit-parent-error')?.textContent?.trim()).toBe(
+      "Vous n'avez pas le droit de créer ou de déplacer une unité sous cette unité parente.",
+    );
+    expect(el().querySelector('form [role="alert"]')).toBeNull();
+  });
+
+  it('a 403 forbidden-scope on a create (fixed parent, no control) is a form-level message; other 403s stay generic', async () => {
+    await open('/organization?asOf=2025-03-31');
+    await select(AG_ANNABA, [P_DG, P_RX, P_EST]);
+    button('Ajouter une sous-unité').click();
+    await settle();
+    fill('create-unit-code', 'SRV-X');
+    fill('create-unit-name', 'Service X');
+    await submit();
+    http.expectOne('/api/org/units').flush(...forbiddenScope);
+    await settle();
+    expect(el().querySelector('form [role="alert"]')?.textContent?.trim()).toBe(
+      "Vous n'avez pas le droit de créer ou de déplacer une unité sous cette unité parente.",
+    );
+
+    await submit();
+    http.expectOne('/api/org/units').flush({ type: 'about:blank', title: 'Forbidden', status: 403 }, { status: 403, statusText: 'Forbidden' });
+    await settle();
+    expect(el().querySelector('form [role="alert"]')?.textContent?.trim()).toBe(
+      "Vous n'avez pas l'autorisation d'accéder à cette ressource.",
+    );
+  });
+
   it('the move picker only searches the kinds allowed as parents (repeated kind params)', async () => {
     await open('/organization?asOf=2025-03-31');
     await select(SRV_PAIE, [P_DG, { id: 'd-rh', name: 'Département RH' }]);

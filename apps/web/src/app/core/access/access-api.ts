@@ -14,6 +14,7 @@ import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 import type {
+  AccessUser,
   AccessUserList,
   CreateGrant,
   CreateRole,
@@ -51,6 +52,17 @@ export class AccessApi {
       const text = q()?.trim();
       const params: Record<string, string> = text ? { q: text } : {};
       return { url: `${ACCESS_API_BASE}/users`, params };
+    });
+  }
+
+  /**
+   * `GET /access/users/:id` — one member (same shape as a list item). Keyed on `id()`: a new id cancels the previous
+   * request and fetches again; `undefined` sends nothing. Not visible to the caller (or unknown) → 404.
+   */
+  userResource(id: () => string | undefined): HttpResourceRef<AccessUser | undefined> {
+    return httpResource<AccessUser>(() => {
+      const userId = id();
+      return userId ? `${ACCESS_API_BASE}/users/${encodeURIComponent(userId)}` : undefined;
     });
   }
 

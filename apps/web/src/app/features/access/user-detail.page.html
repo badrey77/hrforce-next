@@ -2,13 +2,13 @@
   <app-access-nav />
   <p><a routerLink="/access/users">{{ t('access.users.back') }}</a></p>
 
-  @if (user(); as member) {
-    <h2>{{ member.displayName }}</h2>
+  @if (user(); as person) {
+    <h2>{{ person.displayName }}</h2>
     <dl class="facts">
       <dt>{{ t('access.users.email') }}</dt>
-      <dd>{{ member.email }}</dd>
+      <dd>{{ person.email }}</dd>
       <dt>{{ t('access.users.status') }}</dt>
-      <dd>{{ t('access.status.' + member.status) }}</dd>
+      <dd>{{ t('access.status.' + person.status) }}</dd>
     </dl>
 
     @if (feedback(); as message) {
@@ -26,7 +26,7 @@
     </div>
 
     @if (adding()) {
-      <app-grant-form [userId]="member.id" (saved)="onGranted($event)" (cancelled)="adding.set(false)" />
+      <app-grant-form [userId]="person.id" (saved)="onGranted($event)" (cancelled)="adding.set(false)" />
     }
 
     <div class="check">
@@ -94,12 +94,12 @@
         <p class="muted">{{ t('access.grants.loading') }}</p>
       }
     </section>
-  } @else if (usersLoaded()) {
-    <p class="form-error" role="alert">{{ t('access.users.notFound') }}</p>
-  } @else if (users.error()) {
+  } @else if (member.error()) {
     <div class="form-error" role="alert">
-      <p>{{ t(usersErrorKey()) }}</p>
-      <button class="btn secondary" type="button" (click)="users.reload()">{{ t('common.retry') }}</button>
+      <p>{{ t(memberErrorKey()) }}</p>
+      @if (!memberNotFound()) {
+        <button class="btn secondary" type="button" (click)="member.reload()">{{ t('common.retry') }}</button>
+      }
     </div>
   } @else {
     <p class="muted">{{ t('access.users.loading') }}</p>

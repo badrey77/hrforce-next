@@ -11,7 +11,7 @@
     @if (session.isAuthenticated()) {
       <nav class="sidenav" [attr.aria-label]="t('nav.label')">
         <ul>
-          @for (link of navLinks; track link.path) {
+          @for (link of visibleLinks(); track link.path) {
             <li>
               <a
                 [routerLink]="link.path"

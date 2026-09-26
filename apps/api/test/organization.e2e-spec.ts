@@ -315,8 +315,9 @@ describe('Organization API v2 (e2e)', () => {
       expect(res.body).toMatchObject({ type: 'urn:hrforce:problem:org-unit-invalid-parent', status: 409 });
       expect(res.body.errors).toEqual([expect.objectContaining({ field: 'parentId', code: 'invalid_parent_kind' })]);
     }
-    const missing = await createUnit({ kind: 'department', code: 'NOPE', name: 'Nope', parentId: MISSING }).expect(409);
-    expect(missing.body.errors[0]).toMatchObject({ field: 'parentId', code: 'not_found' });
+    // an unknown parent is indistinguishable from an unreadable one (docs/contracts/authorization.md): 404
+    const missing = await createUnit({ kind: 'department', code: 'NOPE', name: 'Nope', parentId: MISSING }).expect(404);
+    expect(missing.body).toMatchObject({ type: 'urn:hrforce:problem:not-found' });
     const beforeParent = await createUnit({ kind: 'service', code: 'NOPE', name: 'Nope', parentId: unit('REG-EST'), validFrom: '2025-06-01' }).expect(409);
     expect(beforeParent.body.errors[0]).toMatchObject({ field: 'parentId', code: 'parent_not_effective' });
   });
@@ -505,8 +506,7 @@ describe('Organization API v2 (e2e)', () => {
     await beta().get(`/api/org/units/${unit('AG-BLIDA')}`).expect(404);
     await beta().patch(`/api/org/units/${unit('AG-BLIDA')}`).send({ name: 'Hacked', validFrom: '2026-06-01' }).expect(404);
     // …nor use them as a parent, nor use A's sites
-    const res = await beta().post('/api/org/units').send({ kind: 'region', code: 'SPY', name: 'Spy', parentId: unit('DEP-RX') }).expect(409);
-    expect(res.body.errors[0]).toMatchObject({ field: 'parentId', code: 'not_found' });
+    await beta().post('/api/org/units').send({ kind: 'region', code: 'SPY', name: 'Spy', parentId: unit('DEP-RX') }).expect(404);
     const spySite = await beta()
       .post('/api/org/units')
       .send({ kind: 'service', code: 'SPY', name: 'Spy', parentId: '0190a5d0-0000-7000-8000-000000000b11', siteId: site('ALG-HQ') })

@@ -8,10 +8,14 @@
  * - `canMatch: [guestGuard]` on `/login`: a signed-in user is sent home.
  * - The password pages have no guard: an emailed link must work whether or not someone is signed in on this
  *   browser.
+ * - `canMatch: [authGuard, permissionGuard()]` + `data: { permission }` on features that need a permission
+ *   (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs `access.read`. Without
+ *   it the route does not match and the visitor lands on `**` (404) — see core/auth/permission.guard.ts.
  * Order still matters (first match wins, `**` last); a guard only decides whether its route may match.
  */
 import type { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guards';
+import { permissionGuard } from './core/auth/permission.guard';
 
 export const routes: Routes = [
   {
@@ -42,9 +46,17 @@ export const routes: Routes = [
   {
     // loadChildren: the feature owns its sub-routes (see features/organization/organization.routes.ts).
     path: 'organization',
-    canMatch: [authGuard],
+    canMatch: [authGuard, permissionGuard()],
+    data: { permission: 'org_unit.read' },
     loadChildren: () =>
       import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
+  },
+  {
+    // Access management (users, grants, roles): its own lazy chunk, never downloaded without access.read.
+    path: 'access',
+    canMatch: [authGuard, permissionGuard()],
+    data: { permission: 'access.read' },
+    loadChildren: () => import('./features/access/access.routes').then((m) => m.ACCESS_ROUTES),
   },
   {
     path: 'settings',

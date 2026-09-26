@@ -16,7 +16,7 @@ cp .env.example .env                          # then load it: set -a; . ./.env; 
 
 # 2. Migrate (as hrforce_migrator), seed the demo organisation + demo users, run
 npm run migrate -w @hrforce/api
-npm run seed:dev -w @hrforce/api              # idempotent; demo company, org units, 2 users (see below)
+npm run seed:dev -w @hrforce/api              # idempotent; demo company, org units, 3 users, roles + grants (see below)
 npm run build -w @hrforce/api && npm start -w @hrforce/api
 curl localhost:3000/api/health                # {"status":"ok","db":"ok"}
 
@@ -25,7 +25,7 @@ curl -s -c jar -b jar localhost:3000/api/auth/csrf
 curl -s -c jar -b jar -H "X-XSRF-TOKEN: $(awk '$6=="XSRF-TOKEN"{print $7}' jar)" -H 'Content-Type: application/json' \
      -d '{"email":"rh.admin@demo.dz","password":"demo-password-2026"}' localhost:3000/api/auth/login
 curl -s -b jar localhost:3000/api/me
-curl -s -b jar localhost:3000/api/org/tree    # needs DEV_PERMISSIONS=allow_all until the Authorization module
+curl -s -b jar localhost:3000/api/org/tree    # real grants: rh.admin sees everything, rh.est only Région Est
 ```
 
 Mailpit (docker compose) catches every mail: web UI on http://localhost:8025, SMTP on `localhost:1025`
@@ -59,7 +59,7 @@ variables (values are never printed).
 | `TRUST_PROXY_HOPS` | | `0` | Express `trust proxy` |
 | `MIGRATIONS_DIR` | | `apps/api/migrations` | migrate only |
 | `DEV_AUTH` | | `false` | `true`/`false`. Development header identity (below). **Boot fails** if `true` and `NODE_ENV` is not `development`/`test` |
-| `DEV_PERMISSIONS` | | unset | `allow_all`: every **authenticated** caller holds every permission (until the Authorization module). **Boot fails** if set and `NODE_ENV` is not `development`/`test` |
+| `DEV_PERMISSIONS` | | unset | `allow_all`: every **authenticated** caller holds every permission and every scope is the whole company (overrides the real grants). **Boot fails** if set and `NODE_ENV` is not `development`/`test` |
 
 ## Database
 
@@ -87,7 +87,7 @@ psql "$SUPERUSER_URL" -v migrator_password="'…'" -v app_password="'…'" -v db
   applied migrations missing on disk, or a checksum change of an applied migration — never edit an applied file.
 - Tenant tables: `company_id uuid not null` + `enable` **and** `force row level security` + policy
   `using (company_id = current_setting('app.company_id', true)::uuid)`. Tables exempt from `company_id`
-  (`schema_migrations`, `company`, the `org_unit_kind*` catalogues) are listed in `tools/guardrails/company-id-exempt.json`.
+  (`schema_migrations`, `company`, the `org_unit_kind*` and `permission` catalogues) are listed in `tools/guardrails/company-id-exempt.json`.
   Global reference catalogues are `SELECT`-only for `hrforce_app` (revoke the default DML grants in the migration).
 
 ### `schema.ts` (Kysely types)
@@ -122,8 +122,8 @@ Per request: middleware → **guard** (decorator present? authenticated?) → **
   `PermissionGuard` denies undecorated routes (403) and answers 401 for anonymous callers of protected routes. It does
   **not** decide the permission: guards run before interceptors, i.e. before the request transaction exists. The decision
   is made by `PermissionCheck` (`src/platform/authz/permission-check.ts`), which `RequestContextInterceptor` calls right
-  after opening the transaction; it asks the `PermissionEvaluator` seam (default: deny all — replaced by the
-  Authorization module), which may therefore query grants with `currentTx()` under the caller's tenant and RLS.
+  after opening the transaction; it asks the `PermissionEvaluator` seam (provided by the Authorization module: the
+  permission's scope is non-empty today), which queries grants with `currentTx()` under the caller's tenant and RLS.
   A denial is a 403 and rolls the transaction back. `PermissionCheck` also fails closed on its own (undecorated → 403,
   anonymous → 401), so the decision never depends on the guard alone.
 - **Identity seam**: `RequestIdentityResolver` (`src/platform/context/request-identity.ts`) returns
@@ -161,7 +161,7 @@ policy + bundled common-password list, throttle math, mail templates fr/ar/en), 
 | `POST /api/auth/logout` | public + XSRF | 204; revokes the session family, deletes `hrf_at`/`hrf_rt`, anon `XSRF-TOKEN` |
 | `POST /api/auth/password/forgot` `{email}` | public + XSRF | 202 always; mails a 1 h reset link to an **active** account, ≤ 3 per account per hour |
 | `POST /api/auth/password/setup` `{token, password}` | public + XSRF | 204 · 410 `token-invalid` · 422 `errors[{field:'password', code: too_short\|too_long\|contains_email\|common}]` |
-| `GET /api/me` | `@Authenticated()` | `{user:{id,email,displayName,locale}, company:{id,code,name}, companies:[…]}` |
+| `GET /api/me` | `@Authenticated()` | `{user:{id,email,displayName,locale}, company:{id,code,name}, companies:[…], permissions: string[], scopes: {code: [{unitId, includeDescendants}]}}` (permissions/scopes from the Authorization module) |
 
 **Flows.**
 - *Login*: IP throttle (30 failures / 15 min → 429) → e-mail lock (5 failures / 15 min → 423 until 15 min after the 5th)
@@ -210,8 +210,87 @@ an invited account sends a new link; an active account only gets the membership;
 |---|---|---|---|
 | `0190a5d0-0000-7000-8000-0000000000aa` | `rh.admin@demo.dz` | Amina Benali | fr |
 | `0190a5d0-0000-7000-8000-0000000000ab` | `rh.est@demo.dz` | Karim Haddad | ar |
+| `0190a5d0-0000-7000-8000-0000000000ac` | `lecture.ouest@demo.dz` | Samir Belkacem | fr |
 
 `rh.admin` keeps the historical dev user id, so `X-Dev-User-Id: …aa` (DEV_AUTH) and a real login are the same person.
+Their roles and scopes: see the Authorization module (seeded grants).
+
+## Authorization module (`src/modules/authorization`)
+
+Contract: [`docs/contracts/authorization.md`](../../docs/contracts/authorization.md); design: ADR 002 (permission
+catalogue, roles, **grants scoped to an org unit — optionally its sub-units — over a date range**). Layers: `domain/`
+(catalogue codes, system roles, separation-of-duties and date rules — unit-tested), `infra/` (`GrantScopeService`,
+`GrantPermissionEvaluator`, `AccessRepository`, seeding), `application/` (`RolesService`, `GrantsService`), `api/`.
+
+**Three layers, one job each.** The guard only checks that the permission is held *somewhere*
+(`PermissionEvaluator` → "its scope is non-empty today"); repositories and use cases filter by *where*
+(`ScopeService`); use cases enforce separation of duties. RLS on `company_id` stays the backstop.
+
+**How scope is evaluated** (`infra/grant-scope.service.ts`):
+- *effective grants* of the caller = `role_grant` rows of the caller in the caller's company with `valid @> today`
+  (`AccessClock`, server local date); `ended_at` is irrelevant, the range is the truth;
+- *scope(code)* = ∪ over effective grants whose role holds `code`: the grant's unit, plus its descendants in
+  `org_unit_closure` (today's tree) when `include_descendants`;
+- everything runs in the request transaction and is **memoised per request** (`requestMemo`, `platform/context`).
+
+**Platform seam** (`src/platform/authz/scope-service.ts`), usable by any module without importing this one:
+`ScopeService.scopeOf(code)` → Kysely sub-query of unit ids (`.where('u.id', 'in', await scopes.scopeOf(code))`),
+`inScope(code, unitId)`, `unitIds(code)` (materialised set), `covers(code, unitId, withDescendants)` (whole subtree),
+`coversCompany(code)`, `summary()` (for `/api/me`). The module is `@Global()` and provides both `PermissionEvaluator`
+and `ScopeService`; with `DEV_PERMISSIONS=allow_all` (or a test evaluator) `ScopeService` is the platform's
+`CompanyWideScopeService`: a held permission covers every unit of the company. Repositories **must** filter by it;
+the matrix test below proves it for every route.
+
+| Endpoint | Permission | Result |
+|---|---|---|
+| `GET /api/access/permissions` | `access.read` | `{items:[{code, group, sensitive, labels:{fr,ar,en}}]}` by group, then sort order |
+| `GET /api/access/roles` | `access.read` | `{items:[{id, code, names:{fr,ar,en}, isSystem, permissions}]}` (system first) |
+| `POST /api/access/roles` | `access.manage_roles` | `{code, names, permissions}` → 201 · 409 `role-code-taken` (case-insensitive) · 409 `role-escalation` · 422 unknown permission |
+| `PATCH /api/access/roles/:id` | `access.manage_roles` | `{names?, permissions?}` · 409 `role-system-immutable` · 409 `role-escalation` (added permissions only) |
+| `GET /api/access/users?q=` | `access.read` | members (via `auth.company_members`) with ≥ 1 current/future grant in the caller's `access.read` scope, or none at all; `grants` = those in scope; max 200 |
+| `GET /api/access/grants?userId=&unitId=&includeEnded=` | `access.read` | `GrantView[]` whose unit is in the caller's `access.read` scope (`unitId` = grants on that exact unit) |
+| `POST /api/access/grants` | `access.grant` | → 201 `GrantView` |
+| `POST /api/access/grants/:id/end` | `access.grant` | `{validTo}` → 200 `GrantView`; out-of-scope id → 404 |
+
+Separation of duties (409 problems): `grant-self` (grant to / end one's own), `grant-out-of-scope` (unit — and whole
+subtree with `includeDescendants` — inside the caller's `access.grant` scope; unknown units too), `grant-escalation`
+(caller holds every permission of the role over the unit/subtree), `grant-user-not-member`, `grant-dates` (new:
+`validTo > validFrom`; end: `validFrom ≤ validTo ≤ current end`), `grant-duplicate` (same user + role + unit
+overlapping in time — exclusion constraint), `role-*` above. Unknown role → 422 on `roleId`. `GrantView._actions`
+has `end` when the caller could end it (not their own, not ended, `access.grant` over its unit/subtree).
+
+**Organization scoping**: tree = units in `org_unit.read` scope plus their ancestors as context (`inScope: false`,
+`_actions: []`); search/detail filtered (out of scope → 404, same body as an unknown id); create needs
+`org_unit.create` on the parent (unreadable/unknown parent → 404, readable-only → 403 `forbidden-scope` with
+`errors[{field:'parentId'}]`); update needs `org_unit.update` on the unit (readable-only → 403 `forbidden-scope`)
+and, for a move, on the new parent (unreadable → 409 `org-unit-invalid-parent`/`not_found`, readable-only → 403
+`forbidden-scope` on `parentId`); `_actions` come from the real scopes. A unit not in today's tree (future/ended)
+follows its parent's scope. Sites stay company-wide.
+
+**Database (migration 0008).** `permission` (global catalogue, 15 codes with fr/ar/en labels, SELECT-only, exempt
+from `company_id`), `role` (code unique per company case-insensitively; code/company/is_system immutable),
+`role_permission`, `role_grant` (`valid_from`, `valid_to`, generated `valid daterange [from, to)`; composite FKs with
+`company_id` to `role` and `org_unit`; checks `granted_by ≠ user_id`, `ended_by ≠ user_id`; exclusion constraint
+against overlapping identical grants; a trigger lets only `valid_to` move earlier; `DELETE` revoked from the app —
+grants are never deleted). All tenant tables: FORCE RLS on `app.company_id`. `auth.company_members(company_id)` is a
+SECURITY DEFINER function that refuses any company other than `current_setting('app.company_id')`.
+
+**System roles** (seeded per company by `seed:dev`, and by `user:invite` when the company has none; permissions defined
+in `domain/catalogue.ts`, synced by the seed, immutable through the API):
+
+| Role | Permissions |
+|---|---|
+| `admin_rh_central` | everything except `employee.medical.read` |
+| `rh_regional` | `org_unit.read`, `site.read`, `employee.read`, `employee.create`, `employee.update` |
+| `lecture` | `org_unit.read`, `site.read`, `employee.read` |
+| `admin_acces` | `org_unit.read`, `site.read`, `access.read`, `access.grant`, `access.manage_roles` |
+
+No seeded role holds `employee.medical.read` (and therefore nobody can put it in a role or grant it through the API).
+
+**Dev grants** (`seed:dev`, valid from 2026-01-01, with sub-units, ids `…000000000301–303`):
+`rh.admin@demo.dz` → `admin_rh_central` on `DG`; `rh.est@demo.dz` → `rh_regional` on `REG-EST`;
+`lecture.ouest@demo.dz` → `lecture` on `REG-OUEST`. So in dev, without `DEV_PERMISSIONS`, rh.est sees
+DG → Département RX → Région Est (+ its agencies/services) and gets 404 on any Région Ouest unit.
 
 ## Organization module (`src/modules/organization`)
 
@@ -316,6 +395,16 @@ npm run typecheck -w @hrforce/api
 - Unsafe requests need an XSRF token: `fetchXsrf(app)` + `withXsrf(req, xsrf)` (`test/support/xsrf.ts`); the
   `Browser` helper (`test/support/cookie-jar.ts`) is a cookie jar honouring `Path` that echoes the XSRF header.
 - `assertNoSecrets(body)` (`test/support/assert-no-secrets.ts`) fails on any key matching `/(password|hash|token|secret)/i`.
+- **Authorization matrix** (`test/authorization-matrix.e2e-spec.ts`): one table, rows = route × actor × target →
+  expected status, run against the real grants (`createTestApp(db, { devAuth: true, devPermissions: false })`, fixture
+  `test/support/access-fixture.ts`: admin_rh_central on DG, rh_regional on REG-EST, lecture on REG-OUEST, admin_acces
+  on REG-EST, and an admin of a second company; targets in REG-EST, in REG-OUEST, in the other company). The route
+  list comes from `node tools/guardrails/route-scan/route-scan.ts --json`: **adding a route without a matrix entry (or
+  changing its permission) fails the suite**; anonymous → 401 is derived for every non-public route. When you add an
+  endpoint, add its row block there.
+- `test/authorization.e2e-spec.ts`: tree/search/detail scoping, forbidden-scope, each SoD slug, escalation attempts,
+  date-effective grants (`AccessClock` pinned to tomorrow via `createTestApp(..., { overrides })`), RLS/privileges on
+  the new tables, `auth.company_members`, `/api/me`.
 
 ## Docker
 

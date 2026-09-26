@@ -1,0 +1,152 @@
+<ng-container *transloco="let t">
+  <app-access-nav />
+  <p><a routerLink="/access/users">{{ t('access.users.back') }}</a></p>
+
+  @if (user(); as member) {
+    <h2>{{ member.displayName }}</h2>
+    <dl class="facts">
+      <dt>{{ t('access.users.email') }}</dt>
+      <dd>{{ member.email }}</dd>
+      <dt>{{ t('access.users.status') }}</dt>
+      <dd>{{ t('access.status.' + member.status) }}</dd>
+    </dl>
+
+    @if (feedback(); as message) {
+      <p class="feedback" role="status">{{ t(message.key, { role: message.role }) }}</p>
+    }
+
+    <div class="toolbar">
+      <h3>{{ t('access.grants.title') }}</h3>
+      @if (!adding()) {
+        <!-- A page-level permission (held anywhere): the structural directive. -->
+        <button *appCan="'access.grant'" class="btn" type="button" data-action="add-grant" (click)="startAdd()">
+          {{ t('access.grants.add') }}
+        </button>
+      }
+    </div>
+
+    @if (adding()) {
+      <app-grant-form [userId]="member.id" (saved)="onGranted($event)" (cancelled)="adding.set(false)" />
+    }
+
+    <div class="check">
+      <input id="grants-ended" type="checkbox" [checked]="includeEnded()" (change)="toggleEnded($event)" />
+      <label for="grants-ended">{{ t('access.grants.showEnded') }}</label>
+    </div>
+
+    <section [attr.aria-busy]="grants.isLoading()">
+      @if (grants.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(grantsErrorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="grants.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (grants.hasValue()) {
+        <div class="table-scroll">
+          <table class="data grants">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('access.grants.role') }}</th>
+                <th scope="col">{{ t('access.grants.unit') }}</th>
+                <th scope="col">{{ t('access.grants.subUnits') }}</th>
+                <th scope="col">{{ t('access.grants.from') }}</th>
+                <th scope="col">{{ t('access.grants.to') }}</th>
+                <th scope="col">{{ t('access.grants.grantedBy') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (grant of grantItems(); track grant.id) {
+                @let state = grantState(grant, today);
+                <tr [class.ended]="state === 'ended'" [attr.data-grant]="grant.id">
+                  <td>
+                    {{ catalog.roleName(grant.role) }}
+                    @if (state !== 'current') {
+                      &ngsp;<span class="badge">{{ t('access.grants.state.' + state) }}</span>
+                    }
+                  </td>
+                  <td>
+                    <span class="badge">{{ kinds.labelOf(grant.unit.kind) }}</span>&ngsp;{{ grant.unit.name }}&ngsp;<span
+                      class="code"
+                      >({{ grant.unit.code }})</span
+                    >
+                  </td>
+                  <td>{{ grant.includeDescendants ? t('access.grants.yes') : t('access.grants.no') }}</td>
+                  <td>{{ grant.validFrom }}</td>
+                  <td>{{ grant.validTo ?? t('access.grants.open') }}</td>
+                  <td>{{ grant.grantedBy?.displayName ?? '—' }}</td>
+                  <td>
+                    @if (canEnd(grant)) {
+                      <button class="btn secondary" type="button" data-action="end" (click)="openEnd(grant)">
+                        {{ t('access.grants.end') }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7">{{ t('access.grants.empty') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="muted">{{ t('access.grants.loading') }}</p>
+      }
+    </section>
+  } @else if (usersLoaded()) {
+    <p class="form-error" role="alert">{{ t('access.users.notFound') }}</p>
+  } @else if (users.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(usersErrorKey()) }}</p>
+      <button class="btn secondary" type="button" (click)="users.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else {
+    <p class="muted">{{ t('access.users.loading') }}</p>
+  }
+
+  <!--
+    Always in the DOM, closed until `showModal()`. `#endDialog` is what `viewChild.required('endDialog')` finds.
+    `(close)` fires on every way of closing (our buttons, Escape, `close()` after a save).
+  -->
+  <dialog #endDialog aria-labelledby="end-grant-title" (close)="onEndClosed()">
+    @if (ending(); as grant) {
+      <form [formGroup]="endForm" (ngSubmit)="submitEnd()" novalidate>
+        <h3 id="end-grant-title">{{ t('access.end.title') }}</h3>
+        <p>{{ t('access.end.intro', { role: catalog.roleName(grant.role), unit: grant.unit.name }) }}</p>
+
+        @if (endError(); as error) {
+          <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+
+        @let validTo = endForm.controls.validTo;
+        <div class="field">
+          <label for="end-valid-to">{{ t('access.end.validTo') }}</label>
+          <input
+            id="end-valid-to"
+            type="date"
+            formControlName="validTo"
+            required
+            [min]="grant.validFrom"
+            [attr.max]="grant.validTo"
+            [attr.aria-invalid]="validTo.invalid && validTo.touched"
+            aria-describedby="end-valid-to-hint end-valid-to-error"
+          />
+          <p class="field-hint" id="end-valid-to-hint">{{ t('access.end.hint') }}</p>
+          @if (validTo.invalid && validTo.touched) {
+            <p class="field-error" id="end-valid-to-error">
+              {{ validTo.hasError('server') ? validTo.getError('server') : t(fieldErrorKey(validTo)) }}
+            </p>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button class="btn" type="submit" [disabled]="endSubmitting()">
+            {{ endSubmitting() ? t('access.form.saving') : t('access.end.submit') }}
+          </button>
+          <button class="btn secondary" type="button" (click)="cancelEnd()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    }
+  </dialog>
+</ng-container>

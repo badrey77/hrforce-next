@@ -229,6 +229,40 @@ deterministically, with no real delay. `ORG_UNIT_PICKER_DEBOUNCE_MS` is exported
 `org-unit-picker.ts` specifically so the test doesn't hardcode the magic number
 separately from the implementation.
 
+### Faking only "today"
+
+Pages that compare dates with `todayIso()` (grant states, default dates) need a fixed
+"today". The access specs fake **only** `Date`, and let it keep ticking:
+
+```ts
+// src/app/features/access/user-detail.page.spec.ts
+// Fake only Date ("today"), and let it advance with real time: RxJS debounceTime compares scheduler.now().
+vi.useFakeTimers({ toFake: ['Date'], shouldAdvanceTime: true });
+vi.setSystemTime(new Date(2026, 8, 26, 10)); // "today" = 2026-09-26
+```
+
+A frozen `Date` would hang the picker: when its timer fires, `debounceTime` checks
+`scheduler.now()` (that is, `Date.now()`) and reschedules until the due time is reached,
+which never happens if the clock stands still. Restore real timers **first** in
+`afterEach`, before `http.verify()`, so one failing test cannot leave a fake clock
+behind for the next spec file.
+
+### `<dialog>` in jsdom
+
+jsdom has the `<dialog>` element but not `showModal()`/`close()`.
+`src/testing/dialog-polyfill.ts` installs the two methods (set/remove `open`, and fire
+`close` as browsers do). Call `installDialogPolyfill()` in the `beforeEach` of specs that
+open a dialog, then assert `dialog.open`.
+
+## Testing permission-aware UI
+
+See [chapter 12 §5](./12-permission-aware-ui.md#5-testing-permission-aware-ui): session
+fixtures (`ME_FIXTURE`, `ME_LECTURE`, `meWith([...])`), a host component for `*appCan`,
+and `RouterTestingHarness` with a `loadChildren` spy for `permissionGuard`. Specs that
+render a page which injects `AccessCatalog` must flush its two requests
+(`flushAccessCatalog(http)` in `src/testing/access-fixtures.ts`), just like
+`flushKinds(http)` for the kind catalogue.
+
 ## Testing the Identity pieces
 
 A few patterns the auth specs introduced:

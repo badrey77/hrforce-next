@@ -108,3 +108,6 @@ the problem type is `xsrf`.
 
 [10-project-structure-and-recipes.md](./10-project-structure-and-recipes.md) ›
 "Recipe: protect a route" and "Recipe: an API call that must not redirect to login".
+
+Then [12-permission-aware-ui.md](./12-permission-aware-ui.md): what the session's
+`permissions` and `scopes` from `/api/me` drive once the user is signed in.

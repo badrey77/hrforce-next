@@ -134,11 +134,27 @@ calls each.
 
 ### `ng-template` and `&ngsp;`
 
-Nothing in this codebase currently uses `<ng-template>` for structural recursion — see
-`org-tree.ts`'s header comment for *why*: a recursive component
-(`<app-org-tree-item>` referencing itself) was chosen over `ngTemplateOutlet` because a
-template-outlet context variable (`let-node`) is untyped under `strictTemplates`, while
-a component `input()` is fully checked.
+`<ng-template>` is a **blueprint**: it renders nothing by itself, and a directive decides
+when to stamp copies of it. The `else` of the permission directive is one, named with a
+template reference variable (below) and handed to the directive as an input:
+
+```html
+<!-- src/app/features/access/roles.page.ts -->
+<a *appCan="'access.manage_roles'; else readOnlyNote" class="btn" routerLink="/access/roles/new">…</a>
+<ng-template #readOnlyNote>
+  <p class="muted" data-note="read-only">{{ t('access.roles.readOnlyNote') }}</p>
+</ng-template>
+```
+
+The `*` prefix is itself shorthand for an `<ng-template>` around the element. Chapter 12
+([12-permission-aware-ui.md](./12-permission-aware-ui.md)) takes that apart and shows the
+directive's `TemplateRef`/`ViewContainerRef` side.
+
+The code does **not** use `<ng-template>` for structural recursion. `org-tree.ts`'s header
+comment explains why: a recursive component (`<app-org-tree-item>` referencing itself)
+was chosen over `ngTemplateOutlet`, because a template-outlet context variable
+(`let-node`) is untyped under `strictTemplates`, while a component `input()` is fully
+checked.
 
 `&ngsp;` is Angular's "non-collapsing space" entity. Angular strips whitespace-only text
 between tags by default (for smaller output); `&ngsp;` inserts a real space where the
@@ -165,6 +181,44 @@ to read a search box on submit without any form library:
 `searchInput` is the `HTMLInputElement` itself. Because the form has no `[formGroup]`,
 Angular's forms directives leave it alone, so `search()` calls
 `event.preventDefault()` to stop the browser's page reload.
+
+### Reaching an element from the class: `viewChild()` and a native `<dialog>`
+
+Templates normally *receive* state. Sometimes the class must call a DOM method itself,
+such as `showModal()` on a `<dialog>`. A **view query** gives the class the element:
+
+```ts
+// src/app/features/access/user-detail.page.ts
+private readonly endDialog = viewChild.required<ElementRef<HTMLDialogElement>>('endDialog');
+
+protected openEnd(grant: GrantView): void {
+  …
+  this.endDialog().nativeElement.showModal();
+}
+```
+
+```html
+<!-- src/app/features/access/user-detail.page.html -->
+<dialog #endDialog aria-labelledby="end-grant-title" (close)="onEndClosed()">
+```
+
+- `viewChild('endDialog')` finds the element marked `#endDialog` **in this component's own
+  template**. Content projected from a parent is not searched; that would be
+  `contentChild()`. For a plain element the result is an `ElementRef`, and
+  `.nativeElement` is the DOM node.
+- It is a **signal**: `this.endDialog()` reads the current match, and a `computed()` could
+  depend on it. `viewChild.required` promises a match. The type has no `undefined`, and
+  reading it before the view exists throws. Plain `viewChild()` returns
+  `Signal<T | undefined>`, which suits an element inside an `@if`.
+- The older decorator form, `@ViewChild('endDialog') dialog!: ElementRef`, is a plain
+  property that is only set after `ngAfterViewInit`. The signal version needs no lifecycle
+  hook.
+- **Why a native `<dialog>`.** `showModal()` gives a real modal for free. The rest of the
+  page becomes inert, focus stays inside, Escape closes it, and `::backdrop` styles the
+  overlay. No overlay library, no z-index. The dialog stays in the DOM (closed), and
+  `(close)` fires however it was closed (our Cancel button, Escape, `close()` after a
+  save), so cleanup lives in one handler. jsdom lacks `showModal()`, so the specs install
+  a tiny polyfill (`src/testing/dialog-polyfill.ts`, chapter 09).
 
 ## Inputs, outputs, and `model()`
 

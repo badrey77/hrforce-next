@@ -10,14 +10,16 @@ See also: [04-dependency-injection.md](./04-dependency-injection.md) for how
 src/
   main.ts, app.config.ts, app.routes.ts, app.ts|html|css   the app shell and bootstrap
   core/          app-wide infrastructure: services, models, http plumbing, i18n plumbing
-    auth/        Identity: AuthApi, Session (root signal store), guards, refresh interceptor, session initializer
+    access/      AccessApi + Authorization contract types + AccessCatalog (permissions, roles; labels in the active language)
+    auth/        Identity: AuthApi, Session (root signal store, permissions), guards (auth, guest, permission), refresh interceptor, session initializer
     date/        todayIso(), isIsoDate() — plain TS, no Angular
-    http/        ApiProblem + apiProblemInterceptor + applyServerErrors() + retryAfterSeconds() + XSRF names
+    http/        ApiProblem + apiProblemInterceptor + applyServerErrors() + problemToForm() + retryAfterSeconds() + XSRF names
     i18n/        languages, LanguageService, TranslocoHttpLoader
     org/         OrgApi + Organization contract types + KindCatalog (kind catalogue, once per app)
   shared/        reusable UI used by more than one feature
+    can/         *appCan structural directive (show a template only with a permission)
     org-unit-picker/
-  features/<name>/  one page/flow per feature: auth, home, organization, not-found, placeholder
+  features/<name>/  one page/flow per feature: access, auth, home, organization, not-found, placeholder
   shell/         app-chrome widgets (language switcher, user menu) — not a route, not shared feature UI
   testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
@@ -92,9 +94,66 @@ Every app page must be signed-in only (contract), so a new page needs its guard:
 4. Test it in `auth.guards.spec.ts` style: signed out → `router.url` is
    `/login?returnUrl=…`; `Session.set(ME_FIXTURE)` → the page renders.
 
-Need a permission check later (Authorization module)? Write another `CanMatchFn` that
-reads a `computed()` from `Session` and returns a `UrlTree` (never `false`, which would
-fall through to `**`). List it after `authGuard`: `canMatch: [authGuard, permissionGuard('employee.read')]`.
+Needs a permission too? Add `permissionGuard()` **after** `authGuard` and put the code in
+the route's `data`: `canMatch: [authGuard, permissionGuard()], data: { permission: 'employee.read' }`.
+Without the permission the route does not match and the visitor lands on the 404 page
+(deliberately `false`, not a `UrlTree`; see chapter 12). Order matters: `authGuard` first,
+so signed-out visitors are still sent to /login.
+
+## Recipe: hide a button by permission
+
+1. **Is the button about one record?** (edit this unit, end this grant.) Then use the
+   record's `_actions` from the API, not a permission. `@if (grant._actions.includes('end'))`
+   in spirit. See `canEnd()` in `features/access/user-detail.page.ts`. A permission held
+   *somewhere* does not mean it applies to *this* record.
+2. **Is it page-level?** (add, create, a tab.) Import `CanDirective` from
+   `shared/can/can.directive.ts` into the component and write
+
+   ```html
+   <button *appCan="'access.grant'" class="btn" type="button" (click)="startAdd()">…</button>
+   ```
+
+   Add `; else otherTemplate` plus an `<ng-template #otherTemplate>` to show something
+   instead (`features/access/roles.page.ts`).
+3. **Is the condition more than one permission?** Write `@if (session.can('a') && other())`
+   with `protected readonly session = inject(Session)`. For a boolean used in class code,
+   keep `session.allows('a')` in a field (chapter 12, §1).
+4. **Never rely on it.** The API must refuse anyway. Map its 409/403 in the form
+   (`problemToForm`, chapter 07).
+5. **Test** with `Session.set(meWith([...]))` for both cases, then change the session
+   and `await fixture.whenStable()` to prove it re-renders.
+
+## Recipe: add an admin page
+
+The Access feature (`features/access/`) is the worked example.
+
+1. **Contract types + API** in `core/<domain>/` (recipe "add an API call"). Reference data
+   the business names in three languages (roles, permission labels) goes in a root
+   catalogue service with a `labelOf`/`roleName` that reads `LanguageService.current()`
+   (recipe "add reference data"). If the endpoints need a permission, make the
+   resources wait for it, as `AccessCatalog` does with `session.allows('access.read')`,
+   so nothing is requested (and nothing 403s) for other users.
+2. **Routes file** `features/<name>/<name>.routes.ts` with the landing page(s) imported
+   statically, detail/editor pages as `loadComponent`, `redirectTo` for the bare path,
+   static paths before `:id` paths (chapter 05).
+3. **Mount it** in `app.routes.ts` with `canMatch: [authGuard, permissionGuard()]` and
+   `data: { permission: '<resource>.read' }`.
+4. **Nav**: add a `NavLink` with `permission: '<resource>.read'` to `app.ts`. The
+   `visibleLinks` computed hides it from users without the permission.
+5. **Section tabs** inside the feature: a small nav component like
+   `features/access/access-nav.ts` (`routerLink` + `routerLinkActive`).
+6. **Lists**: a query param (`?q=`) → signal input → `httpResource` (`users.page.ts`).
+   **Details**: a route param → input → resource. **Forms**: typed reactive forms, a
+   `SlugTable` for the 409s, `problemToForm` on error. **Confirmations with input**: a
+   native `<dialog>` reached through `viewChild.required` (chapter 02).
+7. **Write actions** behind `*appCan` (page level) or `_actions` (record level); **read-only
+   modes** with `form.disable()` from an `effect()` (`role-editor.page.ts`).
+8. **i18n**: every new text in `fr`, `ar` and `en`, with the same placeholders. Use logical
+   CSS, `text-align: start` in tables, and `dir="auto"` on inputs that take text in
+   another script.
+9. **Tests**: `RouterTestingHarness` on `{ path: '<name>', children: ROUTES }`, a session
+   fixture, `HttpTestingController` flushes for each resource (including catalogues), and
+   the 409 mapping per slug.
 
 ## Recipe: an API call that must not redirect to login
 

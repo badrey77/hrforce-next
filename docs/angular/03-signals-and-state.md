@@ -304,10 +304,13 @@ reducers or `BehaviorSubject`.
   it ([chapter 11](./11-app-initializers-and-auth-flow.md)). The *state* stays synchronous: `isAuthenticated()` always has an
   answer, which is what a guard needs.
 
-When a store grows (Authorization will add `permissions` and `scopes` to `/api/me`),
-add more `computed()` views of the same `me` signal, e.g.
-`hasPermission = (code) => this.me()?.permissions.includes(code)`. Do not add a second
-writable signal that could drift out of sync.
+When a store grows, add more `computed()` views of the same `me` signal. Do not add a
+second writable signal that could drift out of sync. The Authorization step did exactly
+that: `permissions` (a `Set` of codes) and `scopes` are computeds of `me`, and
+`can(code)` is a method that reads `permissions()`. Calling it in a template or a
+computed makes that reader depend on the permissions. `allows(code)` returns a per-code
+`computed()` that notifies only when the answer flips. Chapter 12
+([12-permission-aware-ui.md](./12-permission-aware-ui.md)) compares the two.
 
 ## Pitfalls
 
@@ -320,6 +323,11 @@ writable signal that could drift out of sync.
   `asOf()` inside it behaves like a dependency; a random helper method calling
   `this.selectedId()` would not.
 - **Using `effect()` to derive state.** See the section above — prefer `computed()`.
+  The legitimate uses in this codebase all push signal state *out* to something that is
+  not a signal: the DOM through `ViewContainerRef` (`shared/can/can.directive.ts`), and a
+  reactive form's `reset()`/`disable()` when the role loads
+  (`features/access/role-editor.page.ts`, with `untracked()` around the form calls so
+  only `role`, `readOnly` and `isNew` are dependencies).
 - **Forgetting `hasValue()` before reading a resource's `value()`.** `tree.value()`
   throws if the resource has no value yet; `organization.page.ts` always checks
   `tree.hasValue()` (via the `root` computed) or narrows in the template with

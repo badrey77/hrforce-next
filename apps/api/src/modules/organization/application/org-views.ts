@@ -27,6 +27,8 @@ export interface OrgTreeNode {
   name: string;
   /** Effective site (own, else the nearest ancestor's). */
   site: SiteRef | null;
+  /** false for context nodes: ancestors of in-scope units shown only to place them (no actions). */
+  inScope: boolean;
   children: OrgTreeNode[];
   _actions: OrgAction[];
 }

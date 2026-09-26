@@ -1,0 +1,176 @@
+/**
+ * /access/users/:id — one member: identity, grants table (current + future, or all with "show ended"), "End" per
+ * grant (a date dialog) and "Add a grant".
+ *
+ * Angular concepts:
+ * - **Route param → input**: `:id` arrives as `id = input.required<string>()` (withComponentInputBinding).
+ * - **A resource whose request is built from two signals**: `grants` reads `id()` AND `includeEnded()`; ticking the
+ *   checkbox (a `signal`) re-fetches with `includeEnded=true`, and the previous request is cancelled if still running.
+ * - **Native `<dialog>` + `viewChild()`**. The End dialog is a real `<dialog>` element: `showModal()` opens it as a
+ *   modal (the browser makes the rest of the page inert, traps focus inside, closes it on Escape and shows
+ *   `::backdrop`) — no overlay library, no z-index games. To call `showModal()` the class needs the DOM element:
+ *   `viewChild.required<ElementRef<HTMLDialogElement>>('endDialog')` is a **signal query** that finds the element
+ *   marked `#endDialog` in THIS component's template. It is a signal: `this.endDialog()` returns the current match
+ *   (`required` = it always exists, so no `undefined` to handle; reading it before the view is created throws).
+ *   `ElementRef.nativeElement` is the element itself. The older decorator form `@ViewChild('endDialog')` does the
+ *   same with a plain property that is only set after `ngAfterViewInit`.
+ *   The dialog is always in the DOM (closed); `(close)` fires however it was closed (button, Escape, `close()`),
+ *   so cleanup lives in one handler.
+ * - **Record buttons from the server**: "End" shows only when the grant's `_actions` contains `end` — the API
+ *   decided (scope, not-yourself). "Add a grant" uses `*appCan="'access.grant'"`: a page-level permission check.
+ *   Both are comfort; the API re-checks everything (409 slugs are mapped in the forms).
+ *
+ * Contract interpretation: there is no `GET /access/users/:id`, so the page reads `GET /access/users` and picks the
+ * member by id (not in the list → "not found": the server did not make them visible to this caller).
+ */
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  type ElementRef,
+  inject,
+  input,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
+import { AccessApi } from '../../core/access/access-api';
+import { AccessCatalog } from '../../core/access/access-catalog';
+import type { GrantView } from '../../core/access/access.models';
+import { todayIso } from '../../core/date/iso-date';
+import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
+import { type FormMessage, problemToForm } from '../../core/http/problem-form';
+import { KindCatalog } from '../../core/org/kind-catalog';
+import { CanDirective } from '../../shared/can/can.directive';
+import { dateWithin, END_GRANT_SLUGS, fieldErrorKey, grantState, isoDate } from './access-forms';
+import { AccessNav } from './access-nav';
+import { GrantForm } from './grant-form';
+
+function loadErrorKey(error: unknown, fallback: string): string {
+  if (!isApiProblemError(error)) return fallback;
+  if (error.problem.type === PROBLEM_TYPE_NETWORK) return 'errors.network';
+  if (error.status === 403) return 'errors.forbidden';
+  return fallback;
+}
+
+@Component({
+  selector: 'app-access-user-detail-page',
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './user-detail.page.html',
+  styleUrl: './access.css',
+})
+export class UserDetailPage {
+  private readonly api = inject(AccessApi);
+  protected readonly catalog = inject(AccessCatalog);
+  protected readonly kinds = inject(KindCatalog);
+
+  /** `:id` of the route. */
+  readonly id = input.required<string>();
+
+  protected readonly includeEnded = signal(false);
+  protected readonly adding = signal(false);
+  protected readonly feedback = signal<{ key: string; role: string } | null>(null);
+  protected readonly today = todayIso();
+  protected readonly grantState = grantState;
+
+  protected readonly users = this.api.usersResource(() => undefined);
+  protected readonly grants = this.api.grantsResource(() => ({ userId: this.id(), includeEnded: this.includeEnded() }));
+
+  protected readonly user = computed(() => (this.users.hasValue() ? this.users.value().items.find((u) => u.id === this.id()) : undefined));
+  protected readonly usersLoaded = computed(() => this.users.hasValue());
+  protected readonly usersErrorKey = computed(() => loadErrorKey(this.users.error(), 'access.users.loadError'));
+  protected readonly grantItems = computed<readonly GrantView[]>(() => (this.grants.hasValue() ? this.grants.value().items : []));
+  protected readonly grantsErrorKey = computed(() => loadErrorKey(this.grants.error(), 'access.grants.loadError'));
+
+  // --- End dialog -------------------------------------------------------------------------------------------
+
+  /** Signal query: the `<dialog #endDialog>` of this template. */
+  private readonly endDialog = viewChild.required<ElementRef<HTMLDialogElement>>('endDialog');
+  /** The grant being ended (null while the dialog is closed). */
+  protected readonly ending = signal<GrantView | null>(null);
+  protected readonly endSubmitting = signal(false);
+  protected readonly endError = signal<FormMessage | null>(null);
+  protected readonly fieldErrorKey = fieldErrorKey;
+
+  /** Contract: the new end is ≥ validFrom and ≤ the current end. The validator reads `ending()` when it runs. */
+  protected readonly endForm = inject(NonNullableFormBuilder).group({
+    validTo: [
+      '',
+      [
+        Validators.required,
+        isoDate,
+        dateWithin(() => {
+          const grant = this.ending();
+          return grant ? { min: grant.validFrom, max: grant.validTo } : null;
+        }),
+      ],
+    ],
+  });
+
+  protected toggleEnded(event: Event): void {
+    this.includeEnded.set(event.target instanceof HTMLInputElement && event.target.checked);
+  }
+
+  protected startAdd(): void {
+    this.feedback.set(null);
+    this.adding.set(true);
+  }
+
+  protected onGranted(grant: GrantView): void {
+    this.adding.set(false);
+    this.feedback.set({ key: 'access.grants.added', role: this.catalog.roleName(grant.role) });
+    this.grants.reload();
+    this.users.reload();
+  }
+
+  protected openEnd(grant: GrantView): void {
+    this.feedback.set(null);
+    this.endError.set(null);
+    // Set the grant FIRST: resetting the value re-runs the validators, which read `ending()`.
+    this.ending.set(grant);
+    // Default: today — or the start date for a grant that has not started yet (ending it then cancels it).
+    this.endForm.reset({ validTo: grant.validFrom > this.today ? grant.validFrom : this.today });
+    this.endDialog().nativeElement.showModal();
+  }
+
+  protected cancelEnd(): void {
+    this.endDialog().nativeElement.close();
+  }
+
+  /** `(close)` of the dialog: however it was closed (button, Escape, after a save). */
+  protected onEndClosed(): void {
+    this.ending.set(null);
+    this.endSubmitting.set(false);
+  }
+
+  protected submitEnd(): void {
+    const grant = this.ending();
+    this.endError.set(null);
+    if (!grant) return;
+    if (this.endForm.invalid) {
+      this.endForm.markAllAsTouched();
+      return;
+    }
+    this.endSubmitting.set(true);
+    this.api.endGrant(grant.id, this.endForm.getRawValue().validTo).subscribe({
+      next: (ended) => {
+        this.endDialog().nativeElement.close();
+        this.feedback.set({ key: 'access.grants.ended', role: this.catalog.roleName(ended.role) });
+        this.grants.reload();
+        this.users.reload();
+      },
+      error: (error: unknown) => {
+        this.endError.set(problemToForm(this.endForm, error, END_GRANT_SLUGS, 'access.problems.grantNotFound'));
+        this.endSubmitting.set(false);
+      },
+    });
+  }
+
+  protected canEnd(grant: GrantView): boolean {
+    // oxlint-disable-next-line no-underscore-dangle -- `_actions` is the contract's field name
+    return grant._actions.includes('end') && grantState(grant, this.today) !== 'ended';
+  }
+}

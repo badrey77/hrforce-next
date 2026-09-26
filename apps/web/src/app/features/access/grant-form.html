@@ -1,0 +1,103 @@
+<form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="grant-form-title" novalidate>
+  <h3 id="grant-form-title">{{ t('access.grantForm.title') }}</h3>
+
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @let role = form.controls.roleId;
+  <div class="field">
+    <label for="grant-role">{{ t('access.grantForm.role') }}</label>
+    <select
+      id="grant-role"
+      formControlName="roleId"
+      required
+      [attr.aria-invalid]="role.invalid && role.touched"
+      [attr.aria-describedby]="role.invalid && role.touched ? 'grant-role-error' : null"
+    >
+      <option value="" disabled>{{ t('access.grantForm.rolePlaceholder') }}</option>
+      @for (option of catalog.roles(); track option.id) {
+        <option [value]="option.id">{{ catalog.roleName(option) }}</option>
+      }
+    </select>
+    @if (role.invalid && role.touched) {
+      <p class="field-error" id="grant-role-error">
+        {{ role.hasError('server') ? role.getError('server') : t(fieldErrorKey(role)) }}
+      </p>
+    }
+  </div>
+
+  @let unit = form.controls.orgUnitId;
+  <div class="field">
+    <label for="grant-unit">{{ t('access.grantForm.unit') }}</label>
+    <app-org-unit-picker
+      formControlName="orgUnitId"
+      inputId="grant-unit"
+      [asOf]="validFrom()"
+      [invalid]="unit.invalid && unit.touched"
+      [describedBy]="unit.invalid && unit.touched ? 'grant-unit-error' : null"
+    />
+    @if (unit.invalid && unit.touched) {
+      <p class="field-error" id="grant-unit-error">
+        {{ unit.hasError('server') ? unit.getError('server') : t(fieldErrorKey(unit)) }}
+      </p>
+    }
+  </div>
+
+  <!-- A checkbox bound with formControlName: its FormControl<boolean> follows `checked`, not `value`. -->
+  <div class="check">
+    <input id="grant-descendants" type="checkbox" formControlName="includeDescendants" />
+    <label for="grant-descendants">{{ t('access.grantForm.includeDescendants') }}</label>
+  </div>
+
+  @let from = form.controls.validFrom;
+  <div class="field">
+    <label for="grant-from">{{ t('access.grantForm.validFrom') }}</label>
+    <input
+      id="grant-from"
+      type="date"
+      formControlName="validFrom"
+      required
+      [attr.aria-invalid]="from.invalid && from.touched"
+      [attr.aria-describedby]="from.invalid && from.touched ? 'grant-from-error' : null"
+    />
+    @if (from.invalid && from.touched) {
+      <p class="field-error" id="grant-from-error">
+        {{ from.hasError('server') ? from.getError('server') : t(fieldErrorKey(from)) }}
+      </p>
+    }
+  </div>
+
+  <!-- The group's `dateOrder` error is shown here: the "to" control itself is valid. -->
+  @let to = form.controls.validTo;
+  @let toInvalid = to.touched && (to.invalid || form.hasError('dateOrder'));
+  <div class="field">
+    <label for="grant-to">{{ t('access.grantForm.validTo') }}</label>
+    <input
+      id="grant-to"
+      type="date"
+      formControlName="validTo"
+      [attr.aria-invalid]="toInvalid"
+      aria-describedby="grant-to-hint grant-to-error"
+    />
+    <p class="field-hint" id="grant-to-hint">{{ t('access.grantForm.validToHint') }}</p>
+    @if (toInvalid) {
+      <p class="field-error" id="grant-to-error">
+        {{
+          to.hasError('server')
+            ? to.getError('server')
+            : to.invalid
+              ? t(fieldErrorKey(to))
+              : t('access.grantForm.errors.dateOrder')
+        }}
+      </p>
+    }
+  </div>
+
+  <div class="form-actions">
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('access.form.saving') : t('access.grantForm.submit') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

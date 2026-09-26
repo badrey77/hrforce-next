@@ -21,6 +21,9 @@
  * - **App-wide reference data**: `KindCatalog` is injected here too; it is the same root instance the tree and
  *   forms use, so the kind catalogue is fetched once whatever the number of consumers. The "Add a sub-unit" button
  *   needs BOTH the server's `create_child` action and at least one allowed child kind in the catalogue.
+ * - **Scopes** (docs/contracts/authorization.md): the tree holds the caller's units plus their ancestors as muted,
+ *   unselectable context nodes (org-tree.ts); buttons still come from the server's `_actions`, never from
+ *   `Session.can()` — holding `org_unit.update` somewhere does not mean it applies to THIS unit.
  * - `sites` (`GET /org/sites`) is loaded once by the page and handed down as an input to the forms (select options)
  *   and the detail (site names in the history), instead of each child fetching it.
  */
@@ -46,11 +49,11 @@ interface Feedback {
 }
 
 /** Translation key for a failed read (the resource's `error()`). */
-function loadErrorKey(error: unknown, fallback: string): string {
+function loadErrorKey(error: unknown, fallback: string, notFound = 'org.problems.notFound'): string {
   if (!isApiProblemError(error)) return fallback;
   if (error.problem.type === PROBLEM_TYPE_NETWORK) return 'errors.network';
   if (error.status === 403) return 'errors.forbidden';
-  if (error.status === 404) return 'org.problems.notFound';
+  if (error.status === 404) return notFound;
   return fallback;
 }
 
@@ -116,6 +119,8 @@ export class OrganizationPage {
     const id = this.selectedId();
     const root = this.root();
     const node = id && root ? findNode(root, id) : undefined;
+    // A context node (outside the caller's scope) is never actionable, whatever it carries.
+    if (node?.inScope === false) return [];
     // oxlint-disable-next-line no-underscore-dangle -- `_actions` is the contract's field name
     if (node) return node._actions;
     // oxlint-disable-next-line no-underscore-dangle -- idem
@@ -123,7 +128,13 @@ export class OrganizationPage {
   });
 
   protected readonly treeErrorKey = computed(() => loadErrorKey(this.tree.error(), 'org.tree.loadError'));
-  protected readonly detailErrorKey = computed(() => loadErrorKey(this.detail.error(), 'org.detail.loadError'));
+  /**
+   * A 404 on the detail reads "not found", never "forbidden": out-of-scope ids are 404 by design (ADR 002), and the
+   * page must not hint that the unit exists.
+   */
+  protected readonly detailErrorKey = computed(() =>
+    loadErrorKey(this.detail.error(), 'org.detail.loadError', 'org.detail.notFound'),
+  );
 
   protected onAsOfChange(event: Event): void {
     const value = event.target instanceof HTMLInputElement ? event.target.value : '';

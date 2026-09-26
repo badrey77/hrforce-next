@@ -4,7 +4,9 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ORG_KIND_LIST, SITE_ANNABA, SITE_CNE, SITE_HQ, SITES } from '../../../testing/org-fixtures';
+import { ME_FIXTURE, ME_LECTURE } from '../../../testing/auth-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
+import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import { LanguageService } from '../../core/i18n/language.service';
@@ -22,7 +24,7 @@ function node(
   site: SiteRef | null,
   extra: Partial<OrgTreeNode> = {},
 ): OrgTreeNode {
-  return { id, kind, code, name, site, children: [], _actions: [], ...extra };
+  return { id, kind, code, name, site, children: [], _actions: [], inScope: true, ...extra };
 }
 
 const ALL: OrgAction[] = ['update', 'create_child'];
@@ -109,12 +111,16 @@ describe('OrganizationPage', () => {
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Signed in as the admin (holds site.read: the Sites tab and route exist).
+    TestBed.inject(Session).set(ME_FIXTURE);
     harness = await RouterTestingHarness.create();
   });
 
   afterEach(() => http.verify());
 
   const el = () => harness.routeNativeElement as HTMLElement;
+  const nodeButton = (code: string) =>
+    [...el().querySelectorAll<HTMLButtonElement>('app-org-tree-item .node')].find((b) => b.textContent?.includes(code));
 
   /** The page's reference data: the kind catalogue (once per app) and the sites list (once per page). */
   function flushReferenceData(): void {
@@ -496,5 +502,69 @@ describe('OrganizationPage', () => {
     expect(links.map((a) => a.textContent?.trim())).toEqual(['Structure', 'Sites']);
     expect(links[0]?.getAttribute('aria-current')).toBe('page');
     expect(links[1]?.getAttribute('href')).toBe('/organization/sites');
+  });
+
+  describe('scopes (authorization contract)', () => {
+    // What `lecture.ouest@demo.dz` gets: REG-OUEST and below in scope, DG and DEP-RX as context only.
+    const AG_ORAN = node('a-oran', 'agency', 'AG-ORAN', 'Agence Oran', HQ);
+    const REG_OUEST = node('r-ouest', 'region', 'REG-OUEST', 'Région Ouest', HQ, { children: [AG_ORAN] });
+    const RX_CONTEXT = node('d-rx', 'department', 'DEP-RX', 'Département RX', HQ, {
+      inScope: false,
+      _actions: ['update'], // even if a buggy server sent actions, a context node stays inert
+      children: [REG_OUEST],
+    });
+    const ROOT_CONTEXT = node('dg', 'direction_generale', 'DG', 'Direction Générale', HQ, {
+      inScope: false,
+      children: [RX_CONTEXT],
+    });
+
+    it('renders context ancestors muted and disabled, with a hint for screen readers', async () => {
+      TestBed.inject(Session).set(ME_LECTURE);
+      await open('/organization?asOf=2025-03-31', ROOT_CONTEXT);
+
+      const dg = nodeButton('DG');
+      expect(dg?.disabled).toBe(true);
+      expect(dg?.classList).toContain('context');
+      expect(dg?.getAttribute('title')).toBe('Hors de votre périmètre (affichée pour situer vos unités)');
+      expect(dg?.querySelector('.visually-hidden')?.textContent).toContain('Hors de votre périmètre');
+      expect(nodeButton('DEP-RX')?.disabled).toBe(true);
+
+      const ouest = nodeButton('REG-OUEST');
+      expect(ouest?.disabled).toBe(false);
+      expect(ouest?.classList).not.toContain('context');
+    });
+
+    it('a context node cannot be selected: no detail request, no actions', async () => {
+      TestBed.inject(Session).set(ME_LECTURE);
+      await open('/organization?asOf=2025-03-31', ROOT_CONTEXT);
+
+      nodeButton('DEP-RX')?.click();
+      await settle();
+      http.expectNone('/api/org/units/d-rx');
+      expect(el().textContent).toContain('Sélectionnez une unité');
+
+      await select(REG_OUEST, [P_DG, P_RX]);
+      expect(el().querySelector('app-unit-detail h2')?.textContent).toContain('Région Ouest');
+      expect(el().querySelector('[data-action]')).toBeNull();
+    });
+
+    it('an out-of-scope detail (404) reads "not found"', async () => {
+      await open('/organization?asOf=2025-03-31');
+      button('Département Finances').click();
+      await settle();
+      http
+        .expectOne('/api/org/units/d-fin')
+        .flush({ type: 'about:blank', title: 'Not Found', status: 404 }, { status: 404, statusText: 'Not Found' });
+      await settle();
+
+      expect(el().querySelector('.detail-pane [role="alert"]')?.textContent).toContain('Unité introuvable.');
+    });
+
+    it('hides the Sites tab without site.read', async () => {
+      TestBed.inject(Session).set({ ...ME_LECTURE, permissions: ['org_unit.read'] });
+      await open('/organization?asOf=2025-03-31');
+
+      expect([...el().querySelectorAll('app-org-nav a')].map((a) => a.textContent?.trim())).toEqual(['Structure']);
+    });
   });
 });

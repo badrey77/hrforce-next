@@ -5,7 +5,7 @@ import { CookieIdentityResolver, FirstMatchIdentityResolver } from '../context/c
 import { DevHeaderIdentityResolver } from '../context/dev-identity.js';
 import type { RequestIdentityResolver } from '../context/request-identity.js';
 import { DevAllowAllPermissionEvaluator } from './dev-permission-evaluator.js';
-import { DenyAllPermissionEvaluator, type PermissionEvaluator } from './permission-evaluator.js';
+import type { PermissionEvaluator } from './permission-evaluator.js';
 
 /**
  * Default identity seam: the access-token cookie (CookieIdentityResolver). With DEV_AUTH=true (development/test
@@ -17,11 +17,12 @@ export function identityResolverFactory(env: Env): RequestIdentityResolver {
 }
 
 /**
- * Default permission seam: deny all; with DEV_PERMISSIONS=allow_all (development/test only) every AUTHENTICATED
- * caller holds every permission (anonymous callers are still 401). The Authorization module replaces this.
+ * Permission seam selection (used by the Authorization module, which provides PermissionEvaluator): the real,
+ * grant-backed evaluator — or, with DEV_PERMISSIONS=allow_all (development/test only), an evaluator under which every
+ * AUTHENTICATED caller holds every permission (anonymous callers are still 401) and every scope is the whole company.
  */
-export function permissionEvaluatorFactory(env: Env): PermissionEvaluator {
-  return env.DEV_PERMISSIONS === 'allow_all' ? new DevAllowAllPermissionEvaluator() : new DenyAllPermissionEvaluator();
+export function permissionEvaluatorFactory(env: Env, real: PermissionEvaluator): PermissionEvaluator {
+  return env.DEV_PERMISSIONS === 'allow_all' ? new DevAllowAllPermissionEvaluator() : real;
 }
 
 /** Logs a loud warning at boot when a development-only switch is active. */

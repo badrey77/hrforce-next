@@ -1,8 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { DevAuthWarning, identityResolverFactory, permissionEvaluatorFactory } from './authz/dev-auth.js';
+import { DevAuthWarning, identityResolverFactory } from './authz/dev-auth.js';
 import { PermissionCheck } from './authz/permission-check.js';
-import { PermissionEvaluator } from './authz/permission-evaluator.js';
 import { PermissionGuard } from './authz/permission.guard.js';
 import { ConfigModule, ENV } from './config/config.module.js';
 import { RequestContextInterceptor } from './context/request-context.interceptor.js';
@@ -20,8 +19,9 @@ import { XsrfGuard } from './security/xsrf.guard.js';
  *    bootstrap of AppModule is deny-by-default and transactional, with or without configureApp().
  *  - The problem+json filter and the zod pipe are provided here and installed by configureApp().
  * Identity: CookieIdentityResolver (access-token cookie) + the DEV_AUTH header identity in development/test.
- * Permissions: deny all, or allow all for authenticated callers with DEV_PERMISSIONS=allow_all (dev/test), until the
- * Authorization module overrides PermissionEvaluator. XsrfGuard (APP_GUARD) checks every unsafe method.
+ * Permissions: PermissionEvaluator and ScopeService (platform/authz seams) are provided by the GLOBAL Authorization
+ * module (grant-backed; DEV_PERMISSIONS=allow_all in dev/test). PermissionCheck resolves them from there, so every
+ * application must import AuthorizationModule (AppModule does). XsrfGuard (APP_GUARD) checks every unsafe method.
  */
 @Global()
 @Module({
@@ -29,7 +29,6 @@ import { XsrfGuard } from './security/xsrf.guard.js';
   controllers: [HealthController],
   providers: [
     { provide: RequestIdentityResolver, inject: [ENV], useFactory: identityResolverFactory },
-    { provide: PermissionEvaluator, inject: [ENV], useFactory: permissionEvaluatorFactory },
     DevAuthWarning,
     PermissionCheck,
     // Order matters: global guards run in registration order (XSRF first, then access policy).
@@ -39,6 +38,6 @@ import { XsrfGuard } from './security/xsrf.guard.js';
     ProblemDetailsFilter,
     ZodValidationPipe,
   ],
-  exports: [ConfigModule, DbModule, RequestIdentityResolver, PermissionEvaluator],
+  exports: [ConfigModule, DbModule, RequestIdentityResolver],
 })
 export class PlatformModule {}

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { requireContext } from '../../../platform/context/request-context.js';
-import { ValidationProblemException } from '../../../platform/http/problem-details.js';
+import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
 import {
   assertNoCycle,
   assertParentAllowed,
@@ -13,7 +14,7 @@ import { planNewVersion, sortVersions, versionAt } from '../domain/versions.js';
 import { OrgKindRepository } from '../infra/org-kind.repository.js';
 import { constraintViolation, OrgUnitRepository } from '../infra/org-unit.repository.js';
 import { SiteRepository } from '../infra/site.repository.js';
-import { OrgActions } from './org-actions.js';
+import { OrgActions, ORG_PERMISSIONS } from './org-actions.js';
 import { OrgClock } from './org-clock.js';
 import type { OrgKindsView, OrgTreeNode, OrgTreeView, OrgUnitDetail, OrgUnitSearchView, SiteRef } from './org-views.js';
 
@@ -53,6 +54,14 @@ function unitNotFound(): NotFoundException {
   return new NotFoundException('Org unit not found');
 }
 
+/**
+ * The unit is readable but the caller's scope does not allow the action there (docs/contracts/authorization.md ›
+ * Scope rules): 403 `forbidden-scope`, with the body field when the scope check was on a referenced unit.
+ */
+function forbiddenScope(detail: string, field?: 'parentId'): ProblemException {
+  return new ProblemException(403, 'forbidden-scope', detail, field ? [{ field, code: 'forbidden_scope', message: detail }] : undefined);
+}
+
 /** Kinds come from the catalogue, so an unknown (or, for creation, root) kind is an invalid body/query value → 422. */
 function invalidKind(message: string): ValidationProblemException {
   return new ValidationProblemException([{ field: 'kind', code: 'invalid_value', message }]);
@@ -67,6 +76,7 @@ export class OrgUnitsService {
     private readonly sites: SiteRepository,
     private readonly actions: OrgActions,
     private readonly clock: OrgClock,
+    private readonly scopes: ScopeService,
   ) {}
 
   async listKinds(): Promise<OrgKindsView> {
@@ -81,21 +91,31 @@ export class OrgUnitsService {
     const snapshot = await this.repo.snapshot(companyId, date);
     const tree = buildTree(snapshot, catalogue);
     if (!tree) throw new NotFoundException(`No organisation exists on ${date}`);
+    const readable = await this.scopes.unitIds(ORG_PERMISSIONS.read);
+    if (readable.size === 0) throw new ForbiddenException('No org_unit.read scope');
     const siteRefs = await this.siteRefs(companyId, snapshot.map((u) => u.siteId));
-    const actionsOf = await this.actions.forCaller(catalogue);
-    const toNode = (node: OrgTree, inheritedSiteId: string | null): OrgTreeNode => {
+    const actionsOf = await this.actions.forMany(catalogue);
+    // Nodes in scope, plus their ancestors as context (inScope false, no actions); branches with nothing in scope
+    // are omitted. The root is always returned (as context when out of scope).
+    const toNode = (node: OrgTree, inheritedSiteId: string | null): OrgTreeNode | null => {
       const siteId = node.unit.siteId ?? inheritedSiteId;
+      const children = node.children.map((child) => toNode(child, siteId)).filter((child): child is OrgTreeNode => child !== null);
+      const inScope = readable.has(node.unit.id);
+      if (!inScope && children.length === 0 && node !== tree) return null;
       return {
         id: node.unit.id,
         kind: node.unit.kind,
         code: node.unit.code,
         name: node.unit.name,
         site: siteId ? (siteRefs.get(siteId) ?? null) : null,
-        children: node.children.map((child) => toNode(child, siteId)),
-        _actions: actionsOf(node.unit.kind),
+        inScope,
+        children,
+        _actions: inScope ? actionsOf(node.unit.id, node.unit.kind) : [],
       };
     };
-    return { asOf: date, root: toNode(tree, null) };
+    const root = toNode(tree, null);
+    if (!root) throw new NotFoundException(`No organisation exists on ${date}`);
+    return { asOf: date, root };
   }
 
   async searchUnits(params: SearchOrgUnitsInput): Promise<OrgUnitSearchView> {
@@ -108,6 +128,7 @@ export class OrgUnitsService {
     }
     const ids = await this.repo.search(companyId, {
       asOf,
+      scope: await this.scopes.scopeOf(ORG_PERMISSIONS.read),
       limit: SEARCH_LIMIT,
       ...(params.q ? { q: params.q } : {}),
       ...(params.kind?.length ? { kinds: params.kind } : {}),
@@ -145,12 +166,14 @@ export class OrgUnitsService {
     const todays = versionAt(versions, today);
     const shown = todays ?? versions[0];
     if (!shown) throw unitNotFound();
+    const anchor = await this.scopeAnchor(companyId, id, shown.parentId);
+    if (!(await this.scopes.inScope(ORG_PERMISSIONS.read, anchor))) throw unitNotFound();
     const snapshot = await this.repo.snapshot(companyId, todays ? today : shown.validFrom);
     const byId = new Map<string, OrgSnapshotUnit>(snapshot.map((u) => [u.id, u]));
     const site = effectiveSite(shown.siteId, shown.parentId, byId);
     const siteRefs = await this.siteRefs(companyId, [site.siteId]);
     const catalogue = await this.kinds.catalogue();
-    const actionsOf = await this.actions.forCaller(catalogue);
+    const actions = await this.actions.forUnit(catalogue, anchor, unit.kind);
     return {
       id: unit.id,
       kind: unit.kind,
@@ -167,8 +190,17 @@ export class OrgUnitsService {
         parentId: v.parentId,
         siteId: v.siteId,
       })),
-      _actions: actionsOf(unit.kind),
+      _actions: actions,
     };
+  }
+
+  /**
+   * The unit whose scope decides access to `unitId`: the unit itself when it is part of today's tree (closure), else
+   * its (shown version's) parent — a unit that starts in the future, or has ended, follows its parent.
+   */
+  private async scopeAnchor(companyId: string, unitId: string, parentId: string | null): Promise<string> {
+    if (parentId === null || (await this.repo.inTodaysTree(companyId, unitId))) return unitId;
+    return parentId;
   }
 
   /** Creates a non-root unit with one open-ended version from `validFrom` (default today). */
@@ -182,6 +214,14 @@ export class OrgUnitsService {
     const siteId = input.siteId ?? null;
 
     const parent = await this.repo.findUnit(companyId, input.parentId);
+    // Scope (docs/contracts/authorization.md): the parent must be readable (else 404, like an unknown parent) and
+    // inside the caller's org_unit.create scope (else 403 forbidden-scope).
+    if (!parent || !(await this.scopes.inScope(ORG_PERMISSIONS.read, await this.unitAnchor(companyId, parent.id)))) {
+      throw new NotFoundException('Parent unit not found');
+    }
+    if (!(await this.scopes.inScope(ORG_PERMISSIONS.create, await this.unitAnchor(companyId, parent.id)))) {
+      throw forbiddenScope('You cannot create units under this parent (outside your org_unit.create scope).', 'parentId');
+    }
     assertParentAllowed(catalogue, input.kind, parent);
     await this.assertParentExistsOn(companyId, input.parentId, validFrom);
     if (await this.repo.codeExists(companyId, input.code)) throw codeTaken(input.code);
@@ -205,6 +245,11 @@ export class OrgUnitsService {
     const companyId = tenant();
     const unit = await this.repo.findUnit(companyId, id);
     if (!unit) throw unitNotFound();
+    const anchor = await this.unitAnchor(companyId, id);
+    if (!(await this.scopes.inScope(ORG_PERMISSIONS.read, anchor))) throw unitNotFound();
+    if (!(await this.scopes.inScope(ORG_PERMISSIONS.update, anchor))) {
+      throw forbiddenScope('You cannot change this unit (outside your org_unit.update scope).');
+    }
     const catalogue = await this.kinds.catalogue();
     if (input.parentId !== undefined && catalogue.isRoot(unit.kind)) {
       throw new OrgRuleViolation('org-unit-root-immutable', 'The root unit cannot be moved.', 'parentId');
@@ -222,7 +267,14 @@ export class OrgUnitsService {
 
     if (plan.moved && plan.next.parentId) {
       const newParentId = plan.next.parentId;
-      assertParentAllowed(catalogue, unit.kind, await this.repo.findUnit(companyId, newParentId));
+      // A move also needs org_unit.update on the new parent; an unreadable parent is reported like an unknown one.
+      const newParent = await this.repo.findUnit(companyId, newParentId);
+      const parentAnchor = newParent ? await this.unitAnchor(companyId, newParent.id) : undefined;
+      const readableParent = parentAnchor !== undefined && (await this.scopes.inScope(ORG_PERMISSIONS.read, parentAnchor)) ? newParent : undefined;
+      assertParentAllowed(catalogue, unit.kind, readableParent);
+      if (parentAnchor === undefined || !(await this.scopes.inScope(ORG_PERMISSIONS.update, parentAnchor))) {
+        throw forbiddenScope('You cannot move a unit under this parent (outside your org_unit.update scope).', 'parentId');
+      }
       const onDate = new Map((await this.repo.snapshot(companyId, validFrom)).map((u) => [u.id, u.parentId]));
       if (!onDate.has(newParentId)) throw parentMissingOn(validFrom);
       assertNoCycle(id, newParentId, (unitId) => onDate.get(unitId));
@@ -242,6 +294,14 @@ export class OrgUnitsService {
       await this.repo.moveClosureSubtree(companyId, id, plan.next.parentId);
     }
     return this.getUnit(id);
+  }
+
+  /** {@link scopeAnchor} for a unit known only by id (parent from the version valid today, else the first one). */
+  private async unitAnchor(companyId: string, unitId: string): Promise<string> {
+    if (await this.repo.inTodaysTree(companyId, unitId)) return unitId;
+    const versions = sortVersions(await this.repo.listVersions(companyId, unitId));
+    const shown = versionAt(versions, this.clock.today()) ?? versions[0];
+    return shown?.parentId ?? unitId;
   }
 
   private async assertParentExistsOn(companyId: string, parentId: string, date: string): Promise<void> {

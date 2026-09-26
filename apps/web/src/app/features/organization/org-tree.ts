@@ -18,6 +18,13 @@
  * - **Data labels vs i18n labels**: the kind badge is `kindCatalog.labelOf(kind)` — a label that comes from the API
  *   (the kind catalogue) in the active language — while fixed UI texts still come from `t()`.
  *
+ * - **Context nodes** (`inScope: false`, docs/contracts/authorization.md › Scope rules): ancestors the API sends only
+ *   so the user sees WHERE their units sit. The row is muted and its button `[disabled]` — a disabled button cannot
+ *   be clicked or focused, so nothing can select it for edits (its detail would be a 404 anyway). A visually hidden
+ *   text tells screen-reader users why. `[disabled]` is a PROPERTY binding: Angular sets `button.disabled = true`,
+ *   and with `false` it removes the attribute (unlike `[attr.disabled]="false"`, which would set `disabled="false"`,
+ *   still disabled in HTML).
+ *
  * Children are shown in the order the API sends them (kind sortOrder, then code): no sorting here.
  * The effective site is shown on a row only where it differs from the parent's, so a service hosted at its
  * agency's site does not repeat it.
@@ -56,12 +63,23 @@ import type { OrgTreeNode } from '../../core/org/org.models';
         } @else {
           <span class="toggle" aria-hidden="true"></span>
         }
-        <button type="button" class="node" [attr.aria-current]="selected() ? 'true' : null" (click)="tree.select(item.id)">
+        <button
+          type="button"
+          class="node"
+          [class.context]="!inScope()"
+          [disabled]="!inScope()"
+          [attr.title]="inScope() ? null : t('org.tree.contextHint')"
+          [attr.aria-current]="selected() ? 'true' : null"
+          (click)="tree.select(item.id)"
+        >
           <!-- Angular drops whitespace-only text between tags; &ngsp; keeps a real space so the button's
                accessible name reads "Région CENTRE Région Centre", not "RégionCENTRERégion Centre". -->
           <span class="badge">{{ kindCatalog.labelOf(item.kind) }}</span>&ngsp;<span class="code">{{ item.code }}</span>&ngsp;<span>{{ item.name }}</span>
           @if (ownSite(); as site) {
             &ngsp;<span class="site" [attr.title]="t('org.detail.site')">{{ site.name }}</span>
+          }
+          @if (!inScope()) {
+            <span class="visually-hidden">{{ t('org.tree.contextHint') }}</span>
           }
         </button>
       </div>
@@ -92,7 +110,8 @@ import type { OrgTreeNode } from '../../core/org/org.models';
       padding-block: var(--space-1); padding-inline: var(--space-2);
       border: 0; background: none; color: inherit; text-align: start; cursor: pointer; border-radius: var(--radius);
     }
-    .node:hover { text-decoration: underline; }
+    .node:hover:not(:disabled) { text-decoration: underline; }
+    .node.context { color: var(--color-text-muted); cursor: default; font-style: italic; }
     .node[aria-current='true'] { font-weight: 600; }
     .code { font-family: ui-monospace, monospace; font-size: 0.875rem; white-space: nowrap; } /* keep "DEP-FIN" on one line: the browser may otherwise break at the hyphen */
     .site { color: var(--color-text-muted); font-size: 0.8125rem; }
@@ -113,6 +132,8 @@ export class OrgTreeItem {
   });
   protected readonly expanded = computed(() => !this.tree.isCollapsed(this.node().id));
   protected readonly selected = computed(() => this.tree.selectedId() === this.node().id);
+  /** `false` only for a context ancestor; a missing flag (older API) counts as in scope. */
+  protected readonly inScope = computed(() => this.node().inScope !== false);
 }
 
 @Component({

@@ -411,6 +411,126 @@ API — it's plain DOM event handling — but it's included here because it's th
 implementation to copy for any future custom form control that needs a
 picker/autocomplete UI (see chapter 10's "add a reusable form control" recipe).
 
+## An array value: `FormControl<string[]>` or `FormArray`?
+
+A role's permissions form a **list of codes**. Reactive forms offer two shapes for that.
+The role editor uses the second.
+
+| | `FormArray<FormControl<boolean>>` | `FormControl<string[]>` (chosen) |
+|---|---|---|
+| Template | one checkbox per control: `formArrayName` + `[formControlName]="i"` | a custom control (CVA) bound once: `formControlName="permissions"` |
+| Value | `[true, false, true, …]`, which must be converted to/from codes | `['employee.read', 'employee.salary.read']`, the API's own shape |
+| Order coupling | index `i` must match the catalogue order, which loads async and can grow | none, the CVA keeps catalogue order when emitting |
+| Validation | per item, plus an array-level validator | one validator on one control (`atLeastOne`) |
+| Server error for "the whole list" (`role-escalation`) | on the array | on the control, shown above the checklist |
+| Good for | rows with their own state: add/remove phone numbers, each with a `pattern` | a set of choices from a catalogue |
+
+```ts
+// src/app/features/access/role-editor.page.ts
+protected readonly form = this.fb.group({
+  code: ['', [Validators.required, Validators.pattern(ROLE_CODE_PATTERN), Validators.maxLength(32)]],
+  names: this.fb.group({
+    fr: ['', [Validators.required, notBlank, Validators.maxLength(ROLE_NAME_MAX)]],
+    ar: ['', [Validators.required, notBlank, Validators.maxLength(ROLE_NAME_MAX)]],
+    en: ['', [Validators.required, notBlank, Validators.maxLength(ROLE_NAME_MAX)]],
+  }),
+  permissions: this.fb.control<string[]>([], atLeastOne),
+});
+```
+
+```html
+<!-- src/app/features/access/role-editor.page.html -->
+<app-permission-checklist
+  formControlName="permissions"
+  idPrefix="role-perm"
+  [invalid]="permissions.invalid && permissions.touched"
+  [describedBy]="permissions.invalid && permissions.touched ? 'role-permissions-error' : null"
+/>
+```
+
+Plain checkboxes cannot bind to a `string[]` control with `formControlName`, so
+[`features/access/permission-checklist.ts`](../../apps/web/src/app/features/access/permission-checklist.ts)
+is a small `ControlValueAccessor` (the picker below is the full introduction). Its
+`writeValue(codes)` fills a signal. Each `(change)` builds a **new** array in catalogue
+order and calls `onChange(list)`. `setDisabledState` disables every checkbox when the
+editor calls `form.disable()` for a system role.
+
+Two more things in that form:
+
+- **A nested group.** `names` is a `FormGroup` inside the form. The template wraps its
+  inputs in `<div formGroupName="names">`, and inside it `[formControlName]="lang"`
+  resolves against `names`. The value is `{ fr, ar, en }`, the contract's shape, and a 422
+  `errors[].field` of `names.fr` finds its control through `form.get('names.fr')`
+  (`applyServerErrors` follows dotted paths).
+- **`getRawValue()` vs `value`.** In edit mode the code control is `disable()`d, because
+  codes are immutable. `form.value` **omits** disabled controls, while `getRawValue()`
+  includes them. Use `getRawValue()` when building a request body.
+
+## A checkbox control
+
+`<input type="checkbox" formControlName="includeDescendants">` binds a
+`FormControl<boolean>`. Angular chooses the checkbox value accessor from the input type,
+so the control follows `checked`, not `value`
+([`features/access/grant-form.html`](../../apps/web/src/app/features/access/grant-form.html),
+default `true` per the contract).
+
+## Dates: a cross-field rule and a validator that reads a signal
+
+The add-grant form's "to ≥ from" is a **group** validator, like `passwordsMatch` above:
+
+```ts
+// src/app/features/access/access-forms.ts
+export const validToNotBeforeFrom: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
+  const from: unknown = group.get('validFrom')?.value;
+  const to: unknown = group.get('validTo')?.value;
+  if (!isIsoDate(from) || !isIsoDate(to)) return null; // empty/invalid: left to the controls' own validators
+  return to >= from ? null : { dateOrder: true };
+};
+```
+
+The end-grant dialog's limits depend on **which** grant is being ended. Instead of
+calling `setValidators()` on every open, its validator receives a getter over a signal:
+
+```ts
+// src/app/features/access/user-detail.page.ts
+dateWithin(() => {
+  const grant = this.ending();
+  return grant ? { min: grant.validFrom, max: grant.validTo } : null;
+}),
+```
+
+A validator is **not** a reactive context. It runs on value changes, not on signal
+changes. So `openEnd()` sets `ending` first and *then* `endForm.reset({ validTo: … })`,
+which re-runs validation against the new grant.
+
+## Business-rule slugs → fields: `problemToForm()`
+
+The Authorization API reports separation-of-duties rules as 409 slugs. Where each one is
+best explained is a **UI decision**, so each form declares a table
+([`core/http/problem-form.ts`](../../apps/web/src/app/core/http/problem-form.ts)):
+
+```ts
+// src/app/features/access/access-forms.ts
+export const GRANT_SLUGS: SlugTable = {
+  'grant-self': { key: 'access.problems.grantSelf' },
+  'grant-out-of-scope': { key: 'access.problems.grantOutOfScope', field: 'orgUnitId' },
+  'grant-escalation': { key: 'access.problems.grantEscalation', field: 'roleId' },
+  'grant-user-not-member': { key: 'access.problems.grantUserNotMember' },
+  'grant-dates': { key: 'access.problems.grantDates', field: 'validTo' },
+};
+```
+
+`problemToForm(form, error, GRANT_SLUGS)` puts `{ serverKey: key }` on the named control
+(translated, since the API speaks English only), or returns `{ key }` for a form-level
+message when the rule has no field, or its field has no control in this form. That is
+the case for `grant-user-not-member`, whose `userId` the user cannot edit. Other
+problems, typically 422s, fall back to `applyServerErrors()`.
+
+A server error on a control **blocks re-submitting until that field is edited**. The
+control is invalid, and any value change re-runs its validators, which replaces
+`errors`. That is the behaviour we want: the user must change something before trying
+again. `org-forms.ts` predates the helper and keeps its own copy of the idea.
+
 ## Next
 
 [08-i18n-and-rtl.md](./08-i18n-and-rtl.md) — Transloco, and the RTL rules `org-forms`

@@ -1,7 +1,8 @@
 /**
  * CLI: invite a user (docs/contracts/identity.md › CLI and seed) — the only way to create accounts until the admin UI.
  *   npm run user:invite -w @hrforce/api -- --email x@y --name "Prénom Nom" --company <code> [--locale fr|ar|en]
- * Runs as the migrator (MIGRATOR_DATABASE_URL): creates an INVITED account + membership and mails a setup link
+ * Runs as the migrator (MIGRATOR_DATABASE_URL): creates an INVITED account + membership (and the company's system
+ * roles when it has none — docs/contracts/authorization.md) and mails a setup link
  * (`${WEB_BASE_URL}/password/setup?token=…`, valid 72 h) through MAIL_TRANSPORT (smtp → SMTP_URL; log → stdout log,
  * development/test only).
  */
@@ -11,6 +12,7 @@ import { z } from 'zod';
 import { migratorEnvSchema } from '../platform/config/env.schema.js';
 import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
+import { seedSystemRoles } from '../modules/authorization/index.js';
 import { createMailSender, inviteUser, passwordLink, passwordMail } from '../modules/identity/index.js';
 
 const DEV_ONLY = ['development', 'test'];
@@ -54,14 +56,17 @@ async function main(): Promise<void> {
   const mail = createMailSender(env, { info: (payload, message) => logger.info(payload, message) });
   const db = createDatabase({ connectionString: env.MIGRATOR_DATABASE_URL, maxConnections: 1, applicationName: 'hrforce-user-invite' });
   try {
-    const result = await db.transaction().execute((tx) =>
-      inviteUser(tx, {
+    const { result, rolesSeeded } = await db.transaction().execute(async (tx) => {
+      const invited = await inviteUser(tx, {
         email: values.email ?? '',
         displayName: values.name ?? '',
         companyCode: values.company ?? '',
         ...(values.locale ? { locale: values.locale } : {}),
-      }),
-    );
+      });
+      const company = await tx.selectFrom('company').select('id').where('code', '=', values.company ?? '').executeTakeFirstOrThrow();
+      return { result: invited, rolesSeeded: await seedSystemRoles(tx, company.id, { onlyIfNone: true }) };
+    });
+    if (rolesSeeded) logger.info({ company: values.company }, 'system roles created for the company (it had none)');
     if (result.setupToken) {
       await mail.send(
         passwordMail({

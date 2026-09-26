@@ -25,20 +25,28 @@ src/
   styles.css                   design tokens + form/button basics (CSS logical properties only)
   app/
     app.config.ts              router, HttpClient (fetch, XSRF, interceptors), Transloco, app initializers (language, session)
-    app.routes.ts              lazy routes; canMatch authGuard on app pages, guestGuard on /login, open password pages
-    app.ts|html|css            shell: header (title, user menu, language switcher), side nav (signed in only), <main>
-    core/auth/                 Identity: AuthApi, Session (root signal store), authGuard/guestGuard, refresh interceptor
+    app.routes.ts              lazy routes; canMatch authGuard on app pages, guestGuard on /login, open password pages;
+                               permissionGuard() + data.permission on /organization (org_unit.read) and /access (access.read)
+    app.ts|html|css            shell: header (title, user menu, language switcher), side nav (signed in only, links filtered
+                               by permission), <main>
+    core/auth/                 Identity: AuthApi, Session (root signal store; permissions, scopes, can(), allows()),
+                               authGuard/guestGuard, permissionGuard(code?), refresh interceptor
                                (single-flight), initializeSession() (csrf → /api/me), safeReturnUrl()
     core/i18n/                 languages, LanguageService (device choice vs account locale), Transloco HTTP loader
-    core/http/                 ApiProblem + parser + retryAfterSeconds(), apiProblemInterceptor, applyServerErrors(), XSRF names
+    core/http/                 ApiProblem + parser + retryAfterSeconds(), apiProblemInterceptor, applyServerErrors(),
+                               problemToForm() (409 slug table → field or form message), XSRF names
     core/date/                 todayIso(), isIsoDate() — dates are `YYYY-MM-DD` strings end to end
     core/org/                  Organization contract types + OrgApi (httpResource reads, Observable writes/search)
                                + KindCatalog (kind catalogue from GET /org/kinds, once per app, labels in the active language)
+    core/access/               Authorization contract types + AccessApi + AccessCatalog (permissions, roles; labels in the
+                               active language; only fetched with access.read)
     shared/                    reusable UI used by several features (may import core/, never features/)
+      can/                     *appCan="'code'; else tpl" structural directive
       org-unit-picker/         <app-org-unit-picker>: search-as-you-type combobox, a ControlValueAccessor (value = unit id)
-    features/<name>/           pages (auth: login, password setup/forgot; home, organization, not-found, placeholder)
+    features/<name>/           pages (access, auth: login, password setup/forgot; home, organization, not-found, placeholder)
     shell/                     shell widgets (language switcher, user menu with "Sign out")
-  testing/                     test-only helpers (translocoTesting(), org and auth fixtures), excluded from the app build
+  testing/                     test-only helpers (translocoTesting(), org/auth/access fixtures, <dialog> polyfill), excluded
+                               from the app build
 public/i18n/{fr,ar,en}.json    translations, nested keys
 ```
 
@@ -75,20 +83,47 @@ régions → agences, services under a department, a region or an agency) and si
 ### Running it against the API (development only)
 
 1. Start Postgres and migrate (`npm run migrate -w @hrforce/api`, see `apps/api/README.md`), then seed:
-   `npm run seed:dev -w @hrforce/api` (the Organization v2 demo company and two active users, below).
-2. Start the API with `NODE_ENV=development DEV_PERMISSIONS=allow_all COOKIE_SECURE=false MAIL_TRANSPORT=log`
-   (plus the API's usual env). `DEV_PERMISSIONS=allow_all` grants every permission to any signed-in user until the
-   Authorization module exists; `COOKIE_SECURE=false` lets the browser keep the cookies over plain `http://localhost`;
+   `npm run seed:dev -w @hrforce/api` (the Organization v2 demo company, three active users and their role grants, below).
+2. Start the API with `NODE_ENV=development COOKIE_SECURE=false MAIL_TRANSPORT=log` (plus the API's usual env).
+   Permissions now come from the seeded role grants (below). `DEV_PERMISSIONS=allow_all` still exists (dev/test
+   only) and makes every user see everything, which hides the scope behaviour; leave it off to try it.
+   `COOKIE_SECURE=false` lets the browser keep the cookies over plain `http://localhost`;
    `MAIL_TRANSPORT=log` writes outgoing mail, **including password setup/reset links, to the API log**.
 3. `npm start -w @hrforce/web`, open http://localhost:4200 and sign in.
 
-| Dev user | Name | Locale | Password |
-| --- | --- | --- | --- |
-| `rh.admin@demo.dz` | Amina Benali | fr | `demo-password-2026` |
-| `rh.est@demo.dz` | Karim Haddad | ar | `demo-password-2026` |
+| Dev user | Name | Locale | Password | Role (from 2026-01-01) | What you see |
+| --- | --- | --- | --- | --- | --- |
+| `rh.admin@demo.dz` | Amina Benali | fr | `demo-password-2026` | `admin_rh_central` on `DG` + sub-units | everything, incl. Access |
+| `rh.est@demo.dz` | Karim Haddad | ar | `demo-password-2026` | `rh_regional` on `REG-EST` + sub-units | Organization: REG-EST subtree, DG/DEP-RX as muted context; no Access |
+| `lecture.ouest@demo.dz` | Samir Belkacem | fr | `demo-password-2026` | `lecture` on `REG-OUEST` + sub-units | Organization read-only: REG-OUEST subtree; no buttons, no Access |
 
 To try the password pages: `/password/forgot` with one of the addresses above, then open the
 `http://localhost:4200/password/setup?token=…` link printed in the API log.
+
+## Access feature (`/access`, docs/contracts/authorization.md)
+
+Needs `access.read` (nav link and route); write actions need `access.grant` / `access.manage_roles`, and the API
+re-checks everything. Permissions reach the web through `GET /api/me` (`permissions`, `scopes`) → `Session`.
+
+- **Permission-aware UI**: `Session.can(code)` (held anywhere), `*appCan="'code'; else tpl"` for page-level
+  elements, `permissionGuard()` on routes (`canMatch`; without the permission the route does not match → 404 page,
+  and its chunk is never downloaded). Record buttons follow the server's `_actions` (`update`/`create_child` on
+  units, `end` on grants). Organization: units outside the caller's scope that are sent as context
+  (`inScope: false`) are muted and cannot be selected; an out-of-scope id reads "not found".
+- **Users** (`/access/users?q=`): company members (name, e-mail, status, current and future grants as chips).
+  **User detail** (`/access/users/:id`, member found in `GET /access/users`): grants table (role, unit with kind and
+  code, sub-units, from, to, granted by), "show ended grants" (`includeEnded=true`), **End** (native `<dialog>`
+  with a date, default today; must be ≥ the grant's start and ≤ its current end) and **Add a grant** (role, org-unit
+  picker, sub-units checked by default, from = today, optional to ≥ from). 409s: `grant-escalation` → role,
+  `grant-out-of-scope` → unit, `grant-dates` → to, `grant-self` / `grant-user-not-member` → form message.
+- **Roles** (`/access/roles`, `/access/roles/new`, `/access/roles/:id`): list (system/custom, permission count,
+  sensitive count); editor with the permission checklist grouped by catalogue group, sensitive ones flagged, names
+  in fr/ar/en. System roles (and users without `access.manage_roles`) get a read-only view. 409s:
+  `role-code-taken` → code, `role-escalation` → the checklist, `role-system-immutable` → form message.
+- Role names and permission labels come from the API in the active language (`AccessCatalog`), like unit kinds.
+
+To try it: sign in as `rh.admin@demo.dz`, open Accès → Utilisateurs → Samir Belkacem, add or end a grant; then sign
+in as `lecture.ouest@demo.dz` to see the read-only organization and no Access entry.
 
 ## Authentication (docs/contracts/identity.md, ADR 004)
 

@@ -10,7 +10,7 @@ Implements ADR 002: a permission catalogue, roles, and **role grants scoped to a
 | Table | Kind | Columns |
 |---|---|---|
 | `permission` | global catalogue (exempt from `company_id`, SELECT-only for `hrforce_app`) | `code text pk` (`resource.action` or `resource.field.read`), `label_fr`, `label_ar`, `label_en`, `group_code` (`organization`/`access`/`employee`/`sensitive`), `sensitive bool`, `sort_order int` |
-| `role` | tenant | `id`, `company_id`, `code` (unique per company, same pattern as unit codes), `name_fr`, `name_ar`, `name_en`, `is_system bool`, `created_at` |
+| `role` | tenant | `id`, `company_id`, `code` (unique per company, case-insensitive, `^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$`; system codes are lower-case), `name_fr`, `name_ar`, `name_en`, `is_system bool`, `created_at` |
 | `role_permission` | tenant | `company_id`, `role_id`, `permission_code → permission`, pk (`role_id`,`permission_code`) |
 | `role_grant` | tenant | `id`, `company_id`, `user_id` (uuid; no FK into `auth`), `role_id`, `org_unit_id`, `include_descendants bool default true`, `valid daterange` (`[from, to)`, open end allowed), `granted_by uuid`, `granted_at timestamptz`, `ended_by uuid null`, `ended_at timestamptz null` |
 
@@ -52,7 +52,7 @@ Dev seed grants (valid from 2026-01-01): `rh.admin@demo.dz` → `admin_rh_centra
 | `GET /org/tree` | Nodes in `org_unit.read` scope, plus their **ancestors as context** (`inScope: false`, `_actions: []`, `site` still shown). Branches with nothing in scope are omitted. No scope at all → 403. |
 | `GET /org/units` | Only units in scope. |
 | `GET /org/units/:id` | Out of scope → **404**. |
-| `POST /org/units` | Needs `org_unit.create` on the **parent**; else 404 if the parent isn't readable, 403 `forbidden-scope` if readable but not creatable. |
+| `POST /org/units` | Needs `org_unit.create` on the **parent**; else 404 if the parent is unknown or not readable, 403 `forbidden-scope` (`errors[{field:'parentId', code:'forbidden_scope'}]`) if readable but not creatable. |
 | `PATCH /org/units/:id` | Needs `org_unit.update` on the unit; a move also needs `org_unit.update` on the **new parent**. |
 | `_actions` | Per node from real scopes: `update` if `org_unit.update` covers it; `create_child` if `org_unit.create` covers it and its kind allows children. |
 | `GET /org/sites`, `POST /org/sites` | Company-wide (sites aren't tree nodes): needs `site.read` / `site.create` anywhere. |
@@ -89,7 +89,8 @@ interface GrantView {
 - `grant-self` — nobody grants to or ends grants of themselves.
 - `grant-out-of-scope` (field `orgUnitId`) — the grant's unit must be inside the caller's `access.grant` scope; with `includeDescendants` the whole subtree is by construction inside it.
 - `grant-escalation` (field `roleId`) — the caller must hold **every** permission of the role, over the grant's unit (and subtree if `includeDescendants`). This stops an `admin_acces` user from handing out `employee.salary.read`.
-- `grant-user-not-member` (field `userId`), `grant-dates` (field `validTo`).
+- `grant-user-not-member` (field `userId`), `grant-dates` (field `validTo`: a new grant needs `validTo > validFrom`; ending may set `validTo = validFrom`, which cancels a grant that hasn't started), `grant-duplicate` (field `roleId`: same user, role and unit with overlapping dates).
+- Defaults: `validFrom` = today, `includeDescendants` = true. Unknown `roleId` → 422 on `roleId`.
 - Role edits follow the same rule: `role-escalation` if the caller would add permissions they don't hold company-wide.
 
 ## Web

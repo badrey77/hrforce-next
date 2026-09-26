@@ -233,6 +233,9 @@ describe('Identity (e2e)', () => {
         user: { id: ADMIN.id, email: 'rh.admin@demo.dz', displayName: 'Amina Benali', locale: 'fr' },
         company: { id: DEMO_COMPANY_ID, code: 'DEMO', name: 'Groupe Démo' },
         companies: [{ id: DEMO_COMPANY_ID, code: 'DEMO', name: 'Groupe Démo' }],
+        // DEV_PERMISSIONS=allow_all in this file: every catalogue code, scoped to the whole company (root + sub-units)
+        permissions: expect.arrayContaining(['org_unit.read', 'access.grant', 'employee.medical.read']),
+        scopes: expect.objectContaining({ 'org_unit.read': [{ unitId: expect.any(String), includeDescendants: true }] }),
       });
       const est = browser();
       await est.login(EST.email, DEMO_PASSWORD);
@@ -560,7 +563,7 @@ describe('Identity (e2e)', () => {
         `select p.proname, p.prosecdef, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
           where n.nspname = 'auth' and has_function_privilege('hrforce_app', p.oid, 'execute')`,
       );
-      expect(definers.length).toBe(12);
+      expect(definers.length).toBe(13); // 0007's twelve + auth.company_members (0008)
       for (const f of definers) {
         expect(f.prosecdef, f.proname).toBe(true);
         expect(f.proconfig, f.proname).toEqual(['search_path=pg_catalog, auth']);

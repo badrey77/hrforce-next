@@ -13,14 +13,17 @@
  *   `[routerLinkActiveOptions]` with `paths: 'exact'` stops `/organization` from also matching `/organization/sites`;
  *   `queryParams: 'ignored'` keeps the link active on `/organization?asOf=…` (`{ exact: true }` would not).
  *   `ariaCurrentWhenActive="page"` sets `aria-current="page"` on the active link for screen readers.
+ * - **`*appCan`** (shared/can/can.directive.ts, a structural directive): the Sites tab exists only for users holding
+ *   `site.read`. One small element, one permission — the case the directive is made for.
  */
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { type IsActiveMatchOptions, RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { CanDirective } from '../../shared/can/can.directive';
 
 @Component({
   selector: 'app-org-nav',
-  imports: [RouterLink, RouterLinkActive, TranslocoDirective],
+  imports: [RouterLink, RouterLinkActive, TranslocoDirective, CanDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <nav *transloco="let t" class="org-nav" [attr.aria-label]="t('org.nav.label')">
@@ -31,7 +34,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
         [routerLinkActiveOptions]="exactPath"
         >{{ t('org.nav.structure') }}</a
       >
-      <a routerLink="/organization/sites" routerLinkActive="active" ariaCurrentWhenActive="page">{{
+      <a *appCan="'site.read'" routerLink="/organization/sites" routerLinkActive="active" ariaCurrentWhenActive="page">{{
         t('org.nav.sites')
       }}</a>
     </nav>

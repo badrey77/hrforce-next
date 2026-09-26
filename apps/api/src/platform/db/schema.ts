@@ -61,6 +61,49 @@ export interface OrgUnitVersion {
   valid: string;
 }
 
+export interface Permission {
+  code: string;
+  group_code: string;
+  label_ar: string;
+  label_en: string;
+  label_fr: string;
+  sensitive: Generated<boolean>;
+  sort_order: number;
+}
+
+export interface Role {
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_system: Generated<boolean>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+}
+
+export interface RoleGrant {
+  company_id: string;
+  ended_at: Timestamp | null;
+  ended_by: string | null;
+  granted_at: Generated<Timestamp>;
+  granted_by: string | null;
+  id: Generated<string>;
+  include_descendants: Generated<boolean>;
+  org_unit_id: string;
+  role_id: string;
+  user_id: string;
+  valid: Generated<string | null>;
+  valid_from: Timestamp;
+  valid_to: Timestamp | null;
+}
+
+export interface RolePermission {
+  company_id: string;
+  permission_code: string;
+  role_id: string;
+}
+
 export interface Site {
   address: string | null;
   code: string;
@@ -78,5 +121,9 @@ export interface DB {
   org_unit_kind: OrgUnitKind;
   org_unit_kind_parent: OrgUnitKindParent;
   org_unit_version: OrgUnitVersion;
+  permission: Permission;
+  role: Role;
+  role_grant: RoleGrant;
+  role_permission: RolePermission;
   site: Site;
 }

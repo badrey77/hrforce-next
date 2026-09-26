@@ -8,6 +8,7 @@
     "home": "Accueil",
     "employees": "Employés",
     "organization": "Organisation",
+    "access": "Accès",
     "settings": "Paramètres"
   },
   "language": {
@@ -113,7 +114,8 @@
       "toggle": "Sous-unités de {{name}}",
       "loading": "Chargement de l'organisation…",
       "loadError": "Impossible de charger l'organisation.",
-      "empty": "Aucune sous-unité n'existe à cette date."
+      "empty": "Aucune sous-unité n'existe à cette date.",
+      "contextHint": "Hors de votre périmètre (affichée pour situer vos unités)"
     },
     "detail": {
       "placeholder": "Sélectionnez une unité dans l'arborescence pour afficher son détail.",
@@ -133,7 +135,8 @@
       "none": "Aucune",
       "site": "Site",
       "siteInherited": "hérité d'une unité parente",
-      "inherited": "Hérité"
+      "inherited": "Hérité",
+      "notFound": "Unité introuvable."
     },
     "actions": {
       "createChild": "Ajouter une sous-unité",
@@ -207,6 +210,142 @@
       "error": "La recherche a échoué.",
       "results": "{{count}} résultat(s)",
       "path": "Rattachement"
+    }
+  },
+  "access": {
+    "title": "Accès",
+    "nav": {
+      "label": "Sections des accès",
+      "users": "Utilisateurs",
+      "roles": "Rôles"
+    },
+    "status": {
+      "invited": "Invité",
+      "active": "Actif",
+      "disabled": "Désactivé"
+    },
+    "groups": {
+      "organization": "Organisation",
+      "access": "Accès",
+      "employee": "Employés",
+      "sensitive": "Données sensibles"
+    },
+    "users": {
+      "search": "Rechercher un utilisateur",
+      "searchPlaceholder": "Nom ou adresse e-mail",
+      "searchSubmit": "Rechercher",
+      "name": "Nom",
+      "email": "Adresse e-mail",
+      "status": "Statut",
+      "grants": "Rôles en cours",
+      "noGrant": "Aucun rôle",
+      "noMatch": "Aucun utilisateur ne correspond à « {{q}} ».",
+      "empty": "Aucun utilisateur à afficher.",
+      "loading": "Chargement des utilisateurs…",
+      "loadError": "Impossible de charger les utilisateurs.",
+      "back": "← Tous les utilisateurs",
+      "notFound": "Utilisateur introuvable."
+    },
+    "grants": {
+      "title": "Rôles attribués",
+      "add": "Attribuer un rôle",
+      "showEnded": "Afficher les attributions terminées",
+      "role": "Rôle",
+      "unit": "Unité",
+      "subUnits": "Sous-unités",
+      "from": "Du",
+      "to": "Au",
+      "grantedBy": "Attribué par",
+      "actions": "Actions",
+      "yes": "Oui",
+      "no": "Non",
+      "open": "Sans fin",
+      "end": "Terminer",
+      "empty": "Aucune attribution.",
+      "loading": "Chargement des attributions…",
+      "loadError": "Impossible de charger les attributions.",
+      "added": "Rôle « {{role}} » attribué.",
+      "ended": "Attribution du rôle « {{role}} » terminée.",
+      "fromDate": "à partir du {{date}}",
+      "state": {
+        "future": "À venir",
+        "ended": "Terminée"
+      }
+    },
+    "grantForm": {
+      "title": "Nouvelle attribution",
+      "role": "Rôle",
+      "rolePlaceholder": "Choisir un rôle",
+      "unit": "Unité organisationnelle",
+      "includeDescendants": "Inclure les sous-unités",
+      "validFrom": "Du",
+      "validTo": "Au (facultatif)",
+      "validToHint": "Dernier jour exclu. Laissez vide pour une attribution sans fin.",
+      "submit": "Attribuer",
+      "errors": {
+        "dateOrder": "La date de fin doit être égale ou postérieure à la date de début."
+      }
+    },
+    "end": {
+      "title": "Terminer une attribution",
+      "intro": "Rôle « {{role}} » sur « {{unit}} ».",
+      "validTo": "Date de fin",
+      "hint": "L’attribution cesse de s’appliquer à partir de cette date.",
+      "submit": "Terminer l’attribution",
+      "errors": {
+        "beforeStart": "La date de fin ne peut pas précéder le début de l’attribution.",
+        "afterEnd": "La date de fin ne peut pas dépasser la fin actuelle de l’attribution."
+      }
+    },
+    "form": {
+      "saving": "Enregistrement…",
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "codePattern": "Format de code invalide.",
+        "tooLong": "Texte trop long.",
+        "invalidDate": "Date invalide."
+      }
+    },
+    "roles": {
+      "title": "Rôles",
+      "create": "Nouveau rôle",
+      "createTitle": "Nouveau rôle",
+      "readOnlyNote": "Vous pouvez consulter les rôles, mais pas les modifier.",
+      "loadError": "Impossible de charger les rôles.",
+      "name": "Nom",
+      "code": "Code",
+      "kind": "Type",
+      "permissionCount": "Permissions",
+      "system": "Rôle système",
+      "custom": "Personnalisé",
+      "sensitiveCount": "{{count}} sensible(s)",
+      "empty": "Aucun rôle.",
+      "sensitive": "Sensible",
+      "back": "← Tous les rôles",
+      "notFound": "Rôle introuvable.",
+      "created": "Rôle « {{code}} » créé.",
+      "saved": "Rôle enregistré.",
+      "systemNote": "Rôle système : ses permissions ne peuvent pas être modifiées.",
+      "codeHint": "Lettres, chiffres, « - » ou « _ », de 2 à 32 caractères. Non modifiable ensuite.",
+      "permissions": "Permissions",
+      "nameIn": {
+        "fr": "Nom en français",
+        "ar": "Nom en arabe",
+        "en": "Nom en anglais"
+      }
+    },
+    "problems": {
+      "grantSelf": "Vous ne pouvez pas vous attribuer un rôle à vous-même.",
+      "grantOutOfScope": "Cette unité est en dehors du périmètre où vous pouvez attribuer des rôles.",
+      "grantEscalation": "Vous ne détenez pas toutes les permissions de ce rôle sur cette unité.",
+      "grantUserNotMember": "Cet utilisateur n’est pas membre de la société.",
+      "grantDates": "Dates invalides pour cette attribution.",
+      "endSelf": "Vous ne pouvez pas terminer vos propres attributions.",
+      "endDates": "Cette date de fin n’est pas acceptée pour cette attribution.",
+      "grantNotFound": "Cette attribution n’existe plus.",
+      "roleCodeTaken": "Ce code de rôle est déjà utilisé.",
+      "roleEscalation": "Vous ne pouvez pas ajouter à un rôle des permissions que vous ne détenez pas.",
+      "roleSystemImmutable": "Les rôles système ne peuvent pas être modifiés."
     }
   }
 }

@@ -4,7 +4,9 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { SITES } from '../../../testing/org-fixtures';
+import { ME_FIXTURE } from '../../../testing/auth-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
+import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import type { Site } from '../../core/org/org.models';
 import { ORGANIZATION_ROUTES } from './organization.routes';
@@ -31,6 +33,8 @@ describe('SitesPage', () => {
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
+    // Signed in as the admin (holds site.read: the Sites tab and route exist).
+    TestBed.inject(Session).set(ME_FIXTURE);
     harness = await RouterTestingHarness.create();
   });
 

@@ -1,6 +1,7 @@
 /**
- * CLI: seed the demo company, its organisation (docs/contracts/organization.md) and the demo users
- * (docs/contracts/identity.md › CLI and seed: rh.admin@demo.dz, rh.est@demo.dz, password DEMO_PASSWORD).
+ * CLI: seed the demo company, its organisation (docs/contracts/organization.md), the demo users
+ * (docs/contracts/identity.md › CLI and seed: rh.admin@demo.dz, rh.est@demo.dz, lecture.ouest@demo.dz, password
+ * DEMO_PASSWORD), the system roles and the demo grants (docs/contracts/authorization.md › Dev seed).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -9,6 +10,7 @@ import { z } from 'zod';
 import { migratorEnvSchema } from '../platform/config/env.schema.js';
 import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
+import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess } from '../modules/authorization/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
 
@@ -25,6 +27,7 @@ async function main(): Promise<void> {
     await db.transaction().execute(async (tx) => {
       await seedOrganization(tx, DEMO_ORGANIZATION, toIsoDate(new Date()));
       await seedIdentity(tx, DEMO_ORGANIZATION.company.id);
+      await seedDemoAccess(tx);
     });
     logger.info(
       { companyId: DEMO_ORGANIZATION.company.id, units: DEMO_ORGANIZATION.units.length },
@@ -33,6 +36,10 @@ async function main(): Promise<void> {
     logger.info(
       { users: DEMO_USERS.map((u) => ({ id: u.id, email: u.email, locale: u.locale })), devPassword: DEMO_PASSWORD },
       `demo users seeded (active, company ${DEMO_ORGANIZATION.company.code}); development password: ${DEMO_PASSWORD}`,
+    );
+    logger.info(
+      { roles: SYSTEM_ROLES.map((r) => r.code), grants: DEMO_GRANTS.map((g) => ({ id: g.id, userId: g.userId, role: g.roleCode, unitId: g.orgUnitId })) },
+      'system roles and demo grants seeded',
     );
   } finally {
     await db.destroy();

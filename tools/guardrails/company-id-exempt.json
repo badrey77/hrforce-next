@@ -17,6 +17,10 @@
     "reason": "Global reference catalogue of allowed parent kinds per org unit kind, shared by every tenant; seeded by migration 0006, SELECT-only for hrforce_app."
   },
   {
+    "table": "permission",
+    "reason": "Global reference catalogue of permission codes (labels fr/ar/en, group, sensitive flag) shared by every tenant (docs/contracts/authorization.md); seeded by migration 0008, SELECT-only for hrforce_app."
+  },
+  {
     "table": "auth.user_account",
     "reason": "Global identity (docs/contracts/identity.md), schema auth: no privilege for hrforce_app, reachable only via auth.* SECURITY DEFINER functions (migration 0007)."
   },

@@ -8,6 +8,7 @@
     "home": "Home",
     "employees": "Employees",
     "organization": "Organization",
+    "access": "Access",
     "settings": "Settings"
   },
   "language": {
@@ -113,7 +114,8 @@
       "toggle": "Sub-units of {{name}}",
       "loading": "Loading the organization…",
       "loadError": "Could not load the organization.",
-      "empty": "No sub-unit exists on this date."
+      "empty": "No sub-unit exists on this date.",
+      "contextHint": "Outside your scope (shown to place your units)"
     },
     "detail": {
       "placeholder": "Select a unit in the tree to see its details.",
@@ -133,7 +135,8 @@
       "none": "None",
       "site": "Site",
       "siteInherited": "inherited from a parent unit",
-      "inherited": "Inherited"
+      "inherited": "Inherited",
+      "notFound": "Unit not found."
     },
     "actions": {
       "createChild": "Add a sub-unit",
@@ -207,6 +210,142 @@
       "error": "The search failed.",
       "results": "{{count}} result(s)",
       "path": "Parent chain"
+    }
+  },
+  "access": {
+    "title": "Access",
+    "nav": {
+      "label": "Access sections",
+      "users": "Users",
+      "roles": "Roles"
+    },
+    "status": {
+      "invited": "Invited",
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "groups": {
+      "organization": "Organization",
+      "access": "Access",
+      "employee": "Employees",
+      "sensitive": "Sensitive data"
+    },
+    "users": {
+      "search": "Search users",
+      "searchPlaceholder": "Name or email",
+      "searchSubmit": "Search",
+      "name": "Name",
+      "email": "Email",
+      "status": "Status",
+      "grants": "Current roles",
+      "noGrant": "No role",
+      "noMatch": "No user matches “{{q}}”.",
+      "empty": "No users to show.",
+      "loading": "Loading users…",
+      "loadError": "Could not load users.",
+      "back": "← All users",
+      "notFound": "User not found."
+    },
+    "grants": {
+      "title": "Granted roles",
+      "add": "Grant a role",
+      "showEnded": "Show ended grants",
+      "role": "Role",
+      "unit": "Unit",
+      "subUnits": "Sub-units",
+      "from": "From",
+      "to": "To",
+      "grantedBy": "Granted by",
+      "actions": "Actions",
+      "yes": "Yes",
+      "no": "No",
+      "open": "Open-ended",
+      "end": "End",
+      "empty": "No grants.",
+      "loading": "Loading grants…",
+      "loadError": "Could not load grants.",
+      "added": "Role “{{role}}” granted.",
+      "ended": "Grant of role “{{role}}” ended.",
+      "fromDate": "from {{date}}",
+      "state": {
+        "future": "Upcoming",
+        "ended": "Ended"
+      }
+    },
+    "grantForm": {
+      "title": "New grant",
+      "role": "Role",
+      "rolePlaceholder": "Choose a role",
+      "unit": "Org unit",
+      "includeDescendants": "Include sub-units",
+      "validFrom": "From",
+      "validTo": "To (optional)",
+      "validToHint": "Last day excluded. Leave empty for an open-ended grant.",
+      "submit": "Grant",
+      "errors": {
+        "dateOrder": "The end date must be on or after the start date."
+      }
+    },
+    "end": {
+      "title": "End a grant",
+      "intro": "Role “{{role}}” on “{{unit}}”.",
+      "validTo": "End date",
+      "hint": "The grant stops applying from this date.",
+      "submit": "End grant",
+      "errors": {
+        "beforeStart": "The end date cannot be before the grant starts.",
+        "afterEnd": "The end date cannot be after the grant’s current end."
+      }
+    },
+    "form": {
+      "saving": "Saving…",
+      "errors": {
+        "required": "This field is required.",
+        "codePattern": "Invalid code format.",
+        "tooLong": "Text too long.",
+        "invalidDate": "Invalid date."
+      }
+    },
+    "roles": {
+      "title": "Roles",
+      "create": "New role",
+      "createTitle": "New role",
+      "readOnlyNote": "You can view roles but not change them.",
+      "loadError": "Could not load roles.",
+      "name": "Name",
+      "code": "Code",
+      "kind": "Type",
+      "permissionCount": "Permissions",
+      "system": "System role",
+      "custom": "Custom",
+      "sensitiveCount": "{{count}} sensitive",
+      "empty": "No roles.",
+      "sensitive": "Sensitive",
+      "back": "← All roles",
+      "notFound": "Role not found.",
+      "created": "Role “{{code}}” created.",
+      "saved": "Role saved.",
+      "systemNote": "System role: its permissions cannot be changed.",
+      "codeHint": "Letters, digits, “-” or “_”, 2 to 32 characters. Cannot be changed later.",
+      "permissions": "Permissions",
+      "nameIn": {
+        "fr": "Name in French",
+        "ar": "Name in Arabic",
+        "en": "Name in English"
+      }
+    },
+    "problems": {
+      "grantSelf": "You cannot grant a role to yourself.",
+      "grantOutOfScope": "This unit is outside the scope where you may grant roles.",
+      "grantEscalation": "You do not hold every permission of this role on this unit.",
+      "grantUserNotMember": "This user is not a member of the company.",
+      "grantDates": "Invalid dates for this grant.",
+      "endSelf": "You cannot end your own grants.",
+      "endDates": "This end date is not accepted for this grant.",
+      "grantNotFound": "This grant no longer exists.",
+      "roleCodeTaken": "This role code is already used.",
+      "roleEscalation": "You cannot add permissions you do not hold to a role.",
+      "roleSystemImmutable": "System roles cannot be changed."
     }
   }
 }

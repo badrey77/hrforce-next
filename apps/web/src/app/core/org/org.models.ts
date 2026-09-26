@@ -71,6 +71,12 @@ export interface OrgTreeNode {
   readonly children: readonly OrgTreeNode[];
   /** What the caller may do on this unit. */
   readonly _actions: readonly OrgAction[];
+  /**
+   * Authorization contract: `false` for an ancestor sent only as CONTEXT (the caller's `org_unit.read` scope is
+   * below it); such a node has `_actions: []` and its detail answers 404. Treat a missing value as `true` (an API
+   * from before the Authorization step sends the whole tree).
+   */
+  readonly inScope: boolean;
 }
 
 /** `GET /org/tree?asOf=` */

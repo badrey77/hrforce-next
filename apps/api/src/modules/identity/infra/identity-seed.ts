@@ -28,6 +28,7 @@ export interface DemoUser {
 export const DEMO_USERS: readonly DemoUser[] = [
   { id: '0190a5d0-0000-7000-8000-0000000000aa', email: 'rh.admin@demo.dz', displayName: 'Amina Benali', locale: 'fr' },
   { id: '0190a5d0-0000-7000-8000-0000000000ab', email: 'rh.est@demo.dz', displayName: 'Karim Haddad', locale: 'ar' },
+  { id: '0190a5d0-0000-7000-8000-0000000000ac', email: 'lecture.ouest@demo.dz', displayName: 'Samir Belkacem', locale: 'fr' },
 ];
 
 /**

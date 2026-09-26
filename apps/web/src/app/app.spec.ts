@@ -6,8 +6,10 @@ import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
 import { Session } from './core/auth/session';
 import { LanguageService } from './core/i18n/language.service';
-import { ME_FIXTURE } from '../testing/auth-fixtures';
+import { ME_FIXTURE, ME_LECTURE, meWith } from '../testing/auth-fixtures';
 import { translocoTesting } from '../testing/transloco-testing';
+
+const links = (el: HTMLElement) => [...el.querySelectorAll('nav a')].map((a) => a.getAttribute('href'));
 
 async function render() {
   const fixture = TestBed.createComponent(App);
@@ -72,5 +74,38 @@ describe('App shell', () => {
     expect([...el.querySelectorAll('nav a')].map((a) => a.textContent?.trim())).toContain('الموظفون');
     expect(el.querySelector('app-user-menu button')?.textContent?.trim()).toBe('تسجيل الخروج');
     expect(TestBed.inject(DOCUMENT).documentElement.dir).toBe('rtl');
+  });
+
+  describe('permission-aware nav', () => {
+
+    it('shows Organization (org_unit.read) and Access (access.read) to an admin', async () => {
+      TestBed.inject(Session).set(ME_FIXTURE);
+      const { el } = await render();
+
+      expect(links(el)).toEqual(['/', '/employees', '/organization', '/access', '/settings']);
+      expect(el.querySelector('nav a[href="/access"]')?.textContent?.trim()).toBe('Accès');
+    });
+
+    it('hides Access from a read-only user, and both from a user without org_unit.read', async () => {
+      const session = TestBed.inject(Session);
+      session.set(ME_LECTURE);
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/employees', '/organization', '/settings']);
+
+      session.set(meWith([]));
+      await fixture.whenStable();
+      expect(links(el)).toEqual(['/', '/employees', '/settings']);
+    });
+
+    it('re-renders when permissions change (e.g. after a reload of /api/me)', async () => {
+      const session = TestBed.inject(Session);
+      session.set(meWith(['org_unit.read']));
+      const { fixture, el } = await render();
+      expect(links(el)).not.toContain('/access');
+
+      session.set(meWith(['org_unit.read', 'access.read']));
+      await fixture.whenStable();
+      expect(links(el)).toContain('/access');
+    });
   });
 });

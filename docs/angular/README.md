@@ -39,6 +39,10 @@ the files it discusses, so you can jump straight to the source.
 11. [11-app-initializers-and-auth-flow.md](./11-app-initializers-and-auth-flow.md) —
     `provideAppInitializer`, and the sign-in flow end to end (session, guards, refresh,
     password pages).
+12. [12-permission-aware-ui.md](./12-permission-aware-ui.md) — permissions in the
+    session, attribute vs structural directives (`*appCan`, `TemplateRef`,
+    `ViewContainerRef`, the `*` microsyntax), permission guards with route `data`, and
+    why the server's `_actions` stay the authority.
 
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (the Employees module is next).
@@ -90,6 +94,15 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `HttpTestingController` | 09 | `src/app/core/http/api-problem.interceptor.spec.ts` |
 | `RouterTestingHarness` | 09 | `src/app/features/organization/organization.page.spec.ts` |
 | Feature/core/shared boundaries | 10 | `.dependency-cruiser.cjs`, `CONVENTIONS.md` |
+| `can()` (function reading a signal) vs `allows()` (per-code `computed`) | 03, 12 | `src/app/core/auth/session.ts` |
+| Structural directive, `TemplateRef`, `ViewContainerRef`, `*` microsyntax, `else` input | 02, 12 | `src/app/shared/can/can.directive.ts` |
+| `effect()` pushing signals into the DOM / into a reactive form | 03, 12 | `src/app/shared/can/can.directive.ts`, `src/app/features/access/role-editor.page.ts` |
+| Guard factory, route `data`, several `canMatch` guards, `false` → `**` | 05, 12 | `src/app/core/auth/permission.guard.ts`, `src/app/app.routes.ts` |
+| `redirectTo`, route params as inputs, static before `:id` | 05 | `src/app/features/access/access.routes.ts` |
+| Native `<dialog>` + `viewChild.required()` signal query | 02 | `src/app/features/access/user-detail.page.ts` |
+| `FormControl<string[]>` + CVA vs `FormArray`; nested `FormGroup`; checkbox control | 07 | `src/app/features/access/permission-checklist.ts`, `role-editor.page.ts`, `grant-form.ts` |
+| Validator reading a signal; 409 slug table → fields (`problemToForm`) | 07 | `src/app/features/access/access-forms.ts`, `src/app/core/http/problem-form.ts` |
+| Resources that wait for a permission / a company id | 12 | `src/app/core/access/access-catalog.ts` |
 
 ## Glossary
 
@@ -103,7 +116,14 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   `(event)`, pipes…) mixed in.
 - **Directive** — a class that attaches behavior or DOM changes to an element without
   its own template. `RouterLink` and `TranslocoDirective` are directives; a component is
-  a directive with a template.
+  a directive with a template. *Attribute* directives change their element;
+  *structural* directives (`*appCan`, `*transloco`) decide whether a template is stamped
+  into the DOM at all. See chapter 12.
+- **`TemplateRef` / `ViewContainerRef`** — a template blueprint (an `<ng-template>`, or
+  the element under a `*` directive), and the anchor where views made from it are
+  inserted (`createEmbeddedView`) or removed (`clear`). See chapter 12.
+- **View query (`viewChild()`)** — a signal that returns an element, directive or
+  component found in the component's own template (e.g. `#endDialog`). See chapter 02.
 - **Pipe** — a template function that transforms a displayed value, `{{ value | pipe }}`.
   Not used much in this codebase (Transloco's `t()` function largely replaces the
   translate pipe); see chapter 08.
@@ -155,6 +175,7 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   imports) for a test and creates component instances (`fixtures`) inside it. See
   chapter 09.
 
-Concepts not yet in this codebase (`NgModule`, zone-based apps, `@ViewChild`,
-content projection with `<ng-content>`) are intentionally left out — this guide only
+Concepts not yet in this codebase (`NgModule`, zone-based apps, the `@ViewChild`
+decorator (the signal `viewChild()` is used instead), content projection with
+`<ng-content>`) are intentionally left out — this guide only
 teaches what the code actually uses, and grows as the code does (see `CLAUDE.md`).

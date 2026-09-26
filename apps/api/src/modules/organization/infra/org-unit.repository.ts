@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { sql } from 'kysely';
+import type { UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { currentTx } from '../../../platform/context/request-context.js';
 import type { OrgUnitKind } from '../domain/org-unit.js';
 import type { OrgSnapshotUnit } from '../domain/tree.js';
@@ -48,6 +49,18 @@ export class OrgUnitRepository {
     return row;
   }
 
+  /** The unit is part of today's tree (it has its self row in the closure). */
+  async inTodaysTree(companyId: string, id: string): Promise<boolean> {
+    const row = await currentTx()
+      .selectFrom('org_unit_closure')
+      .select('descendant_id')
+      .where('company_id', '=', companyId)
+      .where('ancestor_id', '=', id)
+      .where('descendant_id', '=', id)
+      .executeTakeFirst();
+    return row !== undefined;
+  }
+
   async codeExists(companyId: string, code: string): Promise<boolean> {
     const row = await currentTx()
       .selectFrom('org_unit')
@@ -87,7 +100,10 @@ export class OrgUnitRepository {
    * Units valid on `asOf` whose code or name contains `q`, ignoring case and accents (search_normalize(), see
    * migration 0005: lower() + translate() of accented Latin letters, backing the generated `name_search` column).
    */
-  async search(companyId: string, params: { asOf: string; q?: string; kinds?: readonly OrgUnitKind[]; limit: number }): Promise<string[]> {
+  async search(
+    companyId: string,
+    params: { asOf: string; scope: UnitIdQuery; q?: string; kinds?: readonly OrgUnitKind[]; limit: number },
+  ): Promise<string[]> {
     let query = currentTx()
       .selectFrom('org_unit as u')
       .innerJoin('org_unit_version as v', (join) =>
@@ -95,6 +111,7 @@ export class OrgUnitRepository {
       )
       .select('u.id')
       .where('u.company_id', '=', companyId)
+      .where('u.id', 'in', params.scope)
       .where(sql<boolean>`v.valid @> ${params.asOf}::date`);
     if (params.kinds && params.kinds.length > 0) query = query.where('u.kind', 'in', params.kinds);
     if (params.q) {

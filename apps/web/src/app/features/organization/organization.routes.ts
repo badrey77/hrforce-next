@@ -11,11 +11,19 @@
  *   downloaded only when someone opens the sites section.
  * - Query params (`?asOf=`, `?q=`) need no route config: with `withComponentInputBinding()` they reach the
  *   page's inputs.
+ * - `permissionGuard('site.read')` — the guard factory with the code as an ARGUMENT (the app-level routes pass it
+ *   through route `data` instead; see core/auth/permission.guard.ts). The parent `/organization` already needs
+ *   `org_unit.read`; sites need `site.read` on top.
  */
 import type { Routes } from '@angular/router';
+import { permissionGuard } from '../../core/auth/permission.guard';
 import { OrganizationPage } from './organization.page';
 
 export const ORGANIZATION_ROUTES: Routes = [
   { path: '', component: OrganizationPage },
-  { path: 'sites', loadComponent: () => import('./sites.page').then((m) => m.SitesPage) },
+  {
+    path: 'sites',
+    canMatch: [permissionGuard('site.read')],
+    loadComponent: () => import('./sites.page').then((m) => m.SitesPage),
+  },
 ];

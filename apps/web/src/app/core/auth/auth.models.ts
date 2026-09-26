@@ -19,11 +19,26 @@ export interface SessionCompany {
   readonly name: string;
 }
 
-/** `GET /api/me` response body. Authorization will add `permissions` and `scopes` later. */
+/**
+ * Where a permission applies (docs/contracts/authorization.md › `GET /me`): one entry per effective grant whose role
+ * holds the permission — the grant's unit, plus its sub-units when `includeDescendants`.
+ */
+export interface PermissionScope {
+  readonly unitId: string;
+  readonly includeDescendants: boolean;
+}
+
+/** `scopes` of `GET /api/me`: permission code → where it applies. */
+export type PermissionScopes = Readonly<Record<string, readonly PermissionScope[]>>;
+
+/** `GET /api/me` response body (Identity + the Authorization additions). */
 export interface Me {
   readonly user: SessionUser;
   readonly company: SessionCompany;
   readonly companies: readonly SessionCompany[];
+  /** Permission codes held ANYWHERE in the company (sorted), e.g. `['access.read', 'org_unit.read']`. */
+  readonly permissions: readonly string[];
+  readonly scopes: PermissionScopes;
 }
 
 /** `POST /api/auth/login` body. */

@@ -147,6 +147,8 @@ export interface CreateTestAppOptions {
   mailSender?: MailSender;
   /** Extra / overriding environment variables. */
   env?: Record<string, string>;
+  /** Provider overrides (e.g. a pinned AccessClock). */
+  overrides?: { provide: Type | symbol; useValue: unknown }[];
 }
 
 /** Builds the real AppModule (+ test routes) through the same configureApp() as main.ts. */
@@ -174,6 +176,7 @@ export async function createTestApp(db: TestDatabase, options: CreateTestAppOpti
   const evaluator = options.evaluator === undefined ? (devAuth ? null : TestPermissionEvaluator) : options.evaluator;
   if (evaluator) builder = builder.overrideProvider(PermissionEvaluator).useClass(evaluator);
   if (options.mailSender) builder = builder.overrideProvider(MailSender).useValue(options.mailSender);
+  for (const override of options.overrides ?? []) builder = builder.overrideProvider(override.provide).useValue(override.useValue);
   const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true });
   if (options.configure ?? true) configureApp(app);

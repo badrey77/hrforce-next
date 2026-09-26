@@ -121,6 +121,34 @@ readonly titleKey = input('app.title');
 Here it's not a query/route param but the static `data: { titleKey: 'nav.employees' }`
 from `app.routes.ts` — same binding mechanism, different source.
 
+## Route params, `redirectTo` and path order (the Access feature)
+
+```ts
+// src/app/features/access/access.routes.ts
+export const ACCESS_ROUTES: Routes = [
+  { path: '', pathMatch: 'full', redirectTo: 'users' },
+  { path: 'users', component: UsersPage },
+  { path: 'users/:id', loadComponent: () => import('./user-detail.page').then((m) => m.UserDetailPage) },
+  { path: 'roles', component: RolesPage },
+  {
+    path: 'roles/new',
+    canMatch: [permissionGuard('access.manage_roles')],
+    loadComponent: () => import('./role-editor.page').then((m) => m.RoleEditorPage),
+  },
+  { path: 'roles/:id', loadComponent: () => import('./role-editor.page').then((m) => m.RoleEditorPage) },
+];
+```
+
+- **`redirectTo` + `pathMatch: 'full'`**: `/access` goes to `/access/users`. Without
+  `'full'`, the empty path would prefix-match every child URL and redirect them all.
+- **`:id` is a route param.** With `withComponentInputBinding()` it arrives as the input
+  `id = input.required<string>()` (`user-detail.page.ts`), exactly like query params do.
+- **Order matters.** `roles/new` must come before `roles/:id`, or `:id` would swallow the
+  word "new". The same component serves both paths: with no `:id`, its `id` input stays
+  `undefined`, so the editor is in "create" mode.
+- `[routerLink]="['/access/users', user.id]"` builds the URL from **segments**, and the
+  router encodes each one.
+
 ## Navigating and updating just the query string
 
 ```ts
@@ -239,12 +267,47 @@ still have to return `false` for the first. (A guard may also return a
 ### Which routes carry which guard
 
 From the contract (`docs/contracts/identity.md` › Web): `authGuard` on every route
-except `/login`, `/password/setup`, `/password/forgot` and `**`. `guestGuard` goes on
+except `/login`, `/password/setup`, `/password/forgot` and `**`. `/organization` and
+`/access` also carry `permissionGuard()` (next section). `guestGuard` goes on
 `/login`. The password pages have no guard, because an emailed link must work whether or
 not someone is signed in on that browser. The guards are attached route by route rather
 than through a componentless `path: ''` parent with `children`: a `canMatch` on a `''`
 prefix parent would also catch unknown URLs and send signed-out visitors to /login
 instead of the 404 page.
+
+### Permission guards and route `data`
+
+Since the Authorization step, some routes also need a **permission**. The guard is a
+*factory* (`permissionGuard(code?)` returns a `CanMatchFn`), and the code can come from
+the route's static `data`:
+
+```ts
+// src/app/app.routes.ts
+{
+  path: 'organization',
+  canMatch: [authGuard, permissionGuard()],
+  data: { permission: 'org_unit.read' },
+  loadChildren: () =>
+    import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
+},
+```
+
+- `canMatch` receives the `Route` object, so the guard reads `route.data['permission']`.
+  `permissionGuard('site.read')` passes the code as an argument instead
+  (`features/organization/organization.routes.ts`).
+- The router runs **all** `canMatch` guards of a route and takes the first non-`true`
+  result **in array order**. `authGuard` first means signed-out visitors still get the
+  /login redirect.
+- Unlike `authGuard`, `permissionGuard` returns **`false`**. The route "does not match",
+  the router falls through to `**`, and the user sees the 404 page: the route does not
+  exist for them, as ADR 002 wants for out-of-scope data. The `loadChildren` chunk is
+  never fetched.
+- `data` of a componentless `loadChildren` parent is inherited by its children, and
+  `withComponentInputBinding()` binds `data` keys to inputs **of the same name**. Do not
+  give a page an input called `permission` by accident.
+
+The full story (factory vs data, `false` vs `UrlTree`, the `roles/new` → `roles/:id`
+fall-through) is in [chapter 12](./12-permission-aware-ui.md#3-route-guards-with-data-permissionguard).
 
 ### `returnUrl` and open redirects
 

@@ -1,0 +1,71 @@
+<ng-container *transloco="let t">
+  <app-access-nav />
+
+  <div class="toolbar">
+    <form class="search" role="search" (submit)="search($event, searchInput.value)">
+      <label for="access-users-q">{{ t('access.users.search') }}</label>
+      <input
+        #searchInput
+        id="access-users-q"
+        type="search"
+        autocomplete="off"
+        [value]="q() ?? ''"
+        [placeholder]="t('access.users.searchPlaceholder')"
+      />
+      <button class="btn secondary" type="submit">{{ t('access.users.searchSubmit') }}</button>
+    </form>
+  </div>
+
+  <section [attr.aria-busy]="users.isLoading()">
+    @if (users.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="users.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (users.hasValue()) {
+      <div class="table-scroll">
+        <table class="data">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('access.users.name') }}</th>
+              <th scope="col">{{ t('access.users.email') }}</th>
+              <th scope="col">{{ t('access.users.status') }}</th>
+              <th scope="col">{{ t('access.users.grants') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of items(); track user.id) {
+              <tr>
+                <td><a [routerLink]="['/access/users', user.id]">{{ user.displayName }}</a></td>
+                <td>{{ user.email }}</td>
+                <td>{{ t('access.status.' + user.status) }}</td>
+                <td>
+                  @if (user.grants.length) {
+                    <ul class="chips">
+                      @for (grant of user.grants; track grant.id) {
+                        <li class="badge" [attr.data-grant]="grant.id">
+                          {{ catalog.roleName(grant.role) }} · {{ grant.unit.name }}
+                          @if (grantState(grant, today) === 'future') {
+                            ({{ t('access.grants.fromDate', { date: grant.validFrom }) }})
+                          }
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="muted">{{ t('access.users.noGrant') }}</span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4">{{ q() ? t('access.users.noMatch', { q: q() }) : t('access.users.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('access.users.loading') }}</p>
+    }
+  </section>
+</ng-container>

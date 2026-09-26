@@ -92,7 +92,9 @@ async function openForm(): Promise<HTMLFormElement> {
 
 async function pickUnit(): Promise<void> {
   fill('grant-unit', 'Oran');
-  await new Promise((resolve) => setTimeout(resolve, ORG_UNIT_PICKER_DEBOUNCE_MS + 20));
+  // Generous margin: with `shouldAdvanceTime` the faked Date.now() (read by debounceTime) moves in 20 ms steps and can
+  // lag real time by up to one step, so the debounce may fire a little after DEBOUNCE_MS of real time.
+  await new Promise((resolve) => setTimeout(resolve, ORG_UNIT_PICKER_DEBOUNCE_MS + 100));
   http.expectOne((r) => r.url === '/api/org/units').flush({ items: [AG_ORAN] });
   await settle();
   (el().querySelector('app-org-unit-picker [role="option"]') as HTMLElement).click();
@@ -273,16 +275,20 @@ describe('Access › User detail', () => {
       http.expectNone('/api/access/grants');
     });
 
-    it('cross-field validator: "to" must not be before "from"', async () => {
+    it('cross-field validator: "to" must be after "from" (like the API: [from, to) must not be empty)', async () => {
       const form = await openForm();
       fill('grant-from', '2026-10-01');
       fill('grant-to', '2026-09-01');
       await submit(form);
 
-      expect(text('#grant-to-error')).toBe('La date de fin doit être égale ou postérieure à la date de début.');
+      expect(text('#grant-to-error')).toBe('La date de fin doit être postérieure à la date de début.');
       expect(el().querySelector('#grant-to')?.getAttribute('aria-invalid')).toBe('true');
 
-      fill('grant-to', '2026-10-01'); // equal is accepted
+      fill('grant-to', '2026-10-01'); // equal is refused too (the API answers grant-dates)
+      await settle();
+      expect(text('#grant-to-error')).toBe('La date de fin doit être postérieure à la date de début.');
+
+      fill('grant-to', '2026-10-02');
       await settle();
       expect(el().querySelector('#grant-to-error')).toBeNull();
     });
@@ -336,6 +342,12 @@ describe('Access › User detail', () => {
       expect(el().querySelector('#grant-unit')?.getAttribute('aria-invalid')).toBe('true');
 
       await pickUnit();
+      await submit(form);
+      http.expectOne('/api/access/grants').flush(...conflict('grant-duplicate', [{ field: 'roleId', code: 'x', message: 'x' }]));
+      await settle();
+      expect(text('#grant-role-error')).toBe('Cet utilisateur a déjà ce rôle sur cette unité pour une période qui se chevauche.');
+
+      chooseRole('Gestionnaire paie');
       await submit(form);
       req = http.expectOne('/api/access/grants');
       const created = grant({ id: 'g-new', userId: 'u-samir', role: { id: ROLE_CUSTOM.id, code: ROLE_CUSTOM.code, names: ROLE_CUSTOM.names } });

@@ -283,7 +283,7 @@
       "validToHint": "Dernier jour exclu. Laissez vide pour une attribution sans fin.",
       "submit": "Attribuer",
       "errors": {
-        "dateOrder": "La date de fin doit être égale ou postérieure à la date de début."
+        "dateOrder": "La date de fin doit être postérieure à la date de début."
       }
     },
     "end": {
@@ -340,6 +340,7 @@
       "grantEscalation": "Vous ne détenez pas toutes les permissions de ce rôle sur cette unité.",
       "grantUserNotMember": "Cet utilisateur n’est pas membre de la société.",
       "grantDates": "Dates invalides pour cette attribution.",
+      "grantDuplicate": "Cet utilisateur a déjà ce rôle sur cette unité pour une période qui se chevauche.",
       "endSelf": "Vous ne pouvez pas terminer vos propres attributions.",
       "endDates": "Cette date de fin n’est pas acceptée pour cette attribution.",
       "grantNotFound": "Cette attribution n’existe plus.",

@@ -476,15 +476,15 @@ default `true` per the contract).
 
 ## Dates: a cross-field rule and a validator that reads a signal
 
-The add-grant form's "to ≥ from" is a **group** validator, like `passwordsMatch` above:
+The add-grant form's "to > from" is a **group** validator, like `passwordsMatch` above:
 
 ```ts
 // src/app/features/access/access-forms.ts
-export const validToNotBeforeFrom: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
+export const validToAfterFrom: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
   const from: unknown = group.get('validFrom')?.value;
   const to: unknown = group.get('validTo')?.value;
   if (!isIsoDate(from) || !isIsoDate(to)) return null; // empty/invalid: left to the controls' own validators
-  return to >= from ? null : { dateOrder: true };
+  return to > from ? null : { dateOrder: true }; // [from, to): to = from is never effective
 };
 ```
 

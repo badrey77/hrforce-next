@@ -8,7 +8,7 @@
  * - **A custom control in the form**: the unit is `<app-org-unit-picker formControlName="orgUnitId">` (a
  *   ControlValueAccessor, shared/org-unit-picker). Its `[asOf]` follows the "from" date through `toSignal()`, so it
  *   offers the units that exist when the grant starts.
- * - **Cross-field validation**: `validToNotBeforeFrom` sits on the group (access-forms.ts) and the template shows
+ * - **Cross-field validation**: `validToAfterFrom` sits on the group (access-forms.ts) and the template shows
  *   `form.hasError('dateOrder')` under the "to" field.
  * - **409 → the right field**: `problemToForm(form, error, GRANT_SLUGS)` (core/http/problem-form.ts) puts each
  *   separation-of-duties rule where it helps: escalation on the role, out-of-scope on the unit, dates on "to";
@@ -26,7 +26,7 @@ import type { GrantView } from '../../core/access/access.models';
 import { todayIso } from '../../core/date/iso-date';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
-import { fieldErrorKey, GRANT_SLUGS, isoDate, validToNotBeforeFrom } from './access-forms';
+import { fieldErrorKey, GRANT_SLUGS, isoDate, validToAfterFrom } from './access-forms';
 
 @Component({
   selector: 'app-grant-form',
@@ -52,7 +52,7 @@ export class GrantForm {
       // '' = open-ended (not sent).
       validTo: ['', isoDate],
     },
-    { validators: [validToNotBeforeFrom] },
+    { validators: [validToAfterFrom] },
   );
 
   protected readonly validFrom = toSignal(this.form.controls.validFrom.valueChanges, {

@@ -124,6 +124,7 @@ export type AccessProblemSlug =
   | 'grant-escalation'
   | 'grant-user-not-member'
   | 'grant-dates'
+  | 'grant-duplicate'
   | 'role-code-taken'
   | 'role-escalation'
   | 'role-system-immutable'

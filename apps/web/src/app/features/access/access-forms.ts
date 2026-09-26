@@ -2,7 +2,7 @@
  * Form helpers of the Access feature: validators, the 409 slug tables, and grant dates.
  *
  * Angular concepts:
- * - **A cross-field validator on the GROUP** (`validToNotBeforeFrom`): "to ≥ from" needs two values, so it sits on
+ * - **A cross-field validator on the GROUP** (`validToAfterFrom`): "to > from" needs two values, so it sits on
  *   the FormGroup (second argument of `fb.group(…, { validators })`) and reports `{ dateOrder: true }` on the group,
  *   not on either control. The template shows it next to "to". See docs/angular/07-forms.md › Cross-field validators.
  * - **A validator that reads a signal** (`dateWithin(bounds)`): the end-grant dialog's limits depend on WHICH grant
@@ -34,12 +34,15 @@ export const notBlank: ValidatorFn = (control: AbstractControl): ValidationError
 export const atLeastOne: ValidatorFn = (control: AbstractControl): ValidationErrors | null =>
   Array.isArray(control.value) && control.value.length > 0 ? null : { required: true };
 
-/** Group validator: `validTo`, when set, is on or after `validFrom` (ISO strings compare like dates). */
-export const validToNotBeforeFrom: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
+/**
+ * Group validator: `validTo`, when set, is strictly after `validFrom` (ISO strings compare like dates). A new grant
+ * covers `[validFrom, validTo)`, so `validTo = validFrom` would never be effective — the API refuses it (`grant-dates`).
+ */
+export const validToAfterFrom: ValidatorFn = (group: AbstractControl): ValidationErrors | null => {
   const from: unknown = group.get('validFrom')?.value;
   const to: unknown = group.get('validTo')?.value;
   if (!isIsoDate(from) || !isIsoDate(to)) return null; // empty/invalid: left to the controls' own validators
-  return to >= from ? null : { dateOrder: true };
+  return to > from ? null : { dateOrder: true };
 };
 
 /** Control validator: the date lies within `bounds()` (inclusive; `max: null` = no upper bound). */
@@ -61,6 +64,7 @@ export const GRANT_SLUGS: SlugTable = {
   'grant-escalation': { key: 'access.problems.grantEscalation', field: 'roleId' },
   'grant-user-not-member': { key: 'access.problems.grantUserNotMember' },
   'grant-dates': { key: 'access.problems.grantDates', field: 'validTo' },
+  'grant-duplicate': { key: 'access.problems.grantDuplicate', field: 'roleId' },
 };
 
 /** `POST /access/grants/:id/end`: same rules, the dialog has only `validTo`. */

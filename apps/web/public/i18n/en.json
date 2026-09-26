@@ -283,7 +283,7 @@
       "validToHint": "Last day excluded. Leave empty for an open-ended grant.",
       "submit": "Grant",
       "errors": {
-        "dateOrder": "The end date must be on or after the start date."
+        "dateOrder": "The end date must be after the start date."
       }
     },
     "end": {
@@ -340,6 +340,7 @@
       "grantEscalation": "You do not hold every permission of this role on this unit.",
       "grantUserNotMember": "This user is not a member of the company.",
       "grantDates": "Invalid dates for this grant.",
+      "grantDuplicate": "This user already holds this role on this unit for an overlapping period.",
       "endSelf": "You cannot end your own grants.",
       "endDates": "This end date is not accepted for this grant.",
       "grantNotFound": "This grant no longer exists.",

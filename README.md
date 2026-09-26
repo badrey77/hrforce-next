@@ -7,6 +7,15 @@ Current state: **Phase 1 foundations** (ADRs, platform skeleton, CI guardrails).
 - Decisions: [docs/adr](docs/adr/README.md) (003 needs approval)
 - API: [apps/api/README.md](apps/api/README.md) · Web: [apps/web/README.md](apps/web/README.md)
 
+## Run it locally
+
+```sh
+./scripts/dev-up.sh          # Docker Postgres + Mailpit, migrate, seed, API :3000, web :4200
+./scripts/dev-up.sh --reset  # same, starting from an empty database
+```
+
+Then open http://localhost:4200 (demo users in apps/api/README.md, password `demo-password-2026`).
+
 ## Quick start
 Requires Node >= 22.22.3 (Angular 22) and npm 11.
 

@@ -43,6 +43,8 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - **Leave + workflow + My tasks: built and independently verified 2026-09-27** (browser fr/ar, security probes, 4 small web fixes). Gap: the employee History tab has no leave subject type yet.
   Contract `docs/contracts/leave.md`, ADR 006. Build decisions to confirm: accrued annual days become usable 12 months after the reference year starts (reading of "taken from 1 July N"); special paid leaves count working days; a user cannot link their own account to an employee; `rh.est` also holds `employe` so Karim can request leave; the Région Est director linked to Karim in the seed is the fictitious "Souad Cherif".
 
+- **Notifications + worker + live updates: in progress** (contract `docs/contracts/notifications.md`): in-app bell (SSE over Postgres LISTEN/NOTIFY), emails per preference via Graphile Worker jobs, monthly/daily cron (audit partitions, leave accruals, cleanups), leave events on History.
+
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
 - **Sensitive fields:** only `admin_rh_central` reads/edits salary, RIB, NSS; **no role** holds `employee.medical.read`.

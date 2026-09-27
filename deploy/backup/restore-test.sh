@@ -36,7 +36,8 @@ done
 docker exec "$name" pg_isready -h 127.0.0.1 -U postgres > /dev/null || { echo "restore-test: postgres did not start" >&2; exit 1; }
 
 docker exec "$name" psql -q -U postgres -v ON_ERROR_STOP=1 \
-  -v migrator_password="'$(openssl rand -hex 16)'" -v app_password="'$(openssl rand -hex 16)'" -v db=hrforce \
+  -v migrator_password="'$(openssl rand -hex 16)'" -v app_password="'$(openssl rand -hex 16)'" \
+  -v worker_password="'$(openssl rand -hex 16)'" -v db=hrforce \
   -f /hrforce/create-roles.sql
 start=$(date +%s)
 docker exec "$name" pg_restore -U postgres --dbname=hrforce --exit-on-error "/backups/$dump"

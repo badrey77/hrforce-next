@@ -3,6 +3,9 @@
   <header class="header">
     <a class="brand" routerLink="/">{{ t('app.title') }}</a>
     <div class="header-tools">
+      @if (session.isAuthenticated()) {
+        <app-notification-bell />
+      }
       <app-user-menu />
       <app-language-switcher />
     </div>

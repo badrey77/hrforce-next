@@ -21,6 +21,10 @@
  *   open"), so a screen reader never reads a bare "3". A separate `aria-live="polite"` region announces CHANGES of
  *   the count ("3 open tasks") without stealing focus; it is always in the DOM (a live region added together with its
  *   text is often not announced) and stays empty until the count is known.
+ *
+ * Notifications (docs/contracts/notifications.md › Web): the header bell (shell/notification-bell.ts) is rendered only
+ * while signed in. Its data — and the live SSE connection — belong to the root `NotificationCenter`, which opens and
+ * closes the stream by itself as the Session changes; the shell only decides whether the bell is shown.
  */
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -29,6 +33,7 @@ import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import { LanguageSwitcher } from './shell/language-switcher';
+import { NotificationBell } from './shell/notification-bell';
 import { UserMenu } from './shell/user-menu';
 
 interface NavLink {
@@ -45,7 +50,7 @@ interface NavLink {
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslocoDirective, LanguageSwitcher, UserMenu],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslocoDirective, LanguageSwitcher, NotificationBell, UserMenu],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',

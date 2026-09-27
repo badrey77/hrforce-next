@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migratorEnvSchema } from './env.schema.js';
+import { migratorEnvSchema, workerEnvSchema } from './env.schema.js';
 import { EnvValidationError, loadEnv, parseEnv } from './load-env.js';
 
 const valid = {
@@ -112,5 +112,24 @@ describe('loadEnv', () => {
   it('validates the migrator environment separately', () => {
     expect(() => parseEnv(migratorEnvSchema, {})).toThrowError(/MIGRATOR_DATABASE_URL: is required/);
     expect(parseEnv(migratorEnvSchema, { MIGRATOR_DATABASE_URL: 'postgresql://m@h/db' }).LOG_LEVEL).toBe('info');
+  });
+});
+
+describe('workerEnvSchema', () => {
+  const worker = { WORKER_DATABASE_URL: 'postgres://hrforce_worker:pw@localhost:5432/hrforce', WEB_BASE_URL: 'https://hr.example.dz', SMTP_URL: 'smtp://mail.example.dz:587' };
+
+  it('applies the defaults (concurrency 4, heartbeat file) and validates WORKER_CONCURRENCY', () => {
+    expect(parseEnv(workerEnvSchema, worker)).toMatchObject({ WORKER_CONCURRENCY: 4, WORKER_HEARTBEAT_FILE: '/tmp/hrforce-worker.alive', NODE_ENV: 'production' });
+    expect(parseEnv(workerEnvSchema, { ...worker, WORKER_CONCURRENCY: '8' }).WORKER_CONCURRENCY).toBe(8);
+    expect(() => parseEnv(workerEnvSchema, { ...worker, WORKER_CONCURRENCY: '0' })).toThrow(/WORKER_CONCURRENCY/);
+    expect(() => parseEnv(workerEnvSchema, { ...worker, WORKER_CONCURRENCY: '100' })).toThrow(/WORKER_CONCURRENCY/);
+  });
+
+  it('requires WORKER_DATABASE_URL (a postgres URL) and refuses the log transport in production', () => {
+    expect(() => parseEnv(workerEnvSchema, { ...worker, WORKER_DATABASE_URL: undefined })).toThrow(/WORKER_DATABASE_URL: is required/);
+    expect(() => parseEnv(workerEnvSchema, { ...worker, WORKER_DATABASE_URL: 'mysql://x' })).toThrow(/WORKER_DATABASE_URL/);
+    expect(() => parseEnv(workerEnvSchema, { ...worker, MAIL_TRANSPORT: 'log' })).toThrow(/MAIL_TRANSPORT/);
+    expect(parseEnv(workerEnvSchema, { ...worker, MAIL_TRANSPORT: 'log', NODE_ENV: 'development' }).MAIL_TRANSPORT).toBe('log');
+    expect(() => parseEnv(workerEnvSchema, { ...worker, SMTP_URL: undefined })).toThrow(/SMTP_URL/);
   });
 });

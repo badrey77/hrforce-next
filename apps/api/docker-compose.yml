@@ -1,6 +1,6 @@
 # Local development stack. Usage (from apps/api):
 #   docker compose up -d                 → postgres + mailpit (SMTP on :1025, web UI on http://localhost:8025)
-#   docker compose --profile api up -d   → + the API container (built from the repo root Dockerfile)
+#   docker compose --profile api up -d   → + the API and worker containers (built from apps/api/Dockerfile)
 services:
   postgres:
     image: postgres:18-alpine
@@ -10,6 +10,9 @@ services:
       POSTGRES_DB: postgres
       HRFORCE_MIGRATOR_PASSWORD: hrforce_migrator_dev
       HRFORCE_APP_PASSWORD: hrforce_app_dev
+      # the background worker's role (npm run worker; added by migration 0012). An existing volume created before
+      # it: scripts/dev-up.sh|ps1 create the role, or run create-roles.sql again (README › Roles).
+      HRFORCE_WORKER_PASSWORD: hrforce_worker_dev
       HRFORCE_DB: hrforce
     ports:
       - "5432:5432"
@@ -46,6 +49,28 @@ services:
       SMTP_URL: smtp://mailpit:1025
       MAIL_FROM: HRForce <no-reply@hrforce.local>
       DEV_PERMISSIONS: allow_all
+
+  # Background jobs (Graphile Worker): notification e-mails, monthly/daily cron. Same image, other entry point.
+  worker:
+    profiles: ["api"]
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    depends_on: [postgres, mailpit]
+    command: ["node", "dist/worker.js"]
+    healthcheck:
+      test: ["CMD", "node", "dist/worker-health.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      NODE_ENV: development
+      WORKER_DATABASE_URL: postgres://hrforce_worker:hrforce_worker_dev@postgres:5432/hrforce
+      WORKER_CONCURRENCY: "4"
+      WEB_BASE_URL: http://localhost:4200
+      MAIL_TRANSPORT: smtp
+      SMTP_URL: smtp://mailpit:1025
+      MAIL_FROM: HRForce <no-reply@hrforce.local>
 
 volumes:
   hrforce-pg:

@@ -4,12 +4,24 @@ import { AuthorizationModule } from './modules/authorization/index.js';
 import { EmploymentModule } from './modules/employment/index.js';
 import { IdentityModule } from './modules/identity/index.js';
 import { LeaveModule } from './modules/leave/index.js';
+import { NotificationsModule } from './modules/notifications/index.js';
 import { OrganizationModule } from './modules/organization/index.js';
 import { StaffingModule } from './modules/staffing/index.js';
 import { WorkflowModule } from './modules/workflow/index.js';
 import { PlatformModule } from './platform/platform.module.js';
 
 @Module({
-  imports: [PlatformModule, AuditModule, AuthorizationModule, OrganizationModule, IdentityModule, EmploymentModule, StaffingModule, WorkflowModule, LeaveModule],
+  imports: [
+    PlatformModule,
+    AuditModule,
+    AuthorizationModule,
+    NotificationsModule,
+    OrganizationModule,
+    IdentityModule,
+    EmploymentModule,
+    StaffingModule,
+    WorkflowModule,
+    LeaveModule,
+  ],
 })
 export class AppModule {}

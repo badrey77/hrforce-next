@@ -20,14 +20,14 @@ fi
 env_value() { sed -n "s/^$1=//p" .env | tail -n 1; }
 missing=()
 for name in STAGING_DOMAIN ACME_EMAIL POSTGRES_SUPERUSER_PASSWORD HRFORCE_MIGRATOR_PASSWORD HRFORCE_APP_PASSWORD \
-            COOKIE_SECRET AUTH_ACCESS_SECRET AUTH_XSRF_SECRET SMTP_URL MAIL_FROM; do
+            HRFORCE_WORKER_PASSWORD COOKIE_SECRET AUTH_ACCESS_SECRET AUTH_XSRF_SECRET SMTP_URL MAIL_FROM; do
   [[ -n $(env_value "$name") ]] || missing+=("$name")
 done
 if ((${#missing[@]})); then
   echo "deploy: empty in .env: ${missing[*]}" >&2
   exit 1
 fi
-for name in POSTGRES_SUPERUSER_PASSWORD HRFORCE_MIGRATOR_PASSWORD HRFORCE_APP_PASSWORD; do
+for name in POSTGRES_SUPERUSER_PASSWORD HRFORCE_MIGRATOR_PASSWORD HRFORCE_APP_PASSWORD HRFORCE_WORKER_PASSWORD; do
   [[ $(env_value "$name") =~ ^[0-9a-f]{32,}$ ]] || { echo "deploy: $name must be hex (openssl rand -hex 32)" >&2; exit 1; }
 done
 if [[ $(env_value SMTP_URL) == *"user:password@smtp.example.dz"* ]]; then
@@ -48,9 +48,15 @@ export HRFORCE_TAG=$tag
 
 echo "deploy: ${previous:-<none>} → $tag"
 docker compose pull --quiet
+# Roles are cluster-level: re-apply create-roles.sql (idempotent; passwords from .env) so a release that adds a role
+# (0012: hrforce_worker) also works on a database created by an older release.
+docker compose up --detach --wait postgres
+docker compose exec -T postgres psql -q -U postgres -v ON_ERROR_STOP=1 \
+  -v migrator_password="'$(env_value HRFORCE_MIGRATOR_PASSWORD)'" -v app_password="'$(env_value HRFORCE_APP_PASSWORD)'" \
+  -v worker_password="'$(env_value HRFORCE_WORKER_PASSWORD)'" -v db=hrforce -f /hrforce/create-roles.sql
 docker compose run --rm migrate
 if ! docker compose up --detach --remove-orphans --wait --wait-timeout 300; then
-  echo "deploy: FAILED — containers did not become healthy. Inspect: docker compose ps; docker compose logs --tail=200 api" >&2
+  echo "deploy: FAILED — containers did not become healthy. Inspect: docker compose ps; docker compose logs --tail=200 api worker" >&2
   [[ -n $previous ]] && echo "deploy: roll back with: ./deploy.sh $previous (migrations are forward-only: see README.md › Rollback)" >&2
   exit 1
 fi

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Client, type QueryResultRow } from 'pg';
 import { runMigrations } from '../../src/platform/db/migrator.js';
+import { installWorkerSchema } from '../../src/platform/db/worker-schema.js';
 
 /**
  * Throwaway, fully migrated database per test file.
@@ -11,11 +12,12 @@ import { runMigrations } from '../../src/platform/db/migrator.js';
 
 /**
  * Passwords used when the harness creates the roles. Existing roles are never modified: if your cluster
- * already has them with other passwords, set TEST_MIGRATOR_PASSWORD / TEST_APP_PASSWORD accordingly.
+ * already has them with other passwords, set TEST_MIGRATOR_PASSWORD / TEST_APP_PASSWORD / TEST_WORKER_PASSWORD accordingly.
  */
 export const TEST_ROLE_PASSWORDS = {
   hrforce_migrator: process.env['TEST_MIGRATOR_PASSWORD'] ?? 'hrforce_migrator_test',
   hrforce_app: process.env['TEST_APP_PASSWORD'] ?? 'hrforce_app_test',
+  hrforce_worker: process.env['TEST_WORKER_PASSWORD'] ?? 'hrforce_worker_test',
 } as const;
 
 const PASSWORD_PATTERN = /^[A-Za-z0-9_.-]+$/;
@@ -28,6 +30,8 @@ export interface TestDatabase {
   readonly migratorUrl: string;
   /** hrforce_app — what the API uses; subject to RLS. */
   readonly appUrl: string;
+  /** hrforce_worker — what the background worker uses; subject to RLS. */
+  readonly workerUrl: string;
   drop(): Promise<void>;
 }
 
@@ -58,6 +62,10 @@ begin
   end;
   begin
     create role hrforce_app login nosuperuser nocreatedb nocreaterole nobypassrls password '${TEST_ROLE_PASSWORDS.hrforce_app}';
+  exception when duplicate_object or unique_violation then null;
+  end;
+  begin
+    create role hrforce_worker login nosuperuser nocreatedb nocreaterole nobypassrls password '${TEST_ROLE_PASSWORDS.hrforce_worker}';
   exception when duplicate_object or unique_violation then null;
   end;
 end
@@ -94,6 +102,7 @@ async function createOn(superuserBase: string, cleanup: () => Promise<void>, opt
     superuserUrl: withCredentials(superuserBase, new URL(superuserBase).username, decodeURIComponent(new URL(superuserBase).password), name),
     migratorUrl: withCredentials(superuserBase, 'hrforce_migrator', TEST_ROLE_PASSWORDS.hrforce_migrator, name),
     appUrl: withCredentials(superuserBase, 'hrforce_app', TEST_ROLE_PASSWORDS.hrforce_app, name),
+    workerUrl: withCredentials(superuserBase, 'hrforce_worker', TEST_ROLE_PASSWORDS.hrforce_worker, name),
     async drop() {
       await withClient(superuserBase, async (client) => {
         await client.query(`drop database if exists ${name} with (force)`);
@@ -103,11 +112,13 @@ async function createOn(superuserBase: string, cleanup: () => Promise<void>, opt
   };
   try {
     await runMigrations({ connectionString: db.migratorUrl, ...(options.migrationsDir ? { migrationsDir: options.migrationsDir } : {}) });
+    // the job queue schema, like `npm run migrate` (not for partial migration sets: 0012 creates its schema)
+    if (!options.migrationsDir) await installWorkerSchema({ connectionString: db.migratorUrl });
   } catch (error) {
     await db.drop();
     if (error instanceof Error && /password authentication failed/.test(error.message)) {
       throw new Error(
-        'Roles hrforce_migrator/hrforce_app already exist with other passwords: set TEST_MIGRATOR_PASSWORD and TEST_APP_PASSWORD',
+        'Roles hrforce_migrator/hrforce_app/hrforce_worker already exist with other passwords: set TEST_MIGRATOR_PASSWORD, TEST_APP_PASSWORD and TEST_WORKER_PASSWORD',
         { cause: error },
       );
     }

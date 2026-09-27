@@ -9,6 +9,10 @@
     <button class="btn secondary" type="button" data-action="refresh" (click)="store.refresh()">{{ t('tasks.refresh') }}</button>
   </header>
 
+  @if (linkedTaskMissing()) {
+    <p class="warning" role="status" data-state="task-not-open">{{ t('tasks.notOpen') }}</p>
+  }
+
   @if (feedback(); as message) {
     <p [class]="message.kind === 'ok' ? 'feedback' : 'warning'" role="status" data-feedback>{{ t(message.key, { name: message.name }) }}</p>
   }

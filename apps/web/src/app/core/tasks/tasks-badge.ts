@@ -24,7 +24,12 @@
  *      without clicking shows up on their next click (or tab switch), not within a minute. Approvals are not
  *      second-critical, so that is the better deal. If they become so, the answer is a server push (SSE), not a
  *      faster poll.
- *   Both use `takeUntilDestroyed()`: a root service lives as long as the app, but tests create and destroy app
+ *   Since the notifications slice there IS a push channel (SSE, core/notifications/notification-center.ts): a
+ *   `task.*` notification (or `leave.cancelled`, which closes a task) arriving live is a third trigger. The badge
+ *   listens on the `NotificationEvents` bus rather than injecting the center, so creating the badge never opens a
+ *   connection (the bus's header explains the split). The navigation / visibility triggers stay: they are the
+ *   fallback when the stream is down, and cost nothing when nothing happens.
+ *   All three use `takeUntilDestroyed()`: a root service lives as long as the app, but tests create and destroy app
  *   injectors many times, and an event listener left on `document` would outlive them.
  * - **Optimistic updates with signals.** The /tasks page removes a task from the list THE MOMENT the user clicks
  *   Approve, before the server answers (the answer usually confirms it; waiting would make every click feel slow).
@@ -43,6 +48,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, fromEvent } from 'rxjs';
 import { Session } from '../auth/session';
+import { NotificationEvents } from '../notifications/notification-events';
 import { TasksApi } from './tasks-api';
 import type { OpenTask } from './tasks.models';
 
@@ -78,6 +84,10 @@ export class TasksBadge {
         filter(() => this.document.visibilityState === 'visible'),
         takeUntilDestroyed(),
       )
+      .subscribe(() => this.refresh());
+    inject(NotificationEvents)
+      .of((type) => type.startsWith('task.') || type === 'leave.cancelled')
+      .pipe(takeUntilDestroyed())
       .subscribe(() => this.refresh());
   }
 

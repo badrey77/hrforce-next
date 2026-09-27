@@ -160,6 +160,26 @@ export interface LeaveType {
   workflow_definition_id: string;
 }
 
+export interface Notification {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  data: Generated<Json>;
+  id: Generated<string>;
+  read_at: Timestamp | null;
+  subject_id: string;
+  subject_type: string;
+  type: string;
+  user_id: string;
+}
+
+export interface NotificationPreference {
+  company_id: string;
+  email: boolean;
+  type: string;
+  updated_at: Generated<Timestamp>;
+  user_id: string;
+}
+
 export interface OrgUnit {
   axis: Generated<string>;
   code: string;
@@ -369,6 +389,8 @@ export interface DB {
   leave_policy: LeavePolicy;
   leave_request: LeaveRequest;
   leave_type: LeaveType;
+  notification: Notification;
+  notification_preference: NotificationPreference;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;
   org_unit_head: OrgUnitHead;

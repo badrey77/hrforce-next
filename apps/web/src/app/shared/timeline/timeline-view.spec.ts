@@ -1,4 +1,4 @@
-import { CREATED, GRANT_ROW, GRANTED, MASKED, RENAMED } from '../../../testing/audit-fixtures';
+import { CREATED, GRANT_ROW, GRANTED, LEAVE_APPROVED, LEAVE_CREATED, MASKED, RENAMED, TASK_DONE, WORKFLOW_APPROVE } from '../../../testing/audit-fixtures';
 import { type AuditNameResolver, buildTimeline, type ChangeView, type EventView, NO_NAMES } from './timeline-view';
 
 const NOW = new Date(2026, 8, 26, 14); // local 2026-09-26 14:00
@@ -9,6 +9,9 @@ const NAMES: Record<string, Record<string, string>> = {
   role: { 'role-lecture': 'Lecture' },
 };
 const names: AuditNameResolver = (kind, value) => NAMES[kind]?.[value];
+
+const LEAVE_NAMES: AuditNameResolver = (kind, value) =>
+  kind === 'leaveType' && value === 't-annual' ? 'Congé annuel' : kind === 'step' && value === 'hr' ? 'RH régionales' : undefined;
 
 describe('buildTimeline (pure view model)', () => {
   it('groups by local day, newest first, keeping API order inside a day; tags today / yesterday', () => {
@@ -81,5 +84,31 @@ describe('buildTimeline (pure view model)', () => {
     const row = { ...GRANT_ROW, changes: [{ field: 'granted_by', before: null, after: actorId, masked: false }] };
     const change = buildTimeline([RENAMED, row], NO_NAMES, NOW).flatMap((g) => g.entries).find((e) => e.id === GRANT_ROW.id) as ChangeView;
     expect(change.lines[0]?.after).toEqual({ kind: 'text', text: RENAMED.actor?.displayName ?? actorId });
+  });
+
+  it('leave requests: link columns hidden, leave type named, statuses and outcomes as translation keys', () => {
+    const [day] = buildTimeline([LEAVE_APPROVED, TASK_DONE, WORKFLOW_APPROVE, LEAVE_CREATED], LEAVE_NAMES, NOW);
+    const [approved, task, event, created] = day?.entries ?? [];
+
+    const insert = created as ChangeView;
+    expect(insert.lines.map((l) => l.field)).toEqual(['leave_type_id', 'start_date', 'days', 'status']);
+    expect(insert.lines[0]).toEqual({
+      field: 'leave_type_id',
+      labelKey: 'audit.fields.leave_request.leave_type_id',
+      before: null,
+      after: { kind: 'text', text: 'Congé annuel' },
+    });
+    expect(insert.lines[3]?.after).toEqual({ kind: 'key', key: 'leave.status.pending', text: 'pending' });
+
+    expect((approved as ChangeView).lines[0]).toMatchObject({
+      before: { kind: 'key', key: 'leave.status.pending' },
+      after: { kind: 'key', key: 'leave.status.approved' },
+    });
+    const taskLines = (task as ChangeView).lines;
+    expect(taskLines[1]?.after).toEqual({ kind: 'key', key: 'audit.values.workflow_task.outcome.approve', text: 'approve' });
+    // acted_by is a user: named from the entries' actors.
+    expect(taskLines[2]?.after).toEqual({ kind: 'text', text: 'Karim Haddad' });
+
+    expect(event as EventView).toMatchObject({ sentenceKey: 'audit.events.workflow.approve', params: { step: 'RH régionales' } });
   });
 });

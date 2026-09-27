@@ -1,11 +1,13 @@
 /**
- * CLI: apply pending migrations as the migrator role.
+ * CLI: apply pending migrations as the migrator role, then install / upgrade the job queue schema (Graphile Worker)
+ * and re-apply its grants (src/platform/db/worker-schema.ts).
  *   npm run migrate -w @hrforce/api        (reads MIGRATOR_DATABASE_URL, optional MIGRATIONS_DIR)
  */
 import { pino } from 'pino';
 import { migratorEnvSchema } from '../config/env.schema.js';
 import { parseEnv } from '../config/load-env.js';
 import { runMigrations } from './migrator.js';
+import { installWorkerSchema } from './worker-schema.js';
 
 async function main(): Promise<void> {
   const env = parseEnv(migratorEnvSchema, process.env);
@@ -19,6 +21,7 @@ async function main(): Promise<void> {
     { applied: result.applied.length, alreadyApplied: result.alreadyApplied },
     result.applied.length ? 'migrations complete' : 'database is up to date',
   );
+  await installWorkerSchema({ connectionString: env.MIGRATOR_DATABASE_URL, logger });
 }
 
 main().catch((error: unknown) => {

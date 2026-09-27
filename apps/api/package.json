@@ -6,6 +6,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
+    "worker": "tsc -p tsconfig.build.json && node dist/worker.js",
+    "start:worker": "node dist/worker.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
@@ -39,6 +41,7 @@
     "@nestjs/platform-express": "12.1.0",
     "@node-rs/argon2": "2.2.1",
     "cookie-parser": "1.4.7",
+    "graphile-worker": "0.18.0",
     "kysely": "0.29.6",
     "nestjs-pino": "5.2.0",
     "nodemailer": "10.0.10",

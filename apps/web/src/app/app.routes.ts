@@ -81,10 +81,16 @@ export const routes: Routes = [
     loadChildren: () => import('./features/leave/leave.routes').then((m) => m.LEAVE_ROUTES),
   },
   {
+    // Notifications (docs/contracts/notifications.md › Web): every signed-in user has their own.
+    path: 'notifications',
+    canMatch: [authGuard],
+    loadComponent: () => import('./features/notifications/notifications.page').then((m) => m.NotificationsPage),
+  },
+  {
+    // Personal settings (for now: email notification preferences).
     path: 'settings',
     canMatch: [authGuard],
-    loadComponent: () => import('./features/placeholder/placeholder.page').then((m) => m.PlaceholderPage),
-    data: { titleKey: 'nav.settings' },
+    loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage),
   },
   {
     path: '**',

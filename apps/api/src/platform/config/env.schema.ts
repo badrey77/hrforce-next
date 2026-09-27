@@ -91,6 +91,36 @@ export const apiEnvSchema = z
 
 export type Env = z.infer<typeof apiEnvSchema>;
 
+/**
+ * Environment consumed by the background worker (`node dist/worker.js`, docs/contracts/notifications.md › Worker).
+ * It reuses the API's mail settings and WEB_BASE_URL (links in notification e-mails).
+ */
+export const workerEnvSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
+    LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+    /** Connection URL for the `hrforce_worker` role (subject to RLS; each job sets app.company_id). */
+    WORKER_DATABASE_URL: postgresUrl,
+    /** Jobs run at the same time. */
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(32).default(4),
+    /** File touched after each successful database check (container health: dist/worker-health.js). */
+    WORKER_HEARTBEAT_FILE: z.string().min(1).default('/tmp/hrforce-worker.alive'),
+    WEB_BASE_URL: httpUrl,
+    MAIL_TRANSPORT: z.enum(['smtp', 'log']).default('smtp'),
+    SMTP_URL: smtpUrl.optional(),
+    MAIL_FROM: z.string().min(3).default('HRForce <no-reply@hrforce.invalid>'),
+  })
+  .superRefine((env, ctx) => {
+    if (env.MAIL_TRANSPORT === 'log' && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
+      ctx.addIssue({ code: 'custom', path: ['MAIL_TRANSPORT'], message: `may only be log when NODE_ENV is ${DEV_AUTH_ALLOWED_NODE_ENVS.join(' or ')}` });
+    }
+    if (env.MAIL_TRANSPORT === 'smtp' && env.SMTP_URL === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['SMTP_URL'], message: 'is required when MAIL_TRANSPORT is smtp' });
+    }
+  });
+
+export type WorkerEnv = z.infer<typeof workerEnvSchema>;
+
 /** Environment consumed by the migration runner. */
 export const migratorEnvSchema = z.object({
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),

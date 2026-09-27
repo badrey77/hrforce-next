@@ -1,7 +1,7 @@
 /**
  * Throwaway database on a Postgres cluster reachable with a superuser URL — same approach as the API's
- * test harness (apps/api/test/support/test-database.ts): create the two cluster roles if missing, create
- * `hrforce_guard_<random>` owned by hrforce_migrator, drop it afterwards.
+ * test harness (apps/api/test/support/test-database.ts): create the cluster roles if missing, create
+ * `hrforce_guard_<random>` owned by hrforce_migrator (roles: hrforce_migrator, hrforce_app, hrforce_worker), drop it afterwards.
  */
 import { randomBytes } from 'node:crypto';
 import { Client } from 'pg';
@@ -9,6 +9,7 @@ import { Client } from 'pg';
 export const ROLE_PASSWORDS = {
   hrforce_migrator: process.env['TEST_MIGRATOR_PASSWORD'] ?? 'hrforce_migrator_test',
   hrforce_app: process.env['TEST_APP_PASSWORD'] ?? 'hrforce_app_test',
+  hrforce_worker: process.env['TEST_WORKER_PASSWORD'] ?? 'hrforce_worker_test',
 } as const;
 
 const PASSWORD_PATTERN = /^[A-Za-z0-9_.-]+$/;
@@ -57,6 +58,10 @@ async function ensureRoles(client: Client): Promise<void> {
           end;
           begin
             create role hrforce_app login nosuperuser nocreatedb nocreaterole nobypassrls password '${ROLE_PASSWORDS.hrforce_app}';
+          exception when duplicate_object or unique_violation then null;
+          end;
+          begin
+            create role hrforce_worker login nosuperuser nocreatedb nocreaterole nobypassrls password '${ROLE_PASSWORDS.hrforce_worker}';
           exception when duplicate_object or unique_violation then null;
           end;
         end

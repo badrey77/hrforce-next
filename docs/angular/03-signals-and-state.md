@@ -78,6 +78,13 @@ or fire during change detection in a way that surprises you. Reach for `effect()
 for genuine side effects (and prefer doing them in response to a user action or in a
 resource, if you can) — not as a substitute for `computed()`.
 
+
+**A legitimate effect: owning a connection.** `core/notifications/notification-center.ts`
+opens a Server-Sent Events stream while signed in and closes it on sign-out with one
+`effect()` on a `computed()` session key, its body wrapped in `untracked()`. That is not
+state derivation — it synchronises something *outside* the signal graph (a network
+connection) with a signal. Chapter 16 walks through it.
+
 ## Combining an app-wide cache signal with the language signal
 
 Kind labels ("Direction générale", "Agence"…) are **data**: the business maintains them

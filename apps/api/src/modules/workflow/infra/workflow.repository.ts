@@ -193,6 +193,29 @@ export class WorkflowRepository {
     return rows;
   }
 
+  /**
+   * Users holding `permission` over `unitId` today (grants valid today whose role holds it, on the unit or on an
+   * ancestor with include_descendants — the same rule as the grant-backed ScopeService, seen from the unit). The
+   * candidates of a permission task at the moment it opens / is cancelled (notifications).
+   */
+  async permissionHolders(companyId: string, permission: string, unitId: string): Promise<string[]> {
+    const { rows } = await sql<{ user_id: string }>`
+      select distinct g.user_id
+        from role_grant g
+        join role_permission rp on rp.company_id = g.company_id and rp.role_id = g.role_id and rp.permission_code = ${permission}
+        join org_unit_closure c on c.company_id = g.company_id and c.ancestor_id = g.org_unit_id and c.descendant_id = ${unitId}::uuid
+       where g.company_id = ${companyId}::uuid and g.valid @> current_date and (g.include_descendants or c.depth = 0)
+       order by g.user_id`.execute(currentTx());
+    return rows.map((r) => r.user_id);
+  }
+
+  /** Open tasks of an instance (at most one). */
+  async openTasks(companyId: string, instanceId: string): Promise<TaskRow[]> {
+    const { rows } = await sql<TaskRow>`select ${TASK_COLUMNS} from workflow_task t
+      where t.company_id = ${companyId}::uuid and t.instance_id = ${instanceId}::uuid and t.status = 'open'`.execute(currentTx());
+    return rows;
+  }
+
   /** Display names of the company's members (memoised per request). */
   names(companyId: string): Promise<Map<string, string>> {
     return requestMemo(`workflow:names:${companyId}`, async () => {

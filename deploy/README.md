@@ -7,17 +7,18 @@ Internet ──:80/:443──▶ proxy (Caddy, HTTPS for $STAGING_DOMAIN, securi
                           ├── /api, /api/* ──▶ api:3000   (hrforce-api image, NODE_ENV=production, DB role hrforce_app)
                           └── everything else ▶ web:8080  (hrforce-web image: Angular build + static Caddy, SPA fallback)
 api ──▶ postgres:5432 (postgres:18-alpine; internal network only, never published)
+worker ──▶ postgres (same hrforce-api image, `node dist/worker.js`, DB role hrforce_worker; no port) ──▶ SMTP relay
 migrate (one-shot, hrforce_migrator) · backup (nightly pg_dump → volume `backups`, 14 days)
 ```
 
 | File | Purpose |
 |---|---|
-| `compose.staging.yml` | the stack: `postgres`, `migrate`, `api`, `web`, `proxy`, `backup` |
+| `compose.staging.yml` | the stack: `postgres`, `migrate`, `api`, `worker`, `web`, `proxy`, `backup` |
 | `Caddyfile` | edge proxy: TLS, routing, headers, access log (setup tokens stripped) |
 | `web/Caddyfile`, `web/check-index-csp.mjs` | baked into the web image by `apps/web/Dockerfile` |
 | `.env.staging.example` | every variable, commented; the real file is `deploy/.env` on the server |
 | `init-env.sh` | creates `.env` with generated secrets |
-| `deploy.sh <sha>` | pull → migrate → up → wait for health → record the release (also the rollback command) |
+| `deploy.sh <sha>` | pull → roles (create-roles.sql) → migrate → up → wait for health → record the release (also the rollback command) |
 | `smoke.sh <url>` | post-deploy checks (health, SPA, headers/CSP, 401 problem+json, redirects) |
 | `backup/backup.sh`, `backup/restore-test.sh` | nightly dump; restore test into a throwaway container |
 | `../.github/workflows/deploy-staging.yml` | CI: build and push images to GHCR, deploy over SSH, smoke check |
@@ -82,7 +83,8 @@ account, private by default.
    ```
 
    What `init-env.sh` does, if you prefer to do it by hand (`cp .env.staging.example .env && chmod 600 .env`):
-   - `POSTGRES_SUPERUSER_PASSWORD`, `HRFORCE_MIGRATOR_PASSWORD`, `HRFORCE_APP_PASSWORD`: `openssl rand -hex 32` each
+   - `POSTGRES_SUPERUSER_PASSWORD`, `HRFORCE_MIGRATOR_PASSWORD`, `HRFORCE_APP_PASSWORD`, `HRFORCE_WORKER_PASSWORD`:
+     `openssl rand -hex 32` each
      (hex because they go into `postgres://` URLs);
    - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: `openssl rand -base64 48` each (all different).
 
@@ -91,8 +93,9 @@ account, private by default.
 
 3. **Deploy**: push to `main` (the deploy runs after CI is green) or *Actions → Deploy staging → Run workflow* on
    `main` with an empty sha. The first run creates the database: the Postgres container runs `create-roles.sql` on
-   its empty volume (roles `hrforce_migrator` and `hrforce_app` with the `.env` passwords, database `hrforce`), then
-   `migrate` applies every migration, then the stack starts and Caddy obtains the certificate. By hand, on the server:
+   its empty volume (roles `hrforce_migrator`, `hrforce_app` and `hrforce_worker` with the `.env` passwords, database
+   `hrforce`), then `migrate` applies every migration and installs the job queue schema, then the stack starts and
+   Caddy obtains the certificate. By hand, on the server:
    `docker login ghcr.io` (a PAT with `read:packages`), then `./deploy.sh <full sha>`.
 
 4. **Check**: `./smoke.sh https://staging.hrforce.example.dz` (CI runs it too), `docker compose ps`,
@@ -107,6 +110,7 @@ account, private by default.
 ```sh
 docker compose ps
 docker compose logs -f --tail=200 api          # JSON logs (pino); proxy = access log
+docker compose logs -f --tail=200 worker       # one JSON line per job: "job done" / "job failed" (task, jobId, attempt)
 docker compose restart api
 docker compose exec postgres psql -U postgres -d hrforce
 cat releases.log                               # what ran when
@@ -116,7 +120,22 @@ cat releases.log                               # what ran when
 
 Automatic: every push to `main` whose CI run succeeds is built, pushed and deployed (one deploy at a time;
 `concurrency` queues the next). Manual: *Run workflow* on a branch with an empty sha. Under the hood:
-`docker compose pull && docker compose run --rm migrate && docker compose up -d --wait` (`deploy.sh`).
+`docker compose pull`, re-apply `create-roles.sql` (idempotent, passwords from `.env` — so a release that adds a role
+works on an existing database), `docker compose run --rm migrate && docker compose up -d --wait` (`deploy.sh`).
+
+**Upgrading an install from before the worker (migration 0012):** add `HRFORCE_WORKER_PASSWORD=$(openssl rand -hex 32)`
+(and optionally `WORKER_CONCURRENCY=4`) to `.env` first; `deploy.sh` refuses to run without it, then creates the role.
+
+### Background worker
+
+`worker` runs the jobs the API enqueues in its transactions (one notification e-mail per notification, sent through
+`SMTP_URL`) and the cron (UTC): audit partitions (1st of the month 00:10), leave accruals for the previous month (1st,
+01:00), auth cleanup (daily 03:00), read-notification cleanup (daily 03:30). Missed ticks are caught up when it starts
+again (7 days back for the monthly jobs, 12 h for the daily ones). `docker compose stop worker` is safe: queued jobs
+wait in Postgres. Health = a heartbeat file touched every 30 s after a database check. Inspect the queue:
+`docker compose exec postgres psql -U postgres -d hrforce -c "select task_identifier, attempts, last_error, run_at from graphile_worker.jobs order by run_at"`.
+Live notifications (`/api/me/notifications/stream`) are Server-Sent Events: Caddy flushes `text/event-stream`
+immediately (no config needed); the stream closes itself within 15 minutes and the browser reconnects.
 
 ### Rollback
 
@@ -175,10 +194,11 @@ those passwords (`/password/forgot` flow) right after seeding.
   ```sh
   docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
     -v migrator_password="'$(sed -n 's/^HRFORCE_MIGRATOR_PASSWORD=//p' .env)'" \
-    -v app_password="'$(sed -n 's/^HRFORCE_APP_PASSWORD=//p' .env)'" -v db=hrforce \
+    -v app_password="'$(sed -n 's/^HRFORCE_APP_PASSWORD=//p' .env)'" \
+    -v worker_password="'$(sed -n 's/^HRFORCE_WORKER_PASSWORD=//p' .env)'" -v db=hrforce \
     -f /hrforce/create-roles.sql
   docker compose exec -T postgres psql -U postgres -c "alter role postgres password '$(sed -n 's/^POSTGRES_SUPERUSER_PASSWORD=//p' .env)'"
-  docker compose up -d api backup
+  docker compose up -d api worker backup
   ```
 
 ## Backups
@@ -213,19 +233,20 @@ Exit code 0 = the dump is restorable. Record the date and result.
 ```sh
 cd /opt/hrforce/deploy
 docker compose exec backup /bin/sh /hrforce/backup.sh --once           # safety copy of the current state
-docker compose stop api
+docker compose stop api worker
 docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \
   -c "drop database hrforce with (force)" -c "create database hrforce owner hrforce_migrator"
 docker compose exec -T backup pg_restore --dbname=hrforce --exit-on-error /backups/hrforce-<timestamp>.dump
-docker compose start api && ./smoke.sh https://$(sed -n 's/^STAGING_DOMAIN=//p' .env)
+docker compose start api worker && ./smoke.sh https://$(sed -n 's/^STAGING_DOMAIN=//p' .env)
 ```
 
 Then deploy the SHA that matches the restored schema if it is older than the running one (`releases.log`).
 
 ## Security notes
 
-- The API gets only the `hrforce_app` URL; the migrator password lives in the one-shot `migrate` container, the
-  superuser password in `postgres` and `backup`. `DEV_AUTH`, `DEV_PERMISSIONS`, `MAIL_TRANSPORT=log` and
+- The API gets only the `hrforce_app` URL, the worker only the `hrforce_worker` URL (RLS applies to both; the worker
+  sets each job's company); the migrator password lives in the one-shot `migrate` container, the superuser password in
+  `postgres` and `backup`. `DEV_AUTH`, `DEV_PERMISSIONS`, `MAIL_TRANSPORT=log` and
   `COOKIE_SECURE=false` are never set (the API refuses them in production; `deploy.sh` refuses an `.env` containing them).
 - The proxy strips `X-Dev-User-Id` / `X-Dev-Company-Id`, replaces any client `X-Forwarded-For` (so the login throttle
   sees the real IP with `TRUST_PROXY_HOPS=1`), removes the `Server` header, and drops the `token` query parameter from
@@ -237,7 +258,7 @@ Then deploy the SHA that matches the restored schema if it is older than the run
   handler (e.g. Angular's critical-CSS inlining, which must stay off: `inlineCritical: false`).
 - HSTS is `max-age=31536000` without `includeSubDomains`/`preload` (a staging host should not pin its parent domain).
   `X-Robots-Tag: noindex` keeps staging out of search engines.
-- Containers: `api` and `web` run as non-root with a read-only root filesystem and every capability dropped; `proxy`
+- Containers: `api`, `worker` and `web` run as non-root with a read-only root filesystem and every capability dropped; `proxy`
   keeps only `NET_BIND_SERVICE`.
 
 ### Protect the `staging` environment

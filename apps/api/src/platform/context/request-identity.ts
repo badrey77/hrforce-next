@@ -7,6 +7,8 @@ export interface RequestIdentity {
   readonly companyId: string | null;
   /** Refresh session id (`sid`) when the identity comes from the access-token cookie; absent otherwise. */
   readonly sessionId?: string | null;
+  /** Expiry of the credential behind the identity (seconds since epoch; access-token `exp`); absent = none known. */
+  readonly expiresAt?: number | null;
 }
 
 export const ANONYMOUS: RequestIdentity = Object.freeze({ userId: null, companyId: null });

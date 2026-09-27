@@ -1,0 +1,196 @@
+/**
+ * Notification e-mails (docs/contracts/notifications.md › Rules): one per notification, in the recipient's locale,
+ * plain text + simple HTML (dir="rtl" for Arabic). Privacy: who / what / when + a link — never balances or reasons
+ * (a rejection's comment stays in the app). Pure: no Nest, no Kysely.
+ */
+import type { NotificationType } from '../../../platform/notifications/notifier.js';
+
+export type MailLocale = 'fr' | 'ar' | 'en';
+
+export interface NotificationMailInput {
+  type: NotificationType;
+  locale: MailLocale;
+  recipientName: string;
+  /** the notification's data (employeeName, employeeNameAr, leaveType, startDate, endDate, days, actorName, …) */
+  data: Readonly<Record<string, unknown>>;
+  /** the leave type's label in the recipient's locale (falls back to the code) */
+  leaveTypeLabel: string | null;
+  /** absolute link (`${WEB_BASE_URL}` + the notification's path) */
+  link: string;
+}
+
+export interface NotificationMail {
+  subject: string;
+  text: string;
+  html: string;
+}
+
+interface Facts {
+  employee: string;
+  type: string;
+  start: string;
+  end: string;
+  days: string;
+  actor: string;
+}
+
+interface Wording {
+  greeting: (name: string) => string;
+  subjects: Record<NotificationType, (f: Facts) => string>;
+  bodies: Record<NotificationType, (f: Facts) => string>;
+  action: Record<NotificationType, string>;
+  footer: string;
+  signature: string;
+  someone: string;
+  daysUnit: (days: string) => string;
+}
+
+const WORDING: Record<MailLocale, Wording> = {
+  fr: {
+    greeting: (name) => `Bonjour ${name},`,
+    subjects: {
+      'task.assigned': (f) => `HRForce — demande de congé à traiter : ${f.employee}`,
+      'task.escalated': () => 'HRForce — votre demande de congé est transmise aux RH',
+      'leave.approved': () => 'HRForce — demande de congé approuvée',
+      'leave.rejected': () => 'HRForce — demande de congé refusée',
+      'leave.cancelled': (f) => `HRForce — demande de congé annulée : ${f.employee}`,
+      'leave.submitted_on_behalf': () => 'HRForce — une demande de congé a été déposée pour vous',
+    },
+    bodies: {
+      'task.assigned': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
+      'task.escalated': (f) =>
+        `L’étape du responsable hiérarchique n’a pas pu être attribuée pour la demande de ${f.employee} (${f.type}, du ${f.start} au ${f.end}) : elle est transmise directement aux ressources humaines.`,
+      'leave.approved': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) a été approuvée par ${f.actor}.`,
+      'leave.rejected': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
+      'leave.cancelled': (f) => `${f.actor} a annulé la demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}). Elle ne demande plus votre décision.`,
+      'leave.submitted_on_behalf': (f) => `${f.actor} a déposé pour vous une demande de congé : ${f.type}, du ${f.start} au ${f.end} (${f.days}).`,
+    },
+    action: {
+      'task.assigned': 'Ouvrir la tâche',
+      'task.escalated': 'Voir la demande',
+      'leave.approved': 'Voir la demande',
+      'leave.rejected': 'Voir la demande',
+      'leave.cancelled': 'Ouvrir mes tâches',
+      'leave.submitted_on_behalf': 'Voir la demande',
+    },
+    footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
+    signature: 'L’équipe HRForce',
+    someone: 'un gestionnaire',
+    daysUnit: (days) => `${days} j`,
+  },
+  ar: {
+    greeting: (name) => `مرحبًا ${name}،`,
+    subjects: {
+      'task.assigned': (f) => `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`,
+      'task.escalated': () => 'HRForce — تمت إحالة طلب عطلتك إلى الموارد البشرية',
+      'leave.approved': () => 'HRForce — تمت الموافقة على طلب العطلة',
+      'leave.rejected': () => 'HRForce — تم رفض طلب العطلة',
+      'leave.cancelled': (f) => `HRForce — تم إلغاء طلب العطلة: ${f.employee}`,
+      'leave.submitted_on_behalf': () => 'HRForce — تم تقديم طلب عطلة باسمك',
+    },
+    bodies: {
+      'task.assigned': (f) => `طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
+      'task.escalated': (f) => `تعذر إسناد خطوة المسؤول المباشر لطلب ${f.employee} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
+      'leave.approved': (f) => `تمت الموافقة على طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) من طرف ${f.actor}.`,
+      'leave.rejected': (f) => `تم رفض طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'leave.cancelled': (f) => `ألغى ${f.actor} طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}). لم يعد الطلب في انتظار قرارك.`,
+      'leave.submitted_on_behalf': (f) => `قدّم ${f.actor} طلب عطلة باسمك: ${f.type}، من ${f.start} إلى ${f.end} (${f.days}).`,
+    },
+    action: {
+      'task.assigned': 'فتح المهمة',
+      'task.escalated': 'عرض الطلب',
+      'leave.approved': 'عرض الطلب',
+      'leave.rejected': 'عرض الطلب',
+      'leave.cancelled': 'فتح مهامي',
+      'leave.submitted_on_behalf': 'عرض الطلب',
+    },
+    footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
+    signature: 'فريق HRForce',
+    someone: 'أحد المسيّرين',
+    daysUnit: (days) => `${days} يوم`,
+  },
+  en: {
+    greeting: (name) => `Hello ${name},`,
+    subjects: {
+      'task.assigned': (f) => `HRForce — leave request awaiting your decision: ${f.employee}`,
+      'task.escalated': () => 'HRForce — your leave request went straight to HR',
+      'leave.approved': () => 'HRForce — leave request approved',
+      'leave.rejected': () => 'HRForce — leave request rejected',
+      'leave.cancelled': (f) => `HRForce — leave request cancelled: ${f.employee}`,
+      'leave.submitted_on_behalf': () => 'HRForce — a leave request was filed for you',
+    },
+    bodies: {
+      'task.assigned': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
+      'task.escalated': (f) => `The line-manager step could not be assigned for the request of ${f.employee} (${f.type}, ${f.start} to ${f.end}); it went straight to human resources.`,
+      'leave.approved': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) was approved by ${f.actor}.`,
+      'leave.rejected': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}) was rejected by ${f.actor}. The details are in the app.`,
+      'leave.cancelled': (f) => `${f.actor} cancelled the leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}). It no longer needs your decision.`,
+      'leave.submitted_on_behalf': (f) => `${f.actor} filed a leave request for you: ${f.type}, ${f.start} to ${f.end} (${f.days}).`,
+    },
+    action: {
+      'task.assigned': 'Open the task',
+      'task.escalated': 'View the request',
+      'leave.approved': 'View the request',
+      'leave.rejected': 'View the request',
+      'leave.cancelled': 'Open my tasks',
+      'leave.submitted_on_behalf': 'View the request',
+    },
+    footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
+    signature: 'The HRForce team',
+    someone: 'a manager',
+    daysUnit: (days) => `${days} day${days === '1' ? '' : 's'}`,
+  },
+};
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+function str(value: unknown): string {
+  return typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '';
+}
+
+/** 2026-10-12 → 12/10/2026 (fr, ar) or 2026-10-12 (en). */
+export function formatDate(iso: string, locale: MailLocale): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m || locale === 'en') return iso;
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** 2.5 → "2,5" (fr), "2.5" otherwise. */
+export function formatDays(days: unknown, locale: MailLocale): string {
+  const n = typeof days === 'number' ? days : Number(days);
+  if (!Number.isFinite(n)) return '';
+  const text = Number.isInteger(n) ? String(n) : n.toFixed(1);
+  return locale === 'fr' ? text.replace('.', ',') : text;
+}
+
+export function renderNotificationMail(input: NotificationMailInput): NotificationMail {
+  const w = WORDING[input.locale];
+  const d = input.data;
+  const employee = (input.locale === 'ar' && str(d['employeeNameAr'])) || str(d['employeeName']);
+  const facts: Facts = {
+    employee,
+    type: input.leaveTypeLabel ?? str(d['leaveType']),
+    start: formatDate(str(d['startDate']), input.locale),
+    end: formatDate(str(d['endDate']), input.locale),
+    days: w.daysUnit(formatDays(d['days'], input.locale)),
+    actor: str(d['actorName']) || w.someone,
+  };
+  const subject = w.subjects[input.type](facts);
+  const body = w.bodies[input.type](facts);
+  const action = w.action[input.type];
+  const separator = input.locale === 'fr' ? ' : ' : ': ';
+  const text = [w.greeting(input.recipientName), '', body, '', `${action}${separator}${input.link}`, '', w.footer, '', w.signature].join('\n');
+  const dir = input.locale === 'ar' ? 'rtl' : 'ltr';
+  const html = [
+    `<!doctype html><html lang="${input.locale}" dir="${dir}"><body style="font-family: sans-serif; line-height: 1.5">`,
+    `<p>${escapeHtml(w.greeting(input.recipientName))}</p>`,
+    `<p>${escapeHtml(body)}</p>`,
+    `<p><a href="${escapeHtml(input.link)}">${escapeHtml(action)}</a></p>`,
+    `<p style="color: #555">${escapeHtml(w.footer)}</p>`,
+    `<p>${escapeHtml(w.signature)}</p>`,
+    '</body></html>',
+  ].join('\n');
+  return { subject, text, html };
+}

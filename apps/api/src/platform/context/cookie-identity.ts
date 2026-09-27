@@ -5,7 +5,7 @@ import { ANONYMOUS, RequestIdentityResolver, type RequestIdentity } from './requ
 
 /**
  * The real identity (docs/contracts/identity.md): a valid `hrf_at` access token (HS256, AUTH_ACCESS_SECRET) →
- * `{userId: sub, companyId: cid, sessionId: sid}`. Missing, malformed, tampered, wrong-alg or expired → anonymous
+ * `{userId: sub, companyId: cid, sessionId: sid, expiresAt: exp}`. Missing, malformed, tampered, wrong-alg or expired → anonymous
  * (the client then refreshes). Verified statelessly: no database access per request.
  * Built by identityResolverFactory (platform/authz/dev-auth.ts), not by DI.
  */
@@ -18,7 +18,7 @@ export class CookieIdentityResolver extends RequestIdentityResolver {
     const token = readCookie(req, ACCESS_COOKIE);
     const claims = token ? verifyAccessToken(this.accessSecret, token) : null;
     if (!claims) return Promise.resolve(ANONYMOUS);
-    return Promise.resolve({ userId: claims.sub, companyId: claims.cid, sessionId: claims.sid });
+    return Promise.resolve({ userId: claims.sub, companyId: claims.cid, sessionId: claims.sid, expiresAt: claims.exp });
   }
 }
 

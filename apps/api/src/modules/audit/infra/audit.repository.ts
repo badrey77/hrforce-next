@@ -92,6 +92,20 @@ export class AuditRepository {
     return rows[0]?.org_unit_id;
   }
 
+  /** What decides who may see a leave request's history (like GET /leave/requests/:id). undefined = unknown id. */
+  async leaveRequestAccess(
+    companyId: string,
+    id: string,
+  ): Promise<{ orgUnitId: string; requestedBy: string; linkedUserId: string | null; workflowInstanceId: string | null } | undefined> {
+    const { rows } = await sql<{ orgUnitId: string; requestedBy: string; linkedUserId: string | null; workflowInstanceId: string | null }>`
+      select r.org_unit_id as "orgUnitId", r.requested_by as "requestedBy", ue.user_id as "linkedUserId",
+             r.workflow_instance_id as "workflowInstanceId"
+        from leave_request r
+        left join user_employment ue on ue.company_id = r.company_id and ue.employment_id = r.employment_id
+       where r.company_id = ${companyId}::uuid and r.id = ${id}::uuid`.execute(currentTx());
+    return rows[0];
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -137,7 +151,7 @@ export class AuditRepository {
         select 1 as kind, e.id, e.at, ${AT_MICROS('e.at')} as at_micros, e.actor_user_id, e.request_id,
                null, null, null, null, null, e.type, e.data
           from audit.event e
-         where e.company_id = ${companyId}::uuid and e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid
+         where e.company_id = ${companyId}::uuid and (${this.eventSubject(companyId, subject)})
            and (${this.eventFilter(options.unitScope)})
       ) x
       where ${after}
@@ -158,6 +172,14 @@ export class AuditRepository {
       type: r.type,
       data: r.data,
     }));
+  }
+
+  /** Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests. */
+  private eventSubject(companyId: string, subject: TimelineSubject): RawBuilder<boolean> {
+    const own = sql<boolean>`(e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid)`;
+    if (subject.type !== 'employee') return own;
+    return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
+      select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -188,8 +210,10 @@ export class AuditRepository {
         return sql<boolean>`c.table_name in ('role', 'role_permission') and c.row_id = ${id}::uuid`;
       case 'employee':
         // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
-        // sensitive row (keyed on person_id: audit.capture('person_id'))
+        // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests (never deleted by the app)
         return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
+          or (c.table_name = 'leave_request' and c.row_id in (
+                select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${id}::uuid))
           or (c.table_name in ('assignment', 'employment_salary') and c.row_id in (
                 select a.id from assignment a where a.company_id = ${companyId}::uuid and a.employment_id = ${id}::uuid
                 union
@@ -200,6 +224,16 @@ export class AuditRepository {
                    and i.after ->> 'employment_id' = ${id}::text))
           or (c.table_name in ('person', 'person_sensitive') and c.row_id in (
                 select e.person_id from employment e where e.company_id = ${companyId}::uuid and e.id = ${id}::uuid))`;
+      case 'leave_request':
+        // the request, its workflow instance and that instance's tasks (workflow rows are never deleted by the app)
+        return sql<boolean>`(c.table_name = 'leave_request' and c.row_id = ${id}::uuid)
+          or (c.table_name = 'workflow_instance' and c.row_id in (
+                select i.id from workflow_instance i
+                 where i.company_id = ${companyId}::uuid and i.subject_type = 'leave_request' and i.subject_id = ${id}::uuid))
+          or (c.table_name = 'workflow_task' and c.row_id in (
+                select t.id from workflow_task t
+                  join workflow_instance i on i.company_id = t.company_id and i.id = t.instance_id
+                 where t.company_id = ${companyId}::uuid and i.subject_type = 'leave_request' and i.subject_id = ${id}::uuid))`;
       case 'user':
         // the user's grants whose unit is in the caller's audit.read scope (grants are never deleted by the app; an
         // insert row also identifies one removed by hand)

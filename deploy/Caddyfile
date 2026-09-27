@@ -8,7 +8,9 @@
 }
 
 {$STAGING_DOMAIN} {
-	encode zstd gzip
+	# Compression buffers responses, which would hold back Server-Sent Events: never compress the notification stream.
+	@compressible not path /api/me/notifications/stream
+	encode @compressible zstd gzip
 
 	# Access log on stdout (docker compose logs proxy). /password/setup?token=… carries a live single-use token in
 	# its query: drop it from the log. Cookie / Authorization headers are redacted by Caddy by default.

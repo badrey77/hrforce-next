@@ -2,7 +2,7 @@
  * Audit timeline — pure rules (docs/contracts/audit.md › Endpoint). No Nest, no Kysely.
  */
 
-export const TIMELINE_SUBJECT_TYPES = ['org_unit', 'site', 'role', 'user', 'employee'] as const;
+export const TIMELINE_SUBJECT_TYPES = ['org_unit', 'site', 'role', 'user', 'employee', 'leave_request'] as const;
 export type TimelineSubjectType = (typeof TIMELINE_SUBJECT_TYPES)[number];
 
 export interface TimelineSubject {

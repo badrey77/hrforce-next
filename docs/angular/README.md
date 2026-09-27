@@ -60,6 +60,14 @@ the files it discusses, so you can jump straight to the source.
     optimistic updates with rollback, a stepper over a pure function (RTL), the second
     ControlValueAccessor.
 
+16. [16-live-data-sse-and-signals.md](./16-live-data-sse-and-signals.md) — notifications: Server-Sent
+    Events vs WebSocket vs polling, a root service whose `effect()` opens/closes a connection with the
+    session, `DestroyRef` cleanup, zoneless updates from browser callbacks, renewing the session
+    before reconnecting (EventSource bypasses interceptors), backoff + fallback, a `Subject` event bus
+    next to signals, the bell (disclosure vs `popover`, `UrlTree` links, `@defer (when …)`,
+    `afterRenderEffect`), query params as entry points, testing with an `InjectionToken` + fake
+    EventSource.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (contracts and documents, M2, are next).
 
@@ -149,6 +157,19 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Inline edit with one FormGroup; number inputs → `number \| null` | 15, 07 | `src/app/features/leave/leave-types-settings.ts` |
 | Day/month names from locale data (`DatePipe` 'EEEE'/'LLLL') | 13 | `src/app/features/leave/policy-settings.ts` |
 | `DeferBlockBehavior.Manual`/`Playthrough`, faked `IntersectionObserver` | 09, 13 | `src/app/shared/timeline/history-tabs.spec.ts`, `src/testing/intersection-observer.ts` |
+| Server-Sent Events (`EventSource`) in a root signal store; EventSource vs WebSocket vs polling | 16 | `src/app/core/notifications/notification-center.ts` |
+| `effect()` + `untracked()` owning a connection keyed on the session; `DestroyRef.onDestroy` | 16, 03 | `src/app/core/notifications/notification-center.ts` |
+| Signals set from browser callbacks (zoneless, no `NgZone`) | 16, 01 | `src/app/core/notifications/notification-center.ts` |
+| Renew the session with an HttpClient call before reconnecting a stream; backoff + fallback | 16, 06 | `src/app/core/notifications/notification-center.ts` |
+| `InjectionToken` with a default `factory` for a non-class dependency (testability) | 16, 04 | `src/app/core/notifications/event-source.ts`, `src/testing/fake-event-source.ts` |
+| Event bus: RxJS `Subject` for events vs signals for state | 16 | `src/app/core/notifications/notification-events.ts` |
+| Disclosure dropdown (Escape, click outside, focus return), `host: {'(document:click)'}` | 16 | `src/app/shell/notification-bell.ts` |
+| `[routerLink]` with a `UrlTree` (links with a query string); `safeAppLink` | 16, 05 | `src/app/shell/notification-bell.ts` |
+| `@defer (when …; prefetch on idle)` around an `@if` | 16, 13 | `src/app/shell/notification-bell.ts` |
+| `afterRenderEffect()` for focus/scroll once an element exists | 16 | `src/app/shell/notification-bell.ts`, `src/app/features/my-leave/my-leave.page.ts` |
+| Pure pipe with a `now` argument; `Intl.RelativeTimeFormat` | 16, 13 | `src/app/shared/relative-time/relative-time.pipe.ts` |
+| Query param as an entry point → input → `linkedSignal` selection | 16, 14 | `src/app/features/tasks/tasks.page.ts` |
+| `linkedSignal` as an editable copy of server data; writable resource `set()` | 16, 03 | `src/app/features/settings/settings.page.ts` |
 
 ## Glossary
 
@@ -223,6 +244,8 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   during bootstrap; the app waits for its Promise/Observable. See chapter 11.
 - **Lazy loading** — code for a route is fetched only when the user navigates there
   (`loadComponent`/`loadChildren`), splitting the JS bundle. See chapter 05.
+- **Server-Sent Events (SSE)** — a long-lived HTTP response (`text/event-stream`) on which the
+  server writes named events; read in the browser with `EventSource`. See chapter 16.
 - **`TestBed`** — Angular's test harness: configures a mini application (providers,
   imports) for a test and creates component instances (`fixtures`) inside it. See
   chapter 09.

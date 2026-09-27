@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
@@ -10,6 +10,7 @@ import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import { LanguageService } from '../../core/i18n/language.service';
+import { NotificationEvents } from '../../core/notifications/notification-events';
 import { MyLeavePage } from './my-leave.page';
 
 async function settle(): Promise<void> {
@@ -36,7 +37,7 @@ describe('MyLeavePage', () => {
     await TestBed.configureTestingModule({
       imports: [translocoTesting()],
       providers: [
-        provideRouter([{ path: 'me/leave', component: MyLeavePage }]),
+        provideRouter([{ path: 'me/leave', component: MyLeavePage }], withComponentInputBinding()),
         provideHttpClient(withInterceptors([apiProblemInterceptor])),
         provideHttpClientTesting(),
       ],
@@ -53,8 +54,8 @@ describe('MyLeavePage', () => {
 
   const el = () => harness.routeNativeElement as HTMLElement;
 
-  async function open(requests = [leaveSummary(), leaveSummary({ id: 'r-2', status: 'rejected', workflow: { ...MANAGER_THEN_HR, status: 'rejected', currentStep: null } })]): Promise<void> {
-    await harness.navigateByUrl('/me/leave');
+  async function open(requests = [leaveSummary(), leaveSummary({ id: 'r-2', status: 'rejected', workflow: { ...MANAGER_THEN_HR, status: 'rejected', currentStep: null } })], url = '/me/leave'): Promise<void> {
+    await harness.navigateByUrl(url);
     await settle();
     flushLeaveTypes(http);
     http.expectOne('/api/me/employment').flush(EMPLOYMENT);
@@ -132,5 +133,39 @@ describe('MyLeavePage', () => {
     await settle();
     // The form's pending preview (debounced) may have gone out before the form was removed.
     for (const req of http.match('/api/leave/preview')) req.flush({ days: 1, breakdown: { calendarDays: 1, weekendDays: 0, holidays: [] }, balanceAfter: 1 });
+  });
+
+  it('?request=<id> (a notification or email link) scrolls to, highlights and focuses that request', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    await open(undefined, '/me/leave?request=r-2');
+    const row = el().querySelector('[data-request="r-2"]') as HTMLElement;
+    expect(row.classList.contains('highlight')).toBe(true);
+    expect(row.getAttribute('aria-current')).toBe('true');
+    expect(scroll).toHaveBeenCalledTimes(1);
+    // Focusable by script (tabindex -1) so it can receive the focus; the harness root is not attached to the document.
+    expect(row.getAttribute('tabindex')).toBe('-1');
+    expect(el().querySelector('[data-request]:not([data-request="r-2"])')?.classList.contains('highlight')).toBe(false);
+    expect(el().querySelector('[data-state="request-missing"]')).toBeNull();
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+  });
+
+  it('?request=<id> not among my requests says so', async () => {
+    await open(undefined, '/me/leave?request=r-404');
+    expect(el().querySelector('[data-state="request-missing"]')?.textContent).toContain('ne figure pas');
+  });
+
+  it('reloads balances and requests when a leave.* notification arrives live (not on task.*)', async () => {
+    await open();
+    const bus = TestBed.inject(NotificationEvents);
+    bus.emit({ id: 'n-1', type: 'task.assigned' });
+    await settle();
+    http.expectNone('/api/me/leave/requests');
+    bus.emit({ id: 'n-2', type: 'leave.approved' });
+    await settle();
+    http.expectOne((r) => r.url === '/api/me/leave/balances').flush({ asOf: '2026-09-26', items: [BALANCE_2025] });
+    http.expectOne('/api/me/leave/requests').flush({ items: [leaveSummary({ status: 'approved' })] });
+    await settle();
+    expect(el().querySelector('[data-request] .badge')?.textContent).toContain('Approuvé');
   });
 });

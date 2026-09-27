@@ -1,10 +1,11 @@
 # Starts HRForce Next locally from PowerShell (Windows PowerShell 5.1 or PowerShell 7):
-# Postgres + Mailpit (Docker Desktop), migrations, demo seed, then the API and the web app in two new windows.
+# Postgres + Mailpit (Docker Desktop), migrations, demo seed, then the API, the background worker (notification
+# e-mails, cron) and the web app in three new windows.
 #
 # Usage (repo root):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\dev-up.ps1          # start
 #   powershell -ExecutionPolicy Bypass -File .\scripts\dev-up.ps1 -Reset   # wipe the database first
-# Stop: close the two windows (or Ctrl+C in them); `cd apps\api; docker compose down` stops the database.
+# Stop: close the three windows (or Ctrl+C in them); `cd apps\api; docker compose down` stops the database.
 # Needs: Node >= 22.22.3, npm 11, Docker Desktop running.
 param([switch]$Reset)
 
@@ -29,6 +30,12 @@ if (-not (Test-Path 'apps\api\.env')) {
   Step 'Creating apps\api\.env from .env.example'
   Copy-Item 'apps\api\.env.example' 'apps\api\.env'
 }
+# An .env created before the worker existed: add its settings from .env.example.
+if (-not (Select-String -Path 'apps\api\.env' -Pattern '^WORKER_DATABASE_URL=' -Quiet)) {
+  Step 'Adding the worker settings (WORKER_DATABASE_URL, WORKER_CONCURRENCY) to apps\api\.env'
+  $workerLines = Select-String -Path 'apps\api\.env.example' -Pattern '^(WORKER_DATABASE_URL|WORKER_CONCURRENCY)=' | ForEach-Object { $_.Line }
+  Add-Content -Path 'apps\api\.env' -Value (@('') + $workerLines)
+}
 
 # --- database ------------------------------------------------------------------------------------------------
 Push-Location 'apps\api'
@@ -46,6 +53,11 @@ try {
   }
   Write-Host ''
   if (-not $ready) { throw 'Postgres did not become ready. Check: cd apps\api; docker compose logs postgres' }
+  # A database volume created before migration 0012 has no hrforce_worker role (the init hook only runs on an empty
+  # volume): create it with the development password of .env.example.
+  $createWorker = "do `$`$ begin if not exists (select from pg_roles where rolname = 'hrforce_worker') then " +
+    "create role hrforce_worker login nosuperuser nocreatedb nocreaterole nobypassrls password 'hrforce_worker_dev'; end if; end `$`$"
+  Invoke-Checked 'create hrforce_worker' { docker compose exec -T postgres psql -q -U postgres -v ON_ERROR_STOP=1 -c $createWorker }
 } finally { Pop-Location }
 
 # --- environment: load apps\api\.env into this process (child windows inherit it) ------------------------------
@@ -64,11 +76,14 @@ Step 'Migrating and seeding the demo data'
 Invoke-Checked 'migrate' { npm run migrate -w '@hrforce/api' }
 Invoke-Checked 'seed' { npm run seed:dev -w '@hrforce/api' }
 
-# --- API and web in their own windows ------------------------------------------------------------------------
-Step 'Starting the API (http://localhost:3000) and the web app (http://localhost:4200) in new windows'
+# --- API, worker and web in their own windows -------------------------------------------------------------------
+Step 'Starting the API (http://localhost:3000), the worker and the web app (http://localhost:4200) in new windows'
 $shell = (Get-Process -Id $PID).Path   # the same PowerShell that runs this script
 Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
   '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce API'; npm start -w '@hrforce/api'")
+# Background jobs (Graphile Worker): notification e-mails and the monthly/daily cron. Built by seed:dev above.
+Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
+  '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce Worker'; npm run start:worker -w '@hrforce/api'")
 Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
   '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce Web'; npm start -w '@hrforce/web'")
 
@@ -79,7 +94,7 @@ Write-Host @'
     rh.admin@demo.dz       central HR admin (everything, salaries, Access screens)
     rh.est@demo.dz         regional HR, Region Est (Arabic UI)
     lecture.ouest@demo.dz  read-only, Region Ouest
-  Mails (password links): http://localhost:8025
-  Stop: close the "HRForce API" and "HRForce Web" windows; cd apps\api; docker compose down
+  Mails (password links, notification e-mails sent by the worker): http://localhost:8025
+  Stop: close the "HRForce API", "HRForce Worker" and "HRForce Web" windows; cd apps\api; docker compose down
 
 '@

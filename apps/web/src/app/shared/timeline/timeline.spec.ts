@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
-import { CREATED, PAGE_1, PAGE_2 } from '../../../testing/audit-fixtures';
+import { CREATED, LEAVE_APPROVED, LEAVE_CREATED, PAGE_1, PAGE_2, TASK_DONE, WORKFLOW_APPROVE } from '../../../testing/audit-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import { LanguageService } from '../../core/i18n/language.service';
@@ -21,6 +21,9 @@ async function settle(): Promise<void> {
 const DG_NAME: AuditNameResolver = (kind, value) => (kind === 'unit' && value === 'dg' ? 'Direction générale' : undefined);
 const GRANT_NAMES: AuditNameResolver = (kind, value) =>
   kind === 'unit' && value === 'r-ouest' ? 'Région Ouest' : kind === 'roleCode' && value === 'lecture' ? 'Lecture' : undefined;
+
+const LEAVE_NAMES: AuditNameResolver = (kind, value) =>
+  kind === 'leaveType' && value === 't-annual' ? 'Congé annuel' : kind === 'step' && value === 'hr' ? 'RH régionales' : undefined;
 
 describe('<app-timeline>', () => {
   let http: HttpTestingController;
@@ -185,5 +188,21 @@ describe('<app-timeline>', () => {
     req.flush(PAGE_2);
     await settle();
     expect(el().querySelectorAll('.entry').length).toBe(1);
+  });
+
+  it('leave requests (employee History / leave request detail): labels, statuses, outcomes and workflow events', async () => {
+    const req = await create('leave_request:r-1', LEAVE_NAMES);
+    expect(req.request.params.get('subject')).toBe('leave_request:r-1');
+    req.flush({ items: [LEAVE_APPROVED, WORKFLOW_APPROVE, TASK_DONE, LEAVE_CREATED], nextCursor: null });
+    await settle();
+
+    expect(text('[data-entry="c:90"] .what')).toBe('Création · Demande de congé');
+    expect(text('[data-entry="c:90"] [data-field="leave_type_id"]')).toBe('Type de congé Congé annuel');
+    expect(text('[data-entry="c:90"] [data-field="status"]')).toBe('Statut En attente');
+    expect(el().querySelector('[data-entry="c:90"] [data-field="employment_id"]')).toBeNull();
+    expect(text('[data-entry="c:95"] [data-field="status"] .after')).toBe('Approuvé');
+    expect(text('[data-entry="c:94"] .what')).toBe('Modification · Étape d’approbation');
+    expect(text('[data-entry="c:94"] [data-field="outcome"] .after')).toBe('approuvée');
+    expect(text('[data-entry="e:30"] [data-kind="event"]')).toBe('Étape « RH régionales » approuvée');
   });
 });

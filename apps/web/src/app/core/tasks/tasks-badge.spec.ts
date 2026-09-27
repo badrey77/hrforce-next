@@ -9,6 +9,7 @@ import { ME_FIXTURE } from '../../../testing/auth-fixtures';
 import { openTask } from '../../../testing/leave-fixtures';
 import { Session } from '../auth/session';
 import { apiProblemInterceptor } from '../http/api-problem.interceptor';
+import { NotificationEvents } from '../notifications/notification-events';
 import { TasksApi } from './tasks-api';
 import { TasksBadge } from './tasks-badge';
 
@@ -101,5 +102,22 @@ describe('TasksBadge', () => {
     await TestBed.inject(ApplicationRef).whenStable();
     expect(badge.count()).toBe(0);
     state.mockRestore();
+  });
+
+  it('refreshes when a task.* (or leave.cancelled) notification arrives live, not on other types', async () => {
+    const badge = await signedIn();
+    const bus = TestBed.inject(NotificationEvents);
+    bus.emit({ id: 'n-1', type: 'leave.approved' });
+    TestBed.tick();
+    http.expectNone(isTasks);
+    bus.emit({ id: 'n-2', type: 'task.assigned' });
+    TestBed.tick();
+    http.expectOne(isTasks).flush({ items: [openTask('k-1'), openTask('k-2'), openTask('k-3')] });
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(badge.count()).toBe(3);
+    bus.emit({ id: 'n-3', type: 'leave.cancelled' });
+    TestBed.tick();
+    http.expectOne(isTasks).flush({ items: [] });
+    await TestBed.inject(ApplicationRef).whenStable();
   });
 });

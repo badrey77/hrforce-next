@@ -45,7 +45,9 @@ src/
     core/leave/                Leave contract types + LeaveApi (preview as a POST httpResource) + LeaveCatalog (types, labels
                                in the active language) + MyEmployment (GET /me/employment, gates "My leave")
     core/tasks/                TasksApi + TasksBadge (root store of open tasks: nav count, /tasks list, optimistic hide/show,
-                               refresh on navigation / tab visible / after actions)
+                               refresh on navigation / tab visible / after actions / live task.* notifications)
+    core/notifications/        NotificationsApi, NotificationCenter (root store + SSE connection, backoff, fallback),
+                               NotificationEvents (event bus), EVENT_SOURCE_FACTORY (InjectionToken)
     shared/                    reusable UI used by several features (may import core/, never features/)
       can/                     *appCan="'code'; else tpl" structural directive
       display-name/            `displayName` pipe: Arabic name in the Arabic UI when there is one (people, units)
@@ -53,11 +55,15 @@ src/
       employee-picker/         <app-employee-picker>: the same combobox for employees (value = employment id)
       workflow-stepper/        <app-workflow-stepper>: approval steps (labels from the definition), RTL-safe
       leave/                   balance cards, the request form with live preview, the read-only request view, leave rules
+      notifications/           <app-notification-text> + notificationMessage(): a notification as a translated sentence
+      relative-time/           `relativeTime` pipe (Intl.RelativeTimeFormat, `now` as an argument)
     features/<name>/           pages (access, auth: login, password setup/forgot; employees: list with URL state, create,
                                detail with tabs incl. Leave; home, organization (+ head of unit), my-leave (/me/leave),
-                               tasks (/tasks), leave (/leave list, /leave/requests/:id, /leave/settings); not-found, placeholder)
-    shell/                     shell widgets (language switcher, user menu with "Sign out")
-  testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill), excluded
+                               tasks (/tasks), leave (/leave list, /leave/requests/:id, /leave/settings), notifications
+                               (/notifications), settings (/settings); not-found, placeholder)
+    shell/                     shell widgets (language switcher, user menu with "Sign out", notification bell)
+  testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill,
+                               fake EventSource), excluded
                                from the app build
 public/i18n/{fr,ar,en}.json    translations, nested keys
 ```
@@ -167,6 +173,35 @@ in as `lecture.ouest@demo.dz` to see the read-only organization and no Access en
   `{employmentId: null}`. Staffing slugs mapped: `head-date`, `employment-ended`, `employment-linked`, `link-self`.
 - 409 mapping of a request: `leave-overlap` → start date, `leave-dates` → end date, `leave-document-required` → document,
   `leave-once-per-career` → type, `leave-balance`/`leave-max-request` → above the form, `leave-not-linked` → page message.
+
+## Notifications and live updates (docs/contracts/notifications.md)
+
+| Screen | Route | Needs | Notes |
+|---|---|---|---|
+| Header bell | every page | signed in | unread count (`aria-live`), dropdown of the latest 10 (click = mark read + go to `link`), mark all read, see all |
+| Notifications | `/notifications` | signed in | unread filter, cursor "load more", mark one / all read |
+| Settings › Notifications | `/settings` | signed in | email on/off per type with its default; save state and errors |
+| Links | `/tasks?task=<id>`, `/me/leave?request=<id>` | — | select the task / highlight and scroll to the request; a message when it is gone |
+| History | employee History tab, `/leave/requests/:id` (`audit.read`) | — | leave request rows, workflow tasks and `workflow.*` events with labels |
+
+- `core/notifications/`: `NotificationsApi`, `NotificationCenter` (root store; SSE via `EVENT_SOURCE_FACTORY`, opened
+  while signed in, backoff 1 s → 30 s, session renewal through an HttpClient call before each reconnect, fallback to
+  refresh-on-visibility after 5 failures or without `EventSource`), `NotificationEvents` (bus: `task.*` and
+  `leave.cancelled` refresh the tasks badge, `leave.*` reloads an open My leave page). Chapter 16 of the guide.
+
+**Contract interpretations:**
+- The SSE `notification` payload is read as a full `NotificationView` when it has `createdAt`, `link` and `subject`
+  (prepended to the bell at once); anything smaller (`{id, type}`) triggers an HTTP re-read of the latest 10. `unread`
+  sets the count (the local +1 on a new notification is corrected by it).
+- `GET /me/notification-preferences` is a bare array (contract); `{items: [...]}` is accepted too. `PUT` sends every
+  listed type with its value; the page then shows what it sent (the response body is not needed).
+- `data.leaveType` is the type CODE (named through `LeaveCatalog.nameOfCode`); `data.employeeNameAr` (sent by the API,
+  not in the contract) is used in the Arabic UI. Missing placeholders show "…".
+- `link` is trusted only if it is an in-app path (`/…`, not `//…`); anything else opens `/notifications`.
+- The bell asks `GET /me/notifications?limit=10` and the count on sign-in; the page pages by 20.
+- History: `leave_request` is a new timeline subject; `employment_id`/`workflow_instance_id` (and the workflow link
+  columns) are hidden, `leave_type_id` is named from the catalogue, `step_key`/`step` from the request's workflow
+  definition, statuses/outcomes through `leave.status.*` / `audit.values.workflow_task.*`.
 
 ## Authentication (docs/contracts/identity.md, ADR 004)
 

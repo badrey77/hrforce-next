@@ -6,6 +6,7 @@ import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
+import { NotificationCenter } from './core/notifications/notification-center';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import type { OpenTask } from './core/tasks/tasks.models';
 import { LanguageService } from './core/i18n/language.service';
@@ -14,11 +15,13 @@ import { translocoTesting } from '../testing/transloco-testing';
 
 const links = (el: HTMLElement) => [...el.querySelectorAll('nav a')].map((a) => a.getAttribute('href'));
 
-/** What the root stores ask for once signed in: open tasks, leave types, the linked employment. */
+/** What the root stores ask for once signed in: open tasks, leave types, the linked employment, notifications. */
 interface Answers {
   tasks?: readonly OpenTask[];
   /** `null` = 404 (not linked). */
   employment?: object | null;
+  /** Unread notifications (`GET /api/me/notifications/unread-count`). */
+  unread?: number;
 }
 let answers: Answers = {};
 
@@ -34,6 +37,8 @@ async function settle(fixture: ComponentFixture<App>): Promise<void> {
       if (req.cancelled) continue;
       if (req.request.url === '/api/tasks') req.flush({ items: answers.tasks ?? [] });
       else if (req.request.url === '/api/leave/types') req.flush({ items: [] });
+      else if (req.request.url === '/api/me/notifications') req.flush({ items: [], nextCursor: null });
+      else if (req.request.url === '/api/me/notifications/unread-count') req.flush({ count: answers.unread ?? 0 });
       else if (req.request.url === '/api/me/employment') {
         if (answers.employment) req.flush(answers.employment);
         else req.flush({ type: 'about:blank', title: 'Not found', status: 404 }, { status: 404, statusText: 'Not Found' });
@@ -86,6 +91,24 @@ describe('App shell', () => {
     expect(el.querySelector('nav')).toBeNull();
     expect(el.querySelector('app-user-menu button')).toBeNull();
     expect(el.querySelector('app-language-switcher select')).not.toBeNull();
+  });
+
+  it('shows the notification bell only when signed in, with the unread count', async () => {
+    answers = { unread: 3 };
+    const session = TestBed.inject(Session);
+    const { fixture, el } = await render();
+    expect(el.querySelector('app-notification-bell')).toBeNull();
+
+    session.set(ME_FIXTURE);
+    await settle(fixture);
+    const bell = el.querySelector('app-notification-bell [data-action="bell"]');
+    expect(bell?.getAttribute('aria-label')).toBe('Notifications, 3 non lue(s)');
+    // jsdom has no EventSource: the center runs in its visibility-refresh fallback.
+    expect(TestBed.inject(NotificationCenter).status()).toBe('fallback');
+
+    session.clear();
+    await settle(fixture);
+    expect(el.querySelector('app-notification-bell')).toBeNull();
   });
 
   it('shows the nav, display name, company and "Sign out" when signed in', async () => {

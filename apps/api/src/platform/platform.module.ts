@@ -8,6 +8,7 @@ import { RequestContextInterceptor } from './context/request-context.interceptor
 import { RequestIdentityResolver } from './context/request-identity.js';
 import { DbModule } from './db/db.module.js';
 import { HealthController } from './health/health.controller.js';
+import { JobQueue, PgJobQueue } from './jobs/job-queue.js';
 import { ProblemDetailsFilter } from './http/problem-details.filter.js';
 import { ZodValidationPipe } from './http/zod-validation.pipe.js';
 import { LoggingModule } from './logging/logging.module.js';
@@ -22,6 +23,7 @@ import { XsrfGuard } from './security/xsrf.guard.js';
  * Permissions: PermissionEvaluator and ScopeService (platform/authz seams) are provided by the GLOBAL Authorization
  * module (grant-backed; DEV_PERMISSIONS=allow_all in dev/test). PermissionCheck resolves them from there, so every
  * application must import AuthorizationModule (AppModule does). XsrfGuard (APP_GUARD) checks every unsafe method.
+ * JobQueue (platform/jobs): transactional enqueue of worker jobs (graphile_worker.add_job in the request transaction).
  */
 @Global()
 @Module({
@@ -37,7 +39,8 @@ import { XsrfGuard } from './security/xsrf.guard.js';
     { provide: APP_INTERCEPTOR, useClass: RequestContextInterceptor },
     ProblemDetailsFilter,
     ZodValidationPipe,
+    { provide: JobQueue, useClass: PgJobQueue },
   ],
-  exports: [ConfigModule, DbModule, RequestIdentityResolver],
+  exports: [ConfigModule, DbModule, RequestIdentityResolver, JobQueue],
 })
 export class PlatformModule {}

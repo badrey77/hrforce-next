@@ -20,6 +20,12 @@
  *   `httpResource` of `GET /leave/requests/:id` keyed on the selected task's subject.
  * - **A dialog with a required comment**: a one-control reactive form (`Validators.required` + a not-blank check)
  *   inside a native `<dialog>`; the POST is only sent when it is valid.
+ * - **A query param as an entry point** (`/tasks?task=<id>`, the link in notifications and emails): with
+ *   `withComponentInputBinding()` the router sets the `task` input from `?task=`. `selectedId` is a `linkedSignal` of
+ *   it — it follows the link (also when a second notification is clicked while the page is open: same component, new
+ *   input value) but clicking another row still overrides it. The URL is not rewritten on every click: the parameter
+ *   says where to START, not which row is selected now. When the linked task is not in the list (someone else already
+ *   handled it, or you are no longer a candidate) the page says so instead of silently showing nothing.
  * - **Focus management after removal**: when the acted-on row disappears, focus would fall to `<body>`. The page moves
  *   it to the panel heading of the next task (or the list heading) with `afterNextRender`, which runs once the DOM
  *   reflects the new state.
@@ -33,6 +39,8 @@ import {
   type ElementRef,
   Injector,
   inject,
+  input,
+  linkedSignal,
   signal,
   viewChild,
 } from '@angular/core';
@@ -92,7 +100,17 @@ export class TasksPage {
   protected readonly lang = inject(LanguageService).current;
   protected readonly locale = computed(() => dateLocaleOf(this.lang()));
 
-  protected readonly selectedId = signal<string | null>(null);
+  /** `?task=<id>` (notification / email link), bound by the router. */
+  readonly task = input<string | undefined>();
+  protected readonly selectedId = linkedSignal<string | undefined, string | null>({
+    source: this.task,
+    computation: (id) => id ?? null,
+  });
+  /** The linked task is not (or no longer) open for this user. */
+  protected readonly linkedTaskMissing = computed(() => {
+    const id = this.task();
+    return !!id && this.selectedId() === id && this.store.loaded() && !this.store.items().some((t) => t.id === id);
+  });
   /** The selected task, if it is still in the (visible) list. */
   protected readonly selected = computed<OpenTask | undefined>(() => {
     const id = this.selectedId();

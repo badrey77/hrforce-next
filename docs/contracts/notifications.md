@@ -97,3 +97,34 @@ request's (`leave.read` in scope, or requester/candidate for their own).
 - `/settings` (existing "Paramètres"): a **Notifications** section with an email toggle per type.
 - Tasks badge refreshes when a `task.assigned` arrives; My leave refreshes on `leave.*`.
 - History: leave events appear in the employee History tab; a History section on the leave request detail.
+
+## Settled by the build (backend, 2026-09-27)
+
+Behaviour the API settled where the contract above was silent (`apps/api/src/modules/notifications`, `src/worker*`,
+migration 0012).
+
+- **Recipients.** `task.escalated` goes to the requester **even though they are usually the actor** (the engine, not
+  they, skipped the manager step); every other type drops the actor. `task.assigned` for a permission step = the users
+  holding that permission over the unit through today's grants (`role_grant` + closure; not DEV_PERMISSIONS).
+- **Subjects and links** (`link` is computed per recipient): `task.assigned` → subject `workflow_task`,
+  `/tasks?task=<task id>`; `leave.cancelled` → `/tasks`; every other type → subject `leave_request`,
+  `/me/leave?request=<id>` for the employee's own user, `/leave/requests/<id>` for a requester who filed it for
+  someone else (e.g. `leave.approved` to the HR user who filed on behalf).
+- **`data` keys:** `requestId, employeeName, employeeNameAr (null when none), leaveType (code), startDate, endDate,
+  days (number), actorName (null = unknown)`; plus `taskId, stepKey` (`task.assigned`) and `stepKey,
+  escalationReason` (`no-manager` | `manager-not-linked` | `manager-is-requester`, `task.escalated`).
+- **One notification per (recipient, type, subject)**; a repeated hook is a no-op.
+- **Endpoints:** `limit` 1–100 (default 20); `unreadOnly=true|false`; a malformed `before` → 422 (`errors[].field =
+  before`); `POST …/:id/read` on an already-read row → 204; `PUT /me/notification-preferences` → 200 with the full
+  list (same shape as GET); an unknown type → 422 `errors[{field: '<index>.type', code: 'unknown_type'}]`, a repeated
+  type → 422 `duplicate`; types not in the body keep their value.
+- **Stream:** `retry: 5000` first, then `event: unread` (`{count}`) immediately; after each `notification` event an
+  `unread` event follows; marking read (any tab/device) also pushes `unread`. A stream opened with DEV_AUTH headers
+  (no token expiry) lasts 15 min. Anonymous → 401 problem+json (no stream).
+- **History:** `GET /audit/timeline` is now `@Authenticated`: every subject type still needs `audit.read` (403 before any
+  validation) except `leave_request:<id>`, visible like `GET /leave/requests/:id` (leave.read over the unit, the
+  requester, the employee's linked user, a current candidate; else 404) — so the request detail's History works for
+  the employee and approvers. The employee timeline adds `leave_request` rows and the `workflow.*` events of the
+  employee's requests (not their `workflow_task` rows).
+- **Worker:** cron in the worker's time zone (UTC in containers), missed ticks backfilled (7 days monthly, 12 h daily);
+  e-mail job retried 5 times; `leave.accruals` accepts a manual payload `{"month":"YYYY-MM"}`.

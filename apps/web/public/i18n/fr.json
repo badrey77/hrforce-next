@@ -426,7 +426,10 @@
       "person_sensitive": "Données sensibles",
       "employment": "Emploi",
       "assignment": "Affectation",
-      "employment_salary": "Salaire"
+      "employment_salary": "Salaire",
+      "leave_request": "Demande de congé",
+      "workflow_instance": "Circuit d’approbation",
+      "workflow_task": "Étape d’approbation"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -527,6 +530,41 @@
         "base_salary": "Salaire de base",
         "valid": "Validité",
         "created_at": "Créé le"
+      },
+      "leave_request": {
+        "leave_type_id": "Type de congé",
+        "org_unit_id": "Unité",
+        "start_date": "Du",
+        "end_date": "Au",
+        "days": "Jours",
+        "half_day_start": "Demi-journée au début",
+        "half_day_end": "Demi-journée à la fin",
+        "reason": "Motif",
+        "document_ref": "Justificatif",
+        "status": "Statut",
+        "requested_by": "Demandée par",
+        "requested_at": "Demandée le"
+      },
+      "workflow_instance": {
+        "status": "Statut",
+        "current_step": "Étape en cours",
+        "started_by": "Démarré par",
+        "started_at": "Démarré le",
+        "finished_at": "Terminé le"
+      },
+      "workflow_task": {
+        "step_key": "Étape",
+        "step_index": "Rang de l’étape",
+        "assignee_kind": "Attribuée à",
+        "assignee_user_id": "Utilisateur désigné",
+        "permission": "Permission requise",
+        "scope_unit_id": "Unité concernée",
+        "status": "Statut",
+        "outcome": "Décision",
+        "acted_by": "Traitée par",
+        "acted_at": "Traitée le",
+        "comment": "Commentaire",
+        "created_at": "Créée le"
       }
     },
     "events": {
@@ -540,7 +578,34 @@
         "grant_created": "Rôle « {{role}} » attribué sur {{unit}} à partir du {{validFrom}}",
         "grant_ended": "Rôle « {{role}} » sur {{unit}} terminé au {{validTo}}"
       },
-      "unknown": "Événement {{type}}"
+      "unknown": "Événement {{type}}",
+      "workflow": {
+        "start": "Circuit d’approbation démarré",
+        "approve": "Étape « {{step}} » approuvée",
+        "reject": "Étape « {{step}} » refusée : {{comment}}",
+        "cancel": "Demande annulée",
+        "escalate": "Étape « {{step}} » transmise à l’étape suivante (aucun responsable disponible)"
+      }
+    },
+    "values": {
+      "workflow_task": {
+        "status": {
+          "open": "ouverte",
+          "done": "traitée",
+          "skipped": "sautée",
+          "cancelled": "annulée"
+        },
+        "outcome": {
+          "approve": "approuvée",
+          "reject": "refusée",
+          "escalated": "transmise"
+        },
+        "assignee_kind": {
+          "user": "une personne",
+          "permission": "les détenteurs d’une permission",
+          "none": "personne"
+        }
+      }
     }
   },
   "employees": {
@@ -860,7 +925,8 @@
       "cancel": "Annuler la demande",
       "cancelTitle": "Annuler cette demande ?",
       "confirmCancel": "Oui, annuler",
-      "keep": "Non, la garder"
+      "keep": "Non, la garder",
+      "linkedMissing": "La demande du lien ne figure pas dans vos demandes."
     },
     "list": {
       "title": "Congés",
@@ -881,7 +947,8 @@
       "back": "← Retour aux congés",
       "employee": "Fiche de l'employé",
       "notFound": "Demande introuvable.",
-      "loadError": "Impossible de charger la demande."
+      "loadError": "Impossible de charger la demande.",
+      "history": "Historique"
     },
     "employee": {
       "requestOnBehalf": "Demander pour l'employé",
@@ -993,7 +1060,8 @@
       "closed": "La demande de {{name}} a déjà été traitée par quelqu'un d'autre.",
       "selfApproval": "Vous ne pouvez pas traiter votre propre demande.",
       "notCandidate": "Cette tâche ne vous est plus attribuée."
-    }
+    },
+    "notOpen": "La tâche du lien n’est plus ouverte : elle a déjà été traitée ou ne vous est plus attribuée."
   },
   "workflow": {
     "title": "Circuit d'approbation",
@@ -1025,6 +1093,70 @@
       "done": "Traitée",
       "skipped": "Passée",
       "cancelled": "Annulée"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "bell": {
+      "label": "Notifications",
+      "labelWithCount": "Notifications, {{count}} non lue(s)",
+      "live": "{{count}} notification(s) non lue(s)",
+      "panel": "Dernières notifications"
+    },
+    "empty": "Aucune notification pour l’instant.",
+    "emptyUnread": "Aucune notification non lue.",
+    "markAllRead": "Tout marquer comme lu",
+    "markRead": "Marquer comme lue",
+    "seeAll": "Voir toutes les notifications",
+    "unread": "non lue",
+    "unreadOnly": "Non lues seulement",
+    "loadMore": "Afficher plus",
+    "loading": "Chargement des notifications…",
+    "loadError": "Impossible de charger les notifications.",
+    "offline": "Mises à jour en direct indisponibles : la liste est actualisée quand vous revenez sur l’onglet.",
+    "types": {
+      "task": {
+        "assigned": "Demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} ({{days}} j) : à vous de la traiter.",
+        "escalated": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible)."
+      },
+      "leave": {
+        "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
+        "rejected": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été refusée par {{actorName}}.",
+        "cancelled": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} a été annulée.",
+        "submitted_on_behalf": "{{actorName}} a déposé pour vous une demande « {{leaveType}} » du {{startDate}} au {{endDate}}."
+      },
+      "unknown": "Nouvelle notification"
+    },
+    "typeLabels": {
+      "task": {
+        "assigned": "Une demande attend mon approbation",
+        "escalated": "Ma demande saute l’étape du responsable"
+      },
+      "leave": {
+        "approved": "Ma demande est approuvée",
+        "rejected": "Ma demande est refusée",
+        "cancelled": "Une demande que je devais traiter est annulée",
+        "submitted_on_behalf": "Les RH déposent une demande pour moi"
+      }
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "notifications": {
+      "title": "Notifications",
+      "intro": "Les notifications apparaissent toujours dans l’application (cloche en haut de page). Choisissez celles que vous recevez aussi par e-mail.",
+      "type": "Événement",
+      "email": "Par e-mail",
+      "defaultOn": "par défaut : oui",
+      "defaultOff": "par défaut : non",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "Préférences enregistrées.",
+      "unsaved": "Modifications non enregistrées.",
+      "restoreDefaults": "Rétablir les valeurs par défaut",
+      "loadError": "Impossible de charger vos préférences.",
+      "saveError": "Impossible d’enregistrer vos préférences.",
+      "invalid": "Le serveur a refusé ces préférences. Rechargez la page et réessayez."
     }
   }
 }

@@ -2,5 +2,9 @@
   {
     "table": "org_unit_closure",
     "reason": "Derived data: ancestor/descendant pairs of today's tree, recomputed from org_unit_version (rebuilt wholesale by the seed and the daily refresh). Every change it reflects is already audited on org_unit_version (docs/contracts/audit.md › Coverage)."
+  },
+  {
+    "table": "notification",
+    "reason": "Derived, high-volume data (docs/contracts/notifications.md): one row per recipient of an event that is already audited — the workflow_task / workflow_instance / leave_request row changes and the workflow.* application events. Its only change after insert is read_at (marking read, a per-user UI state, guarded by a trigger); old read rows are purged by the worker's notifications.cleanup job."
   }
 ]

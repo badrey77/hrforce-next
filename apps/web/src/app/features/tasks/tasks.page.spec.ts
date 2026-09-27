@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
@@ -28,7 +28,7 @@ describe('TasksPage', () => {
     await TestBed.configureTestingModule({
       imports: [translocoTesting()],
       providers: [
-        provideRouter([{ path: 'tasks', component: TasksPage }]),
+        provideRouter([{ path: 'tasks', component: TasksPage }], withComponentInputBinding()),
         provideHttpClient(withInterceptors([apiProblemInterceptor])),
         provideHttpClientTesting(),
       ],
@@ -52,8 +52,8 @@ describe('TasksPage', () => {
     await settle();
   }
 
-  async function open(items: readonly OpenTask[] = [openTask('k-1'), openTask('k-2'), openTask('k-3')]): Promise<void> {
-    await harness.navigateByUrl('/tasks');
+  async function open(items: readonly OpenTask[] = [openTask('k-1'), openTask('k-2'), openTask('k-3')], url = '/tasks'): Promise<void> {
+    await harness.navigateByUrl(url);
     await settle();
     flushLeaveTypes(http);
     await answerTasks(items);
@@ -169,5 +169,27 @@ describe('TasksPage', () => {
     expect(el().querySelector('[data-feedback]')?.textContent?.trim()).toBe('Vous ne pouvez pas traiter votre propre demande.');
     http.expectOne('/api/leave/requests/r-k-1').flush(leaveDetail({ id: 'r-k-1' }));
     await settle();
+  });
+
+  it('?task=<id> (a notification or email link) selects that task and loads its request', async () => {
+    await open(undefined, '/tasks?task=k-2');
+    expect(el().querySelector('[data-task="k-2"]')?.getAttribute('aria-pressed')).toBe('true');
+    http.expectOne('/api/leave/requests/r-k-2').flush(leaveDetail({ id: 'r-k-2' }));
+    await settle();
+    expect(el().querySelector('#task-panel-title')?.textContent).toContain('BENALI Amina');
+    expect(el().querySelector('[data-state="task-not-open"]')).toBeNull();
+
+    // Another link while the page is open: same component, new input → new selection.
+    await harness.navigateByUrl('/tasks?task=k-3');
+    await answerTasks([openTask('k-1'), openTask('k-2'), openTask('k-3')]);
+    expect(el().querySelector('[data-task="k-3"]')?.getAttribute('aria-pressed')).toBe('true');
+    http.expectOne('/api/leave/requests/r-k-3').flush(leaveDetail({ id: 'r-k-3' }));
+    await settle();
+  });
+
+  it('?task=<id> of a task that is no longer open says so', async () => {
+    await open([openTask('k-1')], '/tasks?task=k-9');
+    expect(el().querySelector('[data-state="task-not-open"]')?.textContent).toContain('n’est plus ouverte');
+    expect(el().querySelector('[data-state="no-selection"]')).not.toBeNull();
   });
 });

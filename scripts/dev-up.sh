@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Starts HRForce Next locally in one command: Postgres + Mailpit (Docker), migrations, demo seed, API and web.
-# Usage (repo root):  ./scripts/dev-up.sh          Ctrl+C stops the API and web (the containers keep running).
+# Starts HRForce Next locally in one command: Postgres + Mailpit (Docker), migrations, demo seed, API, background
+# worker (notification e-mails, cron) and web.
+# Usage (repo root):  ./scripts/dev-up.sh          Ctrl+C stops the API, worker and web (the containers keep running).
 #                     ./scripts/dev-up.sh --reset  also wipes the database first (docker compose down -v).
 # Needs: Node >= 22.22.3, npm 11, Docker. On Windows use WSL or Git Bash.
 set -euo pipefail
@@ -14,6 +15,11 @@ node -e 'const [a,b,c]=process.versions.node.split(".").map(Number); process.exi
 
 [ -d node_modules ] || { step "Installing dependencies"; npm ci; }
 [ -f apps/api/.env ] || { step "Creating apps/api/.env from .env.example"; cp apps/api/.env.example apps/api/.env; }
+# An .env created before the worker existed: add its settings from .env.example.
+if ! grep -q '^WORKER_DATABASE_URL=' apps/api/.env; then
+  step "Adding the worker settings (WORKER_DATABASE_URL, WORKER_CONCURRENCY) to apps/api/.env"
+  { echo; grep -E '^(WORKER_DATABASE_URL|WORKER_CONCURRENCY)=' apps/api/.env.example; } >> apps/api/.env
+fi
 
 if [ "${1:-}" = "--reset" ]; then
   step "Wiping the local database"
@@ -29,18 +35,27 @@ for _ in $(seq 1 60); do
 done
 echo
 
+# A database volume created before migration 0012 has no hrforce_worker role (the init hook only runs on an empty
+# volume): create it with the development password of .env.example.
+(cd apps/api && docker compose exec -T postgres psql -q -U postgres -v ON_ERROR_STOP=1 -c \
+  "do \$\$ begin if not exists (select from pg_roles where rolname = 'hrforce_worker') then
+     create role hrforce_worker login nosuperuser nocreatedb nocreaterole nobypassrls password 'hrforce_worker_dev'; end if; end \$\$")
+
 set -a; source apps/api/.env; set +a
 
 step "Migrating and seeding the demo data"
 npm run migrate -w @hrforce/api
 npm run seed:dev -w @hrforce/api
 
-step "Starting the API (http://localhost:3000) and the web app (http://localhost:4200)"
+step "Starting the API (http://localhost:3000), the worker and the web app (http://localhost:4200)"
 npm start -w @hrforce/api &
 API_PID=$!
+# Background jobs (Graphile Worker): notification e-mails and the monthly/daily cron. Built by seed:dev above.
+npm run start:worker -w @hrforce/api &
+WORKER_PID=$!
 npm start -w @hrforce/web &
 WEB_PID=$!
-trap 'kill $API_PID $WEB_PID 2>/dev/null; exit 0' INT TERM
+trap 'kill $API_PID $WORKER_PID $WEB_PID 2>/dev/null; exit 0' INT TERM
 
 cat <<'EOF'
 
@@ -48,8 +63,8 @@ cat <<'EOF'
     rh.admin@demo.dz       central HR admin (everything, salaries, Access screens)
     rh.est@demo.dz         regional HR, Région Est (Arabic UI)
     lecture.ouest@demo.dz  read-only, Région Ouest
-  Mails (password links): http://localhost:8025
-  Ctrl+C stops the API and web; `cd apps/api && docker compose down` stops the database.
+  Mails (password links, notification e-mails sent by the worker): http://localhost:8025
+  Ctrl+C stops the API, worker and web; `cd apps/api && docker compose down` stops the database.
 
 EOF
 wait

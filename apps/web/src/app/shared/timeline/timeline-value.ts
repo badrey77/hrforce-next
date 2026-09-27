@@ -3,6 +3,8 @@
  * a timestamp (DatePipe, in the UI language) or text (already resolved to a name when the page knew it).
  *
  * Angular concepts:
+ * - **`@case ('key')`**: a code from a fixed list (a leave status, a task outcome) translated with `t(key)`; Transloco
+ *   returns the key itself when it is missing, so an unexpected value falls back to the stored text.
  * - **A tiny presentational component instead of a repeated template fragment.** Each field line shows up to two
  *   values (before/after) with the same six cases. `<ng-template>` + `NgTemplateOutlet` could reuse the markup
  *   too, but its context is untyped (`let-v` is `any` under strictTemplates); a component with a typed
@@ -47,6 +49,10 @@ import type { DisplayValue } from './timeline-view';
         }
         @case ('timestamp') {
           {{ v.iso | date: 'medium' : undefined : locale() }}
+        }
+        @case ('key') {
+          @let label = t(v.key);
+          {{ label === v.key ? v.text : label }}
         }
         @case ('text') {
           <bdi>{{ v.text }}</bdi>

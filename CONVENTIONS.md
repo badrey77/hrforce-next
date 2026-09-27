@@ -6,7 +6,7 @@ Source plan: "HRForce Next — Phase 1 Plan" (M1 thin vertical slice).
 ## Repo layout
 
 ```
-apps/api      NestJS HTTP API (+ worker entry point later)   → workspace "@hrforce/api"
+apps/api      NestJS HTTP API + background worker (src/worker.ts) → workspace "@hrforce/api"
 apps/web      Angular SPA                                     → workspace "@hrforce/web"
 docs/adr      Architecture decision records (001–005)
 tools/        Repo scripts; tools/guardrails = CI checks

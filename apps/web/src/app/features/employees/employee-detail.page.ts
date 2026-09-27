@@ -37,6 +37,7 @@ import {
   Component,
   computed,
   type ElementRef,
+  Injector,
   inject,
   input,
   linkedSignal,
@@ -61,6 +62,7 @@ import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-pro
 import type { FormMessage } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
+import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { Timeline } from '../../shared/timeline/timeline';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
@@ -143,8 +145,18 @@ export class EmployeeDetailPage {
   protected readonly editing = linkedSignal<string, Editing | null>({ source: this.id, computation: () => null });
   protected readonly feedback = signal<string | null>(null);
 
-  /** Names for ids in the History tab: units and sites of this employee's assignments. */
+  /** Asked for only when the History tab names a leave type: opening an employee must not load the leave catalogue. */
+  private readonly injector = inject(Injector);
+
+  /**
+   * Names for ids in the History tab: units and sites of this employee's assignments, and leave types (the tab also
+   * lists the employee's leave requests and their approval events — notifications contract › Audit gap).
+   */
   protected readonly auditNames: AuditNameResolver = (kind, value) => {
+    if (kind === 'leaveType') {
+      const catalog = this.injector.get(LeaveCatalog);
+      return catalog.type(value) ? catalog.nameOf(value) : undefined;
+    }
     const e = this.detail();
     if (!e) return undefined;
     for (const a of e.assignments) {

@@ -4,6 +4,7 @@ import { AuditController } from './api/audit.controller.js';
 import { TimelineService } from './application/timeline.service.js';
 import { AuditRepository } from './infra/audit.repository.js';
 import { PgAuditEvents } from './infra/pg-audit-events.js';
+import { WorkflowModule } from '../workflow/index.js';
 
 /**
  * Audit (docs/contracts/audit.md, ADR 005). Row changes are captured by the database (trigger audit.capture(),
@@ -12,6 +13,8 @@ import { PgAuditEvents } from './infra/pg-audit-events.js';
  */
 @Global()
 @Module({
+  // WorkflowEngine: "current candidate" visibility of a leave_request history
+  imports: [WorkflowModule],
   controllers: [AuditController],
   providers: [AuditRepository, TimelineService, { provide: AuditEvents, useClass: PgAuditEvents }],
   exports: [AuditEvents],

@@ -15,17 +15,31 @@
  * - **A child's output drives page state**: `(notLinked)` from the form (a 409 `leave-not-linked`, e.g. HR unlinked
  *   the account meanwhile) flips a local signal and re-asks `/me/employment`.
  * - **Native `<dialog>` + `viewChild.required()`** to confirm a cancellation (pattern of the Access user page).
+ * - **`?request=<id>` → scroll to and highlight that request** (the link in notifications and emails). The router binds
+ *   the query param to the `request` input (`withComponentInputBinding()`); `highlighted` is a `computed()` that is
+ *   the id only once that request is in the loaded list. Scrolling needs the DOM row to EXIST, so it runs in an
+ *   **`afterRenderEffect()`**: like `effect()` it re-runs when the signals it reads change, but only AFTER Angular has
+ *   rendered — the right place for DOM work (measure, scroll, focus). A plain `effect()` could run before the `@for`
+ *   has created the row. It remembers the last id it scrolled to, so a later reload (after a cancel, or a live
+ *   `leave.*` event) does not yank the page back. The row gets `tabindex="-1"` and receives focus, so keyboard and
+ *   screen-reader users land on it too.
+ * - **Live refresh while open**: a `leave.*` notification (approved, rejected, filed on my behalf…) arriving over SSE
+ *   reloads the balances and the list. The page subscribes to the `NotificationEvents` bus in its constructor with
+ *   `takeUntilDestroyed()`: the subscription lives exactly as long as the page, which is what "reload if open" means.
  */
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
   computed,
-  type ElementRef,
+  ElementRef,
   inject,
+  input,
   signal,
   viewChild,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { todayIso } from '../../core/date/iso-date';
 import { isApiProblemError } from '../../core/http/api-problem';
@@ -36,6 +50,7 @@ import { LeaveApi } from '../../core/leave/leave-api';
 import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import type { LeaveRequestSummary } from '../../core/leave/leave.models';
 import { MyEmployment } from '../../core/leave/my-employment';
+import { NotificationEvents } from '../../core/notifications/notification-events';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { BalanceCards } from '../../shared/leave/balance-cards';
 import { canCancel } from '../../shared/leave/leave-forms';
@@ -50,6 +65,8 @@ import { WorkflowStepper } from '../../shared/workflow-stepper/workflow-stepper'
   styles: `
     .requests { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
     .requests > li { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius); }
+    .requests > li.highlight { border-color: var(--color-primary); border-inline-start-width: 4px; background: var(--color-surface-alt); }
+    .requests > li:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
     .head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-block-end: var(--space-2); }
     .head p { margin: 0; }
   `,
@@ -75,6 +92,43 @@ export class MyLeavePage {
 
   protected readonly feedback = signal<string | null>(null);
   protected readonly canCancel = canCancel;
+
+  // --- ?request=<id> ----------------------------------------------------------------------------------------------
+
+  /** `?request=<id>` (notification / email link), bound by the router. */
+  readonly request = input<string | undefined>();
+  /** The linked request's id once it is in the list. */
+  protected readonly highlighted = computed(() => {
+    const id = this.request();
+    return id && this.requestItems().some((r) => r.id === id) ? id : null;
+  });
+  protected readonly linkedRequestMissing = computed(
+    () => !!this.request() && this.requests.hasValue() && this.highlighted() === null,
+  );
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
+  private scrolledTo: string | null = null;
+
+  constructor() {
+    afterRenderEffect(() => {
+      const id = this.highlighted();
+      if (!id || id === this.scrolledTo) return;
+      const row = [...this.host.nativeElement.querySelectorAll<HTMLElement>('[data-request]')].find(
+        (el) => el.dataset['request'] === id,
+      );
+      if (!row) return;
+      this.scrolledTo = id;
+      row.scrollIntoView?.({ block: 'center' });
+      row.focus({ preventScroll: true });
+    });
+    inject(NotificationEvents)
+      .of((type) => type.startsWith('leave.'))
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (!this.linked()) return;
+        this.balances.reload();
+        this.requests.reload();
+      });
+  }
 
   protected onSaved(): void {
     this.feedback.set('leave.feedback.requested');

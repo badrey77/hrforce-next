@@ -111,6 +111,10 @@ not announced) and empty until the count is known.
 
 ## 3. Polling vs events: when to refresh
 
+> **Update (notifications slice):** there is now a push channel — Server-Sent Events — and a
+> live `task.*` notification refreshes the badge too. The triggers below stay as the fallback
+> when the stream is down. See [chapter 16](./16-live-data-sse-and-signals.md).
+
 Without a push channel (no WebSocket/SSE server — Postgres-only stack), the browser has
 to ask. The two options:
 

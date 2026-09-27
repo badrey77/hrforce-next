@@ -435,6 +435,38 @@ salary simulation…):
 5. Test with fake timers: `await vi.advanceTimersByTimeAsync(debounce)`, `TestBed.tick()`,
    assert one request, change the input, assert `firstRequest.cancelled`.
 
+## Recipe: react to a server event
+
+When a screen should update the moment something happens elsewhere (a new task, a request
+decided by someone else) — chapter 16 explains the mechanics.
+
+1. **Is it already on the stream?** The API pushes `notification` events (`{id, type, …}`) over
+   `GET /api/me/notifications/stream`; `NotificationCenter` (core/notifications) owns that
+   connection. Do **not** open a second EventSource. A new kind of event is an API change:
+   add the type to the contract, to `NOTIFICATION_TYPES` and to the `notifications.types.*` /
+   `notifications.typeLabels.*` keys in fr/ar/en (the settings page lists it automatically).
+2. **Listen on the bus, not the center**: inject `NotificationEvents` (it opens nothing) and
+   filter by type:
+   ```ts
+   inject(NotificationEvents).of((type) => type.startsWith('leave.'))
+     .pipe(takeUntilDestroyed())
+     .subscribe(() => this.requests.reload());
+   ```
+   In a page this lives exactly as long as the page; in a root store, for the whole app.
+3. **Reload, don't patch.** React by calling `reload()` on the resources that show the
+   affected data; the event says *that* something changed, the API says *what* it is now.
+4. **Keep the non-live path working.** The stream can be down (`center.status() ===
+   'fallback'`); keep a refresh on navigation / `visibilitychange` where the data matters
+   (TasksBadge does both).
+5. **State from the stream is a signal in the center** (like `unreadCount`); only add one
+   there if several screens need the same live value.
+6. **Links**: if the event should open a page on a specific record, make the page accept a
+   query param as an input (`?task=`, `?request=` + `withComponentInputBinding()`), a
+   `linkedSignal` for the selection, and `afterRenderEffect()` for scroll/focus.
+7. **Test** by emitting on the bus (`TestBed.inject(NotificationEvents).emit({ id, type })`)
+   and asserting the reload request (`features/my-leave/my-leave.page.spec.ts`); for the
+   connection itself use `EVENT_SOURCE_FACTORY` + `src/testing/fake-event-source.ts`.
+
 These recipes are what the next screens (contracts, documents — M2) should follow; if a
 new situation doesn't fit one of them cleanly, extend this chapter (and the concept
 chapters it links to) rather than improvising a one-off pattern — per `CLAUDE.md`, this

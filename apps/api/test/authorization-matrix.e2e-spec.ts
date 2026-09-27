@@ -23,11 +23,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { as, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { as, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { LeaveClock } from '../src/modules/leave/index.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
+import { openSse } from './support/sse.js';
 import { fetchXsrf, type XsrfPair } from './support/xsrf.js';
 
 type Actor = ActorName | 'anon';
@@ -44,6 +45,8 @@ interface RouteSpec {
   access: string;
   request: (target: Target, n: number, fx: AccessFixture) => Req;
   rows: readonly Row[];
+  /** Server-Sent Events: the row checks the status (and the text/event-stream content type on 200), then disconnects. */
+  stream?: boolean;
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -83,6 +86,8 @@ const NAMES = { fr: 'Rôle test', ar: 'دور تجريبي', en: 'Test role' };
 const LV = {
   annual: '', recovery: '', marriage: '', holidayA: '', holidayToDelete: '',
   agentCancel: '', estRequest: '', ouestRequest: '', approveTask: '', rejectTask: '',
+  /** a notification of chef.annaba (task.assigned of the manager task above) */
+  chefNotification: '',
 };
 const MISSING = '0190a5d0-0000-7000-8000-00000000dead';
 const leaveDay = (n: number) => day(n);
@@ -466,15 +471,39 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [['admin', 'est', 404], ['est', 'est', 404], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['chef', 'est', 200]],
   },
 
+  // ── notifications (own rows only: someone else's id is a 404) ──────────────────────────────────────────
+  'GET /api/me/notifications': { access: 'authenticated', request: () => ({ path: '/api/me/notifications?unreadOnly=true&limit=5' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
+  'GET /api/me/notifications/unread-count': { access: 'authenticated', request: () => ({ path: '/api/me/notifications/unread-count' }), rows: [...READERS, ['chef', '-', 200]] },
+  'GET /api/me/notifications/stream': {
+    access: 'authenticated',
+    stream: true,
+    request: () => ({ path: '/api/me/notifications/stream' }),
+    rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]],
+  },
+  'POST /api/me/notifications/:id/read': {
+    access: 'authenticated',
+    request: () => ({ path: `/api/me/notifications/${LV.chefNotification}/read` }),
+    rows: [['admin', 'est', 404], ['est', 'est', 404], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['chef', 'est', 204]],
+  },
+  'POST /api/me/notifications/read-all': { access: 'authenticated', request: () => ({ path: '/api/me/notifications/read-all' }), rows: [...READERS.map(([a, t]) => [a, t, 204] as const), ['agent', '-', 204]] },
+  'GET /api/me/notification-preferences': { access: 'authenticated', request: () => ({ path: '/api/me/notification-preferences' }), rows: [...READERS, ['agent', '-', 200]] },
+  'PUT /api/me/notification-preferences': {
+    access: 'authenticated',
+    request: (_t, n) => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: n % 2 === 0 }] }),
+    rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]],
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
-    access: 'audit.read',
+    // @Authenticated: audit.read is checked by the handler for every subject type except leave_request (own visibility)
+    access: 'authenticated',
     request: (t) => ({ path: `/api/audit/timeline?subject=org_unit:${unitOf(t)}` }),
     rows: [
       ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
       ['acces', 'est', 200], ['acces', 'ouest', 404], ['acces', 'other', 404], // admin_acces holds audit.read on REG-EST only
       ['est', 'est', 403], ['ouest', 'ouest', 403], // rh_regional and lecture have no audit.read
       ['beta', 'est', 404], ['beta', 'other', 200],
+      ['agent', 'est', 403],
     ],
   },
 };
@@ -532,6 +561,9 @@ describe('Authorization matrix (e2e, real grants)', () => {
       ((await as(app, 'admin', xsrf).post(`/api/employees/${employee}/leave/requests`).send({ leaveTypeId: LV.annual, startDate: '2030-07-01', endDate: '2030-07-01' })).body as { id: string }).id;
     LV.estRequest = await onBehalf(employeeA(27));
     LV.ouestRequest = await onBehalf(employeeA(36));
+    LV.chefNotification =
+      (await query<{ id: string }>(db.superuserUrl, `select id from notification where user_id = $1 and type = 'task.assigned' and subject_id = $2`, [USERS.chef.id, LV.approveTask]))[0]
+        ?.id ?? '';
     expect(Object.values(LV).every((v) => v !== ''), JSON.stringify(LV)).toBe(true);
   });
   afterAll(async () => {
@@ -556,6 +588,23 @@ describe('Authorization matrix (e2e, real grants)', () => {
     const [actor, target, status] = row;
     const [method = ''] = key.split(' ');
     const req = spec.request(target, ++counter, fx);
+    if (spec.stream) {
+      const headers: Record<string, string> = actor === 'anon' ? {} : { 'X-Dev-User-Id': USERS[actor].id, 'X-Dev-Company-Id': companyOf(actor) };
+      const sse = await openSse(app, req.path, headers);
+      try {
+        expect(sse.status, `${key} as ${actor}: ${sse.raw()}`).toBe(status);
+        if (status === 200) {
+          expect(sse.headers['content-type']).toMatch(/^text\/event-stream/);
+          await sse.next((e) => e.event === 'unread');
+        } else {
+          await sse.ended;
+          expect(sse.headers['content-type']).toMatch(/^application\/problem\+json/);
+        }
+      } finally {
+        sse.close();
+      }
+      return;
+    }
     const client = as(app, actor === 'anon' ? null : actor, xsrf);
     const call =
       method === 'GET'

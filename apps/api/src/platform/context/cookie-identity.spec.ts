@@ -15,8 +15,9 @@ const req = (cookies: Record<string, string>, headers: Record<string, string> = 
 describe('CookieIdentityResolver', () => {
   const resolver = new CookieIdentityResolver(SECRET);
 
-  it('valid hrf_at → user, company and session', async () => {
-    await expect(resolver.resolve(req({ hrf_at: token() }))).resolves.toEqual({ userId: USER, companyId: COMPANY, sessionId: SID });
+  it('valid hrf_at → user, company, session and the token expiry (closes the SSE stream)', async () => {
+    const exp = now() + 900;
+    await expect(resolver.resolve(req({ hrf_at: token(exp) }))).resolves.toEqual({ userId: USER, companyId: COMPANY, sessionId: SID, expiresAt: exp });
   });
 
   it('missing, expired or foreign-signed token → anonymous', async () => {

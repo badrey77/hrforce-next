@@ -10,7 +10,7 @@ Kysely 0.29 + `pg`, zod 4, nestjs-pino / pino 10, Vitest 5 (SWC via `unplugin-sw
 ## Quick start
 
 ```bash
-# 1. Postgres with the two roles (hrforce_migrator, hrforce_app) and an `hrforce` database, + Mailpit
+# 1. Postgres with the three roles (hrforce_migrator, hrforce_app, hrforce_worker) and an `hrforce` database, + Mailpit
 cd apps/api && docker compose up -d          # or run scripts/create-roles.sql against your own cluster
 cp .env.example .env                          # then load it: set -a; . ./.env; set +a
 
@@ -18,6 +18,7 @@ cp .env.example .env                          # then load it: set -a; . ./.env; 
 npm run migrate -w @hrforce/api
 npm run seed:dev -w @hrforce/api              # idempotent; demo company, org units, 3 users, roles + grants (see below)
 npm run build -w @hrforce/api && npm start -w @hrforce/api
+npm run start:worker -w @hrforce/api          # other terminal: background jobs (notification e-mails, cron)
 curl localhost:3000/api/health                # {"status":"ok","db":"ok"}
 
 # 3. Sign in with a cookie jar (the XSRF token is read from the XSRF-TOKEN cookie and echoed as X-XSRF-TOKEN)
@@ -33,7 +34,8 @@ Mailpit (docker compose) catches every mail: web UI on http://localhost:8025, SM
 links included, are written to the log at `info`.
 
 The API does not load `.env` files itself; export the variables (or use `--env-file` with Docker).
-`docker compose --profile api up -d` also runs the API image against these services.
+`docker compose --profile api up -d` also runs the API and worker images against these services.
+`scripts/dev-up.sh` / `scripts/dev-up.ps1` (repo root) do all of this, API + worker + web, in one command.
 
 ## Environment
 
@@ -61,6 +63,12 @@ variables (values are never printed).
 | `DEV_AUTH` | | `false` | `true`/`false`. Development header identity (below). **Boot fails** if `true` and `NODE_ENV` is not `development`/`test` |
 | `DEV_PERMISSIONS` | | unset | `allow_all`: every **authenticated** caller holds every permission and every scope is the whole company (overrides the real grants). **Boot fails** if set and `NODE_ENV` is not `development`/`test` |
 
+**Worker** (`node dist/worker.js`; schema `workerEnvSchema`, same file): `WORKER_DATABASE_URL` (**required**,
+`hrforce_worker` role), `WORKER_CONCURRENCY` (1–32, default `4`), `WORKER_HEARTBEAT_FILE` (default
+`/tmp/hrforce-worker.alive`, read by `dist/worker-health.js`), and the API's `WEB_BASE_URL`, `MAIL_TRANSPORT`,
+`SMTP_URL`, `MAIL_FROM`, `NODE_ENV`, `LOG_LEVEL` (same rules: `log` transport only in development/test). The API
+ignores the `WORKER_*` variables; the worker never needs the API's secrets.
+
 ## Database
 
 ### Roles (cluster-level, created outside migrations)
@@ -72,16 +80,26 @@ and by the test harness.
 - `hrforce_migrator` — `LOGIN BYPASSRLS`, owner of the database and therefore of `public` (PG15+). Runs DDL and data migrations.
 - `hrforce_app` — `LOGIN NOSUPERUSER NOBYPASSRLS`, owns nothing. Gets `select, insert, update, delete` on
   every table the migrator creates through `ALTER DEFAULT PRIVILEGES` (migration 0001).
+- `hrforce_worker` — `LOGIN NOSUPERUSER NOBYPASSRLS`, the background worker (migration 0012): `SELECT` on `public`
+  (RLS applies — every job sets `app.company_id` first), `INSERT` on `leave_ledger`, `DELETE` on `notification`,
+  `EXECUTE` on `public.job_company_ids()`, `auth.notification_recipient()`, `auth.cleanup_login_events()`,
+  `auth.cleanup_password_tokens()`, `audit.ensure_partitions()`, and everything in the `graphile_worker` schema.
+  **An existing cluster** (created before 0012): run `create-roles.sql` again (idempotent) — migration 0012 stops with
+  a clear message while the role is missing.
 
 ```bash
-psql "$SUPERUSER_URL" -v migrator_password="'…'" -v app_password="'…'" -v db=hrforce -f apps/api/scripts/create-roles.sql
+psql "$SUPERUSER_URL" -v migrator_password="'…'" -v app_password="'…'" -v worker_password="'…'" -v db=hrforce \
+     -f apps/api/scripts/create-roles.sql
 ```
 
 ### Migrations
 
 - Plain SQL, forward-only: `migrations/NNNN_description.sql` (4 digits, contiguous from 0001, lowercase snake_case).
 - `npm run migrate -w @hrforce/api` compiles and runs `dist/platform/db/migrate.js` with `MIGRATOR_DATABASE_URL`.
-  In the Docker image: `node dist/platform/db/migrate.js`.
+  In the Docker image: `node dist/platform/db/migrate.js`. After the SQL files it installs / upgrades the **job queue
+  schema** (Graphile Worker's own migrations into `graphile_worker`, as the migrator) and re-applies its grants
+  (`src/platform/db/worker-schema.ts`: the worker gets everything there; `hrforce_app` only `EXECUTE` on
+  `graphile_worker.add_job`, made `SECURITY DEFINER`). Neither the API nor the worker ever runs DDL.
 - Runner (`src/platform/db/migrator.ts`): session advisory lock, `public.schema_migrations(version, name, checksum, applied_at)`
   with the file's sha256, each migration in its own transaction. It refuses to run on malformed names, gaps,
   applied migrations missing on disk, or a checksum change of an applied migration — never edit an applied file.
@@ -93,7 +111,7 @@ psql "$SUPERUSER_URL" -v migrator_password="'…'" -v app_password="'…'" -v db
 ### `schema.ts` (Kysely types)
 
 `src/platform/db/schema.ts` is generated by `kysely-codegen` (config: `.kysely-codegenrc.json`, reads
-`MIGRATOR_DATABASE_URL`, excludes `schema_migrations`, the `auth` schema and the monthly `audit.*_y…`/`*_default`
+`MIGRATOR_DATABASE_URL`, excludes `schema_migrations`, the `auth` and `graphile_worker` schemas and the monthly `audit.*_y…`/`*_default`
 partitions — the audit parents `audit.change_log`, `audit.event`, `audit.masked_column` are typed). After adding a migration:
 
 ```bash
@@ -192,8 +210,8 @@ policy + bundled common-password list, throttle math, mail templates fr/ar/en), 
 (`.kysely-codegenrc.json`); the function results are typed by hand in `infra/identity.repository.ts`. The `/api/auth`
 routes run without a request transaction (`@SkipTransaction()`), so a failed login is still recorded and a detected
 reuse still revokes the family although the response is an error.
-**Retention**: `login_event` rows are kept 180 days; the cleanup job comes with the worker (not yet implemented —
-until then `delete from auth.login_event where at < now() - interval '180 days'` as the migrator).
+**Retention**: `login_event` rows are kept 180 days and used/expired `password_token` rows 30 days — the worker's
+daily `auth.cleanup` job (definer functions `auth.cleanup_login_events()` / `auth.cleanup_password_tokens()`).
 
 **CLI** — the only way to create users until the admin UI (runs as the migrator; needs `MIGRATOR_DATABASE_URL`,
 `WEB_BASE_URL`, `MAIL_TRANSPORT` and, for smtp, `SMTP_URL`):
@@ -413,13 +431,15 @@ Contract: `docs/contracts/audit.md` (ADR 005). Migration `0009_audit.sql`, schem
 **Partitions and retention.** Both log tables are `PARTITION BY RANGE (at)` per UTC month
 (`audit.change_log_y2026m09`, …) with a `DEFAULT` partition as a safety net. `audit.ensure_partitions(months_ahead)`
 (idempotent, definer, not granted to the app) creates the current month + `months_ahead`; the migration ran it with 12.
-**The M2 worker must call `select audit.ensure_partitions(12)` monthly** (as the migrator); until then re-run it by
-hand before the horizon ends, or rows fall into the default partition (a month whose rows already sit in the default
-partition cannot be created until they are moved — the function says so). Retention (e.g. dropping or detaching old
+**The worker's cron job `audit.ensure_partitions` calls `audit.ensure_partitions(12)` on the 1st of every month**
+(`EXECUTE` granted to `hrforce_worker`); without a running worker, re-run it by hand before the horizon ends, or rows
+fall into the default partition (a month whose rows already sit in the default partition cannot be created until
+they are moved — the function says so). Retention (e.g. dropping or detaching old
 monthly partitions, or deleting with `audit.allow_purge`) is not implemented yet.
 
-**Reading the history — `GET /api/audit/timeline?subject=<type>:<id>&before=<cursor>&limit=50`** (`audit.read`;
-held by the system roles `admin_rh_central` and `admin_acces`):
+**Reading the history — `GET /api/audit/timeline?subject=<type>:<id>&before=<cursor>&limit=50`** (`@Authenticated`;
+every subject type needs `audit.read` — held by the system roles `admin_rh_central` and `admin_acces`, 403 otherwise —
+except `leave_request`, which follows the request's own visibility):
 
 | subject | entries | visible when |
 |---|---|---|
@@ -427,6 +447,8 @@ held by the system roles `admin_rh_central` and `admin_acces`):
 | `user:<id>` | `role_grant` rows of the user's grants **whose unit is in scope** + events about the user (auth.*, access.grant_*) | member of the company, and one of their grants is in scope or they have none |
 | `role:<id>` | `role` + `role_permission` rows | `audit.read` anywhere (company-wide) |
 | `site:<id>` | `site` rows | `audit.read` anywhere |
+| `employee:<id>` (employment id) | employment, assignments, salaries, person, person_sensitive rows + its `leave_request` rows + the `workflow.*` events about its requests | the employee's scope unit is in the caller's `audit.read` scope |
+| `leave_request:<id>` | the request, its `workflow_instance` and `workflow_task` rows + `workflow.*` events | **no audit.read needed**: `leave.read` over the request's unit, the requester, the employee's linked user, or a current candidate of its open task (else 404) |
 
 Unknown, other-company, out-of-scope or malformed ids → **404**; unknown type → 422 (`subject`/`invalid_subject`), bad
 cursor → 422 (`before`/`invalid_cursor`), `limit` 1–100 (default 50). Newest first by `(at, kind, id)` — all rows of
@@ -529,15 +551,80 @@ curl -s -b jar -c jar -H "X-XSRF-TOKEN: $XSRF" -H 'Content-Type: application/jso
 # {"month":"2026-09","employees":40,"eligible":39,"created":0,"alreadyAccrued":39}
 ```
 
-**What the M2 worker will take over** (ADR 005 job queue): the monthly accrual run (1st of the month, previous
-month), reminders / auto-escalation of tasks open for N days, re-assigning open manager tasks when a unit head changes,
-the daily closure refresh for future-dated org changes, and notifications (mail) on task creation and decisions.
+**The worker** (next section) runs the monthly accrual (1st of the month, previous month, every company). Still to
+come on it: reminders / auto-escalation of tasks open for N days, re-assigning open manager tasks when a unit head
+changes, the daily closure refresh for future-dated org changes.
 
 **Demo** (`seed:dev`, password `demo-password-2026`): `agent.annaba@demo.dz` (EMP-0030, Agence Annaba, role
 `employe`), `chef.annaba@demo.dz` (EMP-0029, head of Agence Annaba), `rh.est@demo.dz` linked to EMP-0022 (head of
 Région Est: Karim is HR and a manager). Heads: DG, DEP-RH, REG-EST, AG-ANNABA (from 2026-04-01), AG-CNE (EMP-0025
 until 2026-06-30, then EMP-0026 — not linked: requests there escalate to HR). Seven requests cover every status
 (approved, cancelled, rejected, pending at manager, pending at HR, escalated, the chef's own request approved by Karim).
+
+## Notifications, worker and live updates (`src/modules/notifications`, `src/worker*`)
+
+Contract: `docs/contracts/notifications.md`; migration `0012_notifications_worker.sql`; ADR 005 (Postgres only).
+
+**Notifications.** `notification` (one row per recipient; `read_at`) and `notification_preference` (e-mail on/off per
+user and type; no row = the type's default). RLS = the tenant policy **plus a restrictive own-user policy for
+`hrforce_app`** on SELECT/UPDATE/DELETE (`user_id = app.user_id`): a user never reads or marks another user's rows,
+even in their company (an INSERT for someone else is allowed — without `RETURNING`, which would need their SELECT
+policy; that is also why the insert uses `ON CONFLICT DO NOTHING` without a conflict target). `notification` is
+audit-exempt (derived from audited workflow events; `tools/guardrails/audit-exempt.json`); preferences are audited.
+Workflow and Leave create notifications through the platform port `Notifier` (`src/platform/notifications`), inside
+the request transaction:
+
+| Type | Created by | Recipients (never the actor) | Link |
+|---|---|---|---|
+| `task.assigned` | engine, when a task opens (incl. after escalation) | assignee, or every holder of the step permission over the unit today (`role_grant` + closure) — minus requester and employee | `/tasks?task=<task id>` |
+| `task.escalated` | engine, manager step skipped | the requester — **even when they are the actor** (the engine decided, not them) | `/me/leave?request=…` (employee) |
+| `leave.approved` / `leave.rejected` | leave hooks | requester + employee's linked user (deduplicated) | employee: `/me/leave?request=<id>`; requester filing for someone else: `/leave/requests/<id>` |
+| `leave.cancelled` | leave hook | the candidates of the task that was open | `/tasks` |
+| `leave.submitted_on_behalf` | leave, request filed by someone else | the employee's linked user | `/me/leave?request=<id>` |
+
+`data`: `requestId, employeeName, employeeNameAr (null when none), leaveType (code), startDate, endDate, days,
+actorName` (+ `taskId, stepKey` for task.assigned, `stepKey, escalationReason` for task.escalated) — never a reason,
+comment or balance. One notification per (recipient, type, subject): a repeated hook is a no-op.
+
+**Endpoints** (all `@Authenticated`, own rows only — someone else's id → 404): `GET /api/me/notifications?unreadOnly=&before=&limit=`
+(newest first, `nextCursor`), `GET …/unread-count`, `POST …/:id/read` (204, idempotent), `POST …/read-all` (204),
+`GET|PUT /api/me/notification-preferences` (`[{type, email, default}]` / body `[{type, email}]`, unknown or duplicate
+type → 422), `GET /api/me/notifications/stream` (SSE).
+
+**Live stream (SSE).** Events `unread` `{count}` (on open and on every change), `notification` (a `NotificationView`),
+comment `: ping` every 25 s, `retry: 5000`. Fan-out: the insert trigger sends `NOTIFY hrforce_notifications
+{companyId, userId, id}` (delivered on commit; mark-read routes send `id: null` = "count changed"); **one** `LISTEN`
+connection per API process (`NotificationHub`, `application_name` `hrforce-api-listen`, reconnects while anyone
+listens) dispatches to that user's open streams, which re-read the row **under RLS as the user** in a short
+transaction (the stream itself holds no transaction: `@SkipTransaction`). The stream ends when the access token behind
+it expires (≤ 15 min; DEV_AUTH identities: 15 min); the client refreshes through an ordinary call and reconnects.
+Headers: `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no` (Nginx); Caddy flushes `text/event-stream`.
+
+```bash
+curl -N -b jar localhost:3000/api/me/notifications/stream     # event: unread / data: {"count":2} …
+```
+
+**Worker** (`src/worker.ts` → `node dist/worker.js`, same image as the API; `npm run worker -w @hrforce/api` builds
+then runs, `npm run start:worker` runs the build). Graphile Worker 0.18 as `hrforce_worker`; `WORKER_CONCURRENCY` jobs
+at a time; one JSON log line per job (`job done` / `job failed`: task, jobId, attempt, durationMs, result);
+SIGTERM/SIGINT → no new jobs, running ones finish; container health = heartbeat file (`dist/worker-health.js`).
+Jobs are enqueued by the API through the platform port `JobQueue` (`graphile_worker.add_job` in the request
+transaction: rollback = no job).
+
+| Job | When | What |
+|---|---|---|
+| `notifications.email` | one per new notification | re-checks the preference and the account (inactive → skipped), renders fr/ar/en (`domain/mail-templates.ts`) with `${WEB_BASE_URL}` + link, sends via `MAIL_TRANSPORT`; errors → retried (5 attempts) |
+| `audit.ensure_partitions` | cron `10 0 1 * *` | `audit.ensure_partitions(12)` |
+| `leave.accruals` | cron `0 1 1 * *` | `runAccruals` for the month before the tick, every company (payload `{"month":"YYYY-MM"}` for a manual run) |
+| `auth.cleanup` | cron `0 3 * * *` | `auth.cleanup_login_events()` (> 180 days), `auth.cleanup_password_tokens()` (used/expired, > 30 days) |
+| `notifications.cleanup` | cron `30 3 * * *` | notifications read > 90 days ago, every company |
+
+Cron times are the worker's time zone (UTC in the containers); missed ticks are backfilled (7 days for the monthly
+jobs, 12 h for the daily ones); every job is idempotent. Tenant jobs run **company by company**
+(`public.job_company_ids()`), each in its own transaction with `app.company_id` set, `app.user_id` empty (audit actor =
+system) and `app.request_id = job:<task>:<job id>`; one company failing does not stop the others (the job then fails
+and is retried). Enqueue a job by hand (psql as the migrator):
+`select graphile_worker.add_job('leave.accruals', '{"month":"2026-08"}');`
 
 ## Tests
 
@@ -553,7 +640,9 @@ npm run typecheck -w @hrforce/api
   - `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres` (superuser) → creates roles if missing
     and a throwaway `hrforce_test_*` database, dropped afterwards;
   - unset → starts `postgres:18-alpine` with Testcontainers (Docker required).
-  - If the roles already exist on that cluster with other passwords, set `TEST_MIGRATOR_PASSWORD` / `TEST_APP_PASSWORD`.
+  - If the roles already exist on that cluster with other passwords, set `TEST_MIGRATOR_PASSWORD` / `TEST_APP_PASSWORD`
+    / `TEST_WORKER_PASSWORD` (`hrforce_worker`, default `hrforce_worker_test`; `db.workerUrl` in the tests).
+  - The harness also installs the job queue schema (like `npm run migrate`).
 - `test/support/test-app.ts` adds test-only routes and header-driven identity (`X-Test-User`, `X-Test-Company`);
   `createTestApp(db, { devAuth: true })` uses the real wiring instead (session cookie, else `X-Dev-*` headers, and
   `DEV_PERMISSIONS=allow_all` unless `devPermissions: false`), `evaluator` swaps the PermissionEvaluator, `mailSender`
@@ -567,7 +656,11 @@ npm run typecheck -w @hrforce/api
   on REG-EST, and an admin of a second company; targets in REG-EST, in REG-OUEST, in the other company). The route
   list comes from `node tools/guardrails/route-scan/route-scan.ts --json`: **adding a route without a matrix entry (or
   changing its permission) fails the suite**; anonymous → 401 is derived for every non-public route. When you add an
-  endpoint, add its row block there.
+  endpoint, add its row block there. SSE routes set `stream: true` (the row checks the status and the
+  `text/event-stream` type through `test/support/sse.ts`, then disconnects).
+- `test/notifications.e2e-spec.ts` (recipients per type, outbox, restrictive RLS, endpoints, SSE) and
+  `test/worker.e2e-spec.ts` (e-mail job with a fake mailer, the real Graphile runner as `hrforce_worker`, cron tasks,
+  cleanups, the worker role's limits).
 - `test/authorization.e2e-spec.ts`: tree/search/detail scoping, forbidden-scope, each SoD slug, escalation attempts,
   date-effective grants (`AccessClock` pinned to tomorrow via `createTestApp(..., { overrides })`), RLS/privileges on
   the new tables, `auth.company_members`, `/api/me`.
@@ -578,7 +671,9 @@ npm run typecheck -w @hrforce/api
 docker build -f apps/api/Dockerfile -t hrforce-api .   # from the repo root
 ```
 
-Multi-stage `node:22-alpine`, runs as the non-root `node` user, `HEALTHCHECK` on `/api/health`.
+Multi-stage `node:22-alpine`, runs as the non-root `node` user, `HEALTHCHECK` on `/api/health`. The same image runs
+the worker with `command: ["node", "dist/worker.js"]` (compose overrides the health check with
+`node dist/worker-health.js`).
 
 ## First company on an empty database (`bootstrap`)
 

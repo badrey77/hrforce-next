@@ -40,6 +40,9 @@
 
     <section aria-labelledby="requests-title" [attr.aria-busy]="requests.isLoading()">
       <h2 id="requests-title">{{ t('leave.mine.requests') }}</h2>
+      @if (linkedRequestMissing()) {
+        <p class="warning" role="status" data-state="request-missing">{{ t('leave.mine.linkedMissing') }}</p>
+      }
       @if (requests.error()) {
         <div class="form-error" role="alert">
           <p>{{ t('leave.list.loadError') }}</p>
@@ -48,7 +51,12 @@
       } @else if (requests.hasValue()) {
         <ul class="requests">
           @for (request of requestItems(); track request.id) {
-            <li [attr.data-request]="request.id">
+            <li
+              [attr.data-request]="request.id"
+              [class.highlight]="request.id === highlighted()"
+              [attr.aria-current]="request.id === highlighted() ? 'true' : null"
+              [attr.tabindex]="request.id === highlighted() ? -1 : null"
+            >
               <div class="head">
                 <p>
                   <strong>{{ catalog.nameOf(request.leaveTypeId) }}</strong> ·

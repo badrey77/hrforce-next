@@ -3,6 +3,7 @@ import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ScopeService, type UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { requireContext } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
+import { Notifier } from '../../../platform/notifications/notifier.js';
 import { excludedActors, parseSteps, progressOf, type Labels, type StepDef } from '../domain/steps.js';
 import { WorkflowRepository, type InstanceRow, type TaskRow } from '../infra/workflow.repository.js';
 import { WorkflowSubjects } from './workflow-subjects.js';
@@ -48,6 +49,7 @@ export class WorkflowEngine {
     private readonly scopes: ScopeService,
     private readonly subjects: WorkflowSubjects,
     private readonly audit: AuditEvents,
+    private readonly notifier: Notifier,
   ) {}
 
   // ── definitions ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -99,13 +101,16 @@ export class WorkflowEngine {
     await this.repo.setInstanceStep(companyId, instance.id, index);
     const base = { instanceId: instance.id, stepKey: step.key, stepIndex: index, scopeUnitId };
     if (step.kind === 'permission') {
-      await this.repo.insertTask(companyId, { ...base, assigneeKind: 'permission', assigneeUserId: null, permission: step.permission ?? null });
+      const permission = step.permission ?? null;
+      const taskId = await this.repo.insertTask(companyId, { ...base, assigneeKind: 'permission', assigneeUserId: null, permission });
+      await this.notifyAssigned(companyId, instance, step.key, taskId, { assigneeKind: 'permission', assigneeUserId: null, permission, scopeUnitId });
       return;
     }
     const manager = await this.subjects.get(instance.subjectType).resolveManager(instance.subjectId);
     const excluded = excludedActors(instance.startedBy, instance.subjectUserId);
     if (manager.userId !== null && !excluded.has(manager.userId)) {
-      await this.repo.insertTask(companyId, { ...base, assigneeKind: 'user', assigneeUserId: manager.userId, permission: null });
+      const taskId = await this.repo.insertTask(companyId, { ...base, assigneeKind: 'user', assigneeUserId: manager.userId, permission: null });
+      await this.notifyAssigned(companyId, instance, step.key, taskId, { assigneeKind: 'user', assigneeUserId: manager.userId, permission: null, scopeUnitId });
       return;
     }
     const reason = manager.userId === null ? manager.reason : 'manager-is-requester';
@@ -115,7 +120,57 @@ export class WorkflowEngine {
       subject: { type: 'leave_request', id: instance.subjectId },
       data: { instanceId: instance.id, step: step.key, reason },
     });
+    // the requester is told even when they are the actor: the engine, not they, decided to skip the manager
+    await this.notifier.notify({
+      type: 'task.escalated',
+      subject: { type: 'leave_request', id: instance.subjectId },
+      data: { ...(await this.notificationData(instance)), stepKey: step.key, escalationReason: reason },
+      recipients: [{ userId: instance.startedBy, audience: instance.startedBy === instance.subjectUserId ? 'employee' : 'requester' }],
+      includeActor: true,
+    });
     await this.openStep(companyId, instance, steps, index + 1, scopeUnitId);
+  }
+
+  // ── notifications (docs/contracts/notifications.md › Types) ─────────────────────────────────────────────────────
+
+  /** Subject data + the acting user's name. */
+  private async notificationData(instance: InstanceRow): Promise<Record<string, string | number | null>> {
+    const { userId } = caller();
+    const data = await this.subjects.get(instance.subjectType).notificationData(instance.subjectId);
+    return { ...data, actorName: (await this.displayName(userId)) || null };
+  }
+
+  /**
+   * Candidates of a task at this moment: its assignee, or every holder of its permission over its unit (today's
+   * grants) — never the requester or the subject's user (separation of duties).
+   */
+  private async candidatesOf(companyId: string, instance: InstanceRow, task: Pick<TaskRow, 'assigneeKind' | 'assigneeUserId' | 'permission' | 'scopeUnitId'>): Promise<string[]> {
+    const excluded = excludedActors(instance.startedBy, instance.subjectUserId);
+    const users =
+      task.assigneeKind === 'user' && task.assigneeUserId
+        ? [task.assigneeUserId]
+        : task.assigneeKind === 'permission' && task.permission
+          ? await this.repo.permissionHolders(companyId, task.permission, task.scopeUnitId)
+          : [];
+    return users.filter((u) => !excluded.has(u));
+  }
+
+  /** `task.assigned` to the new task's candidates (the actor is left out by the Notifier). */
+  private async notifyAssigned(
+    companyId: string,
+    instance: InstanceRow,
+    stepKey: string,
+    taskId: string,
+    task: Pick<TaskRow, 'assigneeKind' | 'assigneeUserId' | 'permission' | 'scopeUnitId'>,
+  ): Promise<void> {
+    const candidates = await this.candidatesOf(companyId, instance, task);
+    if (candidates.length === 0) return;
+    await this.notifier.notify({
+      type: 'task.assigned',
+      subject: { type: 'workflow_task', id: taskId },
+      data: { ...(await this.notificationData(instance)), stepKey, taskId },
+      recipients: candidates.map((userId) => ({ userId, audience: 'approver' as const })),
+    });
   }
 
   /** POST /tasks/:id/approve | reject. */
@@ -168,6 +223,8 @@ export class WorkflowEngine {
     if (instance.status !== 'pending' && instance.status !== 'approved') {
       throw new ProblemException(409, 'leave-not-cancellable', 'This request can no longer be cancelled.');
     }
+    const openTaskCandidates: string[] = [];
+    for (const task of await this.repo.openTasks(companyId, instance.id)) openTaskCandidates.push(...(await this.candidatesOf(companyId, instance, task)));
     await this.repo.cancelOpenTasks(companyId, instance.id);
     await this.repo.finishInstance(companyId, instance.id, 'cancelled');
     await this.audit.record({
@@ -180,6 +237,7 @@ export class WorkflowEngine {
       subjectId: instance.subjectId,
       actorUserId: userId,
       wasApproved: instance.status === 'approved',
+      openTaskCandidates,
     });
   }
 

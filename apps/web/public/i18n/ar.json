@@ -426,7 +426,10 @@
       "person_sensitive": "البيانات الحساسة",
       "employment": "الخدمة",
       "assignment": "التعيين",
-      "employment_salary": "الأجر"
+      "employment_salary": "الأجر",
+      "leave_request": "طلب عطلة",
+      "workflow_instance": "مسار الموافقة",
+      "workflow_task": "مرحلة الموافقة"
     },
     "masked": "مخفي",
     "emptyValue": "(فارغ)",
@@ -527,6 +530,41 @@
         "base_salary": "الأجر القاعدي",
         "valid": "مدة السريان",
         "created_at": "أُنشئ في"
+      },
+      "leave_request": {
+        "leave_type_id": "نوع العطلة",
+        "org_unit_id": "الوحدة",
+        "start_date": "من",
+        "end_date": "إلى",
+        "days": "الأيام",
+        "half_day_start": "نصف يوم في البداية",
+        "half_day_end": "نصف يوم في النهاية",
+        "reason": "السبب",
+        "document_ref": "الوثيقة المبررة",
+        "status": "الحالة",
+        "requested_by": "قدّمه",
+        "requested_at": "تاريخ التقديم"
+      },
+      "workflow_instance": {
+        "status": "الحالة",
+        "current_step": "المرحلة الحالية",
+        "started_by": "بدأه",
+        "started_at": "تاريخ البدء",
+        "finished_at": "تاريخ الانتهاء"
+      },
+      "workflow_task": {
+        "step_key": "المرحلة",
+        "step_index": "ترتيب المرحلة",
+        "assignee_kind": "مسندة إلى",
+        "assignee_user_id": "المستخدم المعيّن",
+        "permission": "الصلاحية المطلوبة",
+        "scope_unit_id": "الوحدة المعنية",
+        "status": "الحالة",
+        "outcome": "القرار",
+        "acted_by": "عالجها",
+        "acted_at": "تاريخ المعالجة",
+        "comment": "التعليق",
+        "created_at": "تاريخ الإنشاء"
       }
     },
     "events": {
@@ -540,7 +578,34 @@
         "grant_created": "إسناد الدور «{{role}}» على {{unit}} ابتداءً من {{validFrom}}",
         "grant_ended": "إنهاء الدور «{{role}}» على {{unit}} في {{validTo}}"
       },
-      "unknown": "حدث {{type}}"
+      "unknown": "حدث {{type}}",
+      "workflow": {
+        "start": "بدء مسار الموافقة",
+        "approve": "الموافقة على مرحلة «{{step}}»",
+        "reject": "رفض مرحلة «{{step}}»: {{comment}}",
+        "cancel": "إلغاء الطلب",
+        "escalate": "إحالة مرحلة «{{step}}» إلى المرحلة التالية (لا يوجد مسؤول متاح)"
+      }
+    },
+    "values": {
+      "workflow_task": {
+        "status": {
+          "open": "مفتوحة",
+          "done": "معالجة",
+          "skipped": "متجاوزة",
+          "cancelled": "ملغاة"
+        },
+        "outcome": {
+          "approve": "موافق عليها",
+          "reject": "مرفوضة",
+          "escalated": "محالة"
+        },
+        "assignee_kind": {
+          "user": "شخص",
+          "permission": "حاملو صلاحية",
+          "none": "لا أحد"
+        }
+      }
     }
   },
   "employees": {
@@ -860,7 +925,8 @@
       "cancel": "إلغاء الطلب",
       "cancelTitle": "إلغاء هذا الطلب؟",
       "confirmCancel": "نعم، إلغاء",
-      "keep": "لا، الاحتفاظ به"
+      "keep": "لا، الاحتفاظ به",
+      "linkedMissing": "الطلب المذكور في الرابط غير موجود ضمن طلباتك."
     },
     "list": {
       "title": "العطل",
@@ -881,7 +947,8 @@
       "back": "→ العودة إلى العطل",
       "employee": "ملف الموظف",
       "notFound": "الطلب غير موجود.",
-      "loadError": "تعذّر تحميل الطلب."
+      "loadError": "تعذّر تحميل الطلب.",
+      "history": "السجل"
     },
     "employee": {
       "requestOnBehalf": "طلب باسم الموظف",
@@ -993,7 +1060,8 @@
       "closed": "عالج شخص آخر طلب {{name}} مسبقًا.",
       "selfApproval": "لا يمكنك معالجة طلبك الخاص.",
       "notCandidate": "لم تعد هذه المهمة مسندة إليك."
-    }
+    },
+    "notOpen": "المهمة المذكورة في الرابط لم تعد مفتوحة: تمت معالجتها أو لم تعد مسندة إليك."
   },
   "workflow": {
     "title": "مسار الموافقة",
@@ -1025,6 +1093,70 @@
       "done": "معالَجة",
       "skipped": "متجاوَزة",
       "cancelled": "ملغاة"
+    }
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "bell": {
+      "label": "الإشعارات",
+      "labelWithCount": "الإشعارات، {{count}} غير مقروءة",
+      "live": "{{count}} إشعار(ات) غير مقروءة",
+      "panel": "آخر الإشعارات"
+    },
+    "empty": "لا توجد إشعارات حاليًا.",
+    "emptyUnread": "لا توجد إشعارات غير مقروءة.",
+    "markAllRead": "تعليم الكل كمقروء",
+    "markRead": "تعليم كمقروء",
+    "seeAll": "عرض كل الإشعارات",
+    "unread": "غير مقروء",
+    "unreadOnly": "غير المقروءة فقط",
+    "loadMore": "عرض المزيد",
+    "loading": "جارٍ تحميل الإشعارات…",
+    "loadError": "تعذّر تحميل الإشعارات.",
+    "offline": "التحديث المباشر غير متاح: تُحدَّث القائمة عند عودتك إلى هذه الصفحة.",
+    "types": {
+      "task": {
+        "assigned": "طلب «{{leaveType}}» من {{employeeName}} من {{startDate}} إلى {{endDate}} ({{days}} يوم): بانتظار قرارك.",
+        "escalated": "طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}} انتقل مباشرة إلى مرحلة الموارد البشرية (لا يوجد مسؤول متاح)."
+      },
+      "leave": {
+        "approved": "تمت الموافقة على طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}}.",
+        "rejected": "رفض {{actorName}} طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}}.",
+        "cancelled": "أُلغي طلب «{{leaveType}}» الخاص بـ {{employeeName}} من {{startDate}} إلى {{endDate}}.",
+        "submitted_on_behalf": "قدّم {{actorName}} نيابةً عنك طلب «{{leaveType}}» من {{startDate}} إلى {{endDate}}."
+      },
+      "unknown": "إشعار جديد"
+    },
+    "typeLabels": {
+      "task": {
+        "assigned": "طلب ينتظر موافقتي",
+        "escalated": "طلبي يتجاوز مرحلة المسؤول"
+      },
+      "leave": {
+        "approved": "تمت الموافقة على طلبي",
+        "rejected": "رُفض طلبي",
+        "cancelled": "أُلغي طلب كان عليّ معالجته",
+        "submitted_on_behalf": "الموارد البشرية تقدّم طلبًا نيابةً عني"
+      }
+    }
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "notifications": {
+      "title": "الإشعارات",
+      "intro": "تظهر الإشعارات دائمًا داخل التطبيق (الجرس أعلى الصفحة). اختر ما تريد استلامه أيضًا عبر البريد الإلكتروني.",
+      "type": "الحدث",
+      "email": "عبر البريد الإلكتروني",
+      "defaultOn": "افتراضيًا: نعم",
+      "defaultOff": "افتراضيًا: لا",
+      "save": "حفظ",
+      "saving": "جارٍ الحفظ…",
+      "saved": "تم حفظ التفضيلات.",
+      "unsaved": "تغييرات غير محفوظة.",
+      "restoreDefaults": "استعادة القيم الافتراضية",
+      "loadError": "تعذّر تحميل تفضيلاتك.",
+      "saveError": "تعذّر حفظ تفضيلاتك.",
+      "invalid": "رفض الخادم هذه التفضيلات. أعد تحميل الصفحة وحاول مجددًا."
     }
   }
 }

@@ -1,0 +1,72 @@
+<!--
+  States, as in the timeline: no page yet (error → retry / loading) · pages but no row (empty) · rows + footer
+  (error of "load more" / loading / "load more").
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('notifications.title') }}</h1>
+    <button class="btn secondary" type="button" data-action="mark-all" [disabled]="!anyUnread()" (click)="markAll()">
+      {{ t('notifications.markAllRead') }}
+    </button>
+  </header>
+
+  <p class="toolbar">
+    <label class="check">
+      <input type="checkbox" data-filter="unread" [checked]="unreadOnly()" (change)="setUnreadOnly($event)" />
+      {{ t('notifications.unreadOnly') }}
+    </label>
+  </p>
+
+  @if (center.status() === 'fallback') {
+    <p class="muted" data-state="fallback">{{ t('notifications.offline') }}</p>
+  }
+
+  <section [attr.aria-busy]="page.isLoading()" aria-labelledby="notifications-list-title">
+    <h2 id="notifications-list-title" class="visually-hidden">{{ t('notifications.title') }}</h2>
+    @if (!started()) {
+      @if (page.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('notifications.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="page.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else {
+        <p class="muted" data-state="loading">{{ t('notifications.loading') }}</p>
+      }
+    } @else {
+      <ul class="items">
+        @for (row of rows(); track row.item.id) {
+          <li class="item" [class.unread]="row.unread" [attr.data-notification]="row.item.id">
+            <a class="open" [routerLink]="row.tree" (click)="markRead(row.item)">
+              <app-notification-text [notification]="row.item" [now]="now()" />
+              @if (row.unread) {
+                <span class="visually-hidden">({{ t('notifications.unread') }})</span>
+              }
+            </a>
+            @if (row.unread) {
+              <button class="btn secondary" type="button" data-action="mark-read" (click)="markRead(row.item)">
+                {{ t('notifications.markRead') }}
+              </button>
+            }
+          </li>
+        } @empty {
+          <li class="muted" data-state="empty">{{ t(unreadOnly() ? 'notifications.emptyUnread' : 'notifications.empty') }}</li>
+        }
+      </ul>
+
+      <div class="footer">
+        @if (page.error()) {
+          <div class="form-error" role="alert">
+            <p>{{ t('notifications.loadError') }}</p>
+            <button class="btn secondary" type="button" (click)="page.reload()">{{ t('common.retry') }}</button>
+          </div>
+        } @else if (page.isLoading()) {
+          <p class="muted" data-state="loading-more">{{ t('notifications.loading') }}</p>
+        } @else if (nextCursor()) {
+          <button class="btn secondary" type="button" data-action="load-more" (click)="loadMore()">
+            {{ t('notifications.loadMore') }}
+          </button>
+        }
+      </div>
+    }
+  </section>
+</ng-container>

@@ -50,6 +50,12 @@ export class LeaveCatalog {
     return new Map(this.types().map((type) => [type.id, pickLabel(type.labels, lang)]));
   });
 
+  /** code → name in the active language (notifications carry the type's CODE, not its id). */
+  private readonly namesByCode = computed(() => {
+    const lang = this.language.current();
+    return new Map(this.types().map((type) => [type.code, pickLabel(type.labels, lang)]));
+  });
+
   type(id: string): LeaveType | undefined {
     return this.byId().get(id);
   }
@@ -57,6 +63,11 @@ export class LeaveCatalog {
   /** Name of a type in the active language; the id until the catalogue is loaded (or for an unknown id). */
   nameOf(id: string): string {
     return this.names().get(id) || id;
+  }
+
+  /** Name of a type by its code (e.g. `annual`); the code itself until loaded or when unknown. */
+  nameOfCode(code: string): string {
+    return this.namesByCode().get(code) || code;
   }
 
   /** Any `{fr, ar, en}` label (holiday, workflow step) in the active language. Reads the language signal. */

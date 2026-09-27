@@ -68,6 +68,7 @@ jobs:
       TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       TEST_MIGRATOR_PASSWORD: ci_migrator_pw
       TEST_APP_PASSWORD: ci_app_pw
+      TEST_WORKER_PASSWORD: ci_worker_pw
       MIGRATOR_DATABASE_URL: postgres://hrforce_migrator:ci_migrator_pw@localhost:5432/hrforce
       LOG_LEVEL: warn
     steps:
@@ -81,7 +82,7 @@ jobs:
       - name: Create roles and database (apps/api/scripts/create-roles.sql)
         run: >-
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1
-          -v migrator_password="'ci_migrator_pw'" -v app_password="'ci_app_pw'" -v db=hrforce
+          -v migrator_password="'ci_migrator_pw'" -v app_password="'ci_app_pw'" -v worker_password="'ci_worker_pw'" -v db=hrforce
           -f apps/api/scripts/create-roles.sql
       - name: Run migrations (twice — the second run must be a no-op)
         run: |

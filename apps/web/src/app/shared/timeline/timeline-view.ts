@@ -11,8 +11,11 @@
  */
 import type { AuditChange, AuditOp, TimelineEntry } from '../../core/audit/audit.models';
 
-/** What an id-like value refers to, so a page can name it. */
-export type AuditRefKind = 'unit' | 'site' | 'role' | 'roleCode' | 'permission' | 'user' | 'kind';
+/**
+ * What an id-like value refers to, so a page can name it. `leaveType` = a leave type id (LeaveCatalog), `step` = a
+ * workflow step key (`manager`, `hr`) named by the request's workflow definition.
+ */
+export type AuditRefKind = 'unit' | 'site' | 'role' | 'roleCode' | 'permission' | 'user' | 'kind' | 'leaveType' | 'step';
 
 /**
  * Names a referenced value (a unit id, a role code…) from data the host page already has, or `undefined` to show
@@ -32,6 +35,27 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   granted_by: 'user',
   ended_by: 'user',
   kind: 'kind',
+  // Leave requests and their approval flow (notifications contract › Audit gap).
+  leave_type_id: 'leaveType',
+  requested_by: 'user',
+  started_by: 'user',
+  acted_by: 'user',
+  assignee_user_id: 'user',
+  scope_unit_id: 'unit',
+  step_key: 'step',
+};
+
+/**
+ * Columns holding a code from a fixed list, shown through a translation key `<prefix><value>` (e.g. a leave request
+ * `status` "approved" → `leave.status.approved`, the same word the leave screens use). Unknown values fall back to
+ * the stored text (decided in the template).
+ */
+export const ENUM_FIELDS: Readonly<Record<string, string>> = {
+  'leave_request.status': 'leave.status.',
+  'workflow_instance.status': 'leave.status.',
+  'workflow_task.status': 'audit.values.workflow_task.status.',
+  'workflow_task.outcome': 'audit.values.workflow_task.outcome.',
+  'workflow_task.assignee_kind': 'audit.values.workflow_task.assignee_kind.',
 };
 
 /**
@@ -47,6 +71,10 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   assignment: ['employment_id'],
   employment_salary: ['employment_id', 'currency'],
   person_sensitive: ['person_id'],
+  // Leave: the links only repeat the subject (the request, its employee, its flow).
+  leave_request: ['employment_id', 'workflow_instance_id'],
+  workflow_instance: ['definition_id', 'subject_type', 'subject_id', 'subject_user_id'],
+  workflow_task: ['instance_id'],
 };
 
 export type DisplayValue =
@@ -59,6 +87,8 @@ export type DisplayValue =
   | { readonly kind: 'date'; readonly iso: string }
   /** A `timestamptz` as stored (ISO) — formatted by `DatePipe` in the UI language. */
   | { readonly kind: 'timestamp'; readonly iso: string }
+  /** A code from a fixed list (`ENUM_FIELDS`): shown as `t(key)`, or `text` when the key is unknown. */
+  | { readonly kind: 'key'; readonly key: string; readonly text: string }
   | { readonly kind: 'text'; readonly text: string };
 
 export interface FieldLine {
@@ -119,10 +149,17 @@ export function localDay(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function displayValue(value: unknown, masked: boolean, ref: AuditRefKind | undefined, resolve: AuditNameResolver): DisplayValue {
+function displayValue(
+  value: unknown,
+  masked: boolean,
+  ref: AuditRefKind | undefined,
+  resolve: AuditNameResolver,
+  enumPrefix?: string,
+): DisplayValue {
   if (masked || value === MASK) return { kind: 'masked' };
   if (value === null || value === undefined || value === '') return { kind: 'empty' };
   if (typeof value === 'boolean') return { kind: 'bool', value };
+  if (enumPrefix && typeof value === 'string') return { kind: 'key', key: enumPrefix + value, text: value };
   if (typeof value === 'string') {
     const range = RANGE.exec(value);
     if (range?.[1]) return { kind: 'range', from: range[1], to: range[2] ?? null };
@@ -140,11 +177,12 @@ function isHidden(table: string, field: string): boolean {
 
 function fieldLine(table: string, op: AuditOp, change: AuditChange, resolve: AuditNameResolver): FieldLine {
   const ref = REFERENCE_FIELDS[change.field];
+  const enumPrefix = ENUM_FIELDS[`${table}.${change.field}`];
   return {
     field: change.field,
     labelKey: `audit.fields.${table}.${change.field}`,
-    before: op === 'insert' ? null : displayValue(change.before, change.masked, ref, resolve),
-    after: op === 'delete' ? null : displayValue(change.after, change.masked, ref, resolve),
+    before: op === 'insert' ? null : displayValue(change.before, change.masked, ref, resolve, enumPrefix),
+    after: op === 'delete' ? null : displayValue(change.after, change.masked, ref, resolve, enumPrefix),
   };
 }
 
@@ -157,6 +195,8 @@ function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditName
   }
   if (params['unitId']) params['unit'] = resolve('unit', params['unitId']) || params['unitId'];
   if (params['roleCode']) params['role'] = resolve('roleCode', params['roleCode']) || params['roleCode'];
+  // workflow.* events carry the step KEY; the host page may know its label (the request's workflow definition).
+  if (params['step']) params['step'] = resolve('step', params['step']) || params['step'];
   return params;
 }
 

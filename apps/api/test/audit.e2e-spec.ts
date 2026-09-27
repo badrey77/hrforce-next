@@ -61,8 +61,8 @@ const M1_TABLES = [
 ];
 const AUDITED_TABLES = [
   'assignment', 'company', 'employment', 'employment_salary', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
-  'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday', 'role', 'role_grant',
-  'role_permission', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
+  'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
+  'role', 'role_grant', 'role_permission', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
 const C = '0190a5d0-0000-7000-8000-00000000c0de';
 
@@ -126,7 +126,7 @@ afterAll(async () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('schema: coverage, partitions, privileges', () => {
-  it('audit.capture() is attached to every tenant table except org_unit_closure', async () => {
+  it('audit.capture() is attached to every tenant table except org_unit_closure and notification', async () => {
     const rows = await query<{ table: string }>(
       db.superuserUrl,
       `select c.relname as table from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_proc p on p.oid = t.tgfoid
@@ -333,6 +333,12 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
   /** POST routes that write nothing (a read with a body). */
   const READ_ONLY_POSTS = ['POST /api/leave/preview'];
+  /**
+   * Writes to an AUDIT-EXEMPT table only (tools/guardrails/audit-exempt.json): marking one's own notifications read
+   * changes notification.read_at — per-user UI state of derived rows whose source events are audited. No audit row
+   * is expected (asserted below).
+   */
+  const AUDIT_EXEMPT_WRITES = ['POST /api/me/notifications/:id/read', 'POST /api/me/notifications/read-all'];
   const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '' };
 
   beforeAll(async () => {
@@ -449,6 +455,10 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: `/api/tasks/${LV.rejectTask}/reject`, body: { comment: 'Refusé' } }),
       tables: ['workflow_task', 'workflow_instance', 'leave_request'],
     },
+    'PUT /api/me/notification-preferences': {
+      request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
+      tables: ['notification_preference'],
+    },
   };
 
   it('covers every write route of the route-scan outside /api/auth', () => {
@@ -457,8 +467,19 @@ describe('exit criterion: every write through the API produces an audit row with
     const writes = routes
       .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
       .map((r) => `${r.method} ${r.path}`)
-      .filter((key) => !READ_ONLY_POSTS.includes(key));
+      .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key));
     expect(Object.keys(WRITES).toSorted()).toEqual(writes.toSorted());
+  });
+
+  it('marking notifications read (audit-exempt table) writes no audit row but does change read_at', async () => {
+    const [mine] = await query<{ id: string }>(db.superuserUrl, `select id from notification where user_id = $1 and read_at is null order by created_at limit 1`, [USERS.admin.id]);
+    expect(mine, 'rh.admin has unread notifications (task.assigned of the HR tasks above)').toBeDefined();
+    const one = rid('read');
+    await client('admin').post(`/api/me/notifications/${mine?.id}/read`).set('X-Request-Id', one).send({}).expect(204);
+    const all = rid('read-all');
+    await client('admin').post('/api/me/notifications/read-all').set('X-Request-Id', all).send({}).expect(204);
+    expect(await changes('request_id = any($1)', [[one, all]])).toEqual([]);
+    expect(await query(db.superuserUrl, 'select 1 from notification where user_id = $1 and read_at is null', [USERS.admin.id])).toEqual([]);
   });
 
   it.each(Object.keys(WRITES))('%s', async (key) => {
@@ -697,6 +718,43 @@ describe('GET /api/audit/timeline', () => {
     expect((await timeline('est', `employee:${emp}`)).status).toBe(403);
     expect((await timeline('beta', `employee:${emp}`)).status).toBe(404);
     expect((await timeline('beta', `employee:${EMPLOYEE_B.employmentId}`)).status).toBe(200);
+  });
+
+  it('leave_request: the request, its workflow instance and tasks, workflow.* events; visible like the request (no audit.read needed)', async () => {
+    const types = await query<{ id: string }>(db.superuserUrl, `select id from leave_type where company_id = $1 and code = 'annual'`, [COMPANY_A]);
+    const create = async (start: string) =>
+      (await client('agent').post('/api/me/leave/requests').send({ leaveTypeId: types[0]?.id, startDate: start, endDate: start }).expect(201)).body.id as string;
+    const id = await create('2027-05-03');
+    // chef.annaba is the current candidate (manager step): 200 before acting
+    expect((await timeline('chef', `leave_request:${id}`)).status).toBe(200);
+    const task = ((await client('chef').get('/api/tasks')).body.items as { id: string; subject: { id: string } }[]).find((t) => t.subject.id === id);
+    await client('chef').post(`/api/tasks/${task?.id}/approve`).send({}).expect(200);
+
+    const own = await timeline('agent', `leave_request:${id}`, '&limit=100');
+    expect(own.status).toBe(200);
+    assertNoSecrets(own.body);
+    expect(new Set(own.items.filter((i) => i.kind === 'change').map((i) => i.table))).toEqual(new Set(['leave_request', 'workflow_instance', 'workflow_task']));
+    expect(own.items.filter((i) => i.kind === 'event').map((i) => i.event?.type).toSorted()).toEqual(['workflow.approve', 'workflow.start']);
+    expect(own.items.every((i) => i.kind === 'event' || ['leave_request', 'workflow_instance', 'workflow_task'].includes(i.table ?? ''))).toBe(true);
+    // scope: leave.read over the unit (rh.est, rh.admin) → 200; the manager after acting, lecture, admin_acces (audit.read
+    // but no leave.read), the other company → 404; unknown / malformed id → 404
+    expect((await timeline('est', `leave_request:${id}`)).status).toBe(200);
+    expect((await timeline('admin', `leave_request:${id}`)).status).toBe(200);
+    for (const actor of ['chef', 'ouest', 'acces', 'beta'] as const) expect((await timeline(actor, `leave_request:${id}`)).status, actor).toBe(404);
+    expect((await timeline('agent', 'leave_request:0190a5d0-0000-7000-8000-00000000dead')).status).toBe(404);
+    expect((await timeline('agent', 'leave_request:nope')).status).toBe(404);
+    // every other subject type still needs audit.read (403 before any validation)
+    expect((await timeline('agent', `org_unit:${unitA('AG-ANNABA')}`)).status).toBe(403);
+    expect((await timeline('agent', 'employee:nope')).status).toBe(403);
+
+    // the employee's History includes their leave requests and the workflow events about them (audit.read scope)
+    const employee = await timeline('admin', `employee:${employeeA(30)}`, '&limit=100');
+    expect(employee.status).toBe(200);
+    expect(employee.items.some((i) => i.table === 'leave_request' && i.op === 'insert')).toBe(true);
+    expect(employee.items.some((i) => i.event?.type === 'workflow.approve')).toBe(true);
+    expect(employee.items.some((i) => i.table === 'workflow_task')).toBe(false);
+    expect((await timeline('acces', `employee:${employeeA(30)}`)).status).toBe(200); // REG-EST
+    expect((await timeline('est', `employee:${employeeA(30)}`)).status).toBe(403);
   });
 
   it('pagination: stable cursor over (at, kind, id); pages concatenate to the full list', async () => {

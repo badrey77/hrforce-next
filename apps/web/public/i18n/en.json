@@ -426,7 +426,10 @@
       "person_sensitive": "Sensitive data",
       "employment": "Employment",
       "assignment": "Assignment",
-      "employment_salary": "Salary"
+      "employment_salary": "Salary",
+      "leave_request": "Leave request",
+      "workflow_instance": "Approval flow",
+      "workflow_task": "Approval step"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -527,6 +530,41 @@
         "base_salary": "Base salary",
         "valid": "Validity",
         "created_at": "Created"
+      },
+      "leave_request": {
+        "leave_type_id": "Leave type",
+        "org_unit_id": "Unit",
+        "start_date": "From",
+        "end_date": "To",
+        "days": "Days",
+        "half_day_start": "Half day at the start",
+        "half_day_end": "Half day at the end",
+        "reason": "Reason",
+        "document_ref": "Supporting document",
+        "status": "Status",
+        "requested_by": "Requested by",
+        "requested_at": "Requested on"
+      },
+      "workflow_instance": {
+        "status": "Status",
+        "current_step": "Current step",
+        "started_by": "Started by",
+        "started_at": "Started on",
+        "finished_at": "Finished on"
+      },
+      "workflow_task": {
+        "step_key": "Step",
+        "step_index": "Step rank",
+        "assignee_kind": "Assigned to",
+        "assignee_user_id": "Assigned user",
+        "permission": "Required permission",
+        "scope_unit_id": "Unit concerned",
+        "status": "Status",
+        "outcome": "Decision",
+        "acted_by": "Handled by",
+        "acted_at": "Handled on",
+        "comment": "Comment",
+        "created_at": "Created on"
       }
     },
     "events": {
@@ -540,7 +578,34 @@
         "grant_created": "Role “{{role}}” granted on {{unit}} from {{validFrom}}",
         "grant_ended": "Role “{{role}}” on {{unit}} ended on {{validTo}}"
       },
-      "unknown": "Event {{type}}"
+      "unknown": "Event {{type}}",
+      "workflow": {
+        "start": "Approval flow started",
+        "approve": "Step “{{step}}” approved",
+        "reject": "Step “{{step}}” rejected: {{comment}}",
+        "cancel": "Request cancelled",
+        "escalate": "Step “{{step}}” passed on to the next step (no manager available)"
+      }
+    },
+    "values": {
+      "workflow_task": {
+        "status": {
+          "open": "open",
+          "done": "handled",
+          "skipped": "skipped",
+          "cancelled": "cancelled"
+        },
+        "outcome": {
+          "approve": "approved",
+          "reject": "rejected",
+          "escalated": "passed on"
+        },
+        "assignee_kind": {
+          "user": "one person",
+          "permission": "holders of a permission",
+          "none": "nobody"
+        }
+      }
     }
   },
   "employees": {
@@ -860,7 +925,8 @@
       "cancel": "Cancel request",
       "cancelTitle": "Cancel this request?",
       "confirmCancel": "Yes, cancel",
-      "keep": "No, keep it"
+      "keep": "No, keep it",
+      "linkedMissing": "The request in the link is not among your requests."
     },
     "list": {
       "title": "Leave",
@@ -881,7 +947,8 @@
       "back": "← Back to leave",
       "employee": "Employee record",
       "notFound": "Request not found.",
-      "loadError": "Could not load the request."
+      "loadError": "Could not load the request.",
+      "history": "History"
     },
     "employee": {
       "requestOnBehalf": "Request for the employee",
@@ -993,7 +1060,8 @@
       "closed": "{{name}}'s request was already handled by someone else.",
       "selfApproval": "You cannot act on your own request.",
       "notCandidate": "This task is no longer assigned to you."
-    }
+    },
+    "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you."
   },
   "workflow": {
     "title": "Approval chain",
@@ -1025,6 +1093,70 @@
       "done": "Done",
       "skipped": "Skipped",
       "cancelled": "Cancelled"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "bell": {
+      "label": "Notifications",
+      "labelWithCount": "Notifications, {{count}} unread",
+      "live": "{{count}} unread notification(s)",
+      "panel": "Latest notifications"
+    },
+    "empty": "No notifications yet.",
+    "emptyUnread": "No unread notifications.",
+    "markAllRead": "Mark all as read",
+    "markRead": "Mark as read",
+    "seeAll": "See all notifications",
+    "unread": "unread",
+    "unreadOnly": "Unread only",
+    "loadMore": "Show more",
+    "loading": "Loading notifications…",
+    "loadError": "Could not load the notifications.",
+    "offline": "Live updates unavailable: the list refreshes when you come back to this tab.",
+    "types": {
+      "task": {
+        "assigned": "“{{leaveType}}” request from {{employeeName}}, {{startDate}} to {{endDate}} ({{days}} d): waiting for you.",
+        "escalated": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available)."
+      },
+      "leave": {
+        "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
+        "rejected": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was rejected by {{actorName}}.",
+        "cancelled": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, was cancelled.",
+        "submitted_on_behalf": "{{actorName}} filed a “{{leaveType}}” request for you, {{startDate}} to {{endDate}}."
+      },
+      "unknown": "New notification"
+    },
+    "typeLabels": {
+      "task": {
+        "assigned": "A request waits for my approval",
+        "escalated": "My request skips the manager step"
+      },
+      "leave": {
+        "approved": "My request is approved",
+        "rejected": "My request is rejected",
+        "cancelled": "A request I had to handle is cancelled",
+        "submitted_on_behalf": "HR files a request for me"
+      }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "notifications": {
+      "title": "Notifications",
+      "intro": "Notifications always appear in the app (the bell at the top). Choose the ones you also receive by email.",
+      "type": "Event",
+      "email": "By email",
+      "defaultOn": "default: yes",
+      "defaultOff": "default: no",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Preferences saved.",
+      "unsaved": "Unsaved changes.",
+      "restoreDefaults": "Restore defaults",
+      "loadError": "Could not load your preferences.",
+      "saveError": "Could not save your preferences.",
+      "invalid": "The server refused these preferences. Reload the page and try again."
     }
   }
 }

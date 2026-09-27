@@ -2,9 +2,9 @@
 # Run from this directory; deploy/.env supplies every ${VAR} below (COMPOSE_FILE points here, so plain
 # `docker compose …` works). Normal flow: ./deploy.sh <git-sha>  (pull → migrate → up → wait for health).
 #
-# Networks:  db      internal (no internet): postgres, api, migrate, backup
+# Networks:  db      internal (no internet): postgres, api, worker, migrate, backup
 #            app     internal (no internet): proxy, api, web
-#            egress  outbound + published ports: proxy (ACME, :80/:443), api and migrate (SMTP relay)
+#            egress  outbound + published ports: proxy (ACME, :80/:443), api, worker and migrate (SMTP relay)
 # Postgres is never published; api and web are only reachable through the proxy.
 
 x-api-image: &api-image ${HRFORCE_REGISTRY:-ghcr.io/badrey77}/hrforce-api:${HRFORCE_TAG:?HRFORCE_TAG is set by deploy.sh}
@@ -32,9 +32,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?}
       POSTGRES_DB: postgres
       # Read once, by the init hook below, on the very first start (empty volume) to create hrforce_migrator,
-      # hrforce_app and the hrforce database. Changing them later needs create-roles.sql again (README).
+      # hrforce_app, hrforce_worker and the hrforce database. deploy.sh re-applies create-roles.sql on every deploy.
       HRFORCE_MIGRATOR_PASSWORD: ${HRFORCE_MIGRATOR_PASSWORD:?}
       HRFORCE_APP_PASSWORD: ${HRFORCE_APP_PASSWORD:?}
+      HRFORCE_WORKER_PASSWORD: ${HRFORCE_WORKER_PASSWORD:?}
       HRFORCE_DB: hrforce
     volumes:
       - ../apps/api/scripts/create-roles.sql:/hrforce/create-roles.sql:ro
@@ -51,7 +52,8 @@ services:
       retries: 30
       start_period: 30s
 
-  # One-shot: forward-only SQL migrations as hrforce_migrator (schema owner). Not started by `up`;
+  # One-shot: forward-only SQL migrations as hrforce_migrator (schema owner), then the job queue schema (Graphile
+  # Worker) and its grants. Not started by `up`;
   # deploy.sh runs `docker compose run --rm migrate` before `up -d`. Also the container for the CLIs that run as
   # the migrator (user:invite, optional demo seed) — see README.
   migrate:
@@ -101,6 +103,37 @@ services:
         condition: service_healthy
     networks: [db, app, egress]
     # Health: the image's HEALTHCHECK (GET /api/health, which also checks the database).
+
+  # Background jobs (docs/contracts/notifications.md › Worker): notification e-mails and the cron (audit partitions,
+  # leave accruals, cleanups). Same image as the API, other entry point; no port. Graceful stop on SIGTERM
+  # (running jobs finish; the rest stay queued in Postgres).
+  worker:
+    image: *api-image
+    restart: unless-stopped
+    <<: [*hardening, *logging]
+    command: ["node", "dist/worker.js"]
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # hrforce_worker: subject to RLS (each job sets its company); never the migrator or superuser password.
+      WORKER_DATABASE_URL: postgres://hrforce_worker:${HRFORCE_WORKER_PASSWORD:?}@postgres:5432/hrforce
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      WEB_BASE_URL: https://${STAGING_DOMAIN:?}
+      MAIL_TRANSPORT: smtp
+      SMTP_URL: ${SMTP_URL:?}
+      MAIL_FROM: ${MAIL_FROM:?}
+    # Replaces the image's HTTP HEALTHCHECK: the worker touches /tmp/hrforce-worker.alive after each database check.
+    healthcheck:
+      test: ["CMD", "node", "dist/worker-health.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [db, egress]
 
   web:
     image: ${HRFORCE_REGISTRY:-ghcr.io/badrey77}/hrforce-web:${HRFORCE_TAG:?HRFORCE_TAG is set by deploy.sh}

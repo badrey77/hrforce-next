@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException, type OnModuleInit } 
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { currentTx, requireContext } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
+import { Notifier, type NotificationData, type NotificationType } from '../../../platform/notifications/notifier.js';
 import { StaffingService, type EmployeeCard } from '../../staffing/index.js';
 import { WorkflowEngine, WorkflowSubjects, type HookContext, type ManagerCandidate, type UserRef } from '../../workflow/index.js';
 import { parseMonth } from '../domain/accrual.js';
@@ -115,6 +116,7 @@ export class LeaveService implements OnModuleInit {
     private readonly engine: WorkflowEngine,
     private readonly subjects: WorkflowSubjects,
     private readonly clock: LeaveClock,
+    private readonly notifier: Notifier,
   ) {}
 
   onModuleInit(): void {
@@ -128,6 +130,7 @@ export class LeaveService implements OnModuleInit {
         const summaries = await this.summaries(companyId, await this.repo.requests(companyId, ids), { withWorkflow: false });
         return new Map(summaries.map((s) => [s.id, { ...s } as Record<string, unknown>]));
       },
+      notificationData: (id) => this.notificationData(id),
     });
   }
 
@@ -306,6 +309,15 @@ export class LeaveService implements OnModuleInit {
         subjectUserId,
       });
       await this.repo.setInstance(companyId, id, instanceId);
+      // filed by someone else (HR): the employee's own user is told (the Notifier drops the actor)
+      if (subjectUserId && subjectUserId !== userId) {
+        await this.notifier.notify({
+          type: 'leave.submitted_on_behalf',
+          subject: { type: 'leave_request', id },
+          data: { ...(await this.notificationData(id)), actorName: (await this.engine.displayName(userId)) || null },
+          recipients: [{ userId: subjectUserId, audience: 'employee' }],
+        });
+      }
       const request = await this.repo.request(companyId, id);
       if (!request) throw requestNotFound();
       return this.detail(companyId, request, true);
@@ -412,15 +424,56 @@ export class LeaveService implements OnModuleInit {
       );
     }
     await this.repo.setStatus(companyId, request.id, 'approved');
+    await this.notifyOutcome('leave.approved', request, context.actorUserId);
   }
 
   private async onRejected(context: HookContext): Promise<void> {
     const { companyId } = caller();
     await this.repo.setStatus(companyId, context.subjectId, 'rejected');
+    const request = await this.repo.request(companyId, context.subjectId);
+    if (request) await this.notifyOutcome('leave.rejected', request, context.actorUserId);
+  }
+
+  // ── notifications (docs/contracts/notifications.md › Types) ─────────────────────────────────────────────────────
+
+  /** Names, type code, dates and days of a request — what its notifications show (no reason, no balance). */
+  private async notificationData(requestId: string): Promise<NotificationData> {
+    const { companyId } = caller();
+    const request = await this.repo.request(companyId, requestId);
+    if (!request) return { requestId };
+    const [card, type] = await Promise.all([
+      this.staffing.cards([request.employmentId]).then((cards) => cards.get(request.employmentId)),
+      this.repo.type(companyId, request.leaveTypeId),
+    ]);
+    const person = card?.person;
+    const arabic = person?.firstNameAr && person.lastNameAr ? `${person.firstNameAr} ${person.lastNameAr}` : null;
+    return {
+      requestId,
+      employeeName: person ? `${person.firstName} ${person.lastName}` : null,
+      employeeNameAr: arabic,
+      leaveType: type?.code ?? null,
+      startDate: request.startDate,
+      endDate: request.endDate,
+      days: Number(request.days),
+    };
+  }
+
+  /** leave.approved / leave.rejected → the requester and the employee's linked user (deduplicated; never the actor). */
+  private async notifyOutcome(type: NotificationType, request: RequestRow, actorUserId: string): Promise<void> {
+    const employeeUser = (await this.staffing.linkedUsersOf([request.employmentId])).get(request.employmentId) ?? null;
+    await this.notifier.notify({
+      type,
+      subject: { type: 'leave_request', id: request.id },
+      data: { ...(await this.notificationData(request.id)), actorName: (await this.engine.displayName(actorUserId)) || null },
+      recipients: [
+        { userId: employeeUser, audience: 'employee' },
+        { userId: request.requestedBy, audience: 'requester' },
+      ],
+    });
   }
 
   /** Cancelled: status + (was approved) a `reversal` row per `taken` row, same reference year. */
-  private async onCancelled(context: HookContext & { wasApproved: boolean }): Promise<void> {
+  private async onCancelled(context: HookContext & { wasApproved: boolean; openTaskCandidates: readonly string[] }): Promise<void> {
     const { companyId } = caller();
     const request = await this.repo.request(companyId, context.subjectId);
     if (!request) throw requestNotFound();
@@ -441,6 +494,15 @@ export class LeaveService implements OnModuleInit {
       );
     }
     await this.repo.setStatus(companyId, request.id, 'cancelled');
+    // the candidates of the task that was open learn it no longer needs them
+    if (context.openTaskCandidates.length > 0) {
+      await this.notifier.notify({
+        type: 'leave.cancelled',
+        subject: { type: 'leave_request', id: request.id },
+        data: { ...(await this.notificationData(request.id)), actorName: (await this.engine.displayName(context.actorUserId)) || null },
+        recipients: context.openTaskCandidates.map((userId) => ({ userId, audience: 'approver' as const })),
+      });
+    }
   }
 
   // ── adjustments and accruals ──────────────────────────────────────────────────────────────────────────────────

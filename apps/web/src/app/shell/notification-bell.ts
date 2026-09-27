@@ -184,6 +184,20 @@ import { NotificationText } from '../shared/notifications/notification-text';
       color: var(--color-text);
       box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
     }
+    /* Narrow screens: the header wraps, so the bell is not at the viewport's edge and a panel hung from it would
+       overflow (off the left in LTR, the right in RTL). The panel then spans the viewport minus the page gutter:
+       .bell stops being its containing block, and the auto block offset keeps it just below the bell. */
+    @media (max-width: 640px) {
+      .bell {
+        position: static;
+      }
+      .panel {
+        inset-block-start: auto;
+        inset-inline: var(--space-4);
+        inline-size: auto;
+        margin-block-start: var(--space-2);
+      }
+    }
     .panel-head {
       display: flex;
       align-items: baseline;

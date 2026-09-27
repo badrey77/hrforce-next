@@ -128,3 +128,8 @@ migration 0012).
   employee's requests (not their `workflow_task` rows).
 - **Worker:** cron in the worker's time zone (UTC in containers), missed ticks backfilled (7 days monthly, 12 h daily);
   e-mail job retried 5 times; `leave.accruals` accepts a manual payload `{"month":"YYYY-MM"}`.
+- **Verified 2026-09-27 (independent verifier).** Links per recipient, opened in a browser as that recipient: every
+  one lands on a page they can see — `task.assigned` and `leave.cancelled` go to `/tasks` (no permission guard: a unit
+  head with only `employe` opens it), the employee's own user to `/me/leave?request=…`, an HR requester who filed on
+  behalf to `/leave/requests/<id>` (they hold `leave.read`). The web request detail shows its **History without
+  `audit.read`** (the API scopes a `leave_request` timeline like the request; `rh_regional` has no `audit.read`).

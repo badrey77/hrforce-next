@@ -182,7 +182,7 @@ in as `lecture.ouest@demo.dz` to see the read-only organization and no Access en
 | Notifications | `/notifications` | signed in | unread filter, cursor "load more", mark one / all read |
 | Settings › Notifications | `/settings` | signed in | email on/off per type with its default; save state and errors |
 | Links | `/tasks?task=<id>`, `/me/leave?request=<id>` | — | select the task / highlight and scroll to the request; a message when it is gone |
-| History | employee History tab, `/leave/requests/:id` (`audit.read`) | — | leave request rows, workflow tasks and `workflow.*` events with labels |
+| History | employee History tab (`audit.read`), `/leave/requests/:id` (whoever reads the request) | — | leave request rows, workflow tasks and `workflow.*` events with labels |
 
 - `core/notifications/`: `NotificationsApi`, `NotificationCenter` (root store; SSE via `EVENT_SOURCE_FACTORY`, opened
   while signed in, backoff 1 s → 30 s, session renewal through an HttpClient call before each reconnect, fallback to

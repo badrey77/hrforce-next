@@ -1,12 +1,14 @@
 /**
  * /leave/requests/:id — one leave request for HR: the request, its approval steps and history (the shared
- * `<app-leave-request-view>`), a link to the employee's page, and — with `audit.read` — its **History** (the audit
- * timeline of `leave_request:<id>`: the request's row changes, its workflow tasks and the `workflow.*` events;
- * notifications contract › Audit gap).
+ * `<app-leave-request-view>`), a link to the employee's page, and its **History** (the audit timeline of
+ * `leave_request:<id>`: the request's row changes, its workflow tasks and the `workflow.*` events; notifications
+ * contract › Audit gap). The History needs NO `audit.read`: the API shows a leave_request timeline to whoever may read
+ * the request itself (leave.read over the unit, the requester, a candidate — contract › Settled), which is anyone who
+ * got this far (e.g. `rh_regional`, which has no `audit.read`).
  *
  * Angular concepts: route param → `input.required()` → `httpResource` keyed on it (as the employee detail page);
  * a 404 reads "not found" without a retry — out-of-scope ids are 404 by design (ADR 002).
- * History: `*appCan="'audit.read'"` shows the section (chapter 12) and `@defer (on viewport; prefetch on idle)` keeps
+ * History: `@defer (on viewport; prefetch on idle)` keeps
  * the timeline's code out of this page's chunk until the section scrolls into view (chapter 13). The `resolver`
  * names what the page already knows: leave types (LeaveCatalog), the request's workflow step keys (its definition's
  * labels), and the employee's unit. It reads signals, so names appear as soon as that data arrives.
@@ -41,7 +43,7 @@ import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
         </header>
         <app-leave-request-view [request]="r" />
 
-        <section *appCan="'audit.read'" class="panel" aria-labelledby="leave-history-title" data-section="history">
+        <section class="panel" aria-labelledby="leave-history-title" data-section="history">
           <h2 id="leave-history-title">{{ t('leave.detail.history') }}</h2>
           @defer (on viewport; prefetch on idle) {
             <app-timeline [subject]="'leave_request:' + r.id" [resolver]="auditNames" />

@@ -46,8 +46,8 @@ describe('LeaveRequestPage › History', () => {
 
   const el = () => harness.routeNativeElement as HTMLElement;
 
-  it('with audit.read: a History section loads the leave_request timeline when it scrolls into view', async () => {
-    await open(['leave.read', 'audit.read']);
+  it('a History section loads the leave_request timeline when it scrolls into view', async () => {
+    await open(['leave.read']);
     expect(el().querySelector('[data-section="history"] h2')?.textContent).toContain('Historique');
     const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
     expect(req.request.params.get('subject')).toBe('leave_request:r-1');
@@ -55,9 +55,11 @@ describe('LeaveRequestPage › History', () => {
     await settle();
   });
 
-  it('without audit.read: no History section, no timeline request', async () => {
+  it('needs no audit.read: whoever reads the request reads its History (the API scopes it like the request)', async () => {
     await open(['leave.read']);
-    expect(el().querySelector('[data-section="history"]')).toBeNull();
-    http.expectNone((r) => r.url === '/api/audit/timeline');
+    expect(el().querySelector('[data-section="history"]')).not.toBeNull();
+    const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
+    req.flush({ items: [], nextCursor: null });
+    await settle();
   });
 });

@@ -44,7 +44,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
   Contract `docs/contracts/leave.md`, ADR 006. Build decisions to confirm: accrued annual days become usable 12 months after the reference year starts (reading of "taken from 1 July N"); special paid leaves count working days; a user cannot link their own account to an employee; `rh.est` also holds `employe` so Karim can request leave; the Région Est director linked to Karim in the seed is the fictitious "Souad Cherif".
 
 - **Notifications + worker + live updates: built and independently verified 2026-09-27** (live bell < 0.2 s, links open for every recipient, SSE isolation, worker role least-privilege; 3 small web fixes) (contract `docs/contracts/notifications.md`): in-app bell (SSE over Postgres LISTEN/NOTIFY), emails per preference via Graphile Worker jobs, monthly/daily cron (audit partitions, leave accruals, cleanups), leave events on History.
-- **MFA (TOTP + recovery codes): built 2026-09-27** (contract `docs/contracts/mfa.md`). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
+- **MFA (TOTP + recovery codes): built and independently verified 2026-09-27** (browser fr/ar, brute force / replay / token-swap / enforcement-bypass probes, CSP through Caddy; 3 small web fixes) (contract `docs/contracts/mfa.md`, see its "Settled by the build"). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -74,6 +74,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - An HR user who filed leave on someone's behalf gets `leave.approved` worded "your request…" without the employee's name.
 - The worker role can SELECT every public table (salary included); the app role can enqueue any job type (same trust question as open question 3).
 
+- MFA admin reset follows the `GET /access/users/:id` visibility rule: a regional `access.grant` holder can reset the factor of a user who has one grant in their region even if that user also holds company-wide rights (reset only weakens a factor; the password is still needed). Product decision pending, like the access-admin edge cases above.
 - Arabic employee list sorts by the Latin name; breadcrumb "›" not mirrored in Arabic.
 - Web rejects a lower-case matricule (the API would upper-case it).
 - No rehire screen (API supports `personId`).

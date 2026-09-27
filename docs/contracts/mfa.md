@@ -80,3 +80,47 @@ Audit events: `auth.mfa_enrolled`, `auth.mfa_disabled`, `auth.mfa_recovery_regen
 - Access → user detail: "Reset two-step sign-in" (confirm dialog) with `access.grant`. Access → a **Security policy**
   section (`access.manage_roles`): enforce toggle + permission checklist (reuse the permission checklist).
 - i18n fr/ar/en; RTL; the code input stays LTR (`dir="ltr"`).
+
+## Settled by the build (verified 2026-09-27)
+
+Behaviour the build settled where the contract above was silent (`apps/api/README.md` › Two-step sign-in,
+`apps/web/README.md` › Two-step sign-in, migration 0013).
+
+- **Token purposes.** Both JWTs carry `pur`: the access token `access`, the pending token `mfa` (+ `sub`, `cid`, `mfa`,
+  5 min). Each verifier accepts only its own purpose and claim set: an `hrf_mfa` value is never an access token (401
+  on every other route, also when sent as `hrf_at`), an access token is never a pending token (401
+  `mfa-challenge-expired`). The challenge's company = the user's default membership (same rule as a session).
+- **`POST /auth/mfa/verify`.** `@Public` + XSRF (anon token accepted). Body: exactly one of `code` / `recoveryCode`,
+  else 422 `validation-error`. Order: pending token → live challenge (else 401 `mfa-challenge-expired` and `hrf_mfa`
+  cleared) → IP throttle (429) / e-mail lock (423) → the code. A replayed step (≤ `last_used_step`) and a code outside
+  ±1 step are plain `mfa-invalid`. Each failure counts on the challenge AND as `login_event` `mfa_failed`; wrong
+  passwords and wrong codes share the per-e-mail lock (5 in 15 min → 423), so the 5th wrong code both kills the
+  challenge and locks the account. Success clears `hrf_mfa` and consumes the challenge (an old `hrf_mfa` → 401
+  `mfa-challenge-expired`). Two challenges verified in parallel with the same code: one wins, the other is a replay.
+- **Recovery codes.** Alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; case, spaces and hyphens are ignored on input.
+  Each use mails the user ("N left") in their locale (sent by the API, not the worker) and audits
+  `auth.mfa_recovery_used {recoveryCodesLeft}`.
+- **`/me/mfa*`.** `enroll/start` while active → 409 `mfa-already-enabled`; `enroll/confirm` without a pending secret →
+  422 `mfa-invalid`; `recovery-codes` / `disable` without an active factor → **409 `mfa-not-enabled`** (new slug). A
+  wrong code there → 422 `mfa-invalid` (`errors[].field = code`) and counts toward the same per-e-mail lock (423 before
+  any check while locked). Confirm, regenerate and disable also use the replay guard (the step must be newer than the
+  last one used). The factor is **active as soon as confirm succeeds**: the recovery-codes screen and its "I have saved
+  them" checkbox are a web gate only.
+- **Secrets.** AES-256-GCM with the user id as additional data (a value copied to another user does not decrypt).
+  Dev/test fall back to a public dev key; production refuses to boot without `AUTH_MFA_KEY`, with the dev key, or with
+  a value that is not base64 of 32 bytes. No rotation yet (README). `hrforce_app` has no privilege on the three tables;
+  the definer functions check `app.user_id` (own factor) or a live challenge.
+- **Enforcement.** A company without a `security_policy` row has the defaults (enforced). The check runs in
+  `PermissionCheck` **before** the permission check, on every non-public route (the SSE stream included); exemptions are
+  the `@AllowWithoutMfa()` routes listed in `tools/guardrails/mfa-exempt.json`. `GET/PUT /access/security-policy`:
+  `access.manage_roles`; PUT needs it over the whole company (else 403 `forbidden-scope`); unknown codes → 422
+  `unknown_permission`; the list is stored in catalogue order.
+- **Admin reset.** 404 outside the caller's `access.grant` visibility (≥ 1 current/future grant in scope, or none), 409
+  `mfa-reset-self`; revokes refresh sessions (`mfa_reset`; the access token lives ≤ 15 min), kills open challenges,
+  mails the user, audits `auth.mfa_reset {hadMfa}`. The factor belongs to the account, so a reset applies in every
+  company.
+- **Web.** The code step is state inside the login page (not a route); 423/429 and `mfa-challenge-expired` return to the
+  password step. Enforcement: `mfaEnrollmentGuard` (`canMatch`, every signed-in route except `/me/security`) and
+  `mfaEnrollmentInterceptor` (403 `mfa-enrollment-required`) lead to `/me/security?enroll=1&returnUrl=…`; the
+  interceptor stands aside when the session already says "must enroll" (the guard keeps the right `returnUrl`). The
+  policy screen is `/access/security`; the recovery file is `hrforce-recovery-codes.txt` with a localized header line.

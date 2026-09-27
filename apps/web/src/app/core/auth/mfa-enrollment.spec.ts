@@ -131,6 +131,19 @@ describe('two-step sign-in enforcement', () => {
       expect(TestBed.inject(Router).url).toBe('/me/security?enroll=1&returnUrl=%2Femployees');
     });
 
+    it('leaves the redirect to the guard when the session already says so (keeps the guard\'s returnUrl)', async () => {
+      TestBed.inject(Session).set(ME_MFA_REQUIRED);
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/employees');
+      // a shell call (task count, bell…) fails while / after the guard redirected
+      TestBed.inject(HttpClient).get('/api/tasks').subscribe({ error: () => undefined });
+      http.expectOne('/api/tasks').flush(...ENROLL_403);
+      await settle();
+
+      http.expectNone('/api/me');
+      expect(TestBed.inject(Router).url).toBe('/me/security?enroll=1&returnUrl=%2Femployees');
+    });
+
     it('does nothing while already on the security page, and ignores other 403s', async () => {
       TestBed.inject(Session).set(ME_MFA_REQUIRED);
       const harness = await RouterTestingHarness.create();

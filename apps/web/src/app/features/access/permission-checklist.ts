@@ -28,7 +28,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { AccessCatalog } from '../../core/access/access-catalog';
 
 /** Catalogue groups with a translated heading (`access.groups.<code>`); any other group shows its code. */
-const KNOWN_GROUPS: ReadonlySet<string> = new Set(['organization', 'access', 'employee', 'sensitive']);
+const KNOWN_GROUPS: ReadonlySet<string> = new Set(['organization', 'access', 'employee', 'sensitive', 'leave']);
 
 @Component({
   selector: 'app-permission-checklist',

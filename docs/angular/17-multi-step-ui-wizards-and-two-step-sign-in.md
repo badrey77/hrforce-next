@@ -259,6 +259,10 @@ grants a sensitive role). The server then answers `403 mfa-enrollment-required`.
 that problem type on any response, and the root `MfaEnforcement` service reloads the session (so the guard agrees
 from now on) and navigates to the wizard — once, however many calls failed at the same moment (a flag in the service;
 an interceptor function has no state of its own). The error is re-thrown unchanged: callers still fail as usual.
+When the session **already** says "must enroll", the service does nothing: the guard is in charge. Right after
+sign-in the shell's own calls (task count, bell) fail with this 403 while the first navigation is still in flight and
+`router.url` is still the page being left (`/login`); navigating from the interceptor then would overwrite the guard's
+correct `returnUrl` with that stale URL (found by the browser verification).
 
 Why a separate interceptor instead of a branch inside `apiProblemInterceptor`: that one only converts errors into
 `ApiProblemError` and depends on nothing; this one needs `Router` and `Session`. Different jobs, different files.

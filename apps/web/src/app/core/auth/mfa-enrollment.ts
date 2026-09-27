@@ -80,7 +80,11 @@ export class MfaEnforcement {
 
   async enrollmentRequired(): Promise<void> {
     const current = this.router.url;
-    if (this.redirecting || isSecurityUrl(current)) {
+    // When the session ALREADY says "must enroll", the guard is in charge: it redirects every navigation, including
+    // the one in flight right now. The shell's own calls (bell, task count…) fail with this 403 during that first
+    // navigation, while `router.url` is still the page being left ('/' or '/login'); navigating from here would
+    // replace the guard's correct `returnUrl` with that stale one.
+    if (this.redirecting || this.session.mfaEnrollmentRequired() || isSecurityUrl(current)) {
       return;
     }
     this.redirecting = true;

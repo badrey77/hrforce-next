@@ -272,7 +272,8 @@
       "organization": "Organization",
       "access": "Access",
       "employee": "Employees",
-      "sensitive": "Sensitive data"
+      "sensitive": "Sensitive data",
+      "leave": "Leave"
     },
     "users": {
       "search": "Search users",
@@ -1277,6 +1278,8 @@
     "errors": {
       "invalidCode": "Wrong or expired code. Enter the code shown now.",
       "alreadyEnabled": "Two-step sign-in is already on.",
+      "notEnabled": "Two-step sign-in is not on (it may have been reset). Reload the page.",
+      "locked": "Too many wrong codes: try again in 15 minutes.",
       "requiredByPolicy": "Your company requires two-step sign-in: it cannot be turned off.",
       "codeFormat": "The code has 6 digits."
     }

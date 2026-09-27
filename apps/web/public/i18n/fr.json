@@ -272,7 +272,8 @@
       "organization": "Organisation",
       "access": "Accès",
       "employee": "Employés",
-      "sensitive": "Données sensibles"
+      "sensitive": "Données sensibles",
+      "leave": "Congés"
     },
     "users": {
       "search": "Rechercher un utilisateur",
@@ -1277,6 +1278,8 @@
     "errors": {
       "invalidCode": "Code incorrect ou expiré. Saisissez le code affiché maintenant.",
       "alreadyEnabled": "La validation en deux étapes est déjà activée.",
+      "notEnabled": "La validation en deux étapes n’est pas activée (elle a peut-être été réinitialisée). Rechargez la page.",
+      "locked": "Trop de codes incorrects : réessayez dans 15 minutes.",
       "requiredByPolicy": "Votre entreprise exige la validation en deux étapes : elle ne peut pas être désactivée.",
       "codeFormat": "Le code comporte 6 chiffres."
     }

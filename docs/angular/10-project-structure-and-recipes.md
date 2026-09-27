@@ -471,3 +471,23 @@ These recipes are what the next screens (contracts, documents — M2) should fol
 new situation doesn't fit one of them cleanly, extend this chapter (and the concept
 chapters it links to) rather than improvising a one-off pattern — per `CLAUDE.md`, this
 guide grows with the code.
+
+## Recipe: add a multi-step flow (wizard)
+
+Example: `features/security/mfa-enroll-wizard.ts` (full story in [chapter 17](./17-multi-step-ui-wizards-and-two-step-sign-in.md)).
+
+1. **Decide: routes or state.** Steps a user may bookmark or come back to → routes. Phases of one task that make no
+   sense alone (a code step, a confirmation) → one component and a signal.
+2. **Write the state as a discriminated union**, one member per step carrying that step's data, and keep it in ONE
+   `signal<State>()`. Add small `computed()`s for each step's payload.
+3. **Write transitions as methods** that call one private `go(next)`; nothing else writes the signal. API calls happen
+   in the transition and move on only on success.
+4. **Template: `@switch (state().step)`** with one `@case` per step; a progress `<ol>` with `aria-current="step"`.
+5. **Focus**: in `go()`, `afterNextRender(() => heading.focus(), { injector })`; give each step heading `#stepHeading`
+   and `tabindex="-1"`, or focus the step's first field.
+6. **Shared state with a child** (a "I have saved them" checkbox) → `model()` + `[(x)]="signal"`; re-check it in the
+   final transition.
+7. **Codes and secrets**: `dir="ltr"`, monospace, `translate="no"`; one-time codes use `inputmode="numeric"` and
+   `autocomplete="one-time-code"`.
+8. **Tests**: click through every step with `HttpTestingController`, assert the state tag (`data-state`), focus, and
+   that no request is sent from an invalid step.

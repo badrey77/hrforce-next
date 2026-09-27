@@ -28,6 +28,11 @@
  *   audit timeline (grant rows + login/password events) for `audit.read` holders. `auditNames` names role ids and
  *   codes from the catalogue, and units / people from the grants this page already loaded — no extra request.
  *   The End dialog stays OUTSIDE the tabs: it is page-level UI, and a `<dialog>` hidden with its panel could not open.
+ * - **"Reset two-step sign-in"** (docs/contracts/mfa.md): `*appCan="'access.grant'"` for the permission, plus
+ *   `@if (!isSelf())` — the API refuses a self-reset (409 `mfa-reset-self`), so the button is not offered on your own
+ *   page. A second native `<dialog>` asks for confirmation, because the action is destructive (it also signs the
+ *   person out everywhere). `role="alertdialog"` tells assistive tech this dialog needs a decision; focus starts on
+ *   Cancel, the safe choice (`autofocus` inside a modal dialog is honoured by `showModal()`).
  */
 import {
   ChangeDetectionStrategy,
@@ -43,6 +48,7 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AccessApi } from '../../core/access/access-api';
+import { Session } from '../../core/auth/session';
 import { AccessCatalog } from '../../core/access/access-catalog';
 import type { GrantView } from '../../core/access/access.models';
 import { todayIso } from '../../core/date/iso-date';
@@ -63,6 +69,16 @@ function loadErrorKey(error: unknown, fallback: string, notFound = fallback): st
   if (error.status === 403) return 'errors.forbidden';
   if (error.status === 404) return notFound;
   return fallback;
+}
+
+/** Translation key for a failed `POST /access/users/:id/mfa/reset`. */
+export function resetErrorKey(error: unknown): string {
+  if (!isApiProblemError(error)) return 'errors.generic';
+  if (error.problem.type === PROBLEM_TYPE_NETWORK) return 'errors.network';
+  if (error.problem.type === 'urn:hrforce:problem:mfa-reset-self') return 'access.mfaReset.self';
+  if (error.status === 403) return 'errors.forbidden';
+  if (error.status === 404) return 'access.users.notFound';
+  return 'errors.generic';
 }
 
 @Component({
@@ -111,6 +127,43 @@ export class UserDetailPage {
       return names;
     }),
   });
+
+  // --- Reset two-step sign-in -----------------------------------------------------------------------------
+
+  private readonly session = inject(Session);
+  /** The API refuses to reset your own two-step sign-in: do not offer it. */
+  protected readonly isSelf = computed(() => this.user()?.id === this.session.user()?.id);
+  private readonly resetDialog = viewChild.required<ElementRef<HTMLDialogElement>>('resetDialog');
+  protected readonly resetting = signal(false);
+  protected readonly resetError = signal<string | null>(null);
+
+  protected openReset(): void {
+    this.feedback.set(null);
+    this.resetError.set(null);
+    this.resetDialog().nativeElement.showModal();
+  }
+
+  protected cancelReset(): void {
+    this.resetDialog().nativeElement.close();
+  }
+
+  protected confirmReset(): void {
+    const person = this.user();
+    if (!person) return;
+    this.resetError.set(null);
+    this.resetting.set(true);
+    this.api.resetMfa(person.id).subscribe({
+      next: () => {
+        this.resetting.set(false);
+        this.resetDialog().nativeElement.close();
+        this.feedback.set({ key: 'access.mfaReset.done', role: person.displayName });
+      },
+      error: (error: unknown) => {
+        this.resetting.set(false);
+        this.resetError.set(resetErrorKey(error));
+      },
+    });
+  }
 
   // --- End dialog -------------------------------------------------------------------------------------------
 

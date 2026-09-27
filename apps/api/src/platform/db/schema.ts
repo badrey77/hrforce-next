@@ -313,6 +313,13 @@ export interface RolePermission {
   role_id: string;
 }
 
+export interface SecurityPolicy {
+  company_id: string;
+  mfa_enforced: Generated<boolean>;
+  mfa_required_permissions: Generated<string[]>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Site {
   address: string | null;
   code: string;
@@ -404,6 +411,7 @@ export interface DB {
   role: Role;
   role_grant: RoleGrant;
   role_permission: RolePermission;
+  security_policy: SecurityPolicy;
   site: Site;
   user_employment: UserEmployment;
   workflow_definition: WorkflowDefinition;

@@ -31,7 +31,7 @@ describe('Permission evaluation inside the request transaction (e2e)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    app = await createTestApp(db, { evaluator: TxProbeEvaluator });
+    app = await createTestApp(db, { evaluator: TxProbeEvaluator, mfa: 'off' }); // fictional tenant: no security policy
   });
   afterAll(async () => {
     await app?.close();
@@ -91,7 +91,7 @@ describe('DEV_AUTH wiring (e2e)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    devApp = await createTestApp(db, { devAuth: true });
+    devApp = await createTestApp(db, { devAuth: true, mfa: 'off' }); // fictional tenant: no security policy
     // DEV_AUTH=false with the env-driven defaults (anonymous resolver + deny-all evaluator).
     plainApp = await createTestApp(db, { devAuth: false, evaluator: null });
   });

@@ -13,12 +13,18 @@
  *   `me()` uses it to tell the refresh interceptor "do not redirect to /login if this fails" (see
  *   `SKIP_LOGIN_REDIRECT`), because the startup session check must be allowed to fail quietly.
  *
+ * - **`observe: 'response'`** (on `login()`). By default `HttpClient` hands you only the parsed BODY. The login
+ *   answer means different things by STATUS (204 = signed in, 200 `{mfaRequired: true}` = a code is needed next,
+ *   docs/contracts/mfa.md), so `login()` asks for the whole `HttpResponse` and maps it to a small union
+ *   (`LoginOutcome`) with RxJS `map`. Callers never see HTTP details, and a missing/odd body falls back to
+ *   "signed in" only when the status is 204.
+ *
  * No token is ever read here: the cookies are httpOnly (ADR 004); the browser attaches them to same-origin calls.
  */
 import { HttpClient, HttpContext, HttpContextToken } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Observable } from 'rxjs';
-import type { LoginCredentials, Me, PasswordSetup } from './auth.models';
+import { type Observable, map } from 'rxjs';
+import type { LoginCredentials, LoginOutcome, Me, MfaVerification, PasswordSetup } from './auth.models';
 
 export const AUTH_API_BASE = '/api/auth';
 export const ME_URL = '/api/me';
@@ -38,9 +44,23 @@ export class AuthApi {
     return this.http.get<void>(`${AUTH_API_BASE}/csrf`);
   }
 
-  /** `POST /api/auth/login` → 204 + session cookies. Errors: 401, 423, 429 (Retry-After), 403 account-disabled. */
-  login(credentials: LoginCredentials): Observable<void> {
-    return this.http.post<void>(`${AUTH_API_BASE}/login`, credentials);
+  /**
+   * `POST /api/auth/login` → 204 + session cookies (`'signed-in'`), or 200 `{mfaRequired: true}` + the short-lived
+   * `hrf_mfa` cookie (`'mfa-required'`: call `verifyMfa()` next). Errors: 401, 423, 429 (Retry-After), 403.
+   */
+  login(credentials: LoginCredentials): Observable<LoginOutcome> {
+    return this.http
+      .post<{ mfaRequired?: boolean } | null>(`${AUTH_API_BASE}/login`, credentials, { observe: 'response' })
+      .pipe(map((response) => (response.status === 200 && response.body?.mfaRequired === true ? 'mfa-required' : 'signed-in')));
+  }
+
+  /**
+   * `POST /api/auth/mfa/verify` `{code}` or `{recoveryCode}` → 204 + session cookies. The browser sends the `hrf_mfa`
+   * cookie by itself (it is scoped to `Path=/api/auth/mfa`). 401 `mfa-invalid` (try again) or
+   * `mfa-challenge-expired` (start over at the password); 423/429 lockout like login.
+   */
+  verifyMfa(body: MfaVerification): Observable<void> {
+    return this.http.post<void>(`${AUTH_API_BASE}/mfa/verify`, body);
   }
 
   /** `POST /api/auth/logout` → 204; revokes the session family and clears the cookies. */

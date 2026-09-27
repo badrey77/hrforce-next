@@ -335,3 +335,11 @@ await this.router.navigateByUrl(safeReturnUrl(this.returnUrl()));
 
 [06-http-and-errors.md](./06-http-and-errors.md) — how `OrgApi` actually talks to the
 API, and what happens when a request fails.
+
+## Two guards in one `canMatch` array: two-step sign-in enforcement
+
+`app.routes.ts` now protects signed-in pages with `const signedIn = [authGuard, mfaEnrollmentGuard]` (spread into
+each route) instead of `authGuard` alone; only `/me/security` keeps `[authGuard]`, since it is where
+`mfaEnrollmentGuard` redirects (`/me/security?enroll=1&returnUrl=…`). Guards run in array order and the first
+non-`true` result wins, so a signed-out visitor still lands on /login. Details, and the interceptor that covers
+policy changes during a session: [chapter 17 §8](./17-multi-step-ui-wizards-and-two-step-sign-in.md#8-enforcement-a-guard-and-an-interceptor).

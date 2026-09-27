@@ -1,5 +1,6 @@
 import type { ScopeEntry } from '../../../platform/authz/scope-service.js';
 import type { Locale } from '../domain/account.js';
+import type { MeMfaView } from './mfa-views.js';
 
 /** GET /api/me (docs/contracts/identity.md + authorization.md: `permissions` and `scopes`). */
 export interface MeView {
@@ -10,6 +11,8 @@ export interface MeView {
   permissions: string[];
   /** Per held code, the units (with/without sub-units) it is effective at. */
   scopes: Record<string, ScopeEntry[]>;
+  /** Two-step sign-in (docs/contracts/mfa.md): required by the company policy for this user, enabled, codes left. */
+  mfa: MeMfaView;
 }
 
 export interface CompanyView {

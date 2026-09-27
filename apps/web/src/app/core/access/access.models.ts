@@ -134,6 +134,14 @@ export interface EndGrant {
   readonly validTo: string;
 }
 
+/** `GET/PUT /access/security-policy` (docs/contracts/mfa.md › Endpoints, `access.manage_roles`). */
+export interface SecurityPolicy {
+  /** Two-step sign-in is enforced for holders of the listed permissions. */
+  readonly mfaEnforced: boolean;
+  /** Holding ANY of these (anywhere) makes two-step sign-in mandatory when enforced. */
+  readonly mfaRequiredPermissions: readonly string[];
+}
+
 /** 409 business-rule slugs of the Authorization contract (`type: urn:hrforce:problem:<slug>`). */
 export type AccessProblemSlug =
   | 'grant-self'

@@ -1,69 +1,158 @@
 <ng-container *transloco="let t">
   <h1 id="login-title">{{ t('auth.login.title') }}</h1>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="login-title" novalidate>
-    @if (formError(); as error) {
-      <p class="form-error" role="alert">
-        {{ 'key' in error ? t(error.key, error.params) : error.text }}
-      </p>
+  <!--
+    One component, two steps. `@switch` renders exactly one `@case`; the other step's DOM does not exist (its inputs
+    are destroyed and re-created), which is why focus is moved explicitly after each change (see login.page.ts).
+  -->
+  @switch (step()) {
+    @case ('password') {
+      <form [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="login-title" novalidate data-step="password">
+        @if (formError(); as error) {
+          <p class="form-error" role="alert">
+            {{ 'key' in error ? t(error.key, error.params) : error.text }}
+          </p>
+        }
+
+        @let email = form.controls.email;
+        <div class="field">
+          <label for="login-email">{{ t('auth.login.email') }}</label>
+          <input
+            #emailInput
+            id="login-email"
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            inputmode="email"
+            dir="ltr"
+            required
+            [attr.aria-invalid]="email.invalid && email.touched"
+            [attr.aria-describedby]="email.invalid && email.touched ? 'login-email-error' : null"
+          />
+          @if (email.invalid && email.touched) {
+            <p class="field-error" id="login-email-error">
+              @if (email.hasError('required')) {
+                {{ t('auth.login.errors.emailRequired') }}
+              } @else if (email.hasError('server')) {
+                {{ email.getError('server') }}
+              } @else {
+                {{ t('auth.login.errors.emailInvalid') }}
+              }
+            </p>
+          }
+        </div>
+
+        @let password = form.controls.password;
+        <div class="field">
+          <label for="login-password">{{ t('auth.login.password') }}</label>
+          <input
+            #passwordInput
+            id="login-password"
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+            [attr.aria-invalid]="password.invalid && password.touched"
+            [attr.aria-describedby]="password.invalid && password.touched ? 'login-password-error' : null"
+          />
+          @if (password.invalid && password.touched) {
+            <p class="field-error" id="login-password-error">
+              @if (password.hasError('required')) {
+                {{ t('auth.login.errors.passwordRequired') }}
+              } @else if (password.hasError('server')) {
+                {{ password.getError('server') }}
+              } @else {
+                {{ t('errors.generic') }}
+              }
+            </p>
+          }
+        </div>
+
+        <button class="btn" type="submit" [disabled]="submitting()">
+          {{ submitting() ? t('auth.login.submitting') : t('auth.login.submit') }}
+        </button>
+      </form>
+
+      <p class="aside"><a routerLink="/password/forgot">{{ t('auth.login.forgot') }}</a></p>
     }
 
-    @let email = form.controls.email;
-    <div class="field">
-      <label for="login-email">{{ t('auth.login.email') }}</label>
-      <input
-        id="login-email"
-        type="email"
-        formControlName="email"
-        autocomplete="username"
-        inputmode="email"
-        dir="ltr"
-        required
-        [attr.aria-invalid]="email.invalid && email.touched"
-        [attr.aria-describedby]="email.invalid && email.touched ? 'login-email-error' : null"
-      />
-      @if (email.invalid && email.touched) {
-        <p class="field-error" id="login-email-error">
-          @if (email.hasError('required')) {
-            {{ t('auth.login.errors.emailRequired') }}
-          } @else if (email.hasError('server')) {
-            {{ email.getError('server') }}
-          } @else {
-            {{ t('auth.login.errors.emailInvalid') }}
-          }
+    @case ('code') {
+      <form [formGroup]="codeForm" (ngSubmit)="verify()" aria-labelledby="login-code-title" novalidate data-step="code">
+        <h2 id="login-code-title">{{ t('auth.login.mfa.title') }}</h2>
+        <p class="muted" id="login-code-intro">
+          {{ codeKind() === 'totp' ? t('auth.login.mfa.intro') : t('auth.login.mfa.recoveryIntro') }}
         </p>
-      }
-    </div>
 
-    @let password = form.controls.password;
-    <div class="field">
-      <label for="login-password">{{ t('auth.login.password') }}</label>
-      <input
-        id="login-password"
-        type="password"
-        formControlName="password"
-        autocomplete="current-password"
-        required
-        [attr.aria-invalid]="password.invalid && password.touched"
-        [attr.aria-describedby]="password.invalid && password.touched ? 'login-password-error' : null"
-      />
-      @if (password.invalid && password.touched) {
-        <p class="field-error" id="login-password-error">
-          @if (password.hasError('required')) {
-            {{ t('auth.login.errors.passwordRequired') }}
-          } @else if (password.hasError('server')) {
-            {{ password.getError('server') }}
-          } @else {
-            {{ t('errors.generic') }}
-          }
-        </p>
-      }
-    </div>
+        @if (formError(); as error) {
+          <p class="form-error" role="alert">{{ 'key' in error ? t(error.key, error.params) : error.text }}</p>
+        }
 
-    <button class="btn" type="submit" [disabled]="submitting()">
-      {{ submitting() ? t('auth.login.submitting') : t('auth.login.submit') }}
-    </button>
-  </form>
+        @if (codeKind() === 'totp') {
+          @let code = codeForm.controls.code;
+          <div class="field">
+            <label for="login-code">{{ t('auth.login.mfa.code') }}</label>
+            <!-- dir="ltr": digits keep their order in the Arabic UI. maxlength 7 leaves room for "123 456". -->
+            <input
+              #codeInput
+              id="login-code"
+              class="otp"
+              type="text"
+              formControlName="code"
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              pattern="[0-9 ]*"
+              maxlength="7"
+              dir="ltr"
+              required
+              [attr.aria-invalid]="code.invalid && code.touched"
+              [attr.aria-describedby]="code.invalid && code.touched ? 'login-code-intro login-code-error' : 'login-code-intro'"
+            />
+            @if (code.invalid && code.touched) {
+              <p class="field-error" id="login-code-error">
+                {{ code.hasError('mfaInvalid') ? t('auth.login.mfa.invalid') : t('auth.login.mfa.codeFormat') }}
+              </p>
+            }
+          </div>
+        } @else {
+          @let recovery = codeForm.controls.recoveryCode;
+          <div class="field">
+            <label for="login-recovery">{{ t('auth.login.mfa.recoveryCode') }}</label>
+            <input
+              #codeInput
+              id="login-recovery"
+              class="otp"
+              type="text"
+              formControlName="recoveryCode"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              maxlength="11"
+              dir="ltr"
+              required
+              [attr.aria-invalid]="recovery.invalid && recovery.touched"
+              [attr.aria-describedby]="recovery.invalid && recovery.touched ? 'login-code-intro login-recovery-error' : 'login-code-intro'"
+            />
+            @if (recovery.invalid && recovery.touched) {
+              <p class="field-error" id="login-recovery-error">
+                {{ recovery.hasError('mfaInvalid') ? t('auth.login.mfa.recoveryInvalid') : t('auth.login.mfa.recoveryFormat') }}
+              </p>
+            }
+          </div>
+        }
 
-  <p class="aside"><a routerLink="/password/forgot">{{ t('auth.login.forgot') }}</a></p>
+        <button class="btn" type="submit" [disabled]="submitting()">
+          {{ submitting() ? t('auth.login.mfa.verifying') : t('auth.login.mfa.verify') }}
+        </button>
+
+        <div class="code-links">
+          <button type="button" class="link-button" data-action="toggle-recovery" (click)="toggleCodeKind()">
+            {{ codeKind() === 'totp' ? t('auth.login.mfa.useRecovery') : t('auth.login.mfa.useApp') }}
+          </button>
+          <button type="button" class="link-button" data-action="back" (click)="backToPassword()">
+            {{ t('auth.login.mfa.back') }}
+          </button>
+        </div>
+      </form>
+    }
+  }
 </ng-container>

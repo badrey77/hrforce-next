@@ -56,3 +56,8 @@ export const ME_AR: Me = {
   ...ME_FIXTURE,
   user: { id: 'u-karim', email: 'rh.est@demo.dz', displayName: 'Karim Haddad', locale: 'ar' },
 };
+
+/** Policy requires two-step sign-in and the user has not set it up (docs/contracts/mfa.md › Enforcement). */
+export const ME_MFA_REQUIRED: Me = { ...ME_FIXTURE, mfa: { enabled: false, required: true, recoveryCodesLeft: null } };
+/** Two-step sign-in on, 10 recovery codes left. */
+export const ME_MFA_ON: Me = { ...ME_FIXTURE, mfa: { enabled: true, required: true, recoveryCodesLeft: 10 } };

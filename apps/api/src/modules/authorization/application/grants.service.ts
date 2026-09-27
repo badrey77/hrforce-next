@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AuditEvents } from '../../../platform/audit/audit-events.js';
+import { ProblemException } from '../../../platform/http/problem-details.js';
+import { MfaService } from '../../identity/index.js';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { ValidationProblemException } from '../../../platform/http/problem-details.js';
 import {
@@ -58,6 +60,7 @@ export class GrantsService {
     private readonly scopes: ScopeService,
     private readonly clock: AccessClock,
     private readonly audit: AuditEvents,
+    private readonly mfa: MfaService,
   ) {}
 
   async listGrants(input: ListGrantsInput): Promise<ItemsView<GrantView>> {
@@ -105,6 +108,27 @@ export class GrantsService {
    * when they have ≥ 1 current/future grant in the caller's access.read scope, or none at all; otherwise — like an
    * unknown or other-company id — 404.
    */
+  /**
+   * POST /access/users/:id/mfa/reset: not oneself (409 mfa-reset-self); the member must be visible under the caller's
+   * access.grant scope (same rule as {@link getUser}: ≥ 1 current/future grant in scope, or no grant at all) — else 404.
+   */
+  async resetMfa(id: string): Promise<void> {
+    if (id === callerId()) throw new ProblemException(409, 'mfa-reset-self', 'You cannot reset your own two-step sign-in.');
+    await this.visibleMember(id, ACCESS_PERMISSIONS.grant);
+    await this.mfa.reset(id);
+  }
+
+  /** A member visible under `code`'s scope (see {@link getUser}), else 404. */
+  private async visibleMember(id: string, code: string): Promise<MemberRow> {
+    const companyId = tenant();
+    const member = (await this.repo.members(companyId)).find((m) => m.id === id);
+    if (!member) throw userNotFound();
+    const all = await this.repo.grants(companyId, { userId: id, includeEnded: false, today: this.clock.today() });
+    const scope = await this.scopes.unitIds(code);
+    if (all.length > 0 && !all.some((g) => scope.has(g.unit.id))) throw userNotFound();
+    return member;
+  }
+
   async getUser(id: string): Promise<AccessUserView> {
     const companyId = tenant();
     const today = this.clock.today();

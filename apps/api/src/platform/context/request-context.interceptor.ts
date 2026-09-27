@@ -49,7 +49,14 @@ export class RequestContextInterceptor implements NestInterceptor {
       return lastValueFrom(next.handle(), { defaultValue: undefined });
     };
     const scope = { requestId: getRequestId(req), userId: identity.userId, companyId: identity.companyId };
-    if (skipTx) return runWithContext({ ...scope, tx: null }, run);
+    if (skipTx) {
+      // No request transaction (e.g. the SSE stream): the access decision — permission and two-step sign-in
+      // enforcement, which read the database — still runs under the caller's tenant, in its own short transaction.
+      if (!this.permissionCheck.isPublic(context)) {
+        await runInRequestTransaction(this.db, scope, () => this.permissionCheck.assertAllowed(context, identity));
+      }
+      return runWithContext({ ...scope, tx: null }, () => lastValueFrom(next.handle(), { defaultValue: undefined }));
+    }
     return runInRequestTransaction(this.db, scope, run);
   }
 }

@@ -76,3 +76,28 @@ describe('query-string redaction', () => {
     expect(JSON.stringify(out)).not.toContain('benali');
   });
 });
+
+describe('log redaction (two-step sign-in)', () => {
+  it('censors codes, recovery codes, the TOTP secret / otpauth URI / QR and the hrf_mfa cookie', () => {
+    const lines: string[] = [];
+    const sink = new Writable({
+      write(chunk: Buffer, _enc, done) {
+        lines.push(chunk.toString());
+        done();
+      },
+    });
+    const logger = pino({ redact: { paths: [...REDACT_PATHS], censor: REDACT_CENSOR } }, sink);
+    logger.info({
+      req: { body: { code: '123456' }, cookies: { hrf_mfa: 'pending-jwt' } },
+      verify: { body: { recoveryCode: 'ABCDE-FGHJK' } },
+      enroll: { secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/HRForce:x?secret=JBSWY3DPEHPK3PXP', qrPng: 'data:image/png;base64,iVBOR' },
+      confirm: { recoveryCodes: ['ABCDE-FGHJK'] },
+      jar: { hrf_mfa: 'pending-jwt' },
+      unit: { code: 'AG-CNE' },
+    });
+    logger.info({ code: '654321', secret: 'JBSWY3DPEHPK3PXP', recoveryCode: 'ZZZZZ-ZZZZZ' }, 'top level');
+    const all = lines.join('\n');
+    for (const leaked of ['123456', '654321', 'pending-jwt', 'ABCDE-FGHJK', 'ZZZZZ', 'JBSWY3DPEHPK3PXP', 'otpauth://', 'iVBOR']) expect(all).not.toContain(leaked);
+    expect(all).toContain('AG-CNE'); // an org unit code is not a secret
+  });
+});

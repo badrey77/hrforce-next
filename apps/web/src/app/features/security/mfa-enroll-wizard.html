@@ -1,0 +1,114 @@
+<ng-container *transloco="let t">
+  <section class="panel wizard" aria-labelledby="wizard-title" [attr.data-state]="state().step">
+    <h2 id="wizard-title">{{ t('security.wizard.title') }}</h2>
+
+    @if (stepNumber() > 0) {
+      <!-- Progress: a plain ordered list; aria-current="step" marks where the user is. -->
+      <ol class="wizard-steps" [attr.aria-label]="t('security.wizard.progress')">
+        @for (step of numberedSteps; track step; let i = $index) {
+          <li [attr.aria-current]="state().step === step ? 'step' : null" [class.done]="i + 1 < stepNumber()">
+            <span class="num" aria-hidden="true">{{ i + 1 }}</span> {{ t('security.wizard.steps.' + step) }}
+          </li>
+        }
+      </ol>
+    }
+
+    @if (error(); as message) {
+      <p class="form-error" role="alert">{{ 'key' in message ? t(message.key) : message.text }}</p>
+    }
+
+    @switch (state().step) {
+      @case ('intro') {
+        <h3 #stepHeading tabindex="-1">{{ t('security.wizard.intro.title') }}</h3>
+        <p>{{ t('security.wizard.intro.text') }}</p>
+        <div class="form-actions">
+          <button class="btn" type="button" data-action="start" [disabled]="busy()" (click)="start()">
+            {{ busy() ? t('security.wizard.working') : t('security.wizard.intro.start') }}
+          </button>
+          @if (cancellable()) {
+            <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+          }
+        </div>
+      }
+
+      @case ('scan') {
+        <h3 #stepHeading tabindex="-1">{{ t('security.wizard.scan.title') }}</h3>
+        <p>{{ t('security.wizard.scan.text') }}</p>
+        <!--
+          [src] is a URL binding: Angular's sanitizer checks it. A PNG data URL passes as is (no bypassSecurityTrust);
+          qrSrc() only lets a real PNG data URL through at all.
+        -->
+        @if (qrSrc(); as src) {
+          <img class="qr" [src]="src" width="200" height="200" [alt]="t('security.wizard.scan.qrAlt')" />
+        }
+        <p>{{ t('security.wizard.scan.manual') }}</p>
+        <div class="secret-row">
+          <code class="secret" dir="ltr" translate="no" data-secret>{{ groupedSecret() }}</code>
+          <button class="btn secondary" type="button" data-action="copy-secret" (click)="copySecret()">
+            {{ t('security.wizard.scan.copy') }}
+          </button>
+          <span role="status" class="muted">
+            @if (secretCopied() === true) {
+              {{ t('security.codes.copied') }}
+            } @else if (secretCopied() === false) {
+              {{ t('security.codes.copyFailed') }}
+            }
+          </span>
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="button" data-action="next" (click)="toConfirm()">{{ t('security.wizard.next') }}</button>
+          @if (cancellable()) {
+            <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+          }
+        </div>
+      }
+
+      @case ('confirm') {
+        <form [formGroup]="form" (ngSubmit)="confirm()" novalidate>
+          <h3 #stepHeading tabindex="-1">{{ t('security.wizard.confirm.title') }}</h3>
+          @let code = form.controls.code;
+          <div class="field">
+            <label for="wizard-code">{{ t('security.wizard.confirm.label') }}</label>
+            <input
+              #codeInput
+              id="wizard-code"
+              class="otp"
+              type="text"
+              formControlName="code"
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              pattern="[0-9 ]*"
+              maxlength="7"
+              dir="ltr"
+              required
+              [attr.aria-invalid]="code.invalid && code.touched"
+              [attr.aria-describedby]="code.invalid && code.touched ? 'wizard-code-hint wizard-code-error' : 'wizard-code-hint'"
+            />
+            <p class="field-hint" id="wizard-code-hint">{{ t('security.wizard.confirm.hint') }}</p>
+            @if (code.invalid && code.touched) {
+              <p class="field-error" id="wizard-code-error">
+                {{ code.hasError('serverKey') ? t(code.getError('serverKey')) : t('security.errors.codeFormat') }}
+              </p>
+            }
+          </div>
+          <div class="form-actions">
+            <button class="btn" type="submit" data-action="confirm" [disabled]="busy()">
+              {{ busy() ? t('security.wizard.working') : t('security.wizard.confirm.submit') }}
+            </button>
+            <button class="btn secondary" type="button" data-action="back" (click)="back()">{{ t('security.wizard.back') }}</button>
+          </div>
+        </form>
+      }
+
+      @case ('codes') {
+        <h3 #stepHeading tabindex="-1">{{ t('security.wizard.codes.title') }}</h3>
+        <app-recovery-codes idPrefix="wizard-codes" [codes]="codes()" [(saved)]="codesSaved" />
+        <div class="form-actions">
+          <button class="btn" type="button" data-action="finish" [disabled]="!codesSaved()" (click)="finish()">
+            {{ t('security.wizard.codes.finish') }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+</ng-container>

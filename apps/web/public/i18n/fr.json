@@ -38,10 +38,29 @@
         "emailRequired": "L'adresse e-mail est obligatoire.",
         "emailInvalid": "Saisissez une adresse e-mail valide.",
         "passwordRequired": "Le mot de passe est obligatoire."
+      },
+      "mfa": {
+        "title": "Validation en deux étapes",
+        "intro": "Saisissez le code à 6 chiffres affiché par votre application d'authentification.",
+        "recoveryIntro": "Saisissez l'un de vos codes de secours (format XXXXX-XXXXX). Chaque code ne sert qu'une fois.",
+        "code": "Code de vérification",
+        "codeFormat": "Le code comporte 6 chiffres.",
+        "invalid": "Code incorrect. Réessayez avec le code affiché maintenant.",
+        "recoveryCode": "Code de secours",
+        "recoveryInvalid": "Code de secours incorrect ou déjà utilisé.",
+        "recoveryFormat": "Format attendu : XXXXX-XXXXX.",
+        "verify": "Vérifier",
+        "verifying": "Vérification…",
+        "useRecovery": "Utiliser un code de secours",
+        "useApp": "Utiliser le code de l'application",
+        "back": "Retour au mot de passe",
+        "expired": "La vérification a expiré. Saisissez à nouveau votre mot de passe."
       }
     },
     "session": {
-      "signOut": "Se déconnecter"
+      "signOut": "Se déconnecter",
+      "security": "Sécurité",
+      "securityAttention": "Sécurité — action requise"
     },
     "passwordSetup": {
       "title": "Choisissez votre mot de passe",
@@ -241,7 +260,8 @@
     "nav": {
       "label": "Sections des accès",
       "users": "Utilisateurs",
-      "roles": "Rôles"
+      "roles": "Rôles",
+      "security": "Politique de sécurité"
     },
     "status": {
       "invited": "Invité",
@@ -390,6 +410,24 @@
         "ended": "Cet emploi est terminé.",
         "self": "Vous ne pouvez pas lier votre propre compte."
       }
+    },
+    "mfaReset": {
+      "button": "Réinitialiser la validation en deux étapes",
+      "title": "Réinitialiser la validation en deux étapes ?",
+      "confirm": "{{name}} devra reconfigurer son application d'authentification. Ses codes de secours seront supprimés et toutes ses sessions fermées.",
+      "submit": "Réinitialiser",
+      "done": "Validation en deux étapes réinitialisée pour {{role}}.",
+      "self": "Vous ne pouvez pas réinitialiser votre propre validation en deux étapes."
+    },
+    "security": {
+      "title": "Politique de sécurité",
+      "intro": "Qui doit utiliser la validation en deux étapes pour se connecter.",
+      "loadError": "Impossible de charger la politique de sécurité.",
+      "saved": "Politique de sécurité enregistrée.",
+      "enforce": "Exiger la validation en deux étapes",
+      "enforceHint": "Les personnes qui détiennent une des permissions ci-dessous devront l’activer avant d’utiliser HRForce.",
+      "permissions": "Permissions concernées",
+      "permissionsHint": "Détenir une seule de ces permissions, sur n’importe quelle unité, suffit."
     }
   },
   "audit": {
@@ -1158,6 +1196,89 @@
       "loadError": "Impossible de charger vos préférences.",
       "saveError": "Impossible d’enregistrer vos préférences.",
       "invalid": "Le serveur a refusé ces préférences. Rechargez la page et réessayez."
+    }
+  },
+  "security": {
+    "title": "Sécurité du compte",
+    "requiredBanner": "Votre entreprise exige la validation en deux étapes pour votre compte. Activez-la pour continuer à utiliser HRForce.",
+    "codeLabel": "Code actuel de l'application",
+    "status": {
+      "title": "Validation en deux étapes",
+      "onSince": "Activée depuis le {{date}}.",
+      "on": "Activée.",
+      "codesLeft": "Codes de secours restants : {{count}}.",
+      "codesLow": "Générez-en de nouveaux bientôt.",
+      "off": "Désactivée.",
+      "requiredText": "Obligatoire pour votre compte selon la politique de votre entreprise.",
+      "optionalText": "Recommandée : un mot de passe volé ne suffit plus pour accéder à votre compte.",
+      "setUp": "Activer la validation en deux étapes",
+      "loadError": "Impossible de charger l'état de la validation en deux étapes."
+    },
+    "wizard": {
+      "title": "Activer la validation en deux étapes",
+      "progress": "Étapes",
+      "working": "Veuillez patienter…",
+      "next": "Suivant",
+      "back": "Retour",
+      "steps": {
+        "scan": "Scanner le code",
+        "confirm": "Saisir un code",
+        "codes": "Codes de secours"
+      },
+      "intro": {
+        "title": "Avant de commencer",
+        "text": "Il vous faut une application d'authentification sur votre téléphone (par exemple Google Authenticator, Microsoft Authenticator ou FreeOTP).",
+        "start": "Commencer"
+      },
+      "scan": {
+        "title": "Scannez ce code QR",
+        "text": "Ouvrez votre application d'authentification et ajoutez un compte en scannant ce code.",
+        "qrAlt": "Code QR à scanner avec votre application d'authentification",
+        "manual": "Impossible de scanner ? Saisissez cette clé dans l’application :",
+        "copy": "Copier la clé"
+      },
+      "confirm": {
+        "title": "Saisissez le code de l'application",
+        "label": "Code à 6 chiffres",
+        "hint": "Le code change toutes les 30 secondes.",
+        "submit": "Vérifier et activer"
+      },
+      "codes": {
+        "title": "Enregistrez vos codes de secours",
+        "finish": "Terminer"
+      }
+    },
+    "codes": {
+      "intro": "Si vous perdez votre téléphone, chacun de ces codes permet de se connecter une seule fois. Ils ne seront plus affichés : conservez-les en lieu sûr.",
+      "copyAll": "Tout copier",
+      "download": "Télécharger (.txt)",
+      "copied": "Copié.",
+      "copyFailed": "Copie impossible : sélectionnez le texte et copiez-le.",
+      "savedCheck": "J'ai enregistré ces codes en lieu sûr",
+      "savedHint": "Cochez la case pour continuer.",
+      "fileHeader": "HRForce — codes de secours (chaque code ne sert qu’une fois)"
+    },
+    "regenerate": {
+      "title": "Codes de secours",
+      "text": "Générer un nouveau jeu remplace tous les codes précédents. Saisissez le code actuel de l'application pour confirmer.",
+      "submit": "Générer de nouveaux codes",
+      "done": "C'est fait"
+    },
+    "disable": {
+      "title": "Désactiver la validation en deux étapes",
+      "text": "Votre compte ne sera plus protégé que par votre mot de passe. Saisissez le code actuel de l'application pour confirmer.",
+      "submit": "Désactiver"
+    },
+    "feedback": {
+      "enabled": "La validation en deux étapes est activée.",
+      "regenerated": "Nouveaux codes de secours enregistrés ; les anciens ne fonctionnent plus.",
+      "disabled": "La validation en deux étapes est désactivée."
+    },
+    "errors": {
+      "invalidCode": "Code incorrect ou expiré. Saisissez le code affiché maintenant.",
+      "alreadyEnabled": "La validation en deux étapes est déjà activée.",
+      "requiredByPolicy": "Votre entreprise exige la validation en deux étapes : elle ne peut pas être désactivée.",
+      "codeFormat": "Le code comporte 6 chiffres."
     }
   }
 }

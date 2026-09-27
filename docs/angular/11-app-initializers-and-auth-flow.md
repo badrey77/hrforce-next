@@ -111,3 +111,10 @@ the problem type is `xsrf`.
 
 Then [12-permission-aware-ui.md](./12-permission-aware-ui.md): what the session's
 `permissions` and `scopes` from `/api/me` drive once the user is signed in.
+
+## Two-step sign-in
+
+Since the MFA slice, `POST /auth/login` may answer 200 `{mfaRequired: true}` instead of 204; the login page then
+shows a code step and calls `POST /auth/mfa/verify` before `Session.load()`. `/api/me` gained `mfa: {enabled,
+required, recoveryCodesLeft}`, read by `Session.mfa()` / `Session.mfaEnrollmentRequired()`. See
+[chapter 17](./17-multi-step-ui-wizards-and-two-step-sign-in.md).

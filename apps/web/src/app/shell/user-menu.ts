@@ -8,9 +8,12 @@
  * - **`@if (x(); as user)`** — narrows a nullable signal value to a local template variable, so the rest of
  *   the block can use `user.displayName` without `?.` (strictTemplates knows it is non-null there).
  * - **`(click)`** — an event binding; `signOut()` runs on click.
+ * - **A status dot driven by a `computed()`** (docs/contracts/mfa.md › Web): the "Security" link shows a dot when
+ *   `session.mfaEnrollmentRequired()` is true. The dot itself is `aria-hidden`; the link's accessible name carries the
+ *   same information in words ("Security — action required"), because colour alone tells a screen reader nothing.
  */
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../core/auth/auth-api';
@@ -18,7 +21,7 @@ import { Session } from '../core/auth/session';
 
 @Component({
   selector: 'app-user-menu',
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -30,6 +33,15 @@ import { Session } from '../core/auth/session';
               <span class="company">{{ company.name }}</span>
             }
           </span>
+          <a
+            class="security-link"
+            routerLink="/me/security"
+            data-link="security"
+            [attr.aria-label]="session.mfaEnrollmentRequired() ? t('auth.session.securityAttention') : null"
+            >@if (session.mfaEnrollmentRequired()) {
+              <span class="dot" aria-hidden="true" data-dot="mfa"></span>
+            }{{ t('auth.session.security') }}</a
+          >
           <button type="button" class="btn secondary" [disabled]="signingOut()" (click)="signOut()">
             {{ t('auth.session.signOut') }}
           </button>
@@ -50,6 +62,19 @@ import { Session } from '../core/auth/session';
     }
     .name {
       font-weight: 600;
+    }
+    .security-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      color: inherit;
+    }
+    .dot {
+      inline-size: 0.625rem;
+      block-size: 0.625rem;
+      border-radius: 50%;
+      background: var(--color-danger);
+      box-shadow: 0 0 0 2px var(--color-surface);
     }
     .company {
       font-size: 0.8125rem;

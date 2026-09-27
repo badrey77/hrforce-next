@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migratorEnvSchema, workerEnvSchema } from './env.schema.js';
+import { DEV_MFA_KEY, isMfaKey, migratorEnvSchema, workerEnvSchema } from './env.schema.js';
 import { EnvValidationError, loadEnv, parseEnv } from './load-env.js';
 
 const valid = {
@@ -9,10 +9,23 @@ const valid = {
   AUTH_XSRF_SECRET: 'b'.repeat(32),
   WEB_BASE_URL: 'https://hr.example.dz',
   SMTP_URL: 'smtp://mail.example.dz:587',
+  AUTH_MFA_KEY: Buffer.alloc(32, 7).toString('base64'),
 };
 const dev = { ...valid, NODE_ENV: 'development' };
 
 describe('loadEnv', () => {
+  it('AUTH_MFA_KEY: base64 of exactly 32 bytes; required in production (not the dev key); optional in development/test', () => {
+    const { AUTH_MFA_KEY: _key, ...withoutKey } = valid;
+    expect(() => loadEnv(withoutKey)).toThrow(/AUTH_MFA_KEY: is required when NODE_ENV is production/);
+    expect(() => loadEnv({ ...valid, AUTH_MFA_KEY: DEV_MFA_KEY })).toThrow(/AUTH_MFA_KEY: must not be the public development key/);
+    for (const bad of [Buffer.alloc(31).toString('base64'), Buffer.alloc(33).toString('base64'), 'x'.repeat(44), `${valid.AUTH_MFA_KEY.slice(0, -1)}`]) {
+      expect(() => loadEnv({ ...valid, AUTH_MFA_KEY: bad })).toThrow(/AUTH_MFA_KEY: must be the base64 encoding of exactly 32 bytes/);
+    }
+    expect(loadEnv(valid).AUTH_MFA_KEY).toBe(valid.AUTH_MFA_KEY);
+    expect(loadEnv({ ...withoutKey, NODE_ENV: 'development' }).AUTH_MFA_KEY).toBeUndefined();
+    expect(isMfaKey(DEV_MFA_KEY)).toBe(true);
+  });
+
   it('applies defaults to a minimal valid environment', () => {
     const env = loadEnv(valid);
     expect(env).toMatchObject({ NODE_ENV: 'production', PORT: 3000, LOG_LEVEL: 'info', DB_POOL_MAX: 10 });

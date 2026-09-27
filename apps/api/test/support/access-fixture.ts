@@ -1,6 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
-import { seedDemoAccess, seedGrants, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
+import { seedDemoAccess, seedGrants, seedSecurityPolicy, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
 import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../../src/modules/leave/index.js';
@@ -148,6 +148,9 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
       await seedIdentity(tx, COMPANY_B, [USERS.beta]);
       await seedDemoAccess(tx);
       await seedSystemRoles(tx, COMPANY_B);
+      // like seed:dev: two-step sign-in not enforced (the MFA suite turns it on where it tests it)
+      await seedSecurityPolicy(tx, COMPANY_A, { mfaEnforced: false });
+      await seedSecurityPolicy(tx, COMPANY_B, { mfaEnforced: false });
       const extra: SeedGrant[] = [
         { id: GRANTS.accesEst, userId: USERS.acces.id, roleCode: 'admin_acces', orgUnitId: unitA('REG-EST'), includeDescendants: true, validFrom: '2026-01-01' },
         { id: GRANTS.targetCne, userId: USERS.target.id, roleCode: 'lecture', orgUnitId: unitA('AG-CNE'), includeDescendants: true, validFrom: '2026-01-01' },

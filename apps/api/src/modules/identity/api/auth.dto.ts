@@ -26,3 +26,20 @@ export class PasswordSetupRequestDto extends createZodDto(
     password: z.string().max(4096),
   }),
 ) {}
+
+/**
+ * POST /api/auth/mfa/verify: exactly one of `code` (6-digit TOTP) and `recoveryCode` (`XXXXX-XXXXX`; case, spaces and
+ * hyphens are ignored). INPUT only; never echoed or logged (log redaction).
+ */
+export class MfaVerifyRequestDto extends createZodDto(
+  z
+    .object({
+      code: z.string().trim().max(16).optional(),
+      recoveryCode: z.string().max(64).optional(),
+    })
+    .superRefine((body, ctx) => {
+      if ((body.code === undefined) === (body.recoveryCode === undefined)) {
+        ctx.addIssue({ code: 'custom', path: ['code'], message: 'Provide either code or recoveryCode' });
+      }
+    }),
+) {}

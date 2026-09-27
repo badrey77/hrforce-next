@@ -71,3 +71,11 @@ export class CreateGrantDto extends createZodDto(
 ) {}
 
 export class EndGrantDto extends createZodDto(z.object({ validTo: isoDate })) {}
+
+/** PUT /api/access/security-policy */
+export class SecurityPolicyDto extends createZodDto(
+  z.object({
+    mfaEnforced: z.boolean(),
+    mfaRequiredPermissions: z.array(z.string().min(1).max(64)).max(100),
+  }),
+) {}

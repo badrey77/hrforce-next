@@ -11,6 +11,15 @@
       <dd>{{ t('access.status.' + person.status) }}</dd>
     </dl>
 
+    @if (!isSelf()) {
+      <!-- Destructive: behind a permission AND a confirmation dialog. Never on your own page (the API refuses it). -->
+      <p *appCan="'access.grant'">
+        <button class="btn secondary" type="button" data-action="reset-mfa" (click)="openReset()">
+          {{ t('access.mfaReset.button') }}
+        </button>
+      </p>
+    }
+
     @if (feedback(); as message) {
       <p class="feedback" role="status">{{ t(message.key, { role: message.role }) }}</p>
     }
@@ -111,6 +120,7 @@
     <p class="muted">{{ t('access.users.loading') }}</p>
   }
 
+
   <!--
     Always in the DOM, closed until `showModal()`. `#endDialog` is what `viewChild.required('endDialog')` finds.
     `(close)` fires on every way of closing (our buttons, Escape, `close()` after a save).
@@ -154,5 +164,19 @@
         </div>
       </form>
     }
+  </dialog>
+
+  <dialog #resetDialog role="alertdialog" aria-labelledby="reset-mfa-title" aria-describedby="reset-mfa-text" data-dialog="reset-mfa">
+    <h3 id="reset-mfa-title">{{ t('access.mfaReset.title') }}</h3>
+    <p id="reset-mfa-text">{{ t('access.mfaReset.confirm', { name: user()?.displayName ?? '' }) }}</p>
+    @if (resetError(); as key) {
+      <p class="form-error" role="alert">{{ t(key) }}</p>
+    }
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-reset" [disabled]="resetting()" (click)="confirmReset()">
+        {{ resetting() ? t('access.form.saving') : t('access.mfaReset.submit') }}
+      </button>
+      <button class="btn secondary" type="button" autofocus (click)="cancelReset()">{{ t('common.cancel') }}</button>
+    </div>
   </dialog>
 </ng-container>

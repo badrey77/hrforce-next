@@ -55,3 +55,9 @@ export interface LinkedEmploymentView {
 export interface ItemsView<T> {
   items: T[];
 }
+
+/** GET/PUT /api/access/security-policy (docs/contracts/mfa.md). */
+export interface SecurityPolicyView {
+  mfaEnforced: boolean;
+  mfaRequiredPermissions: string[];
+}

@@ -1,0 +1,122 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('security.title') }}</h1>
+  </header>
+
+  @if (session.mfaEnrollmentRequired()) {
+    <p class="warning" role="alert" data-banner="enroll">{{ t('security.requiredBanner') }}</p>
+  }
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  <section class="panel" aria-labelledby="security-status-title" [attr.aria-busy]="status.isLoading()">
+    <h2 id="security-status-title">{{ t('security.status.title') }}</h2>
+    @if (status.hasValue()) {
+      @let s = status.value();
+      @if (s.enabled) {
+        <p data-status="on">
+          <span class="status-dot on" aria-hidden="true"></span>
+          @if (s.enrolledAt) {
+            {{ t('security.status.onSince', { date: (s.enrolledAt | date: 'mediumDate' : undefined : locale()) }) }}
+          } @else {
+            {{ t('security.status.on') }}
+          }
+        </p>
+        @if (s.recoveryCodesLeft !== null) {
+          <p [class.warning]="lowCodes()" data-codes-left>
+            {{ t('security.status.codesLeft', { count: s.recoveryCodesLeft }) }}
+            @if (lowCodes()) {
+              {{ t('security.status.codesLow') }}
+            }
+          </p>
+        }
+      } @else {
+        <p data-status="off">
+          <span class="status-dot" [class.attention]="s.required" aria-hidden="true"></span>
+          {{ t('security.status.off') }}
+        </p>
+        <p class="muted">{{ s.required ? t('security.status.requiredText') : t('security.status.optionalText') }}</p>
+        @if (!wizardOpen()) {
+          <button class="btn" type="button" data-action="open-wizard" (click)="openWizard()">{{ t('security.status.setUp') }}</button>
+        }
+      }
+    } @else if (status.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('security.status.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="status.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  @if (wizardOpen()) {
+    <app-mfa-enroll-wizard [cancellable]="!required()" (finished)="onEnrolled()" (cancelled)="wizardOpen.set(false)" />
+  }
+
+  @if (enabled()) {
+    <section class="panel" aria-labelledby="security-codes-title" data-section="regenerate">
+      <h2 id="security-codes-title">{{ t('security.regenerate.title') }}</h2>
+      @if (newCodes(); as codes) {
+        <app-recovery-codes idPrefix="new-codes" [codes]="codes" [(saved)]="newCodesSaved" />
+        <div class="form-actions">
+          <button class="btn" type="button" data-action="codes-done" [disabled]="!newCodesSaved()" (click)="closeNewCodes()">
+            {{ t('security.regenerate.done') }}
+          </button>
+        </div>
+      } @else {
+        <p class="muted">{{ t('security.regenerate.text') }}</p>
+        <form [formGroup]="regenerateForm" (ngSubmit)="regenerate()" novalidate>
+          @if (regenerateError(); as error) {
+            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+          }
+          @let rcode = regenerateForm.controls.code;
+          <div class="field">
+            <label for="regenerate-code">{{ t('security.codeLabel') }}</label>
+            <input id="regenerate-code" class="otp" type="text" formControlName="code" autocomplete="one-time-code"
+              inputmode="numeric" pattern="[0-9 ]*" maxlength="7" dir="ltr" required
+              [attr.aria-invalid]="rcode.invalid && rcode.touched"
+              [attr.aria-describedby]="rcode.invalid && rcode.touched ? 'regenerate-code-error' : null" />
+            @if (rcode.invalid && rcode.touched) {
+              <p class="field-error" id="regenerate-code-error">
+                {{ rcode.hasError('serverKey') ? t(rcode.getError('serverKey')) : t('security.errors.codeFormat') }}
+              </p>
+            }
+          </div>
+          <button class="btn secondary" type="submit" [disabled]="regenerating()">
+            {{ regenerating() ? t('security.wizard.working') : t('security.regenerate.submit') }}
+          </button>
+        </form>
+      }
+    </section>
+
+    @if (!required()) {
+      <section class="panel danger" aria-labelledby="security-disable-title" data-section="disable">
+        <h2 id="security-disable-title">{{ t('security.disable.title') }}</h2>
+        <p class="muted">{{ t('security.disable.text') }}</p>
+        <form [formGroup]="disableForm" (ngSubmit)="disable()" novalidate>
+          @if (disableError(); as error) {
+            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+          }
+          @let dcode = disableForm.controls.code;
+          <div class="field">
+            <label for="disable-code">{{ t('security.codeLabel') }}</label>
+            <input id="disable-code" class="otp" type="text" formControlName="code" autocomplete="one-time-code"
+              inputmode="numeric" pattern="[0-9 ]*" maxlength="7" dir="ltr" required
+              [attr.aria-invalid]="dcode.invalid && dcode.touched"
+              [attr.aria-describedby]="dcode.invalid && dcode.touched ? 'disable-code-error' : null" />
+            @if (dcode.invalid && dcode.touched) {
+              <p class="field-error" id="disable-code-error">
+                {{ dcode.hasError('serverKey') ? t(dcode.getError('serverKey')) : t('security.errors.codeFormat') }}
+              </p>
+            }
+          </div>
+          <button class="btn danger" type="submit" [disabled]="disabling()">
+            {{ disabling() ? t('security.wizard.working') : t('security.disable.submit') }}
+          </button>
+        </form>
+      </section>
+    }
+  }
+</ng-container>

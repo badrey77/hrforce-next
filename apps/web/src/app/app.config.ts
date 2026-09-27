@@ -15,6 +15,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { routes } from './app.routes';
 import { authRefreshInterceptor } from './core/auth/auth-refresh.interceptor';
+import { mfaEnrollmentInterceptor } from './core/auth/mfa-enrollment';
 import { initializeSession } from './core/auth/session-init';
 import { apiProblemInterceptor } from './core/http/api-problem.interceptor';
 import { XSRF_COOKIE_NAME, XSRF_HEADER_NAME } from './core/http/xsrf';
@@ -31,7 +32,9 @@ export const appConfig: ApplicationConfig = {
       withXsrfConfiguration({ cookieName: XSRF_COOKIE_NAME, headerName: XSRF_HEADER_NAME }),
       // Order = nesting: the FIRST is the outermost. apiProblemInterceptor wraps the refresh logic, so callers
       // always get an ApiProblemError, retry or not (see core/auth/auth-refresh.interceptor.ts).
-      withInterceptors([apiProblemInterceptor, authRefreshInterceptor]),
+      // mfaEnrollmentInterceptor is outside both: it sees the final error, parsed, after any refresh + retry
+      // (see core/auth/mfa-enrollment.ts).
+      withInterceptors([mfaEnrollmentInterceptor, apiProblemInterceptor, authRefreshInterceptor]),
     ),
     provideTransloco({
       config: {

@@ -420,3 +420,15 @@ has no proxy config at all.
 
 [07-forms.md](./07-forms.md) — typed reactive forms, and how a `422`/`409` from this
 error pipeline becomes a message next to the right field.
+
+## A third interceptor: reacting to one problem type
+
+`app.config.ts` registers `[mfaEnrollmentInterceptor, apiProblemInterceptor, authRefreshInterceptor]`. The new one is
+the OUTERMOST, so it sees each error last — after a refresh + retry, and already parsed into an `ApiProblemError`. On
+`403 mfa-enrollment-required` it reloads the session and navigates to the enrollment wizard, then re-throws. Why not
+a branch in `apiProblemInterceptor`, and why this order:
+[chapter 17 §8](./17-multi-step-ui-wizards-and-two-step-sign-in.md#8-enforcement-a-guard-and-an-interceptor).
+
+`AuthApi.login()` also shows **`observe: 'response'`**: the login answer means different things by status (204
+signed in, 200 `{mfaRequired: true}`), so it reads the whole `HttpResponse` and maps it to `'signed-in' |
+'mfa-required'`.

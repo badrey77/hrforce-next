@@ -84,6 +84,23 @@ describe('no-secrets-in-payload: repo check with allowlist', () => {
     ]);
   });
 
+  it('accepts a response field only with a contract that names it', () => {
+    const root = tempRoot({
+      'docs/contracts/x.md': 'returns `{secret, otpauthUri}` once',
+      [ALLOW_FILE]: JSON.stringify([
+        { file: 'a.ts', symbol: 'EnrollmentView', property: 'secret', reason: 'shown once', contract: 'docs/contracts/x.md' },
+        { file: 'a.ts', symbol: 'EnrollmentView', property: 'passwordHash', reason: 'nope', contract: 'docs/contracts/x.md' },
+        { file: 'a.ts', symbol: 'EnrollmentView', property: 'secret', reason: 'nope', contract: 'README.md' },
+      ]),
+    });
+    const { entries, violations } = loadAllowlist(root);
+    expect(entries.map((e) => e.property)).toEqual(['secret']);
+    expect(violations.map((v) => v.message)).toEqual([
+      expect.stringMatching(/entry 1 \(EnrollmentView\): contract "docs\/contracts\/x.md" must be a docs\/contracts file naming `passwordHash`/),
+      expect.stringMatching(/entry 2 \(EnrollmentView\): contract "README.md"/),
+    ]);
+  });
+
   it('only accepts request/input DTOs with a reason in the allowlist', () => {
     const root = tempRoot({
       [ALLOW_FILE]: JSON.stringify([

@@ -31,7 +31,10 @@ src/
                                by permission), <main>
     core/auth/                 Identity: AuthApi, Session (root signal store; permissions, scopes, can(), allows()),
                                authGuard/guestGuard, permissionGuard(code?), refresh interceptor
-                               (single-flight), initializeSession() (csrf → /api/me), safeReturnUrl()
+                               (single-flight), initializeSession() (csrf → /api/me), safeReturnUrl();
+                               two-step sign-in: MfaApi (/me/mfa*), mfaEnrollmentGuard + mfaEnrollmentInterceptor
+                               (mfa-enrollment.ts), TOTP helpers (one-time-code.ts)
+    core/browser/              copyText() (Clipboard API), downloadText() (Blob + object URL)
     core/i18n/                 languages, LanguageService (device choice vs account locale), Transloco HTTP loader
     core/http/                 ApiProblem + parser + retryAfterSeconds(), apiProblemInterceptor, applyServerErrors(),
                                problemToForm() (409 slug table → field or form message), XSRF names
@@ -60,8 +63,10 @@ src/
     features/<name>/           pages (access, auth: login, password setup/forgot; employees: list with URL state, create,
                                detail with tabs incl. Leave; home, organization (+ head of unit), my-leave (/me/leave),
                                tasks (/tasks), leave (/leave list, /leave/requests/:id, /leave/settings), notifications
-                               (/notifications), settings (/settings); not-found, placeholder)
-    shell/                     shell widgets (language switcher, user menu with "Sign out", notification bell)
+                               (/notifications), settings (/settings), security (/me/security: two-step sign-in status,
+                               enrollment wizard, recovery codes); not-found, placeholder)
+    shell/                     shell widgets (language switcher, user menu with "Security" (+ dot when enrollment is
+                               required) and "Sign out", notification bell)
   testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill,
                                fake EventSource), excluded
                                from the app build
@@ -260,3 +265,18 @@ in as `lecture.ouest@demo.dz` to see the read-only organization and no Access en
 - **Types.** No `any`. Components use `OnPush`.
 - **Boundaries.** `features/<a>` never imports `features/<b>`; `core/` and `shared/` never import `features/`.
   Code used by several features goes in `core/` (services, models) or `shared/` (UI components).
+
+## Two-step sign-in (docs/contracts/mfa.md)
+
+- **Login** (`features/auth/login.page.ts`): password step, then — on 200 `{mfaRequired: true}` — a code step in the
+  same component (6-digit one-time-code input, auto-submit, recovery-code toggle, back to password). 401
+  `mfa-challenge-expired` and 423/429 return to the password step with a message.
+- **`/me/security`** (`features/security/`): status, enrollment wizard (scan QR / type key → confirm code → recovery
+  codes with Copy, Download .txt and a required "I have saved them"), new recovery codes, turn off (hidden when
+  required).
+- **Enforcement**: `mfaEnrollmentGuard` on every signed-in route except `/me/security`, and `mfaEnrollmentInterceptor`
+  for 403 `mfa-enrollment-required`; both lead to `/me/security?enroll=1&returnUrl=…`, and the page continues to
+  `returnUrl` after enrolling.
+- **Access**: "Reset two-step sign-in" on a user's page (`access.grant`, not yourself, confirm dialog);
+  `/access/security` security policy (`access.manage_roles`): enforce switch + the permission checklist.
+- Guide: `docs/angular/17-multi-step-ui-wizards-and-two-step-sign-in.md`.

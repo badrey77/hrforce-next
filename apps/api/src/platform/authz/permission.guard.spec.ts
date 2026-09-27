@@ -3,7 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { currentContext, runWithContext } from '../context/request-context.js';
 import { AnonymousIdentityResolver, RequestIdentityResolver, type RequestIdentity } from '../context/request-identity.js';
-import { Authenticated, Public, RequirePermission } from './decorators.js';
+import { AllowWithoutMfa, Authenticated, Public, RequirePermission } from './decorators.js';
+import { MfaRequirement, NoMfaRequirement } from './mfa-requirement.js';
 import { PermissionCheck } from './permission-check.js';
 import { DenyAllPermissionEvaluator, PermissionEvaluator } from './permission-evaluator.js';
 import { PermissionGuard } from './permission.guard.js';
@@ -16,6 +17,7 @@ class Routes {
   @Authenticated() signedIn(): void {}
   @Authenticated() @Public() authenticatedAndPublic(): void {}
   @Authenticated() @RequirePermission('employee.read') authenticatedAndPermission(): void {}
+  @Authenticated() @AllowWithoutMfa() mfaExempt(): void {}
 }
 
 function contextFor(handler: keyof Routes): ExecutionContext {
@@ -87,7 +89,7 @@ describe('@Authenticated()', () => {
   });
 
   it('check: no permission needed (even with a deny-all evaluator); 401 when anonymous', async () => {
-    const check = new PermissionCheck(reflector, new DenyAllPermissionEvaluator());
+    const check = new PermissionCheck(reflector, new DenyAllPermissionEvaluator(), new NoMfaRequirement());
     await expect(check.assertAllowed(contextFor('signedIn'), USER)).resolves.toBeUndefined();
     await expect(check.assertAllowed(contextFor('signedIn'), ANON)).rejects.toBeInstanceOf(UnauthorizedException);
   });
@@ -103,14 +105,14 @@ describe('PermissionCheck (permission decision)', () => {
   const reflector = new Reflector();
 
   it('denies by default (stub evaluator) and allows when the evaluator grants', async () => {
-    await expect(new PermissionCheck(reflector, new DenyAllPermissionEvaluator()).assertAllowed(contextFor('guarded'), USER)).rejects.toBeInstanceOf(
+    await expect(new PermissionCheck(reflector, new DenyAllPermissionEvaluator(), new NoMfaRequirement()).assertAllowed(contextFor('guarded'), USER)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
-    await expect(new PermissionCheck(reflector, new AllowList()).assertAllowed(contextFor('guarded'), USER)).resolves.toBeUndefined();
+    await expect(new PermissionCheck(reflector, new AllowList(), new NoMfaRequirement()).assertAllowed(contextFor('guarded'), USER)).resolves.toBeUndefined();
   });
 
   it('fails closed on its own: misconfigured routes → 403, anonymous → 401, public → allowed', async () => {
-    const check = new PermissionCheck(reflector, new AllowList());
+    const check = new PermissionCheck(reflector, new AllowList(), new NoMfaRequirement());
     await expect(check.assertAllowed(contextFor('undecorated'), USER)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(check.assertAllowed(contextFor('guarded'), ANON)).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(check.assertAllowed(contextFor('open'), ANON)).resolves.toBeUndefined();
@@ -124,10 +126,41 @@ describe('PermissionCheck (permission decision)', () => {
         return Promise.resolve(true);
       }
     }
-    const check = new PermissionCheck(reflector, new Probe());
+    const check = new PermissionCheck(reflector, new Probe(), new NoMfaRequirement());
     await runWithContext({ requestId: 'req-in-ctx', userId: USER.userId, companyId: null, tx: null }, () =>
       check.assertAllowed(contextFor('guarded'), USER),
     );
     expect(seen).toHaveBeenCalledWith('req-in-ctx');
+  });
+});
+
+describe('PermissionCheck (two-step sign-in enforcement)', () => {
+  const reflector = new Reflector();
+  class Required extends MfaRequirement {
+    constructor(private readonly enabled: boolean) {
+      super();
+    }
+    isRequired(): Promise<boolean> {
+      return Promise.resolve(true);
+    }
+    isEnabled(): Promise<boolean> {
+      return Promise.resolve(this.enabled);
+    }
+  }
+
+  it('required and not enrolled → 403 mfa-enrollment-required everywhere except @AllowWithoutMfa and public routes', async () => {
+    const check = new PermissionCheck(reflector, new AllowList(), new Required(false));
+    await expect(check.assertAllowed(contextFor('guarded'), USER)).rejects.toMatchObject({ slug: 'mfa-enrollment-required', status: 403 });
+    await expect(check.assertAllowed(contextFor('signedIn'), USER)).rejects.toMatchObject({ slug: 'mfa-enrollment-required' });
+    await expect(check.assertAllowed(contextFor('mfaExempt'), USER)).resolves.toBeUndefined();
+    await expect(check.assertAllowed(contextFor('open'), ANON)).resolves.toBeUndefined();
+    await expect(check.assertAllowed(contextFor('mfaExempt'), ANON)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('required and enrolled → the normal decision', async () => {
+    const check = new PermissionCheck(reflector, new AllowList(), new Required(true));
+    await expect(check.assertAllowed(contextFor('guarded'), USER)).resolves.toBeUndefined();
+    expect(check.isPublic(contextFor('open'))).toBe(true);
+    expect(check.isPublic(contextFor('guarded'))).toBe(false);
   });
 });

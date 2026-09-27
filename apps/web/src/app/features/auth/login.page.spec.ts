@@ -194,4 +194,187 @@ describe('LoginPage', () => {
 
     expect(el.querySelector('#login-email-error')?.textContent?.trim()).toBe('Adresse invalide');
   });
+
+  /** Password step answered 200 {mfaRequired: true}: the page switches to the code step. */
+  async function toCodeStep(): Promise<void> {
+    await fillAndSubmit('rh.admin@demo.dz', 'demo-password-2026');
+    http.expectOne('/api/auth/login').flush({ mfaRequired: true }, { status: 200, statusText: 'OK' });
+    await settle();
+  }
+
+  function typeInto(id: string, value: string): void {
+    input(id).value = value;
+    input(id).dispatchEvent(new Event('input'));
+  }
+
+  function click(action: string): void {
+    (el.querySelector(`[data-action="${action}"]`) as HTMLButtonElement).click();
+  }
+
+  const alertText = () => el.querySelector('[role="alert"]')?.textContent?.trim() ?? '';
+
+  describe('two-step sign-in (docs/contracts/mfa.md)', () => {
+    it('password → code step (no /api/me yet); the code input is a one-time-code field, LTR, focused', async () => {
+      await toCodeStep();
+
+      http.expectNone('/api/me');
+      expect(el.querySelector('form[data-step="code"]')).not.toBeNull();
+      expect(el.querySelector('#login-password')).toBeNull();
+      const code = input('login-code');
+      expect(code.getAttribute('autocomplete')).toBe('one-time-code');
+      expect(code.getAttribute('inputmode')).toBe('numeric');
+      expect(code.getAttribute('dir')).toBe('ltr');
+      expect(document.activeElement).toBe(code);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('auto-submits at 6 digits, then loads the session and follows returnUrl', async () => {
+      fixture.componentRef.setInput('returnUrl', '/employees');
+      await toCodeStep();
+
+      typeInto('login-code', '12345');
+      await settle();
+      http.expectNone('/api/auth/mfa/verify');
+
+      typeInto('login-code', '123456');
+      await settle();
+      const verify = http.expectOne('/api/auth/mfa/verify');
+      expect(verify.request.method).toBe('POST');
+      expect(verify.request.body).toEqual({ code: '123456' });
+      verify.flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+      http.expectOne('/api/me').flush(ME_FIXTURE);
+      await settle();
+
+      expect(TestBed.inject(Session).isAuthenticated()).toBe(true);
+      expect(navigate).toHaveBeenCalledWith('/employees');
+    });
+
+    it('accepts "123 456" (spaces) and sends the digits only', async () => {
+      await toCodeStep();
+      typeInto('login-code', '123 456');
+      await settle();
+
+      expect(http.expectOne('/api/auth/mfa/verify').request.body).toEqual({ code: '123456' });
+    });
+
+    it('401 mfa-invalid: field error, input cleared, stays on the code step', async () => {
+      await toCodeStep();
+      typeInto('login-code', '000000');
+      await settle();
+      http
+        .expectOne('/api/auth/mfa/verify')
+        .flush({ type: 'urn:hrforce:problem:mfa-invalid', title: 'x', status: 401 }, { status: 401, statusText: 'Unauthorized' });
+      await settle();
+
+      expect(el.querySelector('#login-code-error')?.textContent?.trim()).toBe(
+        'Code incorrect. Réessayez avec le code affiché maintenant.',
+      );
+      expect(input('login-code').value).toBe('');
+      expect(input('login-code').getAttribute('aria-invalid')).toBe('true');
+      http.expectNone('/api/auth/refresh');
+    });
+
+    it('toggles to a recovery code (no auto-submit), sends {recoveryCode} upper-cased, and back', async () => {
+      await toCodeStep();
+      click('toggle-recovery');
+      await settle();
+
+      expect(el.querySelector('#login-code')).toBeNull();
+      const recovery = input('login-recovery');
+      expect(recovery.getAttribute('dir')).toBe('ltr');
+      expect(document.activeElement).toBe(recovery);
+
+      typeInto('login-recovery', 'abcde-fghjk');
+      await settle();
+      http.expectNone('/api/auth/mfa/verify');
+      el.querySelector('form')?.dispatchEvent(new Event('submit'));
+      await settle();
+      const req = http.expectOne('/api/auth/mfa/verify');
+      expect(req.request.body).toEqual({ recoveryCode: 'ABCDE-FGHJK' });
+      req.flush({ type: 'urn:hrforce:problem:mfa-invalid', title: 'x', status: 401 }, { status: 401, statusText: 'Unauthorized' });
+      await settle();
+      expect(el.querySelector('#login-recovery-error')?.textContent?.trim()).toBe('Code de secours incorrect ou déjà utilisé.');
+
+      click('toggle-recovery');
+      await settle();
+      expect(el.querySelector('#login-code')).not.toBeNull();
+    });
+
+    it('rejects a malformed recovery code without calling the API', async () => {
+      await toCodeStep();
+      click('toggle-recovery');
+      await settle();
+      typeInto('login-recovery', 'short');
+      el.querySelector('form')?.dispatchEvent(new Event('submit'));
+      await settle();
+
+      http.expectNone('/api/auth/mfa/verify');
+      expect(el.querySelector('#login-recovery-error')?.textContent?.trim()).toBe('Format attendu : XXXXX-XXXXX.');
+    });
+
+    it('401 mfa-challenge-expired: back to the password step with a message, email kept, password cleared', async () => {
+      await toCodeStep();
+      typeInto('login-code', '123456');
+      await settle();
+      http
+        .expectOne('/api/auth/mfa/verify')
+        .flush(
+          { type: 'urn:hrforce:problem:mfa-challenge-expired', title: 'x', status: 401 },
+          { status: 401, statusText: 'Unauthorized' },
+        );
+      await settle();
+
+      expect(el.querySelector('form[data-step="password"]')).not.toBeNull();
+      expect(alertText()).toBe('La vérification a expiré. Saisissez à nouveau votre mot de passe.');
+      expect(input('login-email').value).toBe('rh.admin@demo.dz');
+      expect(input('login-password').value).toBe('');
+      expect(document.activeElement).toBe(input('login-password'));
+    });
+
+    it('423 during the code step: back to the password step with the lock message', async () => {
+      await toCodeStep();
+      typeInto('login-code', '123456');
+      await settle();
+      http
+        .expectOne('/api/auth/mfa/verify')
+        .flush(
+          { type: 'urn:hrforce:problem:account-locked', title: 'x', status: 423 },
+          { status: 423, statusText: 'Locked', headers: { 'Retry-After': '600' } },
+        );
+      await settle();
+
+      expect(el.querySelector('form[data-step="password"]')).not.toBeNull();
+      expect(alertText()).toBe('Trop de tentatives échouées pour ce compte. Réessayez dans 10 min.');
+    });
+
+    it('429 during the code step shows the network throttle message', async () => {
+      await toCodeStep();
+      typeInto('login-code', '123456');
+      await settle();
+      http
+        .expectOne('/api/auth/mfa/verify')
+        .flush({ type: 'urn:hrforce:problem:too-many-attempts', title: 'x', status: 429 }, { status: 429, statusText: 'x' });
+      await settle();
+
+      expect(alertText()).toContain('15 min');
+    });
+
+    it('"Back to password" returns to the first step', async () => {
+      await toCodeStep();
+      click('back');
+      await settle();
+
+      expect(el.querySelector('form[data-step="password"]')).not.toBeNull();
+      expect(alertText()).toBe('');
+    });
+
+    it('renders the code step in Arabic with the input still LTR', async () => {
+      TestBed.inject(LanguageService).use('ar', { remember: false });
+      await toCodeStep();
+
+      expect(el.querySelector('#login-code-title')?.textContent?.trim()).toBe('التحقق بخطوتين');
+      expect(input('login-code').getAttribute('dir')).toBe('ltr');
+    });
+  });
 });

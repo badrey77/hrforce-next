@@ -50,6 +50,7 @@ variables (values are never printed).
 | `AUTH_ACCESS_SECRET` | yes | | ≥ 32 chars, HS256 key of the access token (`hrf_at`) |
 | `AUTH_XSRF_SECRET` | yes | | ≥ 32 chars, HMAC key of the XSRF token; must differ from `AUTH_ACCESS_SECRET` |
 | `WEB_BASE_URL` | yes | | `http(s)://…` of the web app (trailing `/` dropped); mailed links are `${WEB_BASE_URL}/password/setup?token=…` |
+| `AUTH_MFA_KEY` | in production | public dev key (dev/test only, **insecure**) | base64 of exactly 32 bytes (`openssl rand -base64 32`): AES-256-GCM key of the TOTP secrets. Production refuses to boot without it (or with the dev key) |
 | `COOKIE_SECURE` | | `true` | `Secure` on every cookie. **Boot fails** if `false` and `NODE_ENV` is not `development`/`test` |
 | `MAIL_TRANSPORT` | | `smtp` | `smtp` \| `log`. `log` only in `development`/`test` |
 | `SMTP_URL` | with `smtp` | | `smtp://` or `smtps://` (nodemailer URL), e.g. `smtp://localhost:1025` (Mailpit) |
@@ -233,6 +234,56 @@ an invited account sends a new link; an active account only gets the membership;
 
 `rh.admin` keeps the historical dev user id, so `X-Dev-User-Id: …aa` (DEV_AUTH) and a real login are the same person.
 Their roles and scopes: see the Authorization module (seeded grants).
+
+## Two-step sign-in (`src/modules/identity` MFA, contract `docs/contracts/mfa.md`, migration 0013)
+
+**Flow.** `POST /api/auth/login` checks the password as before. With an **active** factor it answers
+`200 {mfaRequired: true}` and sets only `hrf_mfa` (`HttpOnly; SameSite=Strict; Path=/api/auth/mfa; Max-Age=300`), a
+signed JWT `{sub, cid, mfa: <challenge id>, pur: 'mfa'}`. `POST /api/auth/mfa/verify` (`@Public` + XSRF, anon token
+accepted) takes `{code}` (TOTP: HMAC-SHA1, 6 digits, 30 s, current step ±1, a step ≤ the last used one is a replay)
+or `{recoveryCode}` and issues the usual session cookies. Access tokens now carry `pur: 'access'`; each verifier
+accepts only its own purpose, so the pending token is never an access token and vice versa. A wrong code → `401
+mfa-invalid` + `login_event` `mfa_failed` (counts toward the per-e-mail lock: 5 failures in 15 min, wrong passwords
+and wrong codes together → 423); 5 failures on one challenge kill it (`401 mfa-challenge-expired`, start over).
+
+**Enrollment** (`/api/me/mfa*`, `@Authenticated` + `@AllowWithoutMfa`): `enroll/start` → `{secret (base32),
+otpauthUri (issuer HRForce, label HRForce:<email>), qrPng (PNG data URL, server-side `qrcode`; the CSP allows
+img-src data:)}`; `enroll/confirm {code}` → 10 recovery codes shown once; `recovery-codes {code}` → a new set;
+`disable {code}` (409 `mfa-required-by-policy` when required). Wrong codes there: 422 `mfa-invalid` (and they count
+toward the lock). `GET /api/me` has `mfa: {enabled, required, recoveryCodesLeft}`.
+
+**Recovery codes.** 10 per set, 10 characters of `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, shown as `XXXXX-XXXXX`; case,
+spaces and hyphens are ignored; stored as sha-256; single use (row lock); each use mails the user ("N left") and
+records `auth.mfa_recovery_used`. Regenerating voids the whole previous set.
+
+**Enforcement.** `public.security_policy` (tenant, RLS, audited): `mfa_enforced` (default true),
+`mfa_required_permissions` (default: every `sensitive` permission + `access.grant`, `access.manage_roles`,
+`leave.configure`; a company without a row has these defaults). A user holding any listed permission anywhere must
+use MFA: until enrolled, every non-public route answers **403 `mfa-enrollment-required`** — decided once in
+`PermissionCheck` (platform) through the `MfaRequirement` seam (Authorization module) — except routes marked
+`@AllowWithoutMfa()`: `GET /me`, `/me/mfa*`, `GET /me/notifications/unread-count` (listed in
+`tools/guardrails/mfa-exempt.json`; `/auth/*` is public). `GET/PUT /api/access/security-policy` needs
+`access.manage_roles`; PUT needs it over the whole company (else 403 `forbidden-scope`). `seed:dev` turns enforcement
+**off** for DEMO; `bootstrap` creates the row with the defaults (the first admin enrolls at first sign-in).
+
+**Admin reset.** `POST /api/access/users/:id/mfa/reset` (`access.grant`, same visibility rule as
+`GET /access/users/:id` on the access.grant scope; 404 outside, 409 `mfa-reset-self`): removes the factor and codes,
+kills open challenges, revokes every refresh session of the user (`mfa_reset`; the access token lives ≤ 15 min), mails
+them, audits `auth.mfa_reset`. The factor is per ACCOUNT (accounts are global): a reset applies in every company.
+**Lost phone and no codes:** ask an admin with `access.grant` over you for this reset, then enroll again.
+
+**Storage and key handling.** `auth.user_mfa.secret_enc` = AES-256-GCM(nonce ‖ ciphertext ‖ tag), key `AUTH_MFA_KEY`,
+the user id as additional data (a value copied to another user does not decrypt). `hrforce_app` has no privilege on
+the three MFA tables; the SECURITY DEFINER functions (0013's header lists what each returns) hand `secret_enc` out only
+for the owner of a live login challenge, or for the transaction's own `app.user_id`. **Key rotation is out of scope**:
+changing `AUTH_MFA_KEY` makes every stored secret undecryptable (every enrolled user must be reset). Keep the key
+backed up separately from the database dumps. A future rotation would decrypt with the old key and re-encrypt with the
+new one in one migration-time job (store a key id next to `secret_enc`).
+
+Audit events: `auth.mfa_enrolled`, `auth.mfa_disabled`, `auth.mfa_recovery_regenerated`, `auth.mfa_reset`,
+`auth.mfa_recovery_used`, and `auth.login` gains `data.mfa: 'totp'|'recovery'`. Log redaction: request-body `code` /
+`recoveryCode`, `recoveryCodes`, `secret`, `otpauthUri`, `qrPng`, the `hrf_mfa` cookie. Tests: `test/mfa.e2e-spec.ts`,
+`test/mfa-logs.e2e-spec.ts`, `src/modules/identity/domain/mfa.spec.ts` (RFC 6238 / 4226 vectors).
 
 ## Authorization module (`src/modules/authorization`)
 

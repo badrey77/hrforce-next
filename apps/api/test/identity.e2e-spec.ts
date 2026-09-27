@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEMO_PASSWORD, DEMO_USERS, inviteUser, seedIdentity, sha256 } from '../src/modules/identity/index.js';
+import { seedSecurityPolicy } from '../src/modules/authorization/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../src/modules/organization/index.js';
 import { createDatabase, type Database } from '../src/platform/db/database.js';
 import { signAccessToken, type AccessClaims } from '../src/platform/security/jwt.js';
@@ -59,6 +60,7 @@ describe('Identity (e2e)', () => {
       await seedOrganization(tx, DEMO_ORGANIZATION, toIsoDate(new Date()));
       await seedIdentity(tx, DEMO_COMPANY_ID);
       await seedIdentity(tx, DEMO_COMPANY_ID); // idempotent
+      await seedSecurityPolicy(tx, DEMO_COMPANY_ID, { mfaEnforced: false }); // like seed:dev
     });
     app = await createTestApp(db, { devAuth: true, mailSender: mails, env: { TRUST_PROXY_HOPS: '1' } });
   });
@@ -236,6 +238,7 @@ describe('Identity (e2e)', () => {
         // DEV_PERMISSIONS=allow_all in this file: every catalogue code, scoped to the whole company (root + sub-units)
         permissions: expect.arrayContaining(['org_unit.read', 'access.grant', 'employee.medical.read']),
         scopes: expect.objectContaining({ 'org_unit.read': [{ unitId: expect.any(String), includeDescendants: true }] }),
+        mfa: { enabled: false, required: false, recoveryCodesLeft: null }, // DEMO: enforcement off
       });
       const est = browser();
       await est.login(EST.email, DEMO_PASSWORD);
@@ -563,7 +566,8 @@ describe('Identity (e2e)', () => {
         `select p.proname, p.prosecdef, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
           where n.nspname = 'auth' and has_function_privilege('hrforce_app', p.oid, 'execute')`,
       );
-      expect(definers.length).toBe(15); // 0007's twelve + auth.company_members (0008) + auth.session_owner, auth.default_company (0009)
+      // 0007's twelve + auth.company_members (0008) + auth.session_owner, auth.default_company (0009) + 0013's eleven MFA functions
+      expect(definers.length).toBe(26);
       for (const f of definers) {
         expect(f.prosecdef, f.proname).toBe(true);
         expect(f.proconfig, f.proname).toEqual(['search_path=pg_catalog, auth']);

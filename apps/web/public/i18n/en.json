@@ -38,10 +38,29 @@
         "emailRequired": "Email address is required.",
         "emailInvalid": "Enter a valid email address.",
         "passwordRequired": "Password is required."
+      },
+      "mfa": {
+        "title": "Two-step sign-in",
+        "intro": "Enter the 6-digit code shown by your authenticator app.",
+        "recoveryIntro": "Enter one of your recovery codes (XXXXX-XXXXX). Each code works only once.",
+        "code": "Verification code",
+        "codeFormat": "The code has 6 digits.",
+        "invalid": "Wrong code. Try again with the code shown now.",
+        "recoveryCode": "Recovery code",
+        "recoveryInvalid": "Wrong or already used recovery code.",
+        "recoveryFormat": "Expected format: XXXXX-XXXXX.",
+        "verify": "Verify",
+        "verifying": "Verifying…",
+        "useRecovery": "Use a recovery code",
+        "useApp": "Use the code from my app",
+        "back": "Back to password",
+        "expired": "The verification expired. Enter your password again."
       }
     },
     "session": {
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "security": "Security",
+      "securityAttention": "Security — action required"
     },
     "passwordSetup": {
       "title": "Choose your password",
@@ -241,7 +260,8 @@
     "nav": {
       "label": "Access sections",
       "users": "Users",
-      "roles": "Roles"
+      "roles": "Roles",
+      "security": "Security policy"
     },
     "status": {
       "invited": "Invited",
@@ -390,6 +410,24 @@
         "ended": "This employment has ended.",
         "self": "You cannot link your own account."
       }
+    },
+    "mfaReset": {
+      "button": "Reset two-step sign-in",
+      "title": "Reset two-step sign-in?",
+      "confirm": "{{name}} will have to set up their authenticator app again. Their recovery codes will be deleted and all their sessions signed out.",
+      "submit": "Reset",
+      "done": "Two-step sign-in reset for {{role}}.",
+      "self": "You cannot reset your own two-step sign-in."
+    },
+    "security": {
+      "title": "Security policy",
+      "intro": "Who must use two-step sign-in to sign in.",
+      "loadError": "Could not load the security policy.",
+      "saved": "Security policy saved.",
+      "enforce": "Require two-step sign-in",
+      "enforceHint": "People holding any of the permissions below must turn it on before using HRForce.",
+      "permissions": "Permissions concerned",
+      "permissionsHint": "Holding just one of them, on any unit, is enough."
     }
   },
   "audit": {
@@ -1158,6 +1196,89 @@
       "loadError": "Could not load your preferences.",
       "saveError": "Could not save your preferences.",
       "invalid": "The server refused these preferences. Reload the page and try again."
+    }
+  },
+  "security": {
+    "title": "Account security",
+    "requiredBanner": "Your company requires two-step sign-in for your account. Turn it on to keep using HRForce.",
+    "codeLabel": "Current code from your app",
+    "status": {
+      "title": "Two-step sign-in",
+      "onSince": "On since {{date}}.",
+      "on": "On.",
+      "codesLeft": "Recovery codes left: {{count}}.",
+      "codesLow": "Generate new ones soon.",
+      "off": "Off.",
+      "requiredText": "Required for your account by your company's policy.",
+      "optionalText": "Recommended: a stolen password is no longer enough to get into your account.",
+      "setUp": "Turn on two-step sign-in",
+      "loadError": "Could not load the two-step sign-in status."
+    },
+    "wizard": {
+      "title": "Turn on two-step sign-in",
+      "progress": "Steps",
+      "working": "Please wait…",
+      "next": "Next",
+      "back": "Back",
+      "steps": {
+        "scan": "Scan the code",
+        "confirm": "Enter a code",
+        "codes": "Recovery codes"
+      },
+      "intro": {
+        "title": "Before you start",
+        "text": "You need an authenticator app on your phone (for example Google Authenticator, Microsoft Authenticator or FreeOTP).",
+        "start": "Start"
+      },
+      "scan": {
+        "title": "Scan this QR code",
+        "text": "Open your authenticator app and add an account by scanning this code.",
+        "qrAlt": "QR code to scan with your authenticator app",
+        "manual": "Can't scan? Type this key into the app:",
+        "copy": "Copy key"
+      },
+      "confirm": {
+        "title": "Enter the code from the app",
+        "label": "6-digit code",
+        "hint": "The code changes every 30 seconds.",
+        "submit": "Verify and turn on"
+      },
+      "codes": {
+        "title": "Save your recovery codes",
+        "finish": "Finish"
+      }
+    },
+    "codes": {
+      "intro": "If you lose your phone, each of these codes signs you in once. They will not be shown again: keep them somewhere safe.",
+      "copyAll": "Copy all",
+      "download": "Download (.txt)",
+      "copied": "Copied.",
+      "copyFailed": "Could not copy: select the text and copy it.",
+      "savedCheck": "I have saved these codes somewhere safe",
+      "savedHint": "Tick the box to continue.",
+      "fileHeader": "HRForce — recovery codes (each code works once)"
+    },
+    "regenerate": {
+      "title": "Recovery codes",
+      "text": "A new set replaces all previous codes. Enter the current code from your app to confirm.",
+      "submit": "Generate new codes",
+      "done": "Done"
+    },
+    "disable": {
+      "title": "Turn off two-step sign-in",
+      "text": "Your account will then be protected by your password only. Enter the current code from your app to confirm.",
+      "submit": "Turn off"
+    },
+    "feedback": {
+      "enabled": "Two-step sign-in is on.",
+      "regenerated": "New recovery codes saved; the old ones no longer work.",
+      "disabled": "Two-step sign-in is off."
+    },
+    "errors": {
+      "invalidCode": "Wrong or expired code. Enter the code shown now.",
+      "alreadyEnabled": "Two-step sign-in is already on.",
+      "requiredByPolicy": "Your company requires two-step sign-in: it cannot be turned off.",
+      "codeFormat": "The code has 6 digits."
     }
   }
 }

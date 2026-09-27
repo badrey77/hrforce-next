@@ -3,6 +3,7 @@ import { applyDecorators, SetMetadata } from '@nestjs/common';
 export const PERMISSION_KEY = 'hrforce:permission';
 export const PUBLIC_KEY = 'hrforce:public';
 export const AUTHENTICATED_KEY = 'hrforce:authenticated';
+export const ALLOW_WITHOUT_MFA_KEY = 'hrforce:allowWithoutMfa';
 
 /**
  * Permission codes are lowercase `resource.action`, or `resource.field.action` for field-level permissions (snake_case
@@ -29,4 +30,14 @@ export function Public(): MethodDecorator & ClassDecorator {
 /** The route needs an authenticated caller (401 otherwise) but no particular permission (e.g. GET /api/me). */
 export function Authenticated(): MethodDecorator & ClassDecorator {
   return applyDecorators(SetMetadata(AUTHENTICATED_KEY, true));
+}
+
+/**
+ * The route stays reachable by a signed-in user whom the company requires to use two-step sign-in but who has not
+ * enrolled yet (docs/contracts/mfa.md › Enforcement: GET /me, /me/mfa*, the unread count). Every other non-public
+ * route answers 403 `mfa-enrollment-required` to such a user. Only meaningful with @Authenticated(); every use is
+ * listed with a reason in tools/guardrails/mfa-exempt.json (route-scan).
+ */
+export function AllowWithoutMfa(): MethodDecorator & ClassDecorator {
+  return applyDecorators(SetMetadata(ALLOW_WITHOUT_MFA_KEY, true));
 }

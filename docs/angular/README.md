@@ -68,6 +68,12 @@ the files it discusses, so you can jump straight to the source.
     `afterRenderEffect`), query params as entry points, testing with an `InjectionToken` + fake
     EventSource.
 
+17. [17-multi-step-ui-wizards-and-two-step-sign-in.md](./17-multi-step-ui-wizards-and-two-step-sign-in.md) — two-step
+    sign-in and the enrollment wizard: steps as state vs routes, a state machine with one signal + a discriminated
+    union + `@switch`, focus management with `afterNextRender`, one-time-code inputs and auto-submit
+    (`valueChanges` + `filter`), `[src]` with a data URL and the URL sanitizer, Clipboard API and Blob downloads,
+    `model()`, enforcement with a `canMatch` guard + an interceptor (and its order), testing multi-step UI.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
 (contracts and documents, M2, are next).
 
@@ -170,6 +176,15 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Pure pipe with a `now` argument; `Intl.RelativeTimeFormat` | 16, 13 | `src/app/shared/relative-time/relative-time.pipe.ts` |
 | Query param as an entry point → input → `linkedSignal` selection | 16, 14 | `src/app/features/tasks/tasks.page.ts` |
 | `linkedSignal` as an editable copy of server data; writable resource `set()` | 16, 03 | `src/app/features/settings/settings.page.ts` |
+| UI steps as a signal vs routes; auto-submit via `valueChanges` + `filter` | 17 | `src/app/features/auth/login.page.ts` |
+| Wizard = state machine (one signal, discriminated union, `@switch`) | 17 | `src/app/features/security/mfa-enroll-wizard.ts` |
+| Focus between steps with `afterNextRender` + `viewChild` | 17, 15 | `src/app/features/security/mfa-enroll-wizard.ts` |
+| `[src]` with a PNG data URL, Angular's URL sanitizer (no bypass) | 17 | `src/app/features/security/mfa-enroll-wizard.html` |
+| Clipboard API; Blob + object URL + temporary `<a download>`; `DOCUMENT` | 17 | `src/app/core/browser/clipboard.ts`, `download.ts`, `src/app/features/security/recovery-codes.ts` |
+| `model()` two-way binding with `[(x)]="signal"` | 17, 02 | `src/app/features/security/recovery-codes.ts` |
+| Enforcement guard in a shared `canMatch` array; outermost interceptor for a 403 problem | 17, 05, 06 | `src/app/core/auth/mfa-enrollment.ts`, `src/app/app.routes.ts`, `src/app/app.config.ts` |
+| `observe: 'response'` to branch on the HTTP status | 17, 06 | `src/app/core/auth/auth-api.ts` (`login`) |
+| Reusing a CVA in another form; `role="alertdialog"` confirm dialog | 17, 07 | `src/app/features/access/security-policy.page.ts`, `user-detail.page.html` |
 
 ## Glossary
 

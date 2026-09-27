@@ -1,5 +1,7 @@
 export { accessPolicyOf, type AccessPolicy } from './access-policy.js';
 export {
+  ALLOW_WITHOUT_MFA_KEY,
+  AllowWithoutMfa,
   Authenticated,
   AUTHENTICATED_KEY,
   PERMISSION_CODE_PATTERN,
@@ -14,3 +16,4 @@ export { DenyAllPermissionEvaluator, PermissionEvaluator } from './permission-ev
 export { PermissionGuard } from './permission.guard.js';
 export { CompanyWideScopeService, ScopeService, type AccessSummary, type ScopeEntry, type UnitIdQuery } from './scope-service.js';
 export { permissionEvaluatorFactory } from './dev-auth.js';
+export { MfaRequirement, NoMfaRequirement } from './mfa-requirement.js';

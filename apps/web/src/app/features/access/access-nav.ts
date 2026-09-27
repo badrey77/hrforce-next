@@ -2,14 +2,16 @@
  * `<app-access-nav>` — the two sections of the Access feature: Users (/access/users) and Roles (/access/roles).
  * Same pattern as features/organization/org-nav.ts (routerLink + routerLinkActive + aria-current); here the default
  * `routerLinkActive` matching (prefix) is what we want: `/access/users/…` keeps "Users" active on a user's page.
+ * The third tab, "Security policy", is shown with `*appCan="'access.manage_roles'"` (its route has the same guard).
  */
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { CanDirective } from '../../shared/can/can.directive';
 
 @Component({
   selector: 'app-access-nav',
-  imports: [RouterLink, RouterLinkActive, TranslocoDirective],
+  imports: [RouterLink, RouterLinkActive, TranslocoDirective, CanDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -17,6 +19,9 @@ import { TranslocoDirective } from '@jsverse/transloco';
       <nav class="access-nav" [attr.aria-label]="t('access.nav.label')">
         <a routerLink="/access/users" routerLinkActive="active" ariaCurrentWhenActive="page">{{ t('access.nav.users') }}</a>
         <a routerLink="/access/roles" routerLinkActive="active" ariaCurrentWhenActive="page">{{ t('access.nav.roles') }}</a>
+        <a *appCan="'access.manage_roles'" routerLink="/access/security" routerLinkActive="active" ariaCurrentWhenActive="page" data-tab="security">{{
+          t('access.nav.security')
+        }}</a>
       </nav>
     </ng-container>
   `,

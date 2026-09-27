@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, NotFoundException, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { Authenticated } from '../../../platform/authz/decorators.js';
+import { AllowWithoutMfa, Authenticated } from '../../../platform/authz/decorators.js';
 import { requireContext } from '../../../platform/context/request-context.js';
 import { identityOf, RequestIdentityResolver } from '../../../platform/context/request-identity.js';
 import { SkipTransaction } from '../../../platform/context/skip-transaction.decorator.js';
@@ -37,6 +37,7 @@ export class NotificationsController {
 
   @Get('notifications/unread-count')
   @Authenticated()
+  @AllowWithoutMfa() // the shell's bell polls it before the user has enrolled (docs/contracts/mfa.md › Enforcement)
   unreadCount(): Promise<{ count: number }> {
     return this.notifications.unreadCount();
   }

@@ -3,12 +3,14 @@ import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { requireContext } from '../../../platform/context/request-context.js';
 import { IdentityRepository } from '../infra/identity.repository.js';
 import type { MeView } from './identity-views.js';
+import { MfaService } from './mfa.service.js';
 
 @Injectable()
 export class MeService {
   constructor(
     private readonly repo: IdentityRepository,
     private readonly scopes: ScopeService,
+    private readonly mfa: MfaService,
   ) {}
 
   /**
@@ -28,6 +30,7 @@ export class MeService {
       companies,
       permissions: access.permissions,
       scopes: access.scopes,
+      mfa: await this.mfa.meBlock(),
     };
   }
 }

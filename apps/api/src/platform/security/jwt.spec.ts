@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { signAccessToken, verifyAccessToken, type AccessClaims } from './jwt.js';
+import { signAccessToken, signMfaPendingToken, verifyAccessToken, verifyMfaPendingToken, type AccessClaims, type MfaPendingClaims } from './jwt.js';
 
 const SECRET = 'k'.repeat(32);
 const NOW = 1_800_000_000;
@@ -57,5 +57,31 @@ describe('access token (HS256 JWT)', () => {
       const payload = b64(bad);
       expect(verifyAccessToken(SECRET, `${header}.${payload}.${hs256(SECRET, `${header}.${payload}`)}`, NOW)).toBeNull();
     }
+  });
+});
+
+describe('pending MFA token vs access token (purpose claim)', () => {
+  const pending: MfaPendingClaims = { sub: claims.sub, cid: claims.cid, mfa: '0190a5d0-0000-7000-8000-00000000f001', iat: NOW, exp: NOW + 300 };
+  const header = b64({ alg: 'HS256', typ: 'JWT' });
+  const signed = (payload: unknown) => `${header}.${b64(payload)}.${hs256(SECRET, `${header}.${b64(payload)}`)}`;
+
+  it('round-trips a pending token; it expires after 5 minutes', () => {
+    const token = signMfaPendingToken(SECRET, pending);
+    expect(verifyMfaPendingToken(SECRET, token, NOW + 1)).toEqual(pending);
+    expect(verifyMfaPendingToken(SECRET, token, NOW + 300)).toBeNull();
+  });
+
+  it('a pending token is never an access token, and an access token is never a pending token', () => {
+    expect(verifyAccessToken(SECRET, signMfaPendingToken(SECRET, pending), NOW)).toBeNull();
+    expect(verifyMfaPendingToken(SECRET, signAccessToken(SECRET, claims), NOW)).toBeNull();
+  });
+
+  it('the purpose claim is required and must match its claim set', () => {
+    expect(verifyAccessToken(SECRET, signed(claims), NOW)).toBeNull(); // no pur
+    expect(verifyAccessToken(SECRET, signed({ ...claims, pur: 'mfa' }), NOW)).toBeNull();
+    expect(verifyAccessToken(SECRET, signed({ ...claims, pur: 'access', mfa: pending.mfa }), NOW)).toBeNull();
+    expect(verifyMfaPendingToken(SECRET, signed({ ...pending, pur: 'access' }), NOW)).toBeNull();
+    expect(verifyMfaPendingToken(SECRET, signed({ ...pending, pur: 'mfa', sid: claims.sid }), NOW)).toBeNull();
+    expect(verifyMfaPendingToken(SECRET, signed({ ...pending, pur: 'mfa' }), NOW)).toEqual(pending);
   });
 });

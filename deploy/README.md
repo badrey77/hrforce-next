@@ -87,6 +87,8 @@ account, private by default.
      `openssl rand -hex 32` each
      (hex because they go into `postgres://` URLs);
    - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: `openssl rand -base64 48` each (all different).
+   - `AUTH_MFA_KEY`: `openssl rand -base64 32` (exactly 32 bytes; key of the two-step sign-in secrets). **Existing
+     installs: add it to `.env` before the next deploy** (the API refuses to start without it in production).
 
    **Back up `.env` somewhere safe** (password manager): without it, backups can still be restored but every
    password must be reset.
@@ -190,6 +192,8 @@ those passwords (`/password/forgot` flow) right after seeding.
 ### Rotate secrets
 
 - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: edit `.env`, `docker compose up -d api` (signs everyone out).
+- `AUTH_MFA_KEY`: **no rotation procedure yet** — a new key makes every enrolled authenticator unusable (each user then
+  needs "Reset two-step sign-in" by an admin). Keep a copy of it outside the server (apps/api/README.md › Two-step sign-in).
 - DB passwords (`.env` is only read by the init hook on the first start): edit `.env`, then
   ```sh
   docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \

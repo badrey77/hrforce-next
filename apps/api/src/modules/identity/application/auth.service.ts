@@ -5,19 +5,32 @@ import { ENV } from '../../../platform/config/config.module.js';
 import type { Env } from '../../../platform/config/env.schema.js';
 import { identityOf, RequestIdentityResolver } from '../../../platform/context/request-identity.js';
 import { ProblemException } from '../../../platform/http/problem-details.js';
-import { readCookie, REFRESH_COOKIE, XSRF_COOKIE } from '../../../platform/security/cookies.js';
-import { signAccessToken } from '../../../platform/security/jwt.js';
+import { MFA_COOKIE, readCookie, REFRESH_COOKIE, XSRF_COOKIE } from '../../../platform/security/cookies.js';
+import { signAccessToken, signMfaPendingToken, verifyMfaPendingToken } from '../../../platform/security/jwt.js';
 import { ANON_BINDING, verifyXsrfToken, verifyXsrfTokenForAny } from '../../../platform/security/xsrf.js';
 import { ACCESS_TOKEN_TTL_SECONDS, normalizeEmail, type LoginOutcome } from '../domain/account.js';
+import { hashRecoveryCode, MFA_CHALLENGE_TTL_SECONDS, MFA_MAX_FAILURES, normalizeRecoveryCode, verifyTotp } from '../domain/mfa.js';
 import { emailLockedUntil, ipThrottledUntil, retryAfterSeconds } from '../domain/throttle.js';
 import { AuthCookies } from '../infra/auth-cookies.js';
-import { IdentityRepository, inetOrNull, type NewSession } from '../infra/identity.repository.js';
+import { IdentityRepository, type NewSession } from '../infra/identity.repository.js';
+import { MfaCipher } from '../infra/mfa-cipher.js';
+import { MfaRepository } from '../infra/mfa.repository.js';
 import { PasswordHasher } from '../infra/password-hasher.js';
 import { hashOpaqueToken, newOpaqueToken, sha256 } from '../infra/secure-token.js';
+import { clientOf } from './client-info.js';
+import { MfaClock } from './mfa-clock.js';
+import type { MfaRequiredView } from './mfa-views.js';
+import { mfaInvalid, MfaService } from './mfa.service.js';
 
 export interface LoginInput {
   email: string;
   password: string;
+}
+
+/** POST /api/auth/mfa/verify: exactly one of the two. */
+export interface MfaVerifyInput {
+  code?: string | undefined;
+  recoveryCode?: string | undefined;
 }
 
 /** Problem slugs of the auth endpoints (docs/contracts/identity.md › Endpoints). */
@@ -28,10 +41,7 @@ function retryAfter(status: 423 | 429, slug: string, detail: string, seconds: nu
   return new ProblemException(status, slug, detail, undefined, { headers: { 'Retry-After': String(seconds) } });
 }
 
-function clientOf(req: Request): { ip: string | null; userAgent: string | null } {
-  const ua = req.headers['user-agent'];
-  return { ip: inetOrNull(req.ip ?? req.socket.remoteAddress), userAgent: typeof ua === 'string' ? ua : null };
-}
+const challengeExpired = () => new ProblemException(401, 'mfa-challenge-expired', 'The sign-in step has expired. Please sign in again.');
 
 /** Login, refresh rotation, logout and XSRF issuing (ADR 004). */
 @Injectable()
@@ -43,14 +53,21 @@ export class AuthService {
     private readonly cookies: AuthCookies,
     private readonly identityResolver: RequestIdentityResolver,
     private readonly audit: AuditEvents,
+    private readonly mfa: MfaRepository,
+    private readonly cipher: MfaCipher,
+    private readonly clock: MfaClock,
+    private readonly mfaService: MfaService,
   ) {}
 
   /**
    * Order: IP throttle (429) → e-mail lock (423) → argon2 verify (dummy hash for unknown e-mail / no password)
    * → invited = invalid credentials (401, same body) → disabled only after a correct password (403) → session.
    * Every attempt writes one login_event.
+   * With an ACTIVE second factor (docs/contracts/mfa.md › Login flow) a correct password starts a 5-minute challenge
+   * instead: 200 {mfaRequired: true} + the hrf_mfa cookie, no session cookies (the login_event comes with the second
+   * step).
    */
-  async login(req: Request, res: Response, input: LoginInput): Promise<void> {
+  async login(req: Request, res: Response, input: LoginInput): Promise<MfaRequiredView | undefined> {
     const email = normalizeEmail(input.email);
     const { ip, userAgent } = clientOf(req);
     const record = (outcome: LoginOutcome, userId: string | null = null) =>
@@ -79,23 +96,115 @@ export class AuthService {
       throw new ProblemException(403, 'account-disabled', 'This account is disabled.');
     }
 
+    const challenge = await this.mfa.beginChallenge(account.userId);
+    if (challenge) {
+      const now = Math.floor(Date.now() / 1000);
+      const token = signMfaPendingToken(this.env.AUTH_ACCESS_SECRET, {
+        sub: account.userId,
+        cid: challenge.companyId,
+        mfa: challenge.challengeId,
+        iat: now,
+        exp: now + MFA_CHALLENGE_TTL_SECONDS,
+      });
+      this.cookies.setMfaPending(res, token);
+      return { mfaRequired: true };
+    }
+    await this.startSession(req, res, account.userId, email, {});
+    return undefined;
+  }
+
+  /**
+   * POST /api/auth/mfa/verify (docs/contracts/mfa.md › Login flow, step 2), with the hrf_mfa cookie of step 1.
+   * Order: pending token → live challenge (else 401 mfa-challenge-expired, cookie cleared) → IP throttle (429) /
+   * e-mail lock (423) → the code (TOTP: current step ±1, never a step already used) or a recovery code (single use).
+   * Wrong → 401 mfa-invalid + login_event 'mfa_failed' (counts toward the e-mail lock); the 5th failure kills the
+   * challenge → 401 mfa-challenge-expired. Right → the usual session cookies, hrf_mfa cleared, login_event success,
+   * audit auth.login {mfa: totp|recovery}; a recovery code also mails the user and records auth.mfa_recovery_used.
+   */
+  async verifyMfa(req: Request, res: Response, input: MfaVerifyInput): Promise<void> {
+    const token = readCookie(req, MFA_COOKIE);
+    const claims = token ? verifyMfaPendingToken(this.env.AUTH_ACCESS_SECRET, token) : null;
+    const expired = () => {
+      this.cookies.clearMfaPending(res);
+      return challengeExpired();
+    };
+    if (!claims) throw expired();
+    const challenge = await this.mfa.openChallenge(claims.mfa, claims.sub);
+    if (!challenge) throw expired();
+
+    const { ip, userAgent } = clientOf(req);
+    const email = challenge.email;
+    const record = (outcome: LoginOutcome) => this.repo.recordLoginEvent({ email, userId: claims.sub, ip, userAgent, outcome });
+    const failures = await this.repo.loginFailures(email, ip);
+    const ipUntil = ipThrottledUntil(failures.ipFailures, failures.dbNow);
+    if (ipUntil) {
+      await record('throttled_ip');
+      throw retryAfter(429, 'too-many-attempts', 'Too many failed sign-in attempts from this address.', retryAfterSeconds(ipUntil, failures.dbNow));
+    }
+    const lockedUntil = emailLockedUntil(failures.emailFailures, failures.dbNow);
+    if (lockedUntil) {
+      await record('locked');
+      throw retryAfter(423, 'account-locked', 'Too many failed sign-in attempts for this account.', retryAfterSeconds(lockedUntil, failures.dbNow));
+    }
+
+    let method: 'totp' | 'recovery';
+    let outcome: { outcome: string; recoveryCodesLeft: number | null } | null = null;
+    if (input.recoveryCode !== undefined) {
+      method = 'recovery';
+      const normalized = normalizeRecoveryCode(input.recoveryCode);
+      if (normalized) outcome = await this.mfa.completeChallenge(claims.mfa, claims.sub, { recoveryHash: hashRecoveryCode(normalized) });
+    } else {
+      method = 'totp';
+      const secret = this.cipher.decrypt(challenge.secretEnc, claims.sub);
+      const check = secret ? verifyTotp(secret, input.code ?? '', this.clock.nowMs(), challenge.lastUsedStep) : null;
+      if (check?.ok) outcome = await this.mfa.completeChallenge(claims.mfa, claims.sub, { step: check.step });
+    }
+    if (outcome?.outcome === 'expired') throw expired();
+    if (outcome?.outcome !== 'ok') {
+      await record('mfa_failed');
+      const count = await this.mfa.failChallenge(claims.mfa, claims.sub);
+      if (count === null || count >= MFA_MAX_FAILURES) throw expired();
+      throw mfaInvalid(401);
+    }
+
+    this.cookies.clearMfaPending(res);
+    const session = await this.startSession(req, res, claims.sub, email, { mfa: method });
+    if (method === 'recovery') {
+      const left = outcome.recoveryCodesLeft ?? 0;
+      await this.audit.recordFor(
+        { companyId: session.companyId, actorUserId: claims.sub },
+        { type: 'auth.mfa_recovery_used', subject: { type: 'user', id: claims.sub }, data: { recoveryCodesLeft: left } },
+      );
+      const me = await this.repo.me(claims.sub, session.companyId);
+      if (me) this.mfaService.sendMail(me.email, { kind: 'recovery_used', locale: me.locale, displayName: me.displayName, codesLeft: left });
+    }
+  }
+
+  /**
+   * The end of a successful sign-in: session row, login_event success, audit auth.login (own short transaction under
+   * the session's company), the browser's previous session revoked, cookies issued.
+   */
+  private async startSession(req: Request, res: Response, userId: string, email: string, extra: Record<string, unknown>): Promise<NewSession> {
+    const { ip, userAgent } = clientOf(req);
+    const record = (outcome: LoginOutcome) => this.repo.recordLoginEvent({ email, userId, ip, userAgent, outcome });
     const refresh = newOpaqueToken();
-    const session = await this.repo.createSession(account.userId, sha256(refresh), ip, userAgent);
+    const session = await this.repo.createSession(userId, sha256(refresh), ip, userAgent);
     if (!session) {
       // active but member of no company: no access at all
-      await record('disabled', account.userId);
+      await record('disabled');
       throw new ProblemException(403, 'account-disabled', 'This account has no access to any company.');
     }
-    await record('success', account.userId);
+    await record('success');
     // docs/contracts/audit.md: own short transaction under the session's company (no request transaction here)
     await this.audit.recordFor(
-      { companyId: session.companyId, actorUserId: account.userId },
-      { type: 'auth.login', subject: { type: 'user', id: account.userId }, data: { ip, userAgent } },
+      { companyId: session.companyId, actorUserId: userId },
+      { type: 'auth.login', subject: { type: 'user', id: userId }, data: { ip, userAgent, ...extra } },
     );
     // this browser's previous session (if any) is replaced: revoke its family
     const previous = hashOpaqueToken(readCookie(req, REFRESH_COOKIE));
     if (previous) await this.repo.revokeFamily(previous, null, null);
-    this.issue(res, account.userId, session, refresh);
+    this.issue(res, userId, session, refresh);
+    return session;
   }
 
   /** Rotates hrf_rt. ok → new cookies; race → 409 (nothing changed); anything else → 401 + cookies cleared. */

@@ -11,8 +11,11 @@ export function findSecretKeys(value: unknown, path = '$'): string[] {
   ]);
 }
 
-/** Throws if a response body contains a secret-looking key anywhere (objects, arrays, nested). */
-export function assertNoSecrets(body: unknown): void {
-  const found = findSecretKeys(body);
+/**
+ * Throws if a response body contains a secret-looking key anywhere (objects, arrays, nested). `allowed` lists exact
+ * JSON paths a contract mandates (e.g. `$.secret` of POST /api/me/mfa/enroll/start — tools/guardrails/secret-fields-allow.json).
+ */
+export function assertNoSecrets(body: unknown, allowed: readonly string[] = []): void {
+  const found = findSecretKeys(body).filter((p) => !allowed.includes(p));
   if (found.length > 0) throw new Error(`Response contains secret-looking keys: ${found.join(', ')}`);
 }

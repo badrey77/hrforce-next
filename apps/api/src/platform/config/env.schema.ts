@@ -20,6 +20,18 @@ export const DEV_AUTH_ALLOWED_NODE_ENVS: readonly string[] = ['development', 'te
 
 const secret32 = z.string().min(32, 'must be at least 32 characters');
 
+/**
+ * Development/test default of AUTH_MFA_KEY. INSECURE: it is public (in the repository); production refuses to start
+ * without its own key.
+ */
+export const DEV_MFA_KEY = 'aHJmb3JjZS1kZXYtbWZhLWtleS1JTlNFQ1VSRS0wMDE=';
+
+/** Standard base64 of exactly 32 bytes (the AES-256-GCM key of the TOTP secrets). */
+export function isMfaKey(value: string): boolean {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) return false;
+  return Buffer.from(value, 'base64').length === 32;
+}
+
 const httpUrl = z
   .string()
   .min(1)
@@ -60,6 +72,11 @@ export const apiEnvSchema = z
   AUTH_ACCESS_SECRET: secret32,
   /** HMAC key of the signed double-submit XSRF token (cookie XSRF-TOKEN). Must differ from AUTH_ACCESS_SECRET. */
   AUTH_XSRF_SECRET: secret32,
+  /**
+   * AES-256-GCM key encrypting the users' TOTP secrets (docs/contracts/mfa.md): base64 of exactly 32 bytes
+   * (`openssl rand -base64 32`). Required in production; development/test fall back to {@link DEV_MFA_KEY} (insecure).
+   */
+  AUTH_MFA_KEY: z.string().refine(isMfaKey, { message: 'must be the base64 encoding of exactly 32 bytes (openssl rand -base64 32)' }).optional(),
   /** `Secure` flag on every cookie. false is only accepted when NODE_ENV is development or test. */
   COOKIE_SECURE: booleanFlag.default(true),
   /** Public base URL of the web app, used in mailed links (`${WEB_BASE_URL}/password/setup?token=…`). */
@@ -83,6 +100,12 @@ export const apiEnvSchema = z
     if (env.MAIL_TRANSPORT === 'log') devOnly('MAIL_TRANSPORT', 'may only be log');
     if (env.MAIL_TRANSPORT === 'smtp' && env.SMTP_URL === undefined) {
       ctx.addIssue({ code: 'custom', path: ['SMTP_URL'], message: 'is required when MAIL_TRANSPORT is smtp' });
+    }
+    if (env.AUTH_MFA_KEY === undefined && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
+      ctx.addIssue({ code: 'custom', path: ['AUTH_MFA_KEY'], message: 'is required when NODE_ENV is production' });
+    }
+    if (env.AUTH_MFA_KEY !== undefined && env.AUTH_MFA_KEY === DEV_MFA_KEY && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
+      ctx.addIssue({ code: 'custom', path: ['AUTH_MFA_KEY'], message: 'must not be the public development key' });
     }
     if (env.AUTH_ACCESS_SECRET === env.AUTH_XSRF_SECRET) {
       ctx.addIssue({ code: 'custom', path: ['AUTH_XSRF_SECRET'], message: 'must differ from AUTH_ACCESS_SECRET' });

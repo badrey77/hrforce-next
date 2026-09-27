@@ -3,7 +3,8 @@
  * (docs/contracts/identity.md › CLI and seed: rh.admin@demo.dz, rh.est@demo.dz, lecture.ouest@demo.dz, password
  * DEMO_PASSWORD), the system roles, the demo grants (docs/contracts/authorization.md › Dev seed) and 40 fictitious
  * employees (docs/contracts/employment.md › Seed — TEST DATA) and the leave demo (docs/contracts/leave.md › Seed additions:
- * defaults, agent.annaba / chef.annaba, links, unit heads, accruals Jul 2025 – Sep 2026, requests in each status).
+ * defaults, agent.annaba / chef.annaba, links, unit heads, accruals Jul 2025 – Sep 2026, requests in each status), and
+ * the DEMO security policy with two-step sign-in enforcement OFF (docs/contracts/mfa.md).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -12,7 +13,7 @@ import { z } from 'zod';
 import { migratorEnvSchema } from '../platform/config/env.schema.js';
 import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
-import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess } from '../modules/authorization/index.js';
+import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
@@ -32,6 +33,8 @@ async function main(): Promise<void> {
       await seedOrganization(tx, DEMO_ORGANIZATION, toIsoDate(new Date()));
       await seedIdentity(tx, DEMO_ORGANIZATION.company.id);
       await seedDemoAccess(tx);
+      // docs/contracts/mfa.md: two-step sign-in is NOT enforced in the demo company (demos keep working)
+      await seedSecurityPolicy(tx, DEMO_ORGANIZATION.company.id, { mfaEnforced: false });
       const employees = await seedDemoEmployees(tx);
       const leave = await seedDemoLeave(tx, { requests: true });
       return { employees, leave };

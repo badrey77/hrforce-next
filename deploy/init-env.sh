@@ -31,6 +31,7 @@ while IFS= read -r line || [[ -n $line ]]; do
     COOKIE_SECRET=*) line="COOKIE_SECRET=$(b64)" ;;
     AUTH_ACCESS_SECRET=*) line="AUTH_ACCESS_SECRET=$(b64)" ;;
     AUTH_XSRF_SECRET=*) line="AUTH_XSRF_SECRET=$(b64)" ;;
+    AUTH_MFA_KEY=*) line="AUTH_MFA_KEY=$(openssl rand -base64 32)" ;;
   esac
   printf '%s\n' "$line"
 done < .env.staging.example > "$tmp"

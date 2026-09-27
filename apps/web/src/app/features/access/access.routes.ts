@@ -30,4 +30,10 @@ export const ACCESS_ROUTES: Routes = [
     loadComponent: () => import('./role-editor.page').then((m) => m.RoleEditorPage),
   },
   { path: 'roles/:id', loadComponent: () => import('./role-editor.page').then((m) => m.RoleEditorPage) },
+  {
+    // Two-step sign-in policy (docs/contracts/mfa.md): manage_roles only; without it the route does not match (404).
+    path: 'security',
+    canMatch: [permissionGuard('access.manage_roles')],
+    loadComponent: () => import('./security-policy.page').then((m) => m.SecurityPolicyPage),
+  },
 ];

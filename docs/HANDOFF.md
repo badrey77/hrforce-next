@@ -44,7 +44,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
   Contract `docs/contracts/leave.md`, ADR 006. Build decisions to confirm: accrued annual days become usable 12 months after the reference year starts (reading of "taken from 1 July N"); special paid leaves count working days; a user cannot link their own account to an employee; `rh.est` also holds `employe` so Karim can request leave; the Région Est director linked to Karim in the seed is the fictitious "Souad Cherif".
 
 - **Notifications + worker + live updates: built and independently verified 2026-09-27** (live bell < 0.2 s, links open for every recipient, SSE isolation, worker role least-privilege; 3 small web fixes) (contract `docs/contracts/notifications.md`): in-app bell (SSE over Postgres LISTEN/NOTIFY), emails per preference via Graphile Worker jobs, monthly/daily cron (audit partitions, leave accruals, cleanups), leave events on History.
-- **MFA (TOTP + recovery codes): in progress** (contract `docs/contracts/mfa.md`). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
+- **MFA (TOTP + recovery codes): built 2026-09-27** (contract `docs/contracts/mfa.md`). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -65,6 +65,9 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 - New DB role **`hrforce_worker`** (Graphile Worker jobs + cron). Existing staging installs: add `HRFORCE_WORKER_PASSWORD` to `deploy/.env` before the next deploy (`deploy.sh` re-applies `create-roles.sql`). Local: `scripts/dev-up.*` creates the role on old volumes.
 - The worker runs cron in UTC: audit partitions monthly, leave accruals monthly (previous month), auth and notification cleanups daily.
+
+- **`AUTH_MFA_KEY`** (32 bytes, base64) is required in production: existing staging installs must add it to `deploy/.env` before the next deploy (`init-env.sh` generates it for new installs). Losing it makes every enrolled factor unusable (users would need an admin reset).
+- A company without a `security_policy` row is treated as MFA-enforced (safe default). DEMO has enforcement off; `bootstrap` creates companies with it on.
 
 ## Known small issues (not fixed)
 

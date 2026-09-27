@@ -24,6 +24,7 @@ import type {
   PermissionList,
   Role,
   RoleList,
+  SecurityPolicy,
   UpdateRole,
 } from './access.models';
 
@@ -97,6 +98,24 @@ export class AccessApi {
   /** `PUT /access/users/:id/employment` (`access.grant`) — `{ employmentId }` links, `{ employmentId: null }` unlinks. */
   linkEmployment(userId: string, employmentId: string | null): Observable<unknown> {
     return this.http.put<unknown>(`${ACCESS_API_BASE}/users/${encodeURIComponent(userId)}/employment`, { employmentId });
+  }
+
+  /**
+   * `POST /access/users/:id/mfa/reset` (`access.grant`, not yourself: 409 `mfa-reset-self`) → 204. Removes the user's
+   * two-step sign-in and recovery codes and signs them out everywhere (docs/contracts/mfa.md).
+   */
+  resetMfa(userId: string): Observable<void> {
+    return this.http.post<void>(`${ACCESS_API_BASE}/users/${encodeURIComponent(userId)}/mfa/reset`, null);
+  }
+
+  /** `GET /access/security-policy` — only while `enabled()` (the caller holds `access.manage_roles`). */
+  securityPolicyResource(enabled: () => boolean): HttpResourceRef<SecurityPolicy | undefined> {
+    return httpResource<SecurityPolicy>(() => (enabled() ? `${ACCESS_API_BASE}/security-policy` : undefined));
+  }
+
+  /** `PUT /access/security-policy` → 200 with the saved policy (a 204 answers `null`; the caller keeps what it sent). */
+  updateSecurityPolicy(body: SecurityPolicy): Observable<SecurityPolicy | null> {
+    return this.http.put<SecurityPolicy | null>(`${ACCESS_API_BASE}/security-policy`, body);
   }
 
   /** `POST /access/grants/:id/end` with `{ validTo }` → 200 GrantView. A grant is never deleted, only ended. */

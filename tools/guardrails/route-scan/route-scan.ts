@@ -4,11 +4,14 @@
  * must carry exactly one of @RequirePermission('<resource>.<action>'), @Authenticated() (signed-in caller, no
  * permission) or @Public() — on the method or on the class (the method's declaration wins).
  * Scans apps/api/src (not test/, not *.spec.ts: test-only routes are deliberately undecorated).
+ * Two-step sign-in (docs/contracts/mfa.md): @AllowWithoutMfa() (method or class) keeps an @Authenticated() route
+ * reachable by a user who must enroll first. It is refused on @Public()/@RequirePermission() routes, and every route
+ * carrying it must be listed with a reason in tools/guardrails/mfa-exempt.json (stale entries fail too).
  *
  *   npm run guard:route-scan            # violations + route → permission table
  *   npm run guard:route-scan -- --json  # machine-readable table
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   type AstNode,
@@ -34,6 +37,8 @@ export interface RouteEntry {
   method: string;
   path: string;
   access: string; // permission code, "public", "authenticated", or "UNGUARDED"
+  /** @AllowWithoutMfa(): reachable before a required second factor is enrolled */
+  allowWithoutMfa: boolean;
   controller: string;
   handler: string;
   file: string;
@@ -94,11 +99,12 @@ interface AccessInfo {
   permission?: string;
   isPublic: boolean;
   isAuthenticated: boolean;
+  allowWithoutMfa: boolean;
   problems: { node: AstNode; message: string }[];
 }
 
 function accessOf(decorators: AstNode[], resolve: Resolver): AccessInfo {
-  const info: AccessInfo = { isPublic: false, isAuthenticated: false, problems: [] };
+  const info: AccessInfo = { isPublic: false, isAuthenticated: false, allowWithoutMfa: false, problems: [] };
   for (const decorator of decorators) {
     const call = decoratorCall(decorator);
     const name = resolve(call.name);
@@ -106,6 +112,8 @@ function accessOf(decorators: AstNode[], resolve: Resolver): AccessInfo {
       info.isPublic = true;
     } else if (name === 'Authenticated') {
       info.isAuthenticated = true;
+    } else if (name === 'AllowWithoutMfa') {
+      info.allowWithoutMfa = true;
     } else if (name === 'RequirePermission') {
       const code = stringValue(call.args[0]);
       if (info.permission !== undefined) {
@@ -180,6 +188,15 @@ export function scanSource(file: string, text: string): { routes: RouteEntry[]; 
 
       // Method-level declarations override class-level ones (platform/authz/access-policy.ts does the same).
       const access = declaredAccess(methodAccess) ?? declaredAccess(classAccess) ?? 'UNGUARDED';
+      const allowWithoutMfa = methodAccess.allowWithoutMfa || classAccess.allowWithoutMfa;
+      if (allowWithoutMfa && access !== 'authenticated') {
+        violations.push({
+          file,
+          ...position,
+          rule: 'route-scan',
+          message: `${className}.${handler}: @AllowWithoutMfa() only applies to @Authenticated() routes (access is ${access})`,
+        });
+      }
       if (access === 'UNGUARDED') {
         violations.push({
           file,
@@ -195,6 +212,7 @@ export function scanSource(file: string, text: string): { routes: RouteEntry[]; 
               method: (resolve(http.name) ?? '').toUpperCase(),
               path: joinPath(GLOBAL_PREFIX, prefix, sub),
               access,
+              allowWithoutMfa,
               controller: className,
               handler,
               file,
@@ -208,7 +226,46 @@ export function scanSource(file: string, text: string): { routes: RouteEntry[]; 
   return { routes, violations };
 }
 
-export function scanRoutes(root: string = REPO_ROOT, srcDir = 'apps/api/src'): RouteScanResult {
+export const MFA_EXEMPT_FILE = 'tools/guardrails/mfa-exempt.json';
+
+interface MfaExemptEntry {
+  route: string;
+  reason: string;
+}
+
+/** Every @AllowWithoutMfa route must be listed (with a reason) in mfa-exempt.json; entries must match a route. */
+export function checkMfaExemptions(routes: readonly RouteEntry[], raw: unknown, file = MFA_EXEMPT_FILE): Violation[] {
+  const violations: Violation[] = [];
+  if (!Array.isArray(raw)) return [{ file, rule: 'route-scan/mfa-exempt', message: 'must be a JSON array of {route, reason}' }];
+  const listed = new Set<string>();
+  raw.forEach((item: unknown, index) => {
+    const e = item as Partial<MfaExemptEntry>;
+    if (typeof e.route !== 'string' || typeof e.reason !== 'string' || !e.reason.trim()) {
+      violations.push({ file, rule: 'route-scan/mfa-exempt', message: `entry ${index} must be {route: "METHOD /api/path", reason: non-empty string}` });
+      return;
+    }
+    if (listed.has(e.route)) violations.push({ file, rule: 'route-scan/mfa-exempt', message: `duplicate entry "${e.route}"` });
+    listed.add(e.route);
+  });
+  const exempt = new Map(routes.filter((r) => r.allowWithoutMfa).map((r) => [`${r.method} ${r.path}`, r]));
+  for (const [key, route] of exempt) {
+    if (!listed.has(key)) {
+      violations.push({
+        file: route.file,
+        line: route.line,
+        rule: 'route-scan/mfa-exempt',
+        message: `${key} carries @AllowWithoutMfa() but is not listed in ${file} (add it with a reason)`,
+      });
+    }
+  }
+  for (const key of listed) {
+    if (!exempt.has(key)) violations.push({ file, rule: 'route-scan/mfa-exempt', message: `stale entry "${key}": no route carries @AllowWithoutMfa() — remove it` });
+  }
+  return violations;
+}
+
+/** `exemptFile`: the @AllowWithoutMfa list to check against (default: mfa-exempt.json for the API sources; none for other trees). */
+export function scanRoutes(root: string = REPO_ROOT, srcDir = 'apps/api/src', exemptFile: string | null = srcDir === 'apps/api/src' ? MFA_EXEMPT_FILE : null): RouteScanResult {
   const files = listFiles(path.join(root, srcDir), (f) => f.endsWith('.ts') && !f.endsWith('.spec.ts') && !f.endsWith('.d.ts'));
   const routes: RouteEntry[] = [];
   const violations: Violation[] = [];
@@ -220,12 +277,27 @@ export function scanRoutes(root: string = REPO_ROOT, srcDir = 'apps/api/src'): R
     violations.push(...result.violations);
   }
   routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+  if (exemptFile !== null) {
+    const exemptPath = path.join(root, exemptFile);
+    let raw: unknown = [];
+    if (existsSync(exemptPath)) {
+      try {
+        raw = JSON.parse(readFileSync(exemptPath, 'utf8'));
+      } catch (error) {
+        violations.push({ file: exemptFile, rule: 'route-scan/mfa-exempt', message: `cannot parse: ${(error as Error).message}` });
+      }
+    }
+    violations.push(...checkMfaExemptions(routes, raw, exemptFile));
+  }
   return { name: 'route-scan', routes, violations, info: formatTable(routes) };
 }
 
 export function formatTable(routes: RouteEntry[]): string {
   if (routes.length === 0) return '(no routes found)';
-  const rows = [['METHOD', 'PATH', 'ACCESS', 'HANDLER'], ...routes.map((r) => [r.method, r.path, r.access, `${r.controller}.${r.handler} (${r.file}:${r.line})`])];
+  const rows = [
+    ['METHOD', 'PATH', 'ACCESS', 'HANDLER'],
+    ...routes.map((r) => [r.method, r.path, r.allowWithoutMfa ? `${r.access} (no-mfa ok)` : r.access, `${r.controller}.${r.handler} (${r.file}:${r.line})`]),
+  ];
   const widths = [0, 1, 2].map((i) => Math.max(...rows.map((r) => (r[i] ?? '').length)));
   return rows.map((r) => r.map((cell, i) => (i < 3 ? cell.padEnd(widths[i] ?? 0) : cell)).join('  ')).join('\n');
 }

@@ -1,0 +1,9 @@
+[
+  { "route": "GET /api/me", "reason": "docs/contracts/mfa.md › Enforcement: the web reads me.mfa {required, enabled} here to send a not-yet-enrolled user to the enrollment wizard." },
+  { "route": "GET /api/me/mfa", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* — the user's own second-factor status, needed to enroll." },
+  { "route": "POST /api/me/mfa/enroll/start", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* — enrollment is the way out of mfa-enrollment-required." },
+  { "route": "POST /api/me/mfa/enroll/confirm", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* — enrollment is the way out of mfa-enrollment-required." },
+  { "route": "POST /api/me/mfa/recovery-codes", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* (needs an active factor anyway)." },
+  { "route": "POST /api/me/mfa/disable", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* (needs an active factor anyway; refused when required)." },
+  { "route": "GET /api/me/notifications/unread-count", "reason": "docs/contracts/mfa.md › Enforcement: the shell's bell polls it on every page, the enrollment page included; a count reveals nothing." }
+]

@@ -22,6 +22,24 @@ export const REDACT_PATHS: readonly string[] = [
   '*.hrf_at',
   '*.hrf_rt',
   '*["XSRF-TOKEN"]',
+  // two-step sign-in (docs/contracts/mfa.md): codes and recovery codes in request bodies, the TOTP secret and its
+  // otpauth URI / QR image in responses, the pending cookie. (`code` is redacted in bodies only: elsewhere it names
+  // error or unit codes the logs need.)
+  'req.body.code',
+  'req.body.recoveryCode',
+  '*.body.code',
+  '*.body.recoveryCode',
+  '*.recoveryCode',
+  '*.recoveryCodes',
+  '*.otpauthUri',
+  '*.qrPng',
+  '*.hrf_mfa',
+  'code',
+  'recoveryCode',
+  'recoveryCodes',
+  'otpauthUri',
+  'qrPng',
+  'secret',
 ];
 
 export const REDACT_CENSOR = '[REDACTED]';

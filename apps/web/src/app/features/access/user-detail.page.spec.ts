@@ -78,6 +78,7 @@ async function submit(form: Element | null | undefined): Promise<void> {
 }
 
 const dialog = () => el().querySelector('dialog') as HTMLDialogElement;
+const resetDialog = () => el().querySelector('dialog[data-dialog="reset-mfa"]') as HTMLDialogElement;
 
 async function openDialog(): Promise<void> {
   await open();
@@ -409,6 +410,70 @@ describe('Access › User detail', () => {
       expect(text('[role="status"]')).toBe('Rôle « Gestionnaire paie » attribué.');
       http.expectOne(isGrants).flush({ items: [GRANT_SAMIR, created] });
       http.expectOne(SAMIR_URL).flush(USER_SAMIR);
+    });
+  });
+
+  describe('reset two-step sign-in (docs/contracts/mfa.md)', () => {
+    it('is offered with access.grant, behind a confirmation; confirming POSTs the reset and reports it', async () => {
+      await open();
+      (el().querySelector('[data-action="reset-mfa"]') as HTMLButtonElement).click();
+      await settle();
+
+      expect(resetDialog().open).toBe(true);
+      expect(resetDialog().getAttribute('role')).toBe('alertdialog');
+      expect(text('#reset-mfa-text')).toContain('Samir Belkacem devra reconfigurer');
+      http.expectNone('/api/access/users/u-samir/mfa/reset');
+
+      (resetDialog().querySelector('[data-action="confirm-reset"]') as HTMLButtonElement).click();
+      await settle();
+      const req = http.expectOne('/api/access/users/u-samir/mfa/reset');
+      expect(req.request.method).toBe('POST');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(resetDialog().open).toBe(false);
+      expect(text('.feedback')).toBe('Validation en deux étapes réinitialisée pour Samir Belkacem.');
+    });
+
+    it('Cancel closes the dialog without a request', async () => {
+      await open();
+      (el().querySelector('[data-action="reset-mfa"]') as HTMLButtonElement).click();
+      await settle();
+      const cancel = [...resetDialog().querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Annuler');
+      (cancel as HTMLButtonElement).click();
+      await settle();
+
+      expect(resetDialog().open).toBe(false);
+      http.expectNone('/api/access/users/u-samir/mfa/reset');
+    });
+
+    it('shows 409 mfa-reset-self inside the dialog', async () => {
+      await open();
+      (el().querySelector('[data-action="reset-mfa"]') as HTMLButtonElement).click();
+      await settle();
+      (resetDialog().querySelector('[data-action="confirm-reset"]') as HTMLButtonElement).click();
+      await settle();
+      http.expectOne('/api/access/users/u-samir/mfa/reset').flush(...conflict('mfa-reset-self'));
+      await settle();
+
+      expect(resetDialog().open).toBe(true);
+      expect(resetDialog().querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        'Vous ne pouvez pas réinitialiser votre propre validation en deux étapes.',
+      );
+    });
+
+    it('is hidden on your own page', async () => {
+      TestBed.inject(Session).set({ ...ME_FIXTURE, user: { ...ME_FIXTURE.user, id: 'u-samir' } });
+      await open();
+
+      expect(el().querySelector('[data-action="reset-mfa"]')).toBeNull();
+    });
+
+    it('is hidden without access.grant', async () => {
+      TestBed.inject(Session).set(meWith(ADMIN_PERMISSIONS.filter((code) => code !== 'access.grant')));
+      await open();
+
+      expect(el().querySelector('[data-action="reset-mfa"]')).toBeNull();
     });
   });
 });

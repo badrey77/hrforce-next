@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, DEMO_USER_ID, seedOrganization, toIsoDate, type SeedOrganization } from '../src/modules/organization/index.js';
 import { createDatabase, type Database } from '../src/platform/db/database.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
+import { seedSecurityPolicy } from '../src/modules/authorization/index.js';
 import { createTestApp, TestPermissionEvaluator } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
 import { fetchXsrf, withXsrf, type XsrfPair } from './support/xsrf.js';
@@ -104,6 +105,11 @@ describe('Organization API v2 (e2e)', () => {
     // idempotent: a second run changes nothing
     await migrator.transaction().execute((tx) => seedOrganization(tx, DEMO_ORGANIZATION, today));
     await migrator.transaction().execute((tx) => seedOrganization(tx, ORG_B, today));
+    // like seed:dev: two-step sign-in not enforced (DEV_PERMISSIONS=allow_all would make every caller "required")
+    await migrator.transaction().execute(async (tx) => {
+      await seedSecurityPolicy(tx, DEMO_COMPANY_ID, { mfaEnforced: false });
+      await seedSecurityPolicy(tx, ORG_B.company.id, { mfaEnforced: false });
+    });
     app = await createTestApp(db, { devAuth: true }); // real DEV_AUTH wiring: headers + allow-all
     restricted = await createTestApp(db, { devAuth: true, evaluator: TestPermissionEvaluator });
     xsrf = await fetchXsrf(app);

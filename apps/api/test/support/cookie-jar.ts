@@ -61,7 +61,7 @@ export class Browser {
     return new Browser(this.app, this.jar.clone(), this.defaultHeaders);
   }
 
-  private async send(method: 'get' | 'post' | 'patch' | 'delete', url: string, body?: object, headers: Record<string, string> = {}) {
+  private async send(method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, body?: object, headers: Record<string, string> = {}) {
     let test = request(this.app.getHttpServer())[method](url);
     const cookie = this.jar.header(url);
     if (cookie) test = test.set('Cookie', cookie);
@@ -80,6 +80,10 @@ export class Browser {
 
   post(url: string, body?: object, headers?: Record<string, string>) {
     return this.send('post', url, body, headers);
+  }
+
+  put(url: string, body?: object, headers?: Record<string, string>) {
+    return this.send('put', url, body, headers);
   }
 
   /** GET /api/auth/csrf then POST /api/auth/login. */

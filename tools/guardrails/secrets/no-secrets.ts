@@ -9,6 +9,9 @@
  *     (same-file interfaces / type aliases are resolved).
  * Request DTOs that legitimately take a secret as INPUT (e.g. a login password) are allowlisted with a reason in
  * tools/guardrails/secret-fields-allow.json → [{ file, symbol, property, reason }]; stale entries fail.
+ * A RESPONSE field may only be allowlisted when a feature contract mandates it: `{ …, "contract": "docs/contracts/x.md" }`
+ * where that contract names the property in backticks or braces (e.g. the new TOTP key shown once at enrollment,
+ * docs/contracts/mfa.md). The e2e helper then needs the same explicit exception.
  * Also asserts the e2e helper `assertNoSecrets` exists with the same key pattern.
  */
 import { readFileSync } from 'node:fs';
@@ -30,6 +33,8 @@ export interface AllowEntry {
   symbol: string;
   property: string;
   reason: string;
+  /** response fields only: the contract that mandates the property */
+  contract?: string;
 }
 
 interface Finding {
@@ -191,6 +196,25 @@ export function loadAllowlist(root: string): { entries: AllowEntry[]; violations
     const e = item as Partial<AllowEntry>;
     if (typeof e.file !== 'string' || typeof e.symbol !== 'string' || typeof e.property !== 'string' || typeof e.reason !== 'string' || !e.reason.trim()) {
       violations.push({ file: ALLOW_FILE, rule: 'secrets/allowlist', message: `entry ${index} needs non-empty string file, symbol, property and reason` });
+      return;
+    }
+    if (e.contract !== undefined) {
+      let text = '';
+      try {
+        text = typeof e.contract === 'string' && e.contract.startsWith('docs/contracts/') ? readFileSync(path.join(root, e.contract), 'utf8') : '';
+      } catch {
+        text = '';
+      }
+      const named = new RegExp(`[\`{,]\\s*${e.property.replace(/[^A-Za-z0-9_]/g, '')}\\s*[\`,}]`).test(text);
+      if (!named) {
+        violations.push({
+          file: ALLOW_FILE,
+          rule: 'secrets/allowlist',
+          message: `entry ${index} (${e.symbol}): contract "${String(e.contract)}" must be a docs/contracts file naming \`${e.property}\` in a shape`,
+        });
+        return;
+      }
+      entries.push(e as AllowEntry);
       return;
     }
     if (!/(Request|Input|Body|Command)(Dto)?$/.test(e.symbol) && !/^(Login|SignIn|ChangePassword|ResetPassword)/.test(e.symbol)) {

@@ -47,6 +47,8 @@ interface RouteSpec {
   rows: readonly Row[];
   /** Server-Sent Events: the row checks the status (and the text/event-stream content type on 200), then disconnects. */
   stream?: boolean;
+  /** @AllowWithoutMfa() (must equal the route-scan's allowWithoutMfa): reachable before a required factor is enrolled. */
+  noMfa?: true;
 }
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -130,6 +132,11 @@ const MATRIX: Record<string, RouteSpec> = {
     request: () => ({ path: '/api/auth/password/forgot', body: { email: 'nobody@demo.dz' } }),
     rows: [['anon', '-', 202], ['admin', '-', 202]],
   },
+  'POST /api/auth/mfa/verify': {
+    access: 'public',
+    request: () => ({ path: '/api/auth/mfa/verify', body: { code: '123456' } }),
+    rows: [['anon', '-', 401], ['admin', '-', 401]], // reachable; no hrf_mfa cookie → mfa-challenge-expired
+  },
   'POST /api/auth/password/setup': {
     access: 'public',
     request: () => ({ path: '/api/auth/password/setup', body: { token: 'x'.repeat(43), password: 'a-long-enough-passphrase' } }),
@@ -137,7 +144,29 @@ const MATRIX: Record<string, RouteSpec> = {
   },
 
   // ── authenticated ──────────────────────────────────────────────────────────────────────────────────────
-  'GET /api/me': { access: 'authenticated', request: () => ({ path: '/api/me' }), rows: READERS },
+  'GET /api/me': { access: 'authenticated', noMfa: true, request: () => ({ path: '/api/me' }), rows: READERS },
+
+  // ── two-step sign-in: the caller's own factor (a wrong code counts once per actor toward the e-mail lock) ──────
+  'GET /api/me/mfa': { access: 'authenticated', noMfa: true, request: () => ({ path: '/api/me/mfa' }), rows: [...READERS, ['agent', '-', 200]] },
+  'POST /api/me/mfa/enroll/start': { access: 'authenticated', noMfa: true, request: () => ({ path: '/api/me/mfa/enroll/start' }), rows: READERS },
+  'POST /api/me/mfa/enroll/confirm': {
+    access: 'authenticated',
+    noMfa: true,
+    request: () => ({ path: '/api/me/mfa/enroll/confirm', body: { code: '000000' } }),
+    rows: READERS.map(([a, t]) => [a, t, 422] as const), // pending secret, wrong code → mfa-invalid
+  },
+  'POST /api/me/mfa/recovery-codes': {
+    access: 'authenticated',
+    noMfa: true,
+    request: () => ({ path: '/api/me/mfa/recovery-codes', body: { code: '000000' } }),
+    rows: READERS.map(([a, t]) => [a, t, 409] as const), // not enabled → mfa-not-enabled
+  },
+  'POST /api/me/mfa/disable': {
+    access: 'authenticated',
+    noMfa: true,
+    request: () => ({ path: '/api/me/mfa/disable', body: { code: '000000' } }),
+    rows: READERS.map(([a, t]) => [a, t, 409] as const), // not required (policy off), not enabled → mfa-not-enabled
+  },
 
   // ── organization ───────────────────────────────────────────────────────────────────────────────────────
   'GET /api/org/kinds': { access: 'org_unit.read', request: () => ({ path: '/api/org/kinds' }), rows: READERS },
@@ -228,6 +257,33 @@ const MATRIX: Record<string, RouteSpec> = {
       ['acces', 'est', 200], ['acces', 'ouest', 404], ['acces', 'other', 404],
       ['est', 'est', 403], ['ouest', 'ouest', 403],
       ['beta', 'est', 404], ['beta', 'other', 200],
+    ],
+  },
+  'POST /api/access/users/:id/mfa/reset': {
+    access: 'access.grant',
+    // est: target (grants on AG-CNE, AG-ORAN) · ouest: lecture.ouest (REG-OUEST only) · other: BETA's admin (= beta itself)
+    request: (t) => ({ path: `/api/access/users/${t === 'est' ? USERS.target.id : t === 'ouest' ? USERS.ouest.id : USERS.beta.id}/mfa/reset` }),
+    rows: [
+      ['admin', 'est', 204], ['admin', 'ouest', 204], ['admin', 'other', 404],
+      ['acces', 'est', 204], ['acces', 'ouest', 404], ['acces', 'other', 404], // admin_acces: access.grant on REG-EST only
+      ['est', 'est', 403], ['ouest', 'ouest', 403],
+      ['beta', 'est', 404], ['beta', 'other', 409], // BETA's own account: mfa-reset-self
+    ],
+  },
+  'GET /api/access/security-policy': {
+    access: 'access.manage_roles',
+    request: () => ({ path: '/api/access/security-policy' }),
+    rows: [['admin', '-', 200], ['acces', '-', 200], ['est', '-', 403], ['ouest', '-', 403], ['beta', '-', 200]],
+  },
+  'PUT /api/access/security-policy': {
+    access: 'access.manage_roles',
+    // enforcement stays OFF (the other rows run without a second factor)
+    request: (_t, n) => ({ path: '/api/access/security-policy', body: { mfaEnforced: false, mfaRequiredPermissions: n % 2 ? ['access.grant'] : ['access.grant', 'employee.salary.read'] } }),
+    rows: [
+      ['admin', '-', 200],
+      ['acces', '-', 403], // access.manage_roles on REG-EST only: the policy covers the whole company → forbidden-scope
+      ['est', '-', 403], ['ouest', '-', 403],
+      ['beta', '-', 200],
     ],
   },
   'GET /api/access/grants': {
@@ -473,7 +529,7 @@ const MATRIX: Record<string, RouteSpec> = {
 
   // ── notifications (own rows only: someone else's id is a 404) ──────────────────────────────────────────
   'GET /api/me/notifications': { access: 'authenticated', request: () => ({ path: '/api/me/notifications?unreadOnly=true&limit=5' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
-  'GET /api/me/notifications/unread-count': { access: 'authenticated', request: () => ({ path: '/api/me/notifications/unread-count' }), rows: [...READERS, ['chef', '-', 200]] },
+  'GET /api/me/notifications/unread-count': { access: 'authenticated', noMfa: true, request: () => ({ path: '/api/me/notifications/unread-count' }), rows: [...READERS, ['chef', '-', 200]] },
   'GET /api/me/notifications/stream': {
     access: 'authenticated',
     stream: true,
@@ -512,6 +568,7 @@ interface ScannedRoute {
   method: string;
   path: string;
   access: string;
+  allowWithoutMfa: boolean;
 }
 
 function scanRoutes(): ScannedRoute[] {
@@ -576,6 +633,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
     expect(Object.keys(MATRIX).toSorted()).toEqual(scannedKeys);
     for (const route of scanned) {
       expect(MATRIX[`${route.method} ${route.path}`]?.access, `${route.method} ${route.path}`).toBe(route.access);
+      expect(MATRIX[`${route.method} ${route.path}`]?.noMfa === true, `${route.method} ${route.path} @AllowWithoutMfa`).toBe(route.allowWithoutMfa);
     }
   });
 
@@ -618,6 +676,30 @@ describe('Authorization matrix (e2e, real grants)', () => {
               : client.patch(req.path);
     const res = req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
+  });
+
+  it('two-step sign-in enforcement: with the DEMO policy enforced, a required user without a factor gets 403 mfa-enrollment-required on every non-public route except the @AllowWithoutMfa ones', async () => {
+    await query(db.superuserUrl, `update security_policy set mfa_enforced = true, mfa_required_permissions = '{access.grant}' where company_id = $1`, [unitCompany]);
+    try {
+      for (const [key, spec] of Object.entries(MATRIX)) {
+        if (spec.access === 'public' || spec.stream) continue;
+        const [method = ''] = key.split(' ');
+        const req = spec.request(spec.rows[0]?.[1] ?? '-', ++counter, fx);
+        const client = as(app, 'admin', xsrf);
+        const call =
+          method === 'GET' ? client.get(req.path) : method === 'POST' ? client.post(req.path) : method === 'PUT' ? client.put(req.path) : method === 'DELETE' ? client.delete(req.path) : client.patch(req.path);
+        const res = req.body ? await call.send(req.body) : await call;
+        if (spec.noMfa) expect((res.body as { type?: string }).type, key).not.toBe('urn:hrforce:problem:mfa-enrollment-required');
+        else expect([res.status, (res.body as { type?: string }).type], key).toEqual([403, 'urn:hrforce:problem:mfa-enrollment-required']);
+      }
+      // the SSE stream too; and someone the policy does not cover (lecture: no access.grant) is unaffected
+      const sse = await openSse(app, '/api/me/notifications/stream', { 'X-Dev-User-Id': USERS.admin.id, 'X-Dev-Company-Id': unitCompany });
+      expect(sse.status).toBe(403);
+      sse.close();
+      await as(app, 'ouest', xsrf).get('/api/org/tree').expect(200);
+    } finally {
+      await query(db.superuserUrl, `update security_policy set mfa_enforced = false where company_id = $1`, [unitCompany]);
+    }
   });
 
   it('every protected route is exercised by admin_rh_central, rh_regional and lecture', () => {

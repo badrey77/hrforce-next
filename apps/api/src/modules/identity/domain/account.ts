@@ -3,7 +3,7 @@ export type AccountStatus = 'invited' | 'active' | 'disabled';
 export type Locale = 'fr' | 'ar' | 'en';
 export const LOCALES: readonly Locale[] = ['fr', 'ar', 'en'];
 export type PasswordTokenPurpose = 'setup' | 'reset';
-export type LoginOutcome = 'success' | 'bad_credentials' | 'locked' | 'disabled' | 'throttled_ip';
+export type LoginOutcome = 'success' | 'bad_credentials' | 'locked' | 'disabled' | 'throttled_ip' | 'mfa_failed';
 
 export function isLocale(value: string): value is Locale {
   return (LOCALES as readonly string[]).includes(value);

@@ -4,6 +4,9 @@ import type { Request, Response } from 'express';
 export const ACCESS_COOKIE = 'hrf_at';
 export const REFRESH_COOKIE = 'hrf_rt';
 export const XSRF_COOKIE = 'XSRF-TOKEN';
+/** Pending second-step token (docs/contracts/mfa.md): only sent to /api/auth/mfa/*. */
+export const MFA_COOKIE = 'hrf_mfa';
+export const MFA_COOKIE_PATH = '/api/auth/mfa';
 export const XSRF_HEADER = 'x-xsrf-token';
 
 export const ACCESS_COOKIE_PATH = '/api';

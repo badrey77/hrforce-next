@@ -74,3 +74,14 @@ export async function seedGrants(db: Executor, companyId: string, grants: readon
       on conflict do nothing`.execute(db);
   }
 }
+
+/**
+ * Upserts a company's security policy (docs/contracts/mfa.md): seed:dev turns MFA enforcement OFF for the DEMO company
+ * (demos keep working); bootstrap creates the row with the defaults (enforced, default permission list).
+ */
+export async function seedSecurityPolicy(db: Executor, companyId: string, options: { mfaEnforced: boolean }): Promise<void> {
+  await sql`
+    insert into security_policy (company_id, mfa_enforced) values (${companyId}::uuid, ${options.mfaEnforced})
+    on conflict (company_id) do update set mfa_enforced = excluded.mfa_enforced, updated_at = now()
+    where security_policy.mfa_enforced is distinct from excluded.mfa_enforced`.execute(db);
+}

@@ -9,3 +9,7 @@ export { createMailSender, LogMailSender, SmtpMailSender } from './infra/mail-se
 export { ARGON2_OPTIONS, PasswordHasher } from './infra/password-hasher.js';
 export { newOpaqueToken, sha256 } from './infra/secure-token.js';
 export { DEMO_PASSWORD, DEMO_USERS, inviteUser, seedIdentity, type DemoUser, type InviteResult } from './infra/identity-seed.js';
+export { MfaService } from './application/mfa.service.js';
+export { MfaClock } from './application/mfa-clock.js';
+export type { MeMfaView, MfaStatusView } from './application/mfa-views.js';
+export { base32Decode, hotp, totpStep } from './domain/mfa.js';

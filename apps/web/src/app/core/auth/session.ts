@@ -29,11 +29,16 @@
  *   would build a new computed on every check and gain nothing.
  * Both answer "held anywhere". WHERE (which units) is `scopes`; for record buttons the server's `_actions` is the
  * authority (a permission held elsewhere does not mean it applies to THIS unit).
+ *
+ * Two-step sign-in (docs/contracts/mfa.md): `mfa` is one more `computed()` view of `me`, and
+ * `mfaEnrollmentRequired` the one boolean the enforcement guard, the user-menu dot and the security page read. A
+ * boolean `computed()` only notifies when it FLIPS, so reloading the session after enrolling re-renders exactly the
+ * places that showed "action required".
  */
 import { Injectable, type Signal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from './auth-api';
-import type { Me, PermissionScopes, SessionCompany, SessionUser } from './auth.models';
+import type { Me, MeMfa, PermissionScopes, SessionCompany, SessionUser } from './auth.models';
 
 @Injectable({ providedIn: 'root' })
 export class Session {
@@ -53,6 +58,17 @@ export class Session {
   readonly permissions = computed<ReadonlySet<string>>(() => new Set(this.me()?.permissions ?? []));
   /** Permission code → units where it applies (empty object when signed out). */
   readonly scopes = computed<PermissionScopes>(() => this.me()?.scopes ?? {});
+  /** `/me.mfa`; a `/me` without it (older API) reads as "off, not required". `null` when signed out. */
+  readonly mfa = computed<MeMfa | null>(() => {
+    const me = this.me();
+    if (!me) return null;
+    return me.mfa ?? { enabled: false, required: false, recoveryCodesLeft: null };
+  });
+  /** Company policy requires two-step sign-in and the user has not set it up: most of the app is closed. */
+  readonly mfaEnrollmentRequired = computed(() => {
+    const mfa = this.mfa();
+    return mfa !== null && mfa.required && !mfa.enabled;
+  });
 
   /** Does the user hold `code` anywhere? Reads a signal: reactive when called from a template or a computed. */
   can(code: string): boolean {

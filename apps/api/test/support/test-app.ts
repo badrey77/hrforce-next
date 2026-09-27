@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { AppModule } from '../../src/app.module.js';
 import { configureApp } from '../../src/configure-app.js';
 import { Public, RequirePermission } from '../../src/platform/authz/decorators.js';
+import { MfaRequirement, NoMfaRequirement } from '../../src/platform/authz/mfa-requirement.js';
 import { PermissionEvaluator } from '../../src/platform/authz/permission-evaluator.js';
 import { ENV } from '../../src/platform/config/config.module.js';
 import { loadEnv } from '../../src/platform/config/load-env.js';
@@ -147,6 +148,11 @@ export interface CreateTestAppOptions {
   mailSender?: MailSender;
   /** Extra / overriding environment variables. */
   env?: Record<string, string>;
+  /**
+   * `off`: two-step sign-in is never required (NoMfaRequirement) — for suites whose tenants are fictional ids without
+   * a company row. Default: the real security-policy-based requirement (seed the policy like seed:dev does).
+   */
+  mfa?: 'real' | 'off';
   /** Provider overrides (e.g. a pinned AccessClock). */
   overrides?: { provide: Type | symbol; useValue: unknown }[];
 }
@@ -175,6 +181,7 @@ export async function createTestApp(db: TestDatabase, options: CreateTestAppOpti
   if (!devAuth) builder = builder.overrideProvider(RequestIdentityResolver).useClass(HeaderIdentityResolver);
   const evaluator = options.evaluator === undefined ? (devAuth ? null : TestPermissionEvaluator) : options.evaluator;
   if (evaluator) builder = builder.overrideProvider(PermissionEvaluator).useClass(evaluator);
+  if (options.mfa === 'off') builder = builder.overrideProvider(MfaRequirement).useClass(NoMfaRequirement);
   if (options.mailSender) builder = builder.overrideProvider(MailSender).useValue(options.mailSender);
   for (const override of options.overrides ?? []) builder = builder.overrideProvider(override.provide).useValue(override.useValue);
   const moduleRef = await builder.compile();

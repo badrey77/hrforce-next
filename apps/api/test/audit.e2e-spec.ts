@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEMO_PASSWORD, inviteUser } from '../src/modules/identity/index.js';
+import type request from 'supertest';
+import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
 import { as, COMPANY_A, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
@@ -62,7 +63,7 @@ const M1_TABLES = [
 const AUDITED_TABLES = [
   'assignment', 'company', 'employment', 'employment_salary', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
-  'role', 'role_grant', 'role_permission', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
+  'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
 const C = '0190a5d0-0000-7000-8000-00000000c0de';
 
@@ -71,6 +72,8 @@ let app: NestExpressApplication;
 let fx: AccessFixture;
 let xsrf: XsrfPair;
 let seq = 0;
+/** TOTP clock of the app (advanced one 30-second step per code: a step is never accepted twice). */
+const mfaClock = { now: Date.now() };
 
 const client = (actor: ActorName) => as(app, actor, xsrf);
 const tenant = (companyId: string) => [`select set_config('app.company_id', '${companyId}', true)`];
@@ -115,7 +118,7 @@ async function timeline(actor: ActorName, subject: string, extra = ''): Promise<
 beforeAll(async () => {
   db = await createTestDatabase();
   fx = await seedAccessFixture(db, undefined, { leave: true });
-  app = await createTestApp(db, { devAuth: true, devPermissions: false });
+  app = await createTestApp(db, { devAuth: true, devPermissions: false, overrides: [{ provide: MfaClock, useValue: { nowMs: () => mfaClock.now } }] });
   xsrf = await fetchXsrf(app);
 });
 
@@ -339,6 +342,18 @@ describe('exit criterion: every write through the API produces an audit row with
    * is expected (asserted below).
    */
   const AUDIT_EXEMPT_WRITES = ['POST /api/me/notifications/:id/read', 'POST /api/me/notifications/read-all'];
+  /**
+   * Writes to the auth schema only (two-step sign-in, docs/contracts/mfa.md): no tenant row changes, so each one is
+   * audited by an APPLICATION EVENT in the request transaction (asserted below). enroll/start only stores a pending,
+   * unusable secret: its effect is audited when confirmed (auth.mfa_enrolled).
+   */
+  const MFA_EVENT_WRITES: Record<string, string> = {
+    'POST /api/me/mfa/enroll/confirm': 'auth.mfa_enrolled',
+    'POST /api/me/mfa/recovery-codes': 'auth.mfa_recovery_regenerated',
+    'POST /api/me/mfa/disable': 'auth.mfa_disabled',
+    'POST /api/access/users/:id/mfa/reset': 'auth.mfa_reset',
+  };
+  const PENDING_ONLY_WRITES = ['POST /api/me/mfa/enroll/start'];
   const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '' };
 
   beforeAll(async () => {
@@ -455,6 +470,10 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: `/api/tasks/${LV.rejectTask}/reject`, body: { comment: 'Refusé' } }),
       tables: ['workflow_task', 'workflow_instance', 'leave_request'],
     },
+    'PUT /api/access/security-policy': {
+      request: () => ({ path: '/api/access/security-policy', body: { mfaEnforced: false, mfaRequiredPermissions: ['access.grant', 'employee.salary.read'] } }),
+      tables: ['security_policy'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -467,8 +486,34 @@ describe('exit criterion: every write through the API produces an audit row with
     const writes = routes
       .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
       .map((r) => `${r.method} ${r.path}`)
-      .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key));
-    expect(Object.keys(WRITES).toSorted()).toEqual(writes.toSorted());
+      .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key) && !PENDING_ONLY_WRITES.includes(key));
+    expect([...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES)].toSorted()).toEqual(writes.toSorted());
+  });
+
+  it('two-step sign-in writes (auth schema only) each record their application event in the request transaction', async () => {
+    const admin = client('admin');
+    const start = await admin.post('/api/me/mfa/enroll/start').send({}).expect(200);
+    assertNoSecrets(start.body, ['$.secret']);
+    const secret = base32Decode(start.body.secret as string) ?? Buffer.alloc(0);
+    const code = () => {
+      mfaClock.now += 30_000;
+      return hotp(secret, totpStep(mfaClock.now));
+    };
+    const calls: [string, () => request.Test][] = [
+      ['POST /api/me/mfa/enroll/confirm', () => admin.post('/api/me/mfa/enroll/confirm').send({ code: code() })],
+      ['POST /api/me/mfa/recovery-codes', () => admin.post('/api/me/mfa/recovery-codes').send({ code: code() })],
+      ['POST /api/me/mfa/disable', () => admin.post('/api/me/mfa/disable').send({ code: code() })],
+      ['POST /api/access/users/:id/mfa/reset', () => admin.post(`/api/access/users/${USERS.target.id}/mfa/reset`).send({})],
+    ];
+    for (const [key, call] of calls) {
+      const requestId = rid('mfa');
+      const res = await call().set('X-Request-Id', requestId);
+      expect(res.status, `${key}: ${JSON.stringify(res.body)}`).toBeLessThan(300);
+      const rows = await events('request_id = $1', [requestId]);
+      expect(rows.map((r) => r.type), key).toEqual([MFA_EVENT_WRITES[key]]);
+      expect(rows[0]).toMatchObject({ company_id: COMPANY_A, actor_user_id: USERS.admin.id, subject_type: 'user' });
+      expect(JSON.stringify(rows[0]?.data)).not.toMatch(/secret|code"|[A-Z2-9]{5}-[A-Z2-9]{5}/);
+    }
   });
 
   it('marking notifications read (audit-exempt table) writes no audit row but does change read_at', async () => {

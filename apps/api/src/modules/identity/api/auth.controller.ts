@@ -5,7 +5,8 @@ import { SkipTransaction } from '../../../platform/context/skip-transaction.deco
 import { AuthService } from '../application/auth.service.js';
 import { PasswordService } from '../application/password.service.js';
 import { AuthXsrf } from './auth-xsrf.guard.js';
-import { ForgotPasswordRequestDto, LoginRequestDto, PasswordSetupRequestDto } from './auth.dto.js';
+import type { MfaRequiredView } from '../application/mfa-views.js';
+import { ForgotPasswordRequestDto, LoginRequestDto, MfaVerifyRequestDto, PasswordSetupRequestDto } from './auth.dto.js';
 
 /**
  * docs/contracts/identity.md › Endpoints. No request transaction (@SkipTransaction): failed logins must still be
@@ -31,8 +32,20 @@ export class AuthController {
   @Public()
   @AuthXsrf()
   @HttpCode(204)
-  login(@Body() body: LoginRequestDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
-    return this.auth.login(req, res, body);
+  async login(@Body() body: LoginRequestDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<MfaRequiredView | undefined> {
+    const result = await this.auth.login(req, res, body);
+    // second factor needed (docs/contracts/mfa.md): 200 {mfaRequired: true} + hrf_mfa, no session cookies yet
+    if (result) res.status(200);
+    return result;
+  }
+
+  /** Second step of a login with MFA; needs the hrf_mfa cookie (Path=/api/auth/mfa). */
+  @Post('mfa/verify')
+  @Public()
+  @AuthXsrf()
+  @HttpCode(204)
+  verifyMfa(@Body() body: MfaVerifyRequestDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    return this.auth.verifyMfa(req, res, body);
   }
 
   @Post('refresh')

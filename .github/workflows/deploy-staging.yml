@@ -32,8 +32,9 @@ jobs:
   prepare:
     name: Prepare
     # workflow_run: only after a successful CI run on a push to main (not PRs whose head branch is named main).
+    # Manual runs only from main (the SHA input can still pick an older main commit for rollback).
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 5

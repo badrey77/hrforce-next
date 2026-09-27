@@ -952,6 +952,7 @@
         "added": "Public holiday added.",
         "saved": "Public holiday saved.",
         "deleted": "Public holiday deleted.",
+        "dateTaken": "There is already a holiday on this date.",
         "empty": "No public holiday for this year.",
         "loadError": "Could not load the public holidays."
       },

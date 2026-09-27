@@ -952,6 +952,7 @@
         "added": "Jour férié ajouté.",
         "saved": "Jour férié enregistré.",
         "deleted": "Jour férié supprimé.",
+        "dateTaken": "Un jour férié existe déjà à cette date.",
         "empty": "Aucun jour férié pour cette année.",
         "loadError": "Impossible de charger les jours fériés."
       },

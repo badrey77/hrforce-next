@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { leaveDetail, MANAGER_THEN_HR } from '../../../testing/leave-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { LanguageService } from '../../core/i18n/language.service';
-import type { WorkflowTaskHistory } from '../../core/leave/leave.models';
+import type { WorkflowStepDef, WorkflowTaskHistory } from '../../core/leave/leave.models';
 import { stepStates, WorkflowStepper } from './workflow-stepper';
 
 const states = (...args: Parameters<typeof stepStates>) => stepStates(...args).map((v) => v.state);
@@ -24,6 +24,14 @@ describe('stepStates', () => {
     expect(states({ ...MANAGER_THEN_HR, status: 'cancelled', currentStep: null }, [cancelled])).toEqual(['done', 'cancelled']);
     // Cancelled after approval (a future leave): nothing stopped it.
     expect(states({ ...MANAGER_THEN_HR, status: 'cancelled', currentStep: null })).toEqual(['done', 'done']);
+  });
+
+  it("uses the API's per-step state when sent (list rows have no history)", () => {
+    const [manager, hr] = MANAGER_THEN_HR.steps as [WorkflowStepDef, WorkflowStepDef];
+    const cancelledPending = { status: 'cancelled' as const, currentStep: null, steps: [{ ...manager, state: 'cancelled' as const }, { ...hr, state: 'skipped' as const }] };
+    expect(states(cancelledPending)).toEqual(['cancelled', 'upcoming']);
+    const rejectedAtHr = { status: 'rejected' as const, currentStep: null, steps: [{ ...manager, state: 'escalated' as const }, { ...hr, state: 'rejected' as const }] };
+    expect(stepStates(rejectedAtHr).map((v) => [v.state, v.escalated])).toEqual([['skipped', true], ['rejected', false]]);
   });
 
   it('flags an escalated step', () => {

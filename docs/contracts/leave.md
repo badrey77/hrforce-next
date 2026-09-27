@@ -99,3 +99,25 @@ Leave policy, the types above with the defaults, 2026–2027 holidays (lunar one
 - **HR leave** (`/leave`, `leave.read`): filterable scoped list (URL state like employees), request detail with steps; on the employee detail page a **Leave** tab (balances, ledger, adjustments with `leave.adjust`, "request on behalf").
 - **Configuration** (`/leave/settings`, `leave.configure`): leave types table (edit numbers/labels), holidays per year (approximate ones flagged), policy (weekend, reference month).
 - Organization unit detail: "Head of unit" (employee picker, from date). Access user detail: "Linked employee" (employee picker).
+
+## Settled by the build (verified 2026-09-27)
+
+Behaviour the implementation settled where the contract above was silent; the API (`apps/api/src/modules/{leave,workflow,staffing}`) and the web (`apps/web/src/app/core/{leave,tasks}`) both follow it.
+
+**Extra endpoints / fields**
+- `GET /leave/policy` (authenticated) → `{referenceStartMonth, weekendDays, entitlementDelayMonths}`; `entitlementDelayMonths` (default 12, 0–24) = months after a reference year starts before its accrued days are usable (non-accrued balance types: at once). `PUT /leave/policy` accepts it (optional).
+- `GET /leave/workflows` (`leave.configure`) → `{items: [{id, code, names:{fr,ar,en}, isSystem, steps}]}`.
+- `PUT /leave/types/:id` also accepts `countMode`, `hasBalance`, `oncePerCareer`, `workflowDefinitionId`, `sortOrder` (all optional).
+- Reference-data labels are `labels: {fr, ar, en}` (types, holidays, workflow steps).
+- Balances: `{asOf, items: [{leaveTypeId, leaveTypeCode, periodStart, periodEnd, availableFrom, accrued, taken, adjusted, balance, pending, available}]}` (days = JSON numbers, one decimal).
+- Preview: `breakdown.halfDays` and `warnings[]` (the 409 slugs a submit would hit; the preview itself answers 200); holiday `name` = labels.
+- List items: `{id, employee:{id, matricule, person, unit}, leaveTypeId, leaveType:{code, labels}, startDate, endDate, days, halfDayStart, halfDayEnd, status, requestedAt, workflow:{instanceId, status, currentStep, steps:[{key, kind, permission?, labels, state}]}}`; step `state` ∈ `done|current|pending|escalated|rejected|cancelled|skipped` (skipped = not reached). Detail adds `reason`, `documentRef`, `requestedBy`, `history[]` (tasks oldest first: `assignee {kind: user|permission|none}`, status, outcome, actedBy, actedAt, comment), `balances` (the employee's, for the request type — the manager step's approver holds no `leave.read`) and `_actions` (`cancel`).
+- `GET /tasks` items: `{id, instanceId, stepKey, stepIndex, stepLabels, escalated, createdAt, subject: <list item without workflow> + {type}}` — no salary/NSS/RIB/contact data.
+- `GET /me/employment` also returns `manager` (today's manager card or null). `PUT /access/users/:id/employment` → `{userId, employment}`. `PUT /org/units/:id/head` accepts `employmentId: null` (ends the current head on `validFrom`), `validFrom` defaults to today, → `{unitId, head, heads[]}`; the current head is `head` on `GET /org/units/:id`.
+- `POST /leave/accruals/run` → `{month, employees, eligible, created, alreadyAccrued}`; a future month → 422.
+
+**Status codes and slugs**
+- Extra 409 slugs: `leave-not-cancellable`, `leave-type-inactive`, `holiday-date-taken` (field `date`), staffing `head-date`, `employment-ended`, `employment-linked`, `link-self` (nobody links their own account).
+- Reject without a comment → **422** (`errors[].field = comment`), not 409. A task the caller is not a candidate of (or unknown / other company) → **404**; the requester or the employee's linked user → 409 `workflow-self-approval`; already handled → 409 `workflow-task-closed`.
+- `GET /leave/requests/:id` for anyone else (incl. a manager after acting) → 404. `POST /leave/preview` with another `employmentId` needs `leave.request` over them (404 otherwise; 403 `forbidden-scope` when only `leave.read` covers them).
+- Manager-step escalation reasons (the skipped task's comment): `no-manager`, `manager-not-linked`, `manager-is-requester`. The same user may act on two successive steps (e.g. Karim as the chef's manager and as regional HR).

@@ -154,11 +154,18 @@ export interface WorkflowStepDef {
   readonly labels: Labels;
 }
 
+/**
+ * The API's own state of each step (apps/api/src/modules/workflow/domain/steps.ts `progressOf`): `escalated` = a
+ * manager step nobody could take; `skipped` = never reached because the instance finished earlier.
+ */
+export type WorkflowStepApiState = 'done' | 'current' | 'pending' | 'escalated' | 'rejected' | 'cancelled' | 'skipped';
+
 /** Where an instance stands: enough to draw a stepper. `currentStep` = index of the open step, `null` when finished. */
 export interface WorkflowProgress {
   readonly status: WorkflowStatus;
   readonly currentStep: number | null;
-  readonly steps: readonly WorkflowStepDef[];
+  /** Each step carries the API's `state`; list rows have no task history, so it is the only source there. */
+  readonly steps: readonly (WorkflowStepDef & { readonly state?: WorkflowStepApiState })[];
 }
 
 export type TaskStatus = 'open' | 'done' | 'skipped' | 'cancelled';

@@ -239,3 +239,9 @@ Then deploy the SHA that matches the restored schema if it is older than the run
   `X-Robots-Tag: noindex` keeps staging out of search engines.
 - Containers: `api` and `web` run as non-root with a read-only root filesystem and every capability dropped; `proxy`
   keeps only `NET_BIND_SERVICE`.
+
+### Protect the `staging` environment
+
+In GitHub → Settings → Environments → `staging`: add a **deployment branch rule** allowing only `main`, and optionally
+required reviewers. The workflow already refuses manual runs from other branches; the environment rule also protects
+the SSH secrets from workflows on other branches.

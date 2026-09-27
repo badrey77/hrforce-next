@@ -258,8 +258,13 @@ td.code {
   white-space: nowrap;
 }
 
-/* Wide tables scroll horizontally inside this wrapper rather than squeezing their cells. */
+/*
+ * Wide tables scroll horizontally inside this wrapper rather than squeezing their cells. `position: relative` makes
+ * it the containing block of absolutely positioned descendants (`.visually-hidden` labels in cells): otherwise they
+ * are placed against the page, escape the scroll box and make the whole page scroll sideways on a phone.
+ */
 .table-scroll {
+  position: relative;
   overflow-x: auto;
 }
 

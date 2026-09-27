@@ -21,7 +21,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { LeaveCatalog } from '../../core/leave/leave-catalog';
-import type { WorkflowProgress, WorkflowStepDef, WorkflowTaskHistory } from '../../core/leave/leave.models';
+import type { WorkflowProgress, WorkflowStepApiState, WorkflowStepDef, WorkflowTaskHistory } from '../../core/leave/leave.models';
 
 export type StepState = 'done' | 'current' | 'rejected' | 'cancelled' | 'upcoming' | 'skipped';
 
@@ -30,6 +30,17 @@ export interface StepView {
   readonly state: StepState;
   readonly escalated: boolean;
 }
+
+/** API step state → the stepper's (a step never reached because the instance finished reads as "upcoming"). */
+const FROM_API: Record<WorkflowStepApiState, StepState> = {
+  done: 'done',
+  current: 'current',
+  pending: 'upcoming',
+  escalated: 'skipped',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+  skipped: 'upcoming',
+};
 
 /**
  * The state of each step. `currentStep` is the open step while `pending`; once finished the API may send `null`, so
@@ -41,6 +52,11 @@ export function stepStates(progress: WorkflowProgress, history: readonly Workflo
     history.find(predicate)?.stepIndex ?? progress.currentStep ?? -1;
 
   return progress.steps.map((step, index) => {
+    // The API's per-step state wins when sent: list rows (My leave) carry no history, so the rules below could not
+    // tell where a rejected or cancelled-while-pending request stopped.
+    if (step.state !== undefined) {
+      return { step, state: FROM_API[step.state], escalated: step.state === 'escalated' || escalated.has(index) };
+    }
     let state: StepState;
     switch (progress.status) {
       case 'approved':

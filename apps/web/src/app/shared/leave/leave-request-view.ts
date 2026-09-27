@@ -55,7 +55,9 @@ import { WorkflowStepper } from '../workflow-stepper/workflow-stepper';
         }
         @if (r.requestedBy) {
           <dt>{{ t('leave.fields.requestedBy') }}</dt>
-          <dd>{{ r.requestedBy.displayName }}, {{ r.requestedAt | date: 'short' : undefined : locale() }}</dd>
+          <!-- <bdi> isolates each part: a Latin name next to a date inside an Arabic (RTL) line would otherwise be
+               reordered by the bidi algorithm ("18 ,2026/9/Amina Benali"). -->
+          <dd><bdi>{{ r.requestedBy.displayName }}</bdi>, <bdi>{{ r.requestedAt | date: 'short' : undefined : locale() }}</bdi></dd>
         }
       </dl>
 

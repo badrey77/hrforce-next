@@ -16,7 +16,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import type { Observable } from 'rxjs';
-import { type FormMessage, problemToForm } from '../../core/http/problem-form';
+import { type FormMessage, problemToForm, type SlugTable } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
 import { LeaveApi } from '../../core/leave/leave-api';
@@ -25,6 +25,11 @@ import type { HolidayInput, PublicHoliday } from '../../core/leave/leave.models'
 import { isoDate, leaveErrorKey } from '../../shared/leave/leave-forms';
 import { LABEL_MAX } from './leave-types-settings';
 
+
+/** 409 slugs of the holiday write, shown on the field the user can fix (in the UI language, not the server's text). */
+const HOLIDAY_SLUGS: SlugTable = {
+  'holiday-date-taken': { key: 'leave.settings.holidays.dateTaken', field: 'date' },
+};
 @Component({
   selector: 'app-holidays-settings',
   imports: [TranslocoDirective, ReactiveFormsModule, DatePipe],
@@ -103,7 +108,7 @@ export class HolidaysSettings {
       next: () => this.done(mode === 'new' ? 'leave.settings.holidays.added' : 'leave.settings.holidays.saved'),
       error: (error: unknown) => {
         this.saving.set(false);
-        this.formError.set(problemToForm(this.form, error, {}));
+        this.formError.set(problemToForm(this.form, error, HOLIDAY_SLUGS));
       },
     });
   }

@@ -37,6 +37,7 @@ async function settle(fixture: ComponentFixture<App>): Promise<void> {
       if (req.cancelled) continue;
       if (req.request.url === '/api/tasks') req.flush({ items: answers.tasks ?? [] });
       else if (req.request.url === '/api/leave/types') req.flush({ items: [] });
+      else if (req.request.url === '/api/documents/types') req.flush({ items: [] });
       else if (req.request.url === '/api/me/notifications') req.flush({ items: [], nextCursor: null });
       else if (req.request.url === '/api/me/notifications/unread-count') req.flush({ count: answers.unread ?? 0 });
       else if (req.request.url === '/api/me/employment') {
@@ -209,6 +210,21 @@ describe('App shell', () => {
       await settle(first.fixture);
       http.expectNone('/api/me/employment');
       expect(links(first.el)).not.toContain('/me/leave');
+    });
+  });
+
+  describe('documents nav (docs/contracts/documents.md › Web › Nav)', () => {
+    it('shows Documents with document.read, and My documents with document.request_self AND a linked employment', async () => {
+      answers = { employment: { id: 'e-1', matricule: 'EMP-1' } };
+      TestBed.inject(Session).set(meWith(['document.read']));
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/tasks', '/documents', '/settings']);
+
+      // Only the documents self-service permission: My documents, not My leave (the employment request is shared).
+      TestBed.inject(Session).set(meWith(['document.request_self']));
+      await settle(fixture);
+      expect(links(el)).toEqual(['/', '/me/documents', '/tasks', '/settings']);
+      expect(el.querySelector('nav a[href="/me/documents"]')?.textContent?.trim()).toBe('Mes documents');
     });
   });
 

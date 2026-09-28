@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { AuditEvents } from '../../../platform/audit/audit-events.js';
+import { AuditEvents, type AuditSubjectType } from '../../../platform/audit/audit-events.js';
 import { ScopeService, type UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { requireContext } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
@@ -9,9 +9,12 @@ import { WorkflowRepository, type InstanceRow, type TaskRow } from '../infra/wor
 import { WorkflowSubjects } from './workflow-subjects.js';
 import type { AssigneeView, OpenTaskView, TaskActionView, TaskHistoryView, UserRef, WorkflowProgressView } from './workflow-views.js';
 
+/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011 and 0014). */
+export type WorkflowSubjectType = 'leave_request' | 'document_request';
+
 export interface StartInput {
   definitionId: string;
-  subjectType: 'leave_request';
+  subjectType: WorkflowSubjectType;
   subjectId: string;
   /** the subject employee's unit: permission steps must cover it */
   scopeUnitId: string;
@@ -35,6 +38,12 @@ function caller(): { companyId: string; userId: string } {
 
 function taskNotFound(): NotFoundException {
   return new NotFoundException('Task not found');
+}
+
+/** The subject of an instance, as the subject of its audit events and notifications. */
+function subjectOf(instance: Pick<InstanceRow, 'subjectType' | 'subjectId'>): { type: AuditSubjectType & WorkflowSubjectType; id: string } {
+  const type: WorkflowSubjectType = instance.subjectType === 'document_request' ? 'document_request' : 'leave_request';
+  return { type, id: instance.subjectId };
 }
 
 /**
@@ -81,7 +90,7 @@ export class WorkflowEngine {
     });
     await this.audit.record({
       type: 'workflow.start',
-      subject: { type: 'leave_request', id: input.subjectId },
+      subject: { type: input.subjectType, id: input.subjectId },
       data: { instanceId, definition: definition.code },
     });
     const instance = await this.repo.instance(companyId, instanceId);
@@ -117,13 +126,13 @@ export class WorkflowEngine {
     await this.repo.insertTask(companyId, { ...base, assigneeKind: 'none', assigneeUserId: null, permission: null, escalated: { reason } });
     await this.audit.record({
       type: 'workflow.escalate',
-      subject: { type: 'leave_request', id: instance.subjectId },
+      subject: subjectOf(instance),
       data: { instanceId: instance.id, step: step.key, reason },
     });
     // the requester is told even when they are the actor: the engine, not they, decided to skip the manager
     await this.notifier.notify({
       type: 'task.escalated',
-      subject: { type: 'leave_request', id: instance.subjectId },
+      subject: subjectOf(instance),
       data: { ...(await this.notificationData(instance)), stepKey: step.key, escalationReason: reason },
       recipients: [{ userId: instance.startedBy, audience: instance.startedBy === instance.subjectUserId ? 'employee' : 'requester' }],
       includeActor: true,
@@ -168,7 +177,7 @@ export class WorkflowEngine {
     await this.notifier.notify({
       type: 'task.assigned',
       subject: { type: 'workflow_task', id: taskId },
-      data: { ...(await this.notificationData(instance)), stepKey, taskId },
+      data: { ...(await this.notificationData(instance)), subjectType: instance.subjectType, stepKey, taskId },
       recipients: candidates.map((userId) => ({ userId, audience: 'approver' as const })),
     });
   }
@@ -196,7 +205,7 @@ export class WorkflowEngine {
     const context = { instanceId: instance.id, subjectId: instance.subjectId, actorUserId: userId };
     await this.audit.record({
       type: `workflow.${action}`,
-      subject: { type: 'leave_request', id: instance.subjectId },
+      subject: subjectOf(instance),
       data: { instanceId: instance.id, taskId: task.id, step: task.stepKey, ...(comment ? { comment } : {}) },
     });
     const steps = await this.stepsOf(companyId, instance.definitionId);
@@ -221,7 +230,8 @@ export class WorkflowEngine {
     const instance = await this.repo.instance(companyId, instanceId, { lock: true });
     if (!instance) throw new NotFoundException();
     if (instance.status !== 'pending' && instance.status !== 'approved') {
-      throw new ProblemException(409, 'leave-not-cancellable', 'This request can no longer be cancelled.');
+      const slug = instance.subjectType === 'document_request' ? 'document-request-not-cancellable' : 'leave-not-cancellable';
+      throw new ProblemException(409, slug, 'This request can no longer be cancelled.');
     }
     const openTaskCandidates: string[] = [];
     for (const task of await this.repo.openTasks(companyId, instance.id)) openTaskCandidates.push(...(await this.candidatesOf(companyId, instance, task)));
@@ -229,7 +239,7 @@ export class WorkflowEngine {
     await this.repo.finishInstance(companyId, instance.id, 'cancelled');
     await this.audit.record({
       type: 'workflow.cancel',
-      subject: { type: 'leave_request', id: instance.subjectId },
+      subject: subjectOf(instance),
       data: { instanceId: instance.id, wasApproved: instance.status === 'approved' },
     });
     await this.subjects.get(instance.subjectType).onCancelled({

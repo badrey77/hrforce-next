@@ -1,0 +1,149 @@
+<!--
+  States from the resource: value → the page (kept during a reload after voiding); error → 404 "not found" (no retry)
+  or a retryable error; otherwise loading. Tabs: role="tablist"/"tab"/"tabpanel", only the active panel rendered.
+-->
+<ng-container *transloco="let t">
+  <p *appCan="'document.read'"><a routerLink="/documents">{{ t('documents.detail.back') }}</a></p>
+
+  @if (detail(); as d) {
+    <header class="page-header" [attr.aria-busy]="document.isLoading()">
+      <div>
+        <h1><span class="code" data-field="number">{{ d.number }}</span></h1>
+        <p class="muted">
+          {{ label(d.type.labels) }} ·
+          <span class="badge" data-field="status" [attr.data-status]="d.status === 'void' ? 'cancelled' : 'approved'">{{ t('documents.status.' + d.status) }}</span>
+        </p>
+      </div>
+      <div class="form-actions">
+        <app-pdf-actions [documentId]="d.id" [number]="d.number" />
+        @if (canVoid()) {
+          <button class="btn danger" type="button" data-action="void" (click)="openVoid()">{{ t('documents.void.action') }}</button>
+        }
+      </div>
+    </header>
+
+    @if (issued() && d.status === 'issued') {
+      <p class="feedback" role="status" data-state="issued">{{ t('documents.feedback.issued', { number: d.number }) }}</p>
+    }
+    @if (feedback(); as key) {
+      <p class="feedback" role="status">{{ t(key) }}</p>
+    }
+    @if (d.warnings.includes('leave-cancelled')) {
+      <p class="warning" role="status" data-warning="leave-cancelled">{{ t('documents.detail.leaveCancelled') }}</p>
+    }
+    @if (d.void; as v) {
+      <div class="warning" data-state="void">
+        <p>{{ t('documents.detail.voidedOn', { date: (v.at | date: 'medium' : undefined : locale()), by: v.by?.displayName ?? t('audit.system') }) }}</p>
+        <p dir="auto">{{ t('documents.void.reason') }} : {{ v.reason }}</p>
+      </div>
+    }
+
+    <div class="tabs" role="tablist" [attr.aria-label]="t('documents.detail.tabs')">
+      @for (name of tabs; track name) {
+        <button type="button" role="tab" [id]="'doc-tab-' + name" [attr.data-tab]="name"
+          [attr.aria-selected]="tab() === name" aria-controls="doc-tab-panel" (click)="tab.set(name)">
+          {{ t('documents.detail.tab.' + name) }}
+        </button>
+      }
+    </div>
+
+    <div id="doc-tab-panel" role="tabpanel" [attr.aria-labelledby]="'doc-tab-' + tab()">
+      @switch (tab()) {
+        @case ('details') {
+          <dl class="facts" data-panel="details">
+            <dt>{{ t('documents.fields.type') }}</dt>
+            <dd>{{ label(d.type.labels) }}</dd>
+            <dt>{{ t('documents.fields.language') }}</dt>
+            <dd>{{ t('documents.languages.' + d.language) }}</dd>
+            <dt>{{ t('documents.fields.employee') }}</dt>
+            <dd data-field="employee">
+              <span dir="auto">{{ d.employee.person | displayName: lang() }}</span> <span class="code">({{ d.employee.matricule }})</span>
+              <a *appCan="'employee.read'" [routerLink]="['/employees', d.employee.id]" data-action="employee"> {{ t('documents.detail.openEmployee') }}</a>
+            </dd>
+            <dt>{{ t('documents.fields.unit') }}</dt>
+            <dd>{{ d.employee.unit | displayName: lang() }}</dd>
+            <dt>{{ t('documents.fields.issueDate') }}</dt>
+            <dd class="nowrap">{{ d.issueDate | date: 'longDate' : undefined : locale() }}</dd>
+            <dt>{{ t('documents.fields.issuedBy') }}</dt>
+            <!-- <bdi> isolates each part (as in shared/leave/leave-request-view.ts): in Arabic, a Latin name next to a
+                 date would otherwise merge into one left-to-right run and print as "2026/09/Amina Benali · 29". -->
+            <dd><bdi>{{ d.issuedBy?.displayName ?? t('audit.system') }}</bdi> · <bdi>{{ d.issuedAt | date: 'medium' : undefined : locale() }}</bdi></dd>
+            <dt>{{ t('documents.fields.signatory') }}</dt>
+            <dd data-field="signatory" [attr.lang]="d.language" dir="auto">
+              {{ d.signatory.names[d.language] }}
+              @if (d.snapshot?.signatory?.title; as title) {
+                — {{ title }}
+              }
+            </dd>
+            @if (d.leaveRequestId) {
+              <dt>{{ t('documents.fields.leaveRequest') }}</dt>
+              <dd>
+                @if (canLeave()) {
+                  <a [routerLink]="['/leave/requests', d.leaveRequestId]" data-action="leave-request">{{ t('documents.detail.openLeaveRequest') }}</a>
+                } @else {
+                  —
+                }
+              </dd>
+            }
+            @if (d.documentRequestId) {
+              <dt>{{ t('documents.fields.origin') }}</dt>
+              <dd>{{ t('documents.detail.selfService') }}</dd>
+            }
+            <dt>{{ t('documents.fields.size') }}</dt>
+            <dd>{{ d.sizeBytes / 1024 | number: '1.0-1' : locale() }} {{ t('documents.detail.kb') }}</dd>
+            <dt>{{ t('documents.fields.sha256') }}</dt>
+            <dd><span class="code" data-field="hash" [title]="d.sha256" dir="ltr">{{ shortHash() }}…</span></dd>
+          </dl>
+        }
+        @case ('history') {
+          <div data-panel="history">
+            @defer (on viewport; prefetch on idle) {
+              <app-timeline [subject]="'issued_document:' + d.id" [resolver]="auditNames" />
+            } @placeholder {
+              <p class="muted" data-defer="placeholder">{{ t('audit.loading') }}</p>
+            } @loading (after 100ms; minimum 300ms) {
+              <p class="muted">{{ t('audit.loading') }}</p>
+            } @error {
+              <p class="form-error" role="alert">{{ t('audit.chunkError') }}</p>
+            }
+          </div>
+        }
+      }
+    </div>
+  } @else if (document.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="document.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+
+  <dialog #voidDialog class="modal" aria-labelledby="void-title" (close)="onVoidClosed()">
+    <form [formGroup]="voidForm" (ngSubmit)="submitVoid()" novalidate>
+      <h2 id="void-title">{{ t('documents.void.title', { number: detail()?.number ?? '' }) }}</h2>
+      <p>{{ t('documents.void.intro') }}</p>
+      @if (voidError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let reason = voidForm.controls.reason;
+      <div class="field">
+        <label for="void-reason">{{ t('documents.void.reason') }}</label>
+        <textarea id="void-reason" formControlName="reason" rows="3" required dir="auto"
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="void-reason-hint void-reason-error"></textarea>
+        <p class="field-hint" id="void-reason-hint">{{ t('documents.void.reasonHint') }}</p>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="void-reason-error" data-error="reason">
+            {{ reason.getError('server') ?? (reason.hasError('maxlength') ? t('documents.void.tooLong') : t('documents.void.reasonRequired')) }}
+          </p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn danger" type="submit" data-action="confirm-void" [disabled]="voidSubmitting()">{{ t('documents.void.confirm') }}</button>
+        <button class="btn secondary" type="button" (click)="closeVoid()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

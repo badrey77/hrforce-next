@@ -106,6 +106,17 @@ export class AuditRepository {
     return rows[0];
   }
 
+  /** The employment an issued document is about (decides who may see its history). undefined = unknown id. */
+  async issuedDocumentEmployment(companyId: string, id: string): Promise<string | undefined> {
+    const row = await currentTx()
+      .selectFrom('issued_document')
+      .select('employment_id')
+      .where('company_id', '=', companyId)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row?.employment_id;
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -174,12 +185,19 @@ export class AuditRepository {
     }));
   }
 
-  /** Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests. */
+  /**
+   * Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests,
+   * its issued documents and its self-service document requests.
+   */
   private eventSubject(companyId: string, subject: TimelineSubject): RawBuilder<boolean> {
     const own = sql<boolean>`(e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid)`;
     if (subject.type !== 'employee') return own;
     return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
-      select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${subject.id}::uuid)))`;
+      select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'issued_document' and e.subject_id in (
+      select d.id from issued_document d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'document_request' and e.subject_id in (
+      select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -210,10 +228,15 @@ export class AuditRepository {
         return sql<boolean>`c.table_name in ('role', 'role_permission') and c.row_id = ${id}::uuid`;
       case 'employee':
         // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
-        // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests (never deleted by the app)
+        // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests, issued documents and
+        // document requests (none of them is ever deleted by the app)
         return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
           or (c.table_name = 'leave_request' and c.row_id in (
                 select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${id}::uuid))
+          or (c.table_name = 'issued_document' and c.row_id in (
+                select d.id from issued_document d where d.company_id = ${companyId}::uuid and d.employment_id = ${id}::uuid))
+          or (c.table_name = 'document_request' and c.row_id in (
+                select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${id}::uuid))
           or (c.table_name in ('assignment', 'employment_salary') and c.row_id in (
                 select a.id from assignment a where a.company_id = ${companyId}::uuid and a.employment_id = ${id}::uuid
                 union
@@ -234,6 +257,9 @@ export class AuditRepository {
                 select t.id from workflow_task t
                   join workflow_instance i on i.company_id = t.company_id and i.id = t.instance_id
                  where t.company_id = ${companyId}::uuid and i.subject_type = 'leave_request' and i.subject_id = ${id}::uuid))`;
+      case 'issued_document':
+        // the register row (its PDF bytes are not audited: issued_document_file is exempt, the hash is on this row)
+        return sql<boolean>`c.table_name = 'issued_document' and c.row_id = ${id}::uuid`;
       case 'user':
         // the user's grants whose unit is in the caller's audit.read scope (grants are never deleted by the app; an
         // insert row also identifies one removed by hand)

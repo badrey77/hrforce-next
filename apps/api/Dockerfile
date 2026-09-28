@@ -37,6 +37,10 @@ COPY --from=prod-deps --chown=root:root /repo/node_modules /app/node_modules
 COPY --from=build --chown=root:root /repo/apps/api/package.json ./package.json
 COPY --from=build --chown=root:root /repo/apps/api/dist ./dist
 COPY --from=build --chown=root:root /repo/apps/api/migrations ./migrations
+# PDF generation (ADR 008): the vendored fonts and the Typst templates, resolved from the package root
+# (PDF_ASSETS_DIR overrides). The renderer itself is the npm package @myriaddreamin/typst-ts-node-compiler, whose
+# linux-x64-musl build comes with the production dependencies above (no download, no install script).
+COPY --from=build --chown=root:root /repo/apps/api/assets ./assets
 # Files are root-owned and read-only for the runtime user.
 USER node
 EXPOSE 3000

@@ -15,7 +15,8 @@
  * - **A nav rule that is not just a permission.** "My leave" needs `leave.request_self` AND a linked employment. The
  *   link comes from `GET /api/me/employment` (root `MyEmployment` service), so the link data carries a `visible`
  *   predicate instead of a permission code; `visibleLinks` reads `myEmployment.linked()` inside the same `computed()`,
- *   and the link appears when that request answers 200.
+ *   and the link appears when that request answers 200. The link ALSO carries its own permission: the employment
+ *   request is shared with "My documents" (`document.request_self`), so "linked" alone no longer implies either one.
  * - **A count badge** on "My tasks" from the root `TasksBadge` store (core/tasks/tasks-badge.ts: when and why it
  *   refreshes). The number inside the link is `aria-hidden` and the link gets a full accessible name ("My tasks, 3
  *   open"), so a screen reader never reads a bare "3". A separate `aria-live="polite"` region announces CHANGES of
@@ -62,10 +63,18 @@ export class App {
 
   private readonly navLinks: readonly NavLink[] = [
     { path: '/', labelKey: 'nav.home', exact: true },
-    { path: '/me/leave', labelKey: 'nav.myLeave', exact: false, visible: () => this.myEmployment.linked() === true },
+    { path: '/me/leave', labelKey: 'nav.myLeave', exact: false, permission: 'leave.request_self', visible: () => this.myEmployment.linked() === true },
+    {
+      path: '/me/documents',
+      labelKey: 'nav.myDocuments',
+      exact: false,
+      permission: 'document.request_self',
+      visible: () => this.myEmployment.linked() === true,
+    },
     { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: true },
     { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
     { path: '/leave', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
+    { path: '/documents', labelKey: 'nav.documents', exact: false, permission: 'document.read' },
     { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     { path: '/access', labelKey: 'nav.access', exact: false, permission: 'access.read' },
     { path: '/settings', labelKey: 'nav.settings', exact: false },

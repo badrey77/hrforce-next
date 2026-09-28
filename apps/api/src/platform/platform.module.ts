@@ -12,6 +12,9 @@ import { JobQueue, PgJobQueue } from './jobs/job-queue.js';
 import { ProblemDetailsFilter } from './http/problem-details.filter.js';
 import { ZodValidationPipe } from './http/zod-validation.pipe.js';
 import { LoggingModule } from './logging/logging.module.js';
+import type { Env } from './config/env.schema.js';
+import { PdfRenderer } from './pdf/pdf-renderer.js';
+import { TypstPdfRenderer } from './pdf/typst-renderer.js';
 import { XsrfGuard } from './security/xsrf.guard.js';
 
 /**
@@ -24,6 +27,7 @@ import { XsrfGuard } from './security/xsrf.guard.js';
  * module (grant-backed; DEV_PERMISSIONS=allow_all in dev/test). PermissionCheck resolves them from there, so every
  * application must import AuthorizationModule (AppModule does). XsrfGuard (APP_GUARD) checks every unsafe method.
  * JobQueue (platform/jobs): transactional enqueue of worker jobs (graphile_worker.add_job in the request transaction).
+ * PdfRenderer (platform/pdf, ADR 008): Typst in worker threads, created at the first render (PDF_RENDER_* env).
  */
 @Global()
 @Module({
@@ -40,7 +44,13 @@ import { XsrfGuard } from './security/xsrf.guard.js';
     ProblemDetailsFilter,
     ZodValidationPipe,
     { provide: JobQueue, useClass: PgJobQueue },
+    {
+      provide: PdfRenderer,
+      inject: [ENV],
+      useFactory: (env: Env) =>
+        new TypstPdfRenderer({ timeoutMs: env.PDF_RENDER_TIMEOUT_MS, concurrency: env.PDF_RENDER_CONCURRENCY, ...(env.PDF_ASSETS_DIR ? { assetsDir: env.PDF_ASSETS_DIR } : {}) }),
+    },
   ],
-  exports: [ConfigModule, DbModule, RequestIdentityResolver, JobQueue],
+  exports: [ConfigModule, DbModule, RequestIdentityResolver, JobQueue, PdfRenderer],
 })
 export class PlatformModule {}

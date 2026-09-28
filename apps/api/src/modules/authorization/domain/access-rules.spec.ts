@@ -70,8 +70,9 @@ describe('system roles', () => {
     expect(byCode.get('rh_regional')?.permissions).toEqual([
       'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
+      'document.read', 'document.issue',
     ]);
-    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self']);
+    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);
     expect(byCode.get('admin_acces')?.permissions).toEqual(['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read']);
     for (const role of SYSTEM_ROLES) {

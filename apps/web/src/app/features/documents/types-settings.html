@@ -1,0 +1,141 @@
+<!--
+  Table of the types (read-only), and one edit panel above it for the type being edited (a table row is too narrow for
+  this form on a phone). The preview line is `aria-live="polite"`: screen readers hear the new number as the format
+  changes, without the focus leaving the input.
+-->
+<section *transloco="let t" aria-labelledby="types-title" data-section="types">
+  <h2 id="types-title">{{ t('documents.types.title') }}</h2>
+  <p class="field-hint">{{ t('documents.types.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (editing(); as type) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="type-form-title" data-form="type">
+      <h3 id="type-form-title">{{ catalog.labelOf(type.labels) }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="field">
+        <label for="type-format">{{ t('documents.types.numberFormat') }}</label>
+        <input id="type-format" type="text" formControlName="numberFormat" dir="ltr" class="uppercase code" autocomplete="off"
+          [attr.aria-invalid]="c.numberFormat.invalid && c.numberFormat.touched" aria-describedby="type-format-hint type-format-preview type-format-error" />
+        <p class="field-hint" id="type-format-hint">{{ t('documents.types.formatHint') }}</p>
+        <p class="field-hint" id="type-format-preview" aria-live="polite" data-field="preview">
+          @if (preview(); as next) {
+            {{ t('documents.types.preview') }} <span class="code preview-number" dir="ltr">{{ next }}</span>
+          }
+        </p>
+        @if (c.numberFormat.invalid && (c.numberFormat.touched || c.numberFormat.dirty)) {
+          <p class="field-error" id="type-format-error" data-error="numberFormat">
+            @if (c.numberFormat.hasError('serverKey')) {
+              {{ t(c.numberFormat.getError('serverKey')) }}
+            } @else if (c.numberFormat.hasError('server')) {
+              {{ c.numberFormat.getError('server') }}
+            } @else if (c.numberFormat.hasError('numberFormat')) {
+              {{ t('documents.types.formatErrors.' + c.numberFormat.getError('numberFormat')) }}
+            } @else {
+              {{ t('documents.form.required') }}
+            }
+          </p>
+        }
+      </div>
+
+      <fieldset class="field" formGroupName="languages" aria-describedby="type-languages-error">
+        <legend>{{ t('documents.types.languages') }}</legend>
+        <div class="radios">
+          <div class="check">
+            <input id="type-lang-fr" type="checkbox" formControlName="fr" />
+            <label for="type-lang-fr">{{ t('documents.languages.fr') }}</label>
+          </div>
+          <div class="check">
+            <input id="type-lang-ar" type="checkbox" formControlName="ar" />
+            <label for="type-lang-ar">{{ t('documents.languages.ar') }}</label>
+          </div>
+        </div>
+        @if (c.languages.invalid) {
+          <p class="field-error" id="type-languages-error" data-error="languages">{{ t('documents.types.languagesRequired') }}</p>
+        }
+      </fieldset>
+
+      @if (type.code === selfServiceType) {
+        <div class="check field">
+          <input id="type-self" type="checkbox" formControlName="selfService" aria-describedby="type-self-hint" />
+          <label for="type-self">{{ t('documents.types.selfService') }}</label>
+        </div>
+        <p class="field-hint" id="type-self-hint">{{ t('documents.types.selfServiceHint') }}</p>
+      }
+
+      <div class="field">
+        <label for="type-signatory">{{ t('documents.types.defaultSignatory') }}</label>
+        <select id="type-signatory" formControlName="defaultSignatoryId" aria-describedby="type-signatory-hint">
+          <option value="">{{ t('documents.types.nearestSignatory') }}</option>
+          @for (s of activeSignatories(); track s.id) {
+            <option [value]="s.id">{{ s.names.fr }} — {{ s.titles.fr }}</option>
+          }
+        </select>
+        <p class="field-hint" id="type-signatory-hint">{{ t('documents.types.defaultSignatoryHint') }}</p>
+      </div>
+
+      <div class="check field">
+        <input id="type-active" type="checkbox" formControlName="active" />
+        <label for="type-active">{{ t('documents.types.active') }}</label>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-type" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @if (catalog.error() && !catalog.loaded()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('documents.types.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="catalog.reload()">{{ t('common.retry') }}</button>
+    </div>
+  }
+  <div class="table-scroll">
+    <table class="data" data-table="types">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('documents.fields.type') }}</th>
+          <th scope="col">{{ t('documents.types.numberFormat') }}</th>
+          <th scope="col">{{ t('documents.types.nextNumber') }}</th>
+          <th scope="col">{{ t('documents.types.languages') }}</th>
+          <th scope="col">{{ t('documents.types.selfServiceShort') }}</th>
+          <th scope="col">{{ t('documents.types.defaultSignatory') }}</th>
+          <th scope="col">{{ t('documents.types.active') }}</th>
+          <th scope="col"><span class="visually-hidden">{{ t('documents.settings.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (type of catalog.types(); track type.id) {
+          <tr [attr.data-type]="type.code" [class.muted]="!type.active">
+            <td>{{ catalog.labelOf(type.labels) }}</td>
+            <td><span class="code" dir="ltr">{{ type.numberFormat ?? '—' }}</span></td>
+            <td><span class="code" dir="ltr" data-field="next">{{ type.nextNumber ?? '—' }}</span></td>
+            <td>
+              @for (language of type.languages; track language; let last = $last) {
+                {{ t('documents.languages.' + language) }}{{ last ? '' : ', ' }}
+              }
+            </td>
+            <td>{{ type.selfService ? t('documents.settings.yes') : t('documents.settings.no') }}</td>
+            <td>{{ signatoryName(type.defaultSignatoryId) }}</td>
+            <td>{{ type.active ? t('documents.settings.yes') : t('documents.settings.no') }}</td>
+            <td>
+              <button class="btn secondary" type="button" data-action="edit-type" [disabled]="editing() !== null" (click)="edit(type)">
+                {{ t('documents.settings.edit') }}
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="muted">{{ catalog.loaded() ? t('documents.types.empty') : t('common.loading') }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,10 +1,12 @@
-/** docs/contracts/notifications.md › Endpoints. */
+import type { NotificationSubjectType } from '../../../platform/notifications/notifier.js';
+
+/** docs/contracts/notifications.md › Endpoints (subject types extended by docs/contracts/documents.md). */
 export interface NotificationView {
   id: string;
   type: string;
   createdAt: string;
   readAt: string | null;
-  subject: { type: 'workflow_task' | 'leave_request'; id: string };
+  subject: { type: NotificationSubjectType; id: string };
   data: Record<string, string | number | null>;
   /**
    * Who the caller is to the subject: `employee` (their own request → "your request"), `requester` (filed it for

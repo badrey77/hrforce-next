@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { requireContext } from '../../../platform/context/request-context.js';
+import type { NotificationSubjectType } from '../../../platform/notifications/notifier.js';
 import { ValidationProblemException } from '../../../platform/http/problem-details.js';
 import { audienceOf, EMAIL_DEFAULTS, encodeCursor, isNotificationType, linkOf, NOTIFICATION_TYPES, publicData, type NotificationCursor } from '../domain/notification-rules.js';
 import { NotificationRepository, type NotificationRow } from '../infra/notification.repository.js';
@@ -11,13 +12,19 @@ function caller(): { companyId: string; userId: string } {
   return { companyId, userId };
 }
 
+const SUBJECT_TYPES: readonly NotificationSubjectType[] = ['workflow_task', 'leave_request', 'document_request', 'issued_document'];
+
+function subjectTypeOf(value: string): NotificationSubjectType {
+  return (SUBJECT_TYPES as readonly string[]).includes(value) ? (value as NotificationSubjectType) : 'leave_request';
+}
+
 export function toView(row: NotificationRow): NotificationView {
   return {
     id: row.id,
     type: row.type,
     createdAt: row.createdAt,
     readAt: row.readAt,
-    subject: { type: row.subjectType === 'workflow_task' ? 'workflow_task' : 'leave_request', id: row.subjectId },
+    subject: { type: subjectTypeOf(row.subjectType), id: row.subjectId },
     data: publicData(row.data),
     audience: audienceOf(row.data),
     link: linkOf({ type: row.type, subjectType: row.subjectType, subjectId: row.subjectId, data: row.data }),

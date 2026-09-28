@@ -28,6 +28,8 @@
  * - **Leave tab** (`leave.read`): a child component (`<app-employee-leave-tab>`, employee-leave-tab.ts) that owns its
  *   own resources (balances, ledger), so they are only requested when the tab is opened — `@switch` renders just the
  *   active panel, and a component that is not rendered is not created.
+ * - **Documents tab** (`document.read`): `<app-employee-documents-tab>` (employee-documents-tab.ts), same idea as the
+ *   Leave tab — its own resource, created only when the tab is rendered.
  * - **"Rehire"** is a link to `/employees/:id/rehire`, shown when the employment has an end date and the session
  *   holds `employee.create` (not an `_actions` entry: it creates a NEW employment, whose unit is not known yet).
  * - **`DecimalPipe` with an explicit locale** for money (`"85000.00" | number: '1.2-2' : locale()`): the string is
@@ -70,12 +72,13 @@ import { Timeline } from '../../shared/timeline/timeline';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 import { AssignmentForm } from './assignment-form';
 import { employeeProblemToForm, END_SLUGS, isoDate, notBefore } from './employee-forms';
+import { EmployeeDocumentsTab } from './employee-documents-tab';
 import { EmployeeLeaveTab } from './employee-leave-tab';
 import { FieldError } from './field-error';
 import { PersonForm } from './person-form';
 import { BankForm, NssForm, SalaryForm } from './sensitive-forms';
 
-export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'history';
+export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'documents' | 'history';
 type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
 
 @Component({
@@ -94,6 +97,7 @@ type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
     NssForm,
     Timeline,
     EmployeeLeaveTab,
+    EmployeeDocumentsTab,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-detail.page.html',
@@ -104,6 +108,8 @@ export class EmployeeDetailPage {
   private readonly canAudit = inject(Session).allows('audit.read');
   /** Leave tab (docs/contracts/leave.md › Web): balances and ledger need `leave.read` (held anywhere; the API scopes). */
   private readonly canLeave = inject(Session).allows('leave.read');
+  /** Documents tab (docs/contracts/documents.md › Web): the register rows of this employee need `document.read`. */
+  private readonly canDocuments = inject(Session).allows('document.read');
   /** "Rehire" on an employment with an end date (employee-rehire.page.ts); the route has the same guard. */
   protected readonly canRehire = inject(Session).allows('employee.create');
   protected readonly lang = inject(LanguageService).current;
@@ -141,6 +147,7 @@ export class EmployeeDetailPage {
     if (e && !isRedacted(e, 'salary')) tabs.push('pay');
     if (e && (!isRedacted(e, 'bank') || !isRedacted(e, 'nss'))) tabs.push('bank');
     if (this.canLeave()) tabs.push('leave');
+    if (this.canDocuments()) tabs.push('documents');
     if (this.canAudit()) tabs.push('history');
     return tabs;
   });

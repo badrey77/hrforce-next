@@ -43,6 +43,9 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   assignee_user_id: 'user',
   scope_unit_id: 'unit',
   step_key: 'step',
+  // Documents (documents contract › Audit): who issued / voided a document.
+  issued_by: 'user',
+  voided_by: 'user',
 };
 
 /**
@@ -56,6 +59,12 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'workflow_task.status': 'audit.values.workflow_task.status.',
   'workflow_task.outcome': 'audit.values.workflow_task.outcome.',
   'workflow_task.assignee_kind': 'audit.values.workflow_task.assignee_kind.',
+  // Documents: the same words as the documents screens.
+  'issued_document.status': 'documents.status.',
+  'issued_document.language': 'documents.languages.',
+  'issued_document.type_code': 'documents.typeNames.',
+  'document_request.status': 'documents.requestStatus.',
+  'document_request.language': 'documents.languages.',
 };
 
 /**
@@ -75,6 +84,10 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   leave_request: ['employment_id', 'workflow_instance_id'],
   workflow_instance: ['definition_id', 'subject_type', 'subject_id', 'subject_user_id'],
   workflow_task: ['instance_id'],
+  // Documents: links that repeat the subject or the type (shown by `type_code`); `snapshot` is the whole printed text
+  // as JSON — one unreadable line here, and the document's detail page already shows what was printed.
+  issued_document: ['employment_id', 'document_type_id', 'snapshot'],
+  document_request: ['employment_id', 'document_type_id', 'workflow_instance_id'],
 };
 
 export type DisplayValue =

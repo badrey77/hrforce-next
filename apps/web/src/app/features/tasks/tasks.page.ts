@@ -26,6 +26,13 @@
  *   input value) but clicking another row still overrides it. The URL is not rewritten on every click: the parameter
  *   says where to START, not which row is selected now. When the linked task is not in the list (someone else already
  *   handled it, or you are no longer a candidate) the page says so instead of silently showing nothing.
+ * - **Two kinds of subject, one list** (docs/contracts/documents.md › Web › My tasks): a task is about a leave request
+ *   OR a self-service document request. `TaskSubject` is a discriminated union (core/tasks/tasks.models.ts); the
+ *   template branches with `@if (task.subject.type === 'leave_request')`, and Angular's template type-checker NARROWS
+ *   the union inside the block exactly like TypeScript does after an `if`, so `task.subject.leaveTypeId` compiles
+ *   there and not in the `@else`. A document task needs no extra request: its summary (employee, type, language,
+ *   purpose) is all HR must see to decide. Approving it issues the document; an issuing refusal (letterhead
+ *   incomplete…) comes back as the approval's error and is explained here.
  * - **Focus management after removal**: when the acted-on row disappears, focus would fall to `<body>`. The page moves
  *   it to the panel heading of the next task (or the list heading) with `afterNextRender`, which runs once the DOM
  *   reflects the new state.
@@ -70,10 +77,26 @@ interface Feedback {
   readonly kind: 'ok' | 'error';
 }
 
+/**
+ * Approving a document request ISSUES the document in the same transaction (docs/contracts/documents.md › Endpoints):
+ * any issuing refusal fails the approval with the issuing slug. They are explained in the task panel.
+ */
+const DOCUMENT_APPROVAL_KEYS: Readonly<Record<string, string>> = {
+  'document-profile-incomplete': 'tasks.problems.documentProfileIncomplete',
+  'document-employment-ended': 'tasks.problems.documentEmploymentEnded',
+  'document-no-signatory': 'tasks.problems.documentNoSignatory',
+  'document-type-inactive': 'tasks.problems.documentTypeInactive',
+  'document-busy': 'tasks.problems.documentRetry',
+  'document-render-failed': 'tasks.problems.documentRetry',
+};
+
 /** Translation key for a failed decision. */
 export function decisionErrorKey(error: unknown): string {
   if (!isApiProblemError(error)) return 'errors.generic';
-  switch (problemSlug(error.problem.type)) {
+  const slug = problemSlug(error.problem.type);
+  const documentKey = slug === undefined ? undefined : DOCUMENT_APPROVAL_KEYS[slug];
+  if (documentKey) return documentKey;
+  switch (slug) {
     case 'workflow-task-closed':
       return 'tasks.problems.closed';
     case 'workflow-self-approval':
@@ -122,7 +145,10 @@ export class TasksPage {
    * (`Object.is`), so it does NOT notify when the id is unchanged — and the detail resource is not re-fetched on
    * every list refresh. (Keying the resource on `selected()?.subject.id` directly would.)
    */
-  private readonly selectedRequestId = computed(() => this.selected()?.subject.id);
+  private readonly selectedRequestId = computed(() => {
+    const subject = this.selected()?.subject;
+    return subject?.type === 'leave_request' ? subject.id : undefined;
+  });
   protected readonly detail = inject(LeaveApi).requestResource(this.selectedRequestId);
   protected readonly detailBalances = computed(() => {
     const request = this.detail.hasValue() ? this.detail.value() : undefined;
@@ -134,6 +160,12 @@ export class TasksPage {
 
   private readonly panelHeading = viewChild<ElementRef<HTMLElement>>('panelHeading');
   private readonly listHeading = viewChild.required<ElementRef<HTMLElement>>('listHeading');
+
+  /** What the task is about, in one line (leave type, or document type): list rows and the reject dialog. */
+  protected subjectLabel(task: OpenTask): string {
+    const subject = task.subject;
+    return subject.type === 'leave_request' ? this.catalog.nameOf(subject.leaveTypeId) : this.catalog.labelOf(subject.documentType.labels);
+  }
 
   protected select(task: OpenTask): void {
     this.selectedId.set(task.id);

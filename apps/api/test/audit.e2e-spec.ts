@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type request from 'supertest';
 import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
+import { DEMO_SIGNATORIES } from '../src/modules/documents/index.js';
 import { as, COMPANY_A, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
@@ -61,7 +62,8 @@ const M1_TABLES = [
   'role', 'role_grant', 'role_permission', 'site',
 ];
 const AUDITED_TABLES = [
-  'assignment', 'company', 'employment', 'employment_salary', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
+  'assignment', 'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employment', 'employment_salary',
+  'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
@@ -117,7 +119,7 @@ async function timeline(actor: ActorName, subject: string, extra = ''): Promise<
 
 beforeAll(async () => {
   db = await createTestDatabase();
-  fx = await seedAccessFixture(db, undefined, { leave: true });
+  fx = await seedAccessFixture(db, undefined, { leave: true, documents: true });
   app = await createTestApp(db, { devAuth: true, devPermissions: false, overrides: [{ provide: MfaClock, useValue: { nowMs: () => mfaClock.now } }] });
   xsrf = await fetchXsrf(app);
 });
@@ -335,7 +337,7 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
 // ---------------------------------------------------------------------------------------------------------------
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
   /** POST routes that write nothing (a read with a body). */
-  const READ_ONLY_POSTS = ['POST /api/leave/preview'];
+  const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview'];
   /**
    * Writes to an AUDIT-EXEMPT table only (tools/guardrails/audit-exempt.json): marking one's own notifications read
    * changes notification.read_at — per-user UI state of derived rows whose source events are audited. No audit row
@@ -354,7 +356,7 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/access/users/:id/mfa/reset': 'auth.mfa_reset',
   };
   const PENDING_ONLY_WRITES = ['POST /api/me/mfa/enroll/start'];
-  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '' };
+  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '' };
 
   beforeAll(async () => {
     const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
@@ -376,11 +378,15 @@ describe('exit criterion: every write through the API produces an audit row with
     };
     LV.approveTask = await hrTask('2027-03-10');
     LV.rejectTask = await hrTask('2027-03-12');
+    // documents: a type to edit, a document to void, rh.admin's own pending attestation request (cancelled below)
+    LV.titreType = (await query<{ id: string }>(db.superuserUrl, `select id from document_type where company_id = $1 and code = 'titre_conge'`, [COMPANY_A]))[0]?.id ?? '';
+    LV.toVoid = (await client('admin').post('/api/documents').send({ typeCode: 'attestation_travail', employmentId: employeeA(28), language: 'fr' }).expect(201)).body.id;
+    LV.ownDocRequest = (await client('admin').post('/api/me/documents/requests').send({ typeCode: 'attestation_travail', language: 'fr' }).expect(201)).body.id;
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
   });
 
   interface Write {
-    request: () => { path: string; body: object };
+    request: () => { path: string; body: object; upload?: Buffer };
     /** tables that must have a row for this request */
     tables: string[];
   }
@@ -474,6 +480,34 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: '/api/access/security-policy', body: { mfaEnforced: false, mfaRequiredPermissions: ['access.grant', 'employee.salary.read'] } }),
       tables: ['security_policy'],
     },
+    'PUT /api/documents/types/:id': { request: () => ({ path: `/api/documents/types/${LV.titreType}`, body: { languages: ['fr'] } }), tables: ['document_type'] },
+    'PUT /api/documents/settings/profile': {
+      request: () => ({ path: '/api/documents/settings/profile', body: { legalNameFr: 'Entreprise Démo HRForce SPA', addressFr: '12 rue Didouche Mourad, Alger', cityFr: 'Alger', nif: '000016999999999' } }),
+      tables: ['company_profile'],
+    },
+    'PUT /api/documents/settings/profile/logo': { request: () => ({ path: '/api/documents/settings/profile/logo', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46]) }), tables: ['company_profile'] },
+    'DELETE /api/documents/settings/profile/logo': { request: () => ({ path: '/api/documents/settings/profile/logo', body: {} }), tables: ['company_profile'] },
+    'POST /api/documents/settings/signatories': {
+      request: () => ({ path: '/api/documents/settings/signatories', body: { orgUnitId: unitA('REG-OUEST'), names: { fr: 'Nadir Ouest', ar: 'نذير' }, titles: { fr: 'Directeur', ar: 'مدير' } } }),
+      tables: ['document_signatory'],
+    },
+    'PATCH /api/documents/settings/signatories/:id': {
+      request: () => ({ path: `/api/documents/settings/signatories/${DEMO_SIGNATORIES.hrDirector}`, body: { titles: { fr: 'DRH', ar: 'مدير الموارد البشرية' } } }),
+      tables: ['document_signatory'],
+    },
+    'POST /api/documents': {
+      request: () => ({ path: '/api/documents', body: { typeCode: 'attestation_travail', employmentId: employeeA(27), language: 'fr' } }),
+      tables: ['issued_document'],
+    },
+    'POST /api/documents/:id/void': { request: () => ({ path: `/api/documents/${LV.toVoid}/void`, body: { reason: 'Erreur de saisie' } }), tables: ['issued_document'] },
+    'POST /api/me/documents/requests/:id/cancel': {
+      request: () => ({ path: `/api/me/documents/requests/${LV.ownDocRequest}/cancel`, body: {} }),
+      tables: ['document_request', 'workflow_instance', 'workflow_task'],
+    },
+    'POST /api/me/documents/requests': {
+      request: () => ({ path: '/api/me/documents/requests', body: { typeCode: 'attestation_travail', language: 'ar' } }),
+      tables: ['document_request', 'workflow_instance', 'workflow_task'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -530,11 +564,11 @@ describe('exit criterion: every write through the API produces an audit row with
   it.each(Object.keys(WRITES))('%s', async (key) => {
     const spec = WRITES[key];
     if (!spec) throw new Error(key);
-    const { path: url, body } = spec.request();
+    const { path: url, body, upload } = spec.request();
     const requestId = rid('write');
     const admin = client('admin');
     const call = key.startsWith('PATCH') ? admin.patch(url) : key.startsWith('PUT') ? admin.put(url) : key.startsWith('DELETE') ? admin.delete(url) : admin.post(url);
-    const res = await call.set('X-Request-Id', requestId).send(body);
+    const res = upload ? await call.set('X-Request-Id', requestId).attach('file', upload, 'logo.png') : await call.set('X-Request-Id', requestId).send(body);
     expect(res.status, JSON.stringify(res.body)).toBeLessThan(300);
     const rows = await changes('request_id = $1', [requestId]);
     expect(rows.length).toBeGreaterThan(0);

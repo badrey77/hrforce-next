@@ -34,19 +34,32 @@ export interface MessageFormatters {
 export interface NotificationMessage {
   readonly key: string;
   readonly params: Readonly<Record<string, string>>;
+  /**
+   * Translation key of the document type's name (`documents.typeNames.<code>`), when the data names one. The template
+   * translates it and passes it as the `documentType` placeholder: a type code is fixed in code, so its name is an
+   * i18n key — no request to the document catalogue from the header bell.
+   */
+  readonly documentTypeKey?: string;
 }
 
 /** Types whose sentence depends on `audience`; the others already name the employee (or only go to them). */
 export const WORDED_BY_AUDIENCE: ReadonlySet<string> = new Set(['leave.approved', 'leave.rejected', 'task.escalated']);
 
-/** Translation key of a notification's sentence: "your request" for its employee, "X's request" for anyone else. */
-export function notificationKey(notification: Pick<NotificationView, 'type'> & Partial<Pick<NotificationView, 'audience'>>): string {
+/**
+ * Translation key of a notification's sentence: "your request" for its employee, "X's request" for anyone else.
+ * `task.assigned` about a document request (`data.subjectType`, documents contract › Notifications) has its own
+ * sentence (`…task.assigned_document`): "Attestation request to handle: <Name>", not the leave wording with dates.
+ */
+export function notificationKey(
+  notification: Pick<NotificationView, 'type'> & Partial<Pick<NotificationView, 'audience' | 'data'>>,
+): string {
   const aboutSomeoneElse = WORDED_BY_AUDIENCE.has(notification.type) && notification.audience !== 'employee';
-  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}`;
+  const documentTask = notification.type === 'task.assigned' && notification.data?.['subjectType'] === 'document_request';
+  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}${documentTask ? '_document' : ''}`;
 }
 
 /** Every placeholder a sentence may use; missing data shows as an ellipsis rather than a raw `{{placeholder}}`. */
-const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey'] as const;
+const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number'] as const;
 const MISSING = '…';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -65,5 +78,7 @@ export function notificationMessage(
   }
   const arabicName = notification.data?.['employeeNameAr'];
   if (format.arabic && typeof arabicName === 'string' && arabicName.trim()) params['employeeName'] = arabicName;
-  return { key: notificationKey(notification), params };
+  const documentType = notification.data?.['documentType'];
+  const message = { key: notificationKey(notification), params };
+  return typeof documentType === 'string' && documentType ? { ...message, documentTypeKey: `documents.typeNames.${documentType}` } : message;
 }

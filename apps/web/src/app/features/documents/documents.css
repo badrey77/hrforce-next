@@ -1,0 +1,84 @@
+/* Shared by the Documents pages. Logical properties only: everything mirrors in Arabic (dir="rtl"). */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+
+[role='tab'] {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+[role='tab'][aria-selected='true'] {
+  border-block-end-color: var(--color-primary);
+  font-weight: 600;
+}
+
+[role='tab']:hover {
+  background: var(--color-hover);
+}
+
+h2 {
+  font-size: 1.125rem;
+}
+
+/* French and Arabic side by side on desktop, stacked on phones (docs/contracts/documents.md › Web › Settings). */
+.bilingual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--space-4);
+}
+
+.single {
+  max-inline-size: 40rem;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: 0 var(--space-3);
+}
+
+.logo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.logo img {
+  max-inline-size: 10rem;
+  max-block-size: 6rem;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.preview-number {
+  font-weight: 600;
+}
+
+@media (max-width: 48rem) {
+  .bilingual {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -9,7 +9,7 @@ import { conflict, flushLeaveTypes, leaveDetail, openTask } from '../../../testi
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
-import type { OpenTask } from '../../core/tasks/tasks.models';
+import type { DocumentTaskSubject, OpenTask } from '../../core/tasks/tasks.models';
 import { TasksBadge } from '../../core/tasks/tasks-badge';
 import { TasksPage } from './tasks.page';
 
@@ -17,6 +17,21 @@ async function settle(): Promise<void> {
   TestBed.tick();
   await new Promise((resolve) => setTimeout(resolve));
   TestBed.tick();
+}
+
+/** A task about a self-service document request (documents contract › Task summaries). */
+function documentTask(id: string): OpenTask {
+  const leave = openTask(id);
+  const subject: DocumentTaskSubject = {
+    type: 'document_request',
+    id: `dr-${id}`,
+    employee: leave.subject.employee,
+    documentType: { code: 'attestation_travail', labels: { fr: 'Attestation de travail', ar: 'شهادة عمل', en: 'Employment attestation' } },
+    language: 'ar',
+    purpose: 'Dossier de prêt',
+    requestedAt: '2026-09-27T08:00:00Z',
+  };
+  return { ...leave, stepKey: 'hr', subject };
 }
 
 describe('TasksPage', () => {
@@ -191,5 +206,31 @@ describe('TasksPage', () => {
     await open([openTask('k-1')], '/tasks?task=k-9');
     expect(el().querySelector('[data-state="task-not-open"]')?.textContent).toContain('n’est plus ouverte');
     expect(el().querySelector('[data-state="no-selection"]')).not.toBeNull();
+  });
+
+  describe('document requests (docs/contracts/documents.md › Web › My tasks)', () => {
+    it('renders the summary without asking for a leave request, and approves', async () => {
+      await open([documentTask('k-9')]);
+      expect(el().querySelector('[data-task="k-9"]')?.textContent).toContain('Attestation de travail · Arabe');
+      click('[data-task="k-9"]');
+      await settle();
+      http.expectNone((r) => r.url.startsWith('/api/leave/requests'));
+      const panel = el().querySelector('[data-panel="document-request"]');
+      expect(panel?.querySelector('[data-field="purpose"]')?.textContent).toBe('Dossier de prêt');
+      click('[data-action="approve"]');
+      http.expectOne('/api/tasks/k-9/approve').flush({});
+      await answerTasks([]);
+    });
+
+    it('explains an issuing refusal of the approval (letterhead incomplete) and brings the task back', async () => {
+      await open([documentTask('k-9')]);
+      click('[data-task="k-9"]');
+      await settle();
+      click('[data-action="approve"]');
+      http.expectOne('/api/tasks/k-9/approve').flush(...conflict('document-profile-incomplete'));
+      await settle();
+      expect(el().querySelector('[data-feedback]')?.textContent).toContain('l’en-tête de l’entreprise est incomplet');
+      expect(rows()).toEqual(['k-9']);
+    });
   });
 });

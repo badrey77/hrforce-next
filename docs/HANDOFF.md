@@ -1,6 +1,6 @@
 # HRForce Next — project state and decisions (handoff)
 
-Last updated: 2026-09-28. This file carries what was decided in conversation and is not obvious from the code.
+Last updated: 2026-09-29. This file carries what was decided in conversation and is not obvious from the code.
 Keep it current: when a decision is made or an open question is answered, update this file in the same commit.
 
 ## Where we are
@@ -38,6 +38,9 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-26 | Local start scripts: `scripts/dev-up.sh` (bash) and `scripts/dev-up.ps1` (PowerShell) |
 | 2026-09-26 | M2 starts with **Leave** using **Algerian defaults** (Law 90-11) as editable data, to be confirmed; default approval chain **unit head → regional HR**. In parallel: a **staging deploy pack** for any Docker Linux host (target still to choose). Workflow engine = ADR 006; SSO moves to ADR 007 |
 | 2026-09-28 | M2 is complete. Next: a **hardening pass** over the known small issues (before M3 documents/numbering). Items that wait on a product decision (role trust, MFA reset visibility, access-admin edge cases) stay open |
+| 2026-09-28 | **M3 starts with documents and numbering, generated documents first**: numbered HR documents (attestation/certificat de travail, titre de congé) from fr/ar templates as API-generated PDFs with a register of issued documents, gap-free per-company sequences; then an employee file (attachments stored in Postgres, per ADR 005). Outbox and sister-app integration come later in M3 |
+| 2026-09-28 | **ADR 008 accepted**: PDFs rendered with Typst embedded in the API (`@myriaddreamin/typst-ts-node-compiler`), stored PDF bytes, gap-free counters in Postgres (≈ +51 MB image, +50 MB RAM per API process). Documents assumptions 5–7 confirmed: regional HR issues in scope, only central HR voids, employees self-request an attestation via a one-step HR workflow, documents hand-signed (no scanned signature/stamp) |
+| 2026-09-29 | Certificat de travail in Arabic is **« شهادة نهاية العمل »** (was « شهادة العمل », too close to the attestation « شهادة عمل »). Documents Phase A committed; Phase B (employee file) starts |
 
 ## M2 progress
 
@@ -47,6 +50,10 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - **Notifications + worker + live updates: built and independently verified 2026-09-27** (live bell < 0.2 s, links open for every recipient, SSE isolation, worker role least-privilege; 3 small web fixes) (contract `docs/contracts/notifications.md`): in-app bell (SSE over Postgres LISTEN/NOTIFY), emails per preference via Graphile Worker jobs, monthly/daily cron (audit partitions, leave accruals, cleanups), leave events on History.
 - **MFA (TOTP + recovery codes): built and independently verified 2026-09-27** (browser fr/ar, brute force / replay / token-swap / enforcement-bypass probes, CSP through Caddy; 3 small web fixes) (contract `docs/contracts/mfa.md`, see its "Settled by the build"). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
 - **Hardening pass: built and independently verified 2026-09-28** (full gate green on Windows, browser fr/ar/en at 1280 and 390 px, security probes). Leave/escalation notifications carry an `audience` and name the employee to anyone but the employee (in-app and e-mail); `GET /employees?lang=ar` sorts by Arabic name (collation `ar-x-icu`); rehire screen `/employees/:id/rehire`; lower-case matricule accepted; breadcrumb mirrored in RTL; `public/lang-boot.js` sets lang/dir before first paint. Tooling: guardrails now run on Windows (`tools/guardrails/lib/node-bin.ts`); `dev-up` scripts pin the web port to 4200 (the API's `PORT=3000` leaked into `ng serve`).
+
+## M3 progress
+
+- **Documents Phase A (generated documents + numbering + register): built and independently verified 2026-09-29** (contract `docs/contracts/documents.md`, ADR 008). Typst PDFs in fr/ar checked visually (shaping, bidi, gender agreement), gap-free numbering under concurrency, identical reprints, void keeps the number, self-service attestation via workflow `document.hr_only`, titre de congé from approved leave. Verifier fixes: bidi control characters stripped from printed data (an RTL override mirrored the legal sentence), `<bdi>` on the Arabic detail page, lower-case number formats. Chrome/Edge PDF viewer works under the production CSP. API image 344 → 422 MB. **Next: Phase B (employee file).**
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -62,6 +69,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 2. **Staging server**: provide an Ubuntu 24.04 host with Docker, a DNS name, and the repository secrets `STAGING_HOST`, `STAGING_USER`, `STAGING_SSH_KEY`, `STAGING_DOMAIN` (see `deploy/README.md`).
 3. **App-role trust** (ADR 004 note): accept that a compromised `hrforce_app` DB role could mint sessions / forge audit events, or plan a separate credential service before go-live.
 4. Team size and target date (plan open question).
+5. **Documents** (`docs/contracts/documents.md`): confirm the remaining assumptions (1–4, 8–16); have an Algerian HR/legal reader check the fr/ar legal wording; retention periods per employee-file category; should a "Médecine du travail" role exist (medical files stay unused until then).
 
 ## Operations notes
 
@@ -81,6 +89,9 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - The rehire link shows on any ended employment; if the person was already rehired, the user learns it from the 409 after submitting.
 - Create/rehire forms show server errors at the top of the form: off-screen at 390 px after pressing the bottom button.
 - `apps/api/test/worker.e2e-spec.ts` ("drains the jobs") failed once in a full run on Windows and passed on rerun (suspected host/Docker clock skew).
+- `identity.e2e-spec` (429 after 30 failed logins) also failed once in a full run and passed on rerun (time-sensitive).
+- Documents: a signed-in user without `document.read` opening `/documents` gets an empty page instead of 404 (same as `/leave`); the timeline shows the signatory as a raw id and the SHA-256 as hex; a single unbroken 200-character token overflows the PDF margin.
+- Documents Arabic wording to fix once confirmed: the Arabic titre sentence lacks the day count; some Arabic messages are always masculine (see the contract's verification section).
 
 ## Environment facts
 

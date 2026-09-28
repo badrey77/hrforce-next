@@ -76,6 +76,77 @@ export interface Company {
   name: string;
 }
 
+export interface CompanyProfile {
+  address_ar: string | null;
+  address_fr: string | null;
+  ai: string | null;
+  city_ar: string | null;
+  city_fr: string | null;
+  company_id: string;
+  email: string | null;
+  footer_ar: string | null;
+  footer_fr: string | null;
+  legal_name_ar: string | null;
+  legal_name_fr: string | null;
+  logo: Buffer | null;
+  logo_mime: string | null;
+  logo_sha256: Buffer | null;
+  nif: string | null;
+  nis: string | null;
+  phone: string | null;
+  rc: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface DocumentRequest {
+  company_id: string;
+  document_type_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  issued_document_id: string | null;
+  language: string;
+  purpose: string | null;
+  requested_at: Generated<Timestamp>;
+  requested_by: string;
+  status: Generated<string>;
+  workflow_instance_id: string | null;
+}
+
+export interface DocumentSequence {
+  company_id: string;
+  document_type_id: string;
+  last_value: number;
+  year: number;
+}
+
+export interface DocumentSignatory {
+  active: Generated<boolean>;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  name_ar: string;
+  name_fr: string;
+  org_unit_id: string | null;
+  title_ar: string;
+  title_fr: string;
+}
+
+export interface DocumentType {
+  active: Generated<boolean>;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  default_signatory_id: string | null;
+  id: Generated<string>;
+  languages: Generated<string[]>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  number_format: string;
+  self_service: Generated<boolean>;
+  sort_order: Generated<number>;
+}
+
 export interface Employment {
   company_id: string;
   created_at: Generated<Timestamp>;
@@ -96,6 +167,41 @@ export interface EmploymentSalary {
   employment_id: string;
   id: Generated<string>;
   valid: string;
+}
+
+export interface IssuedDocument {
+  client_request_id: string | null;
+  company_id: string;
+  content_sha256: Buffer;
+  document_request_id: string | null;
+  document_type_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  issue_date: Timestamp;
+  issued_at: Generated<Timestamp>;
+  issued_by: string;
+  language: string;
+  leave_request_id: string | null;
+  number: string;
+  org_unit_id: string;
+  renderer: string;
+  seq: number;
+  signatory_id: string;
+  size_bytes: number;
+  snapshot: Json;
+  status: Generated<string>;
+  template_version: string;
+  type_code: string;
+  void_reason: string | null;
+  voided_at: Timestamp | null;
+  voided_by: string | null;
+  year: number;
+}
+
+export interface IssuedDocumentFile {
+  company_id: string;
+  document_id: string;
+  pdf: Buffer;
 }
 
 export interface LeaveLedger {
@@ -390,8 +496,15 @@ export interface DB {
   "audit.event": AuditEvent;
   "audit.masked_column": AuditMaskedColumn;
   company: Company;
+  company_profile: CompanyProfile;
+  document_request: DocumentRequest;
+  document_sequence: DocumentSequence;
+  document_signatory: DocumentSignatory;
+  document_type: DocumentType;
   employment: Employment;
   employment_salary: EmploymentSalary;
+  issued_document: IssuedDocument;
+  issued_document_file: IssuedDocumentFile;
   leave_ledger: LeaveLedger;
   leave_policy: LeavePolicy;
   leave_request: LeaveRequest;

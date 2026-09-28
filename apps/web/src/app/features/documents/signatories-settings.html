@@ -1,0 +1,122 @@
+<section *transloco="let t" aria-labelledby="signatories-title" data-section="signatories">
+  <div class="toolbar">
+    <h2 id="signatories-title">{{ t('documents.signatories.title') }}</h2>
+    @if (editing() === null) {
+      <button class="btn" type="button" data-action="new-signatory" (click)="open(null)">{{ t('documents.signatories.new') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('documents.signatories.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (editing(); as id) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="signatory-form-title" data-form="signatory">
+      <h3 id="signatory-form-title">{{ id === 'new' ? t('documents.signatories.new') : t('documents.signatories.edit') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <fieldset class="field">
+        <legend>{{ t('documents.signatories.scope') }}</legend>
+        <div class="radios">
+          <div class="check">
+            <input id="signatory-scope-company" type="radio" formControlName="scope" value="company" />
+            <label for="signatory-scope-company">{{ t('documents.signatories.company') }}</label>
+          </div>
+          <div class="check">
+            <input id="signatory-scope-unit" type="radio" formControlName="scope" value="unit" />
+            <label for="signatory-scope-unit">{{ t('documents.signatories.unit') }}</label>
+          </div>
+        </div>
+      </fieldset>
+      @if (c.scope.value === 'unit') {
+        <div class="field">
+          <label for="signatory-unit">{{ t('documents.fields.unit') }}</label>
+          <app-org-unit-picker formControlName="orgUnitId" inputId="signatory-unit"
+            [invalid]="c.orgUnitId.invalid && c.orgUnitId.touched" describedBy="signatory-unit-hint signatory-unit-error" />
+          <p class="field-hint" id="signatory-unit-hint">{{ t('documents.signatories.unitHint') }}</p>
+          @if (c.orgUnitId.invalid && c.orgUnitId.touched) {
+            <p class="field-error" id="signatory-unit-error">{{ c.orgUnitId.getError('server') ?? t('documents.form.required') }}</p>
+          }
+        </div>
+      }
+      <div class="bilingual">
+        @for (name of ['nameFr', 'nameAr', 'titleFr', 'titleAr']; track name) {
+          @let arabic = name.endsWith('Ar');
+          @let control = form.get(name);
+          <div class="field">
+            <label [for]="'signatory-' + name">{{ t('documents.signatories.fields.' + name) }}</label>
+            <input type="text" [id]="'signatory-' + name" [formControlName]="name" [attr.lang]="arabic ? 'ar' : 'fr'" [dir]="arabic ? 'rtl' : 'ltr'"
+              [attr.aria-invalid]="!!control && control.invalid && control.touched" [attr.aria-describedby]="'signatory-' + name + '-error'" />
+            @if (control && control.invalid && control.touched) {
+              <p class="field-error" [id]="'signatory-' + name + '-error'" [attr.data-error]="name">
+                {{ control.getError('server') ?? (control.hasError('maxlength') ? t('documents.form.tooLong') : t('documents.form.required')) }}
+              </p>
+            }
+          </div>
+        }
+      </div>
+      @if (id !== 'new') {
+        <div class="check field">
+          <input id="signatory-active" type="checkbox" formControlName="active" />
+          <label for="signatory-active">{{ t('documents.signatories.active') }}</label>
+        </div>
+      }
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-signatory" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @if (signatories.error() && !signatories.hasValue()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('documents.signatories.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="signatories.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (signatories.hasValue()) {
+    <div class="table-scroll">
+      <table class="data" data-table="signatories">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('documents.signatories.name') }}</th>
+            <th scope="col">{{ t('documents.signatories.titleCol') }}</th>
+            <th scope="col">{{ t('documents.signatories.scope') }}</th>
+            <th scope="col">{{ t('documents.signatories.defaultFor') }}</th>
+            <th scope="col">{{ t('documents.signatories.active') }}</th>
+            <th scope="col"><span class="visually-hidden">{{ t('documents.settings.actions') }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of items(); track s.id) {
+            <tr [attr.data-signatory]="s.id" [class.muted]="!s.active">
+              <td>{{ s.names.fr }}<br /><span lang="ar" dir="rtl">{{ s.names.ar }}</span></td>
+              <td>{{ s.titles.fr }}<br /><span lang="ar" dir="rtl">{{ s.titles.ar }}</span></td>
+              <td>{{ s.unit ? scopeLabel(s) : t('documents.signatories.company') }}</td>
+              <td>
+                @for (code of s.defaultFor; track code; let last = $last) {
+                  {{ catalog.nameOfCode(code) }}{{ last ? '' : ', ' }}
+                } @empty {
+                  —
+                }
+              </td>
+              <td>{{ s.active ? t('documents.settings.yes') : t('documents.settings.no') }}</td>
+              <td>
+                <button class="btn secondary" type="button" data-action="edit-signatory" [disabled]="editing() !== null" (click)="open(s)">
+                  {{ t('documents.settings.edit') }}
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="muted" data-state="empty">{{ t('documents.signatories.empty') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

@@ -1,0 +1,136 @@
+<!--
+  One single-column form (usable at 390 px). The leave request select exists only for a titre de congé; the language
+  radios list the type's languages. Two submit paths: "Preview" (a button, type="button") and "Issue" (the form's
+  submit, so Enter issues).
+-->
+<ng-container *transloco="let t">
+  <p><a routerLink="/documents">{{ t('documents.detail.back') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('documents.issue.title') }}</h1>
+  </header>
+
+  @let c = form.controls;
+  <form class="single" [formGroup]="form" (ngSubmit)="issue()" novalidate data-form="issue">
+    @if (profileMissing(); as missing) {
+      <div class="form-error" role="alert" data-error="profile-incomplete">
+        <p>{{ t('documents.problems.profileIncomplete') }}</p>
+        @if (missing.length) {
+          <ul>
+            @for (field of missing; track field) {
+              <li>{{ t('documents.profile.fields.' + field) }}</li>
+            }
+          </ul>
+        }
+        @if (canConfigure()) {
+          <p><a routerLink="/documents/settings" data-action="settings">{{ t('documents.problems.completeProfile') }}</a></p>
+        } @else {
+          <p>{{ t('documents.problems.askAdmin') }}</p>
+        }
+      </div>
+    }
+    @if (formError(); as error) {
+      <p class="form-error" role="alert" data-error="form">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    <div class="field">
+      <label for="issue-type">{{ t('documents.fields.type') }}</label>
+      <select id="issue-type" formControlName="typeCode" required
+        [attr.aria-invalid]="c.typeCode.invalid && c.typeCode.touched" aria-describedby="issue-type-error">
+        @for (type of catalog.activeTypes(); track type.id) {
+          <option [value]="type.code">{{ catalog.labelOf(type.labels) }}</option>
+        }
+      </select>
+      @if (c.typeCode.invalid && c.typeCode.touched) {
+        <p class="field-error" id="issue-type-error">{{ c.typeCode.hasError('serverKey') ? t(c.typeCode.getError('serverKey')) : t('documents.form.required') }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="issue-employee">{{ t('documents.fields.employee') }}</label>
+      <app-employee-picker formControlName="employmentId" inputId="issue-employee"
+        [invalid]="c.employmentId.invalid && c.employmentId.touched" describedBy="issue-employee-error" />
+      @if (c.employmentId.invalid && c.employmentId.touched) {
+        <p class="field-error" id="issue-employee-error" data-error="employmentId">
+          {{ c.employmentId.hasError('serverKey') ? t(c.employmentId.getError('serverKey')) : (c.employmentId.getError('server') ?? t('documents.form.required')) }}
+        </p>
+      }
+    </div>
+
+    @if (isTitre()) {
+      <div class="field">
+        <label for="issue-leave">{{ t('documents.fields.leaveRequest') }}</label>
+        <select id="issue-leave" formControlName="leaveRequestId" required [attr.aria-busy]="approvedLeave.isLoading()"
+          [attr.aria-invalid]="c.leaveRequestId.invalid && c.leaveRequestId.touched" aria-describedby="issue-leave-hint issue-leave-error">
+          <option value="" disabled>{{ t('documents.issue.chooseLeave') }}</option>
+          @for (r of leaveItems(); track r.id) {
+            <option [value]="r.id">
+              {{ leaveCatalog.nameOf(r.leaveTypeId) }} ·
+              {{ t('leave.fields.range', { from: (r.startDate | date: 'mediumDate' : undefined : locale()), to: (r.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+            </option>
+          }
+        </select>
+        <p class="field-hint" id="issue-leave-hint">
+          @if (!c.employmentId.value) {
+            {{ t('documents.issue.pickEmployeeFirst') }}
+          } @else if (approvedLeave.isLoading()) {
+            {{ t('common.loading') }}
+          } @else if (approvedLeave.error()) {
+            {{ t('documents.issue.leaveLoadError') }}
+          } @else if (approvedLeave.hasValue() && !leaveItems().length) {
+            {{ t('documents.issue.noApprovedLeave') }}
+          } @else {
+            {{ t('documents.issue.leaveHint') }}
+          }
+        </p>
+        @if (c.leaveRequestId.invalid && c.leaveRequestId.touched) {
+          <p class="field-error" id="issue-leave-error" data-error="leaveRequestId">
+            {{ c.leaveRequestId.hasError('serverKey') ? t(c.leaveRequestId.getError('serverKey')) : (c.leaveRequestId.getError('server') ?? t('documents.form.required')) }}
+          </p>
+        }
+      </div>
+    }
+
+    <fieldset class="field">
+      <legend>{{ t('documents.fields.language') }}</legend>
+      <div class="radios">
+        @for (language of languages(); track language) {
+          <div class="check">
+            <input type="radio" formControlName="language" [id]="'issue-lang-' + language" [value]="language" />
+            <label [for]="'issue-lang-' + language">{{ t('documents.languages.' + language) }}</label>
+          </div>
+        }
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label for="issue-signatory">{{ t('documents.fields.signatory') }}</label>
+      <select id="issue-signatory" formControlName="signatoryId" [attr.aria-busy]="signatories.isLoading()"
+        [attr.aria-invalid]="c.signatoryId.invalid && c.signatoryId.touched" aria-describedby="issue-signatory-hint issue-signatory-error">
+        @if (!signatoryItems().length) {
+          <option value="">{{ t('documents.issue.signatoryAuto') }}</option>
+        }
+        @for (s of signatoryItems(); track s.id) {
+          <option [value]="s.id" dir="auto">{{ signatoryLabel(s) }}</option>
+        }
+      </select>
+      <p class="field-hint" id="issue-signatory-hint">
+        {{ c.employmentId.value && signatories.hasValue() && !signatoryItems().length ? t('documents.issue.noSignatory') : t('documents.issue.signatoryHint') }}
+      </p>
+      @if (c.signatoryId.invalid && c.signatoryId.touched) {
+        <p class="field-error" id="issue-signatory-error" data-error="signatoryId">
+          {{ c.signatoryId.hasError('serverKey') ? t(c.signatoryId.getError('serverKey')) : c.signatoryId.getError('server') }}
+        </p>
+      }
+    </div>
+
+    <div class="form-actions">
+      <button class="btn secondary" type="button" data-action="preview" [disabled]="previewing() || issuing()" (click)="preview()">
+        {{ previewing() ? t('documents.issue.previewing') : t('documents.issue.preview') }}
+      </button>
+      <button class="btn" type="submit" data-action="issue" [disabled]="issuing()">
+        {{ issuing() ? t('documents.issue.issuing') : t('documents.issue.submit') }}
+      </button>
+    </div>
+    <p class="field-hint">{{ t('documents.issue.previewHint') }}</p>
+  </form>
+</ng-container>

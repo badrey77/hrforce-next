@@ -11,6 +11,9 @@ export const NOTIFICATION_TYPES = [
   'leave.rejected',
   'leave.cancelled',
   'leave.submitted_on_behalf',
+  // Documents (docs/contracts/documents.md › Notifications): a self-service request was approved (document issued) or rejected.
+  'document.ready',
+  'document.rejected',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -27,8 +30,11 @@ export interface NotificationView {
   readonly type: string;
   readonly createdAt: string;
   readonly readAt: string | null;
-  readonly subject: { readonly type: 'workflow_task' | 'leave_request'; readonly id: string };
-  /** Names/dates needed to render, e.g. `{employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}`. */
+  readonly subject: { readonly type: 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document'; readonly id: string };
+  /**
+   * Names/dates needed to render, e.g. `{employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}`;
+   * documents add `subjectType` (`leave_request` | `document_request`, on `task.assigned`) and `documentType` (code).
+   */
   readonly data: Readonly<Record<string, string | number | null>>;
   /** Per recipient: picks "your request" (`employee`) or a sentence naming the employee (anything else). */
   readonly audience: NotificationAudience | null;

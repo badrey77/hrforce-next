@@ -14,7 +14,9 @@
     "tasks": "My tasks",
     "leave": "Leave",
     "tasksWithCount": "My tasks, {{count}} open",
-    "tasksLive": "{{count}} open task(s)"
+    "tasksLive": "{{count}} open task(s)",
+    "documents": "Documents",
+    "myDocuments": "My documents"
   },
   "language": {
     "label": "Language",
@@ -468,7 +470,12 @@
       "employment_salary": "Salary",
       "leave_request": "Leave request",
       "workflow_instance": "Approval flow",
-      "workflow_task": "Approval step"
+      "workflow_task": "Approval step",
+      "company_profile": "Document letterhead",
+      "document_signatory": "Signatory",
+      "document_type": "Document type",
+      "issued_document": "Issued document",
+      "document_request": "Document request"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -604,6 +611,71 @@
         "acted_at": "Handled on",
         "comment": "Comment",
         "created_at": "Created on"
+      },
+      "issued_document": {
+        "number": "Number",
+        "type_code": "Type",
+        "year": "Year",
+        "seq": "Sequence",
+        "language": "Language",
+        "leave_request_id": "Leave request",
+        "document_request_id": "Self-service request",
+        "org_unit_id": "Unit",
+        "signatory_id": "Signatory",
+        "template_version": "Template",
+        "renderer": "Renderer",
+        "content_sha256": "SHA-256 fingerprint",
+        "size_bytes": "Size (bytes)",
+        "issue_date": "Issue date",
+        "issued_by": "Issued by",
+        "issued_at": "Issued at",
+        "client_request_id": "Submission id",
+        "status": "Status",
+        "voided_by": "Voided by",
+        "voided_at": "Voided at",
+        "void_reason": "Void reason"
+      },
+      "document_request": {
+        "language": "Language",
+        "purpose": "Purpose",
+        "status": "Status",
+        "requested_by": "Requested by",
+        "requested_at": "Requested at",
+        "issued_document_id": "Issued document"
+      },
+      "document_signatory": {
+        "org_unit_id": "Unit",
+        "name_fr": "Name (French)",
+        "name_ar": "Name (Arabic)",
+        "title_fr": "Title (French)",
+        "title_ar": "Title (Arabic)",
+        "active": "Active"
+      },
+      "document_type": {
+        "number_format": "Number format",
+        "languages": "Languages",
+        "self_service": "Self-service",
+        "default_signatory_id": "Default signatory",
+        "active": "Active"
+      },
+      "company_profile": {
+        "legal_name_fr": "Legal name (French)",
+        "legal_name_ar": "Legal name (Arabic)",
+        "address_fr": "Address (French)",
+        "address_ar": "Address (Arabic)",
+        "city_fr": "City (French)",
+        "city_ar": "City (Arabic)",
+        "phone": "Phone",
+        "email": "Email",
+        "nif": "NIF",
+        "nis": "NIS",
+        "rc": "RC",
+        "ai": "Tax article (AI)",
+        "footer_fr": "Footer (French)",
+        "footer_ar": "Footer (Arabic)",
+        "logo": "Logo",
+        "logo_mime": "Logo type",
+        "logo_sha256": "Logo fingerprint"
       }
     },
     "events": {
@@ -624,6 +696,11 @@
         "reject": "Step “{{step}}” rejected: {{comment}}",
         "cancel": "Request cancelled",
         "escalate": "Step “{{step}}” passed on to the next step (no manager available)"
+      },
+      "document": {
+        "issued": "Document {{number}} issued",
+        "downloaded": "Document {{number}} downloaded",
+        "voided": "Document {{number}} voided: {{reason}}"
       }
     },
     "values": {
@@ -774,7 +851,8 @@
       "pay": "Pay",
       "bank": "Bank & NSS",
       "leave": "Leave",
-      "history": "History"
+      "history": "History",
+      "documents": "Documents"
     },
     "identity": {
       "edit": "Edit",
@@ -1113,7 +1191,12 @@
     "problems": {
       "closed": "{{name}}'s request was already handled by someone else.",
       "selfApproval": "You cannot act on your own request.",
-      "notCandidate": "This task is no longer assigned to you."
+      "notCandidate": "This task is no longer assigned to you.",
+      "documentProfileIncomplete": "Cannot issue {{name}}'s document: the company letterhead is incomplete (Documents › Settings).",
+      "documentEmploymentEnded": "Cannot issue {{name}}'s attestation: the employment has ended.",
+      "documentNoSignatory": "Cannot issue {{name}}'s document: no signatory covers their unit.",
+      "documentTypeInactive": "Cannot issue {{name}}'s document: this document type is disabled.",
+      "documentRetry": "{{name}}'s document could not be generated right now. Try again in a moment."
     },
     "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you."
   },
@@ -1171,7 +1254,8 @@
     "types": {
       "task": {
         "assigned": "“{{leaveType}}” request from {{employeeName}}, {{startDate}} to {{endDate}} ({{days}} d): waiting for you.",
-        "escalated": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available)."
+        "escalated": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available).",
+        "assigned_document": "“{{documentType}}” request to handle: {{employeeName}}."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1179,7 +1263,11 @@
         "cancelled": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, was cancelled.",
         "submitted_on_behalf": "{{actorName}} filed a “{{leaveType}}” request for you, {{startDate}} to {{endDate}}."
       },
-      "unknown": "New notification"
+      "unknown": "New notification",
+      "document": {
+        "ready": "Your “{{documentType}}” is ready: you can download it.",
+        "rejected": "Your “{{documentType}}” request was rejected."
+      }
     },
     "typesNamed": {
       "task": {
@@ -1200,6 +1288,10 @@
         "rejected": "My request is rejected",
         "cancelled": "A request I had to handle is cancelled",
         "submitted_on_behalf": "HR files a request for me"
+      },
+      "document": {
+        "ready": "My requested document is ready",
+        "rejected": "My document request is rejected"
       }
     }
   },
@@ -1305,6 +1397,290 @@
       "locked": "Too many wrong codes: try again in 15 minutes.",
       "requiredByPolicy": "Your company requires two-step sign-in: it cannot be turned off.",
       "codeFormat": "The code has 6 digits."
+    }
+  },
+  "documents": {
+    "typeNames": {
+      "attestation_travail": "Employment attestation",
+      "certificat_travail": "Employment certificate",
+      "titre_conge": "Leave certificate"
+    },
+    "languages": {
+      "fr": "French",
+      "ar": "Arabic"
+    },
+    "status": {
+      "issued": "Issued",
+      "void": "Void"
+    },
+    "statusFilter": {
+      "all": "All",
+      "issued": "Issued",
+      "void": "Void"
+    },
+    "requestStatus": {
+      "pending": "Pending",
+      "approved": "Delivered",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "warnings": {
+      "leave-cancelled": "Leave cancelled"
+    },
+    "fields": {
+      "number": "Number",
+      "type": "Document type",
+      "employee": "Employee",
+      "language": "Language",
+      "issueDate": "Issue date",
+      "status": "Status",
+      "unit": "Unit",
+      "issuedBy": "Issued by",
+      "signatory": "Signatory",
+      "leaveRequest": "Leave request",
+      "origin": "Origin",
+      "size": "Size",
+      "sha256": "Fingerprint (SHA-256)"
+    },
+    "form": {
+      "required": "This field is required.",
+      "tooLong": "Text too long.",
+      "email": "Invalid email address.",
+      "identifier": "Digits, capital letters, spaces, “/” and “-” only (at most 30 characters).",
+      "invalid": "Invalid value."
+    },
+    "list": {
+      "title": "Document register",
+      "filters": "Register filters",
+      "search": "Search",
+      "searchPlaceholder": "Number, name or employee number",
+      "allTypes": "All types",
+      "unit": "Unit",
+      "from": "Issued from",
+      "to": "Issued until",
+      "total": "{{count}} document(s)",
+      "empty": "No document issued yet.",
+      "noMatch": "No document matches these filters.",
+      "loadError": "Could not load the documents."
+    },
+    "detail": {
+      "back": "← Document register",
+      "tabs": "Document sections",
+      "tab": {
+        "details": "Details",
+        "history": "History"
+      },
+      "loadError": "Could not load the document.",
+      "notFound": "Document not found.",
+      "openEmployee": "Open the record",
+      "openLeaveRequest": "Open the leave request",
+      "selfService": "Employee request (self-service)",
+      "kb": "KB",
+      "leaveCancelled": "The leave of this certificate was cancelled after it was issued. Void the certificate if it must no longer be used.",
+      "voidedOn": "Voided on {{date}} by {{by}}."
+    },
+    "feedback": {
+      "issued": "Document {{number}} issued. Open the PDF to print, sign and stamp it.",
+      "voided": "Document voided. Its number stays in the register."
+    },
+    "pdf": {
+      "open": "Open the PDF",
+      "opening": "Opening…",
+      "download": "Download",
+      "downloading": "Downloading…",
+      "savedInstead": "The browser blocked the new tab: the PDF was downloaded instead.",
+      "notFound": "This PDF is not available.",
+      "error": "Could not get the PDF. Try again."
+    },
+    "void": {
+      "action": "Void the document",
+      "title": "Void document {{number}}",
+      "intro": "The document stays in the register with its number, marked “void”. This cannot be undone.",
+      "reason": "Reason",
+      "reasonHint": "3 to 500 characters, kept in the history.",
+      "reasonRequired": "Give a reason of at least 3 characters.",
+      "tooLong": "At most 500 characters.",
+      "confirm": "Void the document"
+    },
+    "issue": {
+      "action": "Issue a document",
+      "title": "Issue a document",
+      "chooseLeave": "Choose an approved request",
+      "pickEmployeeFirst": "Choose the employee first.",
+      "leaveHint": "Only the employee's approved requests are listed.",
+      "leaveLoadError": "Could not load the employee's leave requests.",
+      "noApprovedLeave": "This employee has no approved leave request.",
+      "signatoryAuto": "Automatic (default signatory)",
+      "signatoryHint": "Suggested: the type's default signatory, else the nearest to the employee's unit.",
+      "noSignatory": "No active signatory covers this employee.",
+      "preview": "Preview",
+      "previewing": "Preparing the preview…",
+      "previewHint": "The preview opens a specimen in a new tab; no number is used.",
+      "submit": "Issue",
+      "issuing": "Issuing…"
+    },
+    "problems": {
+      "profileIncomplete": "The company letterhead is incomplete for this language. Missing fields:",
+      "completeProfile": "Complete the letterhead",
+      "askAdmin": "Ask the central HR administrator to complete the document letterhead.",
+      "employmentEnded": "This employee's employment has ended: issue an employment certificate instead.",
+      "employmentNotEnded": "An employment certificate needs an employment end date that has been reached.",
+      "leaveNotApproved": "This leave request is not approved.",
+      "typeInactive": "This document type is disabled.",
+      "noSignatory": "No signatory covers this employee: add one in the settings.",
+      "busy": "Another document of this type is being issued. Try again in a moment.",
+      "renderFailed": "The PDF could not be generated. Try again; if it persists, contact support.",
+      "clientRequestReused": "This form was already used for another document: reload the page.",
+      "numberTaken": "This number already exists: check the type's number format.",
+      "forbiddenScope": "This employee is outside your scope for this action.",
+      "subjectNotFound": "Employee or request not found (or outside your scope).",
+      "alreadyVoid": "This document is already void.",
+      "companyWide": "Only an administrator holding this right over the whole company can change these settings.",
+      "formatTaken": "This format is already used by another document type."
+    },
+    "employee": {
+      "title": "Issued documents",
+      "empty": "No document issued for this employee.",
+      "more": "See the {{count}} documents in the register"
+    },
+    "leave": {
+      "title": "Leave certificate",
+      "issue": "Issue the leave certificate",
+      "none": "No certificate issued for this request."
+    },
+    "tasks": {
+      "requestedAt": "Requested at",
+      "approveHint": "Approving issues the document with the default signatory; the employee downloads it from “My documents”."
+    },
+    "settings": {
+      "title": "Document settings",
+      "intro": "The letterhead, signatories and numbering are company data; the legal wording of each document is fixed.",
+      "tabs": "Settings sections",
+      "tab": {
+        "profile": "Letterhead",
+        "signatories": "Signatories",
+        "types": "Types"
+      },
+      "actions": "Actions",
+      "edit": "Edit",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "profile": {
+      "title": "Company letterhead",
+      "intro": "Printed at the top of every document. The Arabic fields are needed to issue in Arabic.",
+      "loadError": "Could not load the letterhead.",
+      "complete": "complete",
+      "incomplete": "incomplete",
+      "saved": "Letterhead saved.",
+      "fields": {
+        "legalNameFr": "Legal name (French)",
+        "legalNameAr": "Legal name (Arabic)",
+        "addressFr": "Address (French)",
+        "addressAr": "Address (Arabic)",
+        "cityFr": "“Done at” (French)",
+        "cityAr": "“Done at” (Arabic)",
+        "footerFr": "Footer (French)",
+        "footerAr": "Footer (Arabic)",
+        "phone": "Phone",
+        "email": "Email",
+        "nif": "NIF",
+        "nis": "NIS",
+        "rc": "RC",
+        "ai": "Tax article (AI)"
+      },
+      "logo": "Logo",
+      "logoCurrent": "Current logo",
+      "logoPreview": "New logo preview",
+      "noLogo": "No logo.",
+      "chooseLogo": "Choose an image",
+      "logoHint": "PNG or JPEG, at most 256 KB.",
+      "logoType": "Format refused: PNG or JPEG only.",
+      "logoSize": "Image too large: at most 256 KB.",
+      "uploadLogo": "Save the logo",
+      "removeLogo": "Remove the logo",
+      "logoSaved": "Logo saved.",
+      "logoRemoved": "Logo removed."
+    },
+    "signatories": {
+      "title": "Signatories",
+      "intro": "A signatory signs for the whole company or for a unit and its sub-units. Name and title are printed; signature and stamp are added by hand.",
+      "new": "New signatory",
+      "edit": "Edit signatory",
+      "scope": "Signs for",
+      "company": "The whole company",
+      "unit": "A unit (and its sub-units)",
+      "unitHint": "Signs for the employees of this unit and its sub-units.",
+      "fields": {
+        "nameFr": "Name (French)",
+        "nameAr": "Name (Arabic)",
+        "titleFr": "Title (French)",
+        "titleAr": "Title (Arabic)"
+      },
+      "name": "Name",
+      "titleCol": "Title",
+      "defaultFor": "Default for",
+      "active": "Active",
+      "empty": "No signatory.",
+      "loadError": "Could not load the signatories.",
+      "created": "Signatory added.",
+      "saved": "Signatory saved."
+    },
+    "types": {
+      "title": "Document types",
+      "intro": "Gap-free numbering, per type and year of issue. A new format applies to the next number.",
+      "numberFormat": "Number format",
+      "formatHint": "Capital letters, digits, “/ _ . -” and the tokens {YYYY}, {YY}, {SEQ} or {SEQ:5} (a 5-digit number).",
+      "preview": "Next number:",
+      "formatErrors": {
+        "literal": "Character not allowed: capitals, digits and “/ _ . -” only, outside tokens.",
+        "seq": "The format needs exactly one {SEQ} (or {SEQ:n}).",
+        "year": "The format needs the year: {YYYY} or {YY}.",
+        "length": "The resulting number is longer than 40 characters."
+      },
+      "nextNumber": "Next number",
+      "languages": "Languages",
+      "languagesRequired": "Choose at least one language.",
+      "selfService": "Employees may request it themselves (“My documents”)",
+      "selfServiceShort": "Self-service",
+      "selfServiceHint": "Every request is approved by HR before it is issued.",
+      "defaultSignatory": "Default signatory",
+      "defaultSignatoryHint": "Without a default signatory, the one nearest to the employee's unit signs.",
+      "nearestSignatory": "The nearest to the employee",
+      "active": "Active",
+      "empty": "No document type.",
+      "loadError": "Could not load the document types.",
+      "saved": "Document type saved."
+    },
+    "mine": {
+      "title": "My documents",
+      "notLinked": "Your account is not linked to an employee record: ask HR to link it to request attestations.",
+      "newRequest": "Request an attestation",
+      "noSelfService": "No document can be requested by self-service yet.",
+      "purpose": "Purpose",
+      "purposeHint": "Optional, at most 200 characters. Read by HR, never printed.",
+      "submit": "Send the request",
+      "requested": "Request sent to HR.",
+      "cancelled": "Request cancelled.",
+      "requests": "My requests",
+      "noRequests": "No request.",
+      "requestedOn": "requested on {{date}}",
+      "rejectedBecause": "Rejected: {{comment}}",
+      "issuedAs": "Delivered: document {{number}}.",
+      "documents": "My issued documents",
+      "noDocuments": "No document yet.",
+      "loadError": "Could not load your documents.",
+      "linkedMissing": "The linked item is no longer available.",
+      "cancel": "Cancel",
+      "cancelTitle": "Cancel this request?",
+      "confirmCancel": "Cancel the request",
+      "keep": "Keep",
+      "problems": {
+        "notSelfService": "This document cannot be requested by self-service.",
+        "pending": "You already have a pending request for this document.",
+        "employmentEnded": "Your employment has ended: ask HR for an employment certificate.",
+        "notCancellable": "This request can no longer be cancelled."
+      }
     }
   }
 }

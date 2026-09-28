@@ -23,7 +23,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { as, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { as, BETA_SIGNATORY, COMPANY_B, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
+import { DEMO_SIGNATORIES, demoLogoPng, DocumentsClock } from '../src/modules/documents/index.js';
 import { LeaveClock } from '../src/modules/leave/index.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
@@ -38,6 +39,8 @@ type Row = readonly [actor: Actor, target: Target, status: number];
 interface Req {
   path: string;
   body?: object;
+  /** multipart upload of `file` (PUT /documents/settings/profile/logo) */
+  upload?: Buffer;
 }
 
 interface RouteSpec {
@@ -92,6 +95,31 @@ const LV = {
   chefNotification: '',
 };
 const MISSING = '0190a5d0-0000-7000-8000-00000000dead';
+/** Documents fixtures (filled in beforeAll): one issued document per target, own documents, a pending request, type ids. */
+const DOC = { est: '', ouest: '', other: '', agentOwn: '', karimOwn: '', agentRequest: '', typeA: '', typeB: '' };
+const docOf = (t: Target): string => (t === 'est' ? DOC.est : t === 'ouest' ? DOC.ouest : DOC.other);
+const issueBody = (t: Target) => ({ typeCode: 'attestation_travail', employmentId: employeeOf(t), language: 'fr' });
+const PROFILE_BODY = { legalNameFr: 'Société test', legalNameAr: null, addressFr: '1 rue X, Alger', addressAr: null, cityFr: 'Alger', cityAr: null };
+/** HR issuing (document.issue): admin everywhere, rh_regional in REG-EST; lecture / admin_acces / employees none. */
+const DOC_ISSUE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
+  ['est', 'est', ok], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+const DOC_READ_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+  ['agent', 'est', 403],
+];
+/** document.configure writes on the caller's own company: est = company A's row, other = BETA's. */
+const DOC_CONFIG_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403],
+  ['beta', 'other', ok], ['beta', 'est', 404],
+];
 const leaveDay = (n: number) => day(n);
 const leaveBody = (n: number, extra: object = {}) => ({ leaveTypeId: LV.annual, startDate: leaveDay(n), endDate: leaveDay(n), ...extra });
 const HR_ROWS: readonly Row[] = [
@@ -513,6 +541,82 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200]],
   },
 
+  // ── documents (docs/contracts/documents.md › Authorization matrix rows) ──────────────────────────────────
+  'GET /api/documents/types': { access: 'authenticated', request: () => ({ path: '/api/documents/types' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
+  'PUT /api/documents/types/:id': {
+    access: 'document.configure',
+    request: (t) => ({ path: `/api/documents/types/${t === 'other' ? DOC.typeB : DOC.typeA}`, body: { active: true } }),
+    rows: DOC_CONFIG_ROWS(200),
+  },
+  'GET /api/documents/settings/profile': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile' }), rows: CONFIG_ROWS(200) },
+  'PUT /api/documents/settings/profile': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile', body: PROFILE_BODY }), rows: CONFIG_ROWS(200) },
+  'PUT /api/documents/settings/profile/logo': {
+    access: 'document.configure',
+    request: () => ({ path: '/api/documents/settings/profile/logo', upload: demoLogoPng() }),
+    rows: CONFIG_ROWS(200),
+  },
+  'GET /api/documents/settings/profile/logo': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile/logo' }), rows: CONFIG_ROWS(200) },
+  'DELETE /api/documents/settings/profile/logo': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile/logo' }), rows: CONFIG_ROWS(204) },
+  'GET /api/documents/settings/signatories': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/signatories' }), rows: CONFIG_ROWS(200) },
+  'POST /api/documents/settings/signatories': {
+    access: 'document.configure',
+    request: (_t, n) => ({ path: '/api/documents/settings/signatories', body: { orgUnitId: null, names: { fr: `Signataire ${n}`, ar: 'موقع' }, titles: { fr: 'Directeur', ar: 'مدير' } } }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PATCH /api/documents/settings/signatories/:id': {
+    access: 'document.configure',
+    request: (t, n) => ({
+      path: `/api/documents/settings/signatories/${t === 'other' ? BETA_SIGNATORY : DEMO_SIGNATORIES.hrDirector}`,
+      body: { titles: { fr: `Directeur ${n}`, ar: 'مدير' } },
+    }),
+    rows: DOC_CONFIG_ROWS(200),
+  },
+  'GET /api/documents/signatories': {
+    access: 'document.issue',
+    request: () => ({ path: '/api/documents/signatories' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'POST /api/documents/preview': { access: 'document.issue', request: (t) => ({ path: '/api/documents/preview', body: issueBody(t) }), rows: DOC_ISSUE_ROWS(200) },
+  'POST /api/documents': { access: 'document.issue', request: (t) => ({ path: '/api/documents', body: issueBody(t) }), rows: DOC_ISSUE_ROWS(201) },
+  'GET /api/documents': {
+    access: 'document.read',
+    request: () => ({ path: '/api/documents?status=all&pageSize=5' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'GET /api/documents/:id': { access: 'document.read', request: (t) => ({ path: `/api/documents/${docOf(t)}` }), rows: DOC_READ_ROWS },
+  'GET /api/documents/:id/pdf': { access: 'document.read', request: (t) => ({ path: `/api/documents/${docOf(t)}/pdf` }), rows: DOC_READ_ROWS },
+  // each success voids its target's document once; the refusals do not depend on the status
+  'POST /api/documents/:id/void': {
+    access: 'document.void',
+    request: (t) => ({ path: `/api/documents/${docOf(t)}/void`, body: { reason: 'Matrice' } }),
+    rows: [
+      ['admin', 'other', 404], ['est', 'est', 403], ['ouest', 'ouest', 403], ['acces', 'est', 403], ['beta', 'est', 404], ['agent', 'est', 403],
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['beta', 'other', 200],
+    ],
+  },
+  'GET /api/me/documents': {
+    access: 'document.request_self',
+    request: () => ({ path: '/api/me/documents' }),
+    rows: [['agent', '-', 200], ['est', '-', 200], ['admin', '-', 409], ['beta', '-', 409], ['ouest', '-', 403], ['acces', '-', 403]],
+  },
+  // before the POST below: agent.annaba's pending request (beforeAll) is cancelled here, so the POST row can create one
+  'POST /api/me/documents/requests/:id/cancel': {
+    access: 'document.request_self',
+    request: () => ({ path: `/api/me/documents/requests/${DOC.agentRequest}/cancel` }),
+    rows: [['est', 'est', 404], ['admin', 'est', 409], ['ouest', 'est', 403], ['acces', 'est', 403], ['agent', 'est', 200]],
+  },
+  'POST /api/me/documents/requests': {
+    access: 'document.request_self',
+    request: () => ({ path: '/api/me/documents/requests', body: { typeCode: 'attestation_travail', language: 'fr' } }),
+    rows: [['agent', '-', 201], ['est', '-', 201], ['admin', '-', 409], ['beta', '-', 409], ['ouest', '-', 403], ['acces', '-', 403]],
+  },
+  'GET /api/me/documents/:id/pdf': {
+    access: 'document.request_self',
+    // est: agent.annaba's own document · ouest: EMP-0027's (not the agent's) · other: Karim's own (EMP-0022)
+    request: (t) => ({ path: `/api/me/documents/${t === 'est' ? DOC.agentOwn : t === 'ouest' ? DOC.est : DOC.karimOwn}/pdf` }),
+    rows: [['agent', 'est', 200], ['agent', 'ouest', 404], ['est', 'other', 200], ['admin', 'est', 409], ['ouest', 'est', 403], ['acces', 'est', 403]],
+  },
+
   // ── workflow: My tasks ─────────────────────────────────────────────────────────────────────────────────
   'GET /api/tasks': { access: 'authenticated', request: () => ({ path: '/api/tasks?status=open' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
   'POST /api/tasks/:id/approve': {
@@ -589,7 +693,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    fx = await seedAccessFixture(db, undefined, { leave: true });
+    fx = await seedAccessFixture(db, undefined, { leave: true, documents: true });
     const pinned = { today: () => '2026-09-26' };
     app = await createTestApp(db, {
       devAuth: true,
@@ -597,6 +701,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
       overrides: [
         { provide: LeaveClock, useValue: pinned },
         { provide: StaffingClock, useValue: pinned },
+        { provide: DocumentsClock, useValue: pinned },
       ],
     });
     xsrf = await fetchXsrf(app);
@@ -622,6 +727,22 @@ describe('Authorization matrix (e2e, real grants)', () => {
       (await query<{ id: string }>(db.superuserUrl, `select id from notification where user_id = $1 and type = 'task.assigned' and subject_id = $2`, [USERS.chef.id, LV.approveTask]))[0]
         ?.id ?? '';
     expect(Object.values(LV).every((v) => v !== ''), JSON.stringify(LV)).toBe(true);
+    // documents: one issued document per target, the agent's and Karim's own, a pending request, BETA's logo
+    const issueAs = async (actor: ActorName, employmentId: string) =>
+      ((await as(app, actor, xsrf).post('/api/documents').send({ typeCode: 'attestation_travail', employmentId, language: 'fr' }).expect(201)).body as { id: string }).id;
+    DOC.est = await issueAs('admin', employeeA(27));
+    DOC.ouest = await issueAs('admin', employeeA(36));
+    DOC.other = await issueAs('beta', EMPLOYEE_B.employmentId);
+    DOC.agentOwn = await issueAs('admin', employeeA(30));
+    DOC.karimOwn = await issueAs('admin', employeeA(22));
+    DOC.agentRequest = ((await as(app, 'agent', xsrf).post('/api/me/documents/requests').send({ typeCode: 'attestation_travail', language: 'fr' }).expect(201)).body as { id: string }).id;
+    const docType = async (company: string) =>
+      (await query<{ id: string }>(db.superuserUrl, `select id from document_type where company_id = $1 and code = 'titre_conge'`, [company]))[0]?.id ?? '';
+    DOC.typeA = await docType(unitCompany);
+    DOC.typeB = await docType(COMPANY_B);
+    await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [COMPANY_B, demoLogoPng()]);
+    await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [unitCompany, demoLogoPng()]);
+    expect(Object.values(DOC).every((v) => v !== ''), JSON.stringify(DOC)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();
@@ -674,7 +795,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
             : method === 'DELETE'
               ? client.delete(req.path)
               : client.patch(req.path);
-    const res = req.body ? await call.send(req.body) : await call;
+    const res = req.upload ? await call.attach('file', req.upload, 'logo.png') : req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
   });
 

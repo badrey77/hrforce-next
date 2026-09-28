@@ -13,14 +13,17 @@ export const NOTIFICATION_TYPES = [
   'leave.rejected',
   'leave.cancelled',
   'leave.submitted_on_behalf',
+  'document.ready',
+  'document.rejected',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationSubjectType = 'workflow_task' | 'leave_request';
+export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document';
 
 /**
  * Who the recipient is to the subject — decides the link: `approver` (a task candidate: /tasks…), `employee` (the
- * employee's own linked user: /me/leave?request=…), `requester` (who filed it for someone else: /leave/requests/…).
+ * employee's own linked user: /me/leave?request=…, /me/documents?…), `requester` (who filed it for someone else:
+ * /leave/requests/…).
  */
 export type NotificationAudience = 'approver' | 'employee' | 'requester';
 

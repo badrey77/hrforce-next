@@ -74,8 +74,13 @@ the files it discusses, so you can jump straight to the source.
     (`valueChanges` + `filter`), `[src]` with a data URL and the URL sanitizer, Clipboard API and Blob downloads,
     `model()`, enforcement with a `canMatch` guard + an interceptor (and its order), testing multi-step UI.
 
-Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen
-(contracts and documents, M2, are next).
+18. [18-binary-files-blobs-and-uploads.md](./18-binary-files-blobs-and-uploads.md) — Documents: PDFs fetched
+    with `responseType: 'blob'`, problem bodies read out of error Blobs, object URLs (open in a tab despite pop-up
+    blockers, save with `<a download>`), a component-scoped service + `DestroyRef` to revoke them, why a new tab and
+    not an `<iframe>` (`RESOURCE_URL`, `DomSanitizer`), `data:` images under a strict CSP, file inputs + `FormData`,
+    an idempotent submit, form values as signals, narrowing a discriminated union in a template.
+
+Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen.
 
 ## Concept → chapter → file index
 
@@ -191,6 +196,18 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Wording by audience: parallel key tree chosen by a pure function | 16 | `src/app/shared/notifications/notification-message.ts` |
 | `observe: 'response'` to branch on the HTTP status | 17, 06 | `src/app/core/auth/auth-api.ts` (`login`) |
 | Reusing a CVA in another form; `role="alertdialog"` confirm dialog | 17, 07 | `src/app/features/access/security-policy.page.ts`, `user-detail.page.html` |
+| `responseType: 'blob'` (GET and POST), `Observable<Blob>` overloads | 18, 06 | `src/app/core/documents/documents-api.ts` |
+| Problem bodies of Blob requests (async read in an interceptor: `from(blob.text())`) | 18, 06 | `src/app/core/http/api-problem.interceptor.ts` |
+| Object URLs: open in a new tab during the click, save with `<a download>` | 18, 17 | `src/app/core/browser/blob-files.ts`, `download.ts` |
+| Component-scoped service (`providers: [X]`) + `DestroyRef` cleanup | 18, 04 | `src/app/core/browser/blob-files.ts`, `src/app/shared/documents/pdf-actions.ts` |
+| Why no `<iframe>` preview (`RESOURCE_URL`, `bypassSecurityTrustResourceUrl`) | 18 | `docs/angular/18-binary-files-blobs-and-uploads.md` §6 |
+| `data:` image from a Blob/File (`FileReader`) under a strict CSP | 18, 17 | `src/app/core/browser/download.ts` (`blobToDataUrl`), `src/app/features/documents/profile-settings.ts` |
+| File input `(change)` + `FormData` upload | 18 | `src/app/features/documents/profile-settings.ts`, `src/app/core/documents/documents-api.ts` |
+| Idempotent submit (`clientRequestId`, reset on `valueChanges`) | 18 | `src/app/features/documents/issue.page.ts` |
+| `toSignal(control.valueChanges)` keying resources; effects pushing server defaults into a form | 18, 03 | `src/app/features/documents/issue.page.ts` |
+| `[formControlName]` bound to a computed name (form built from a field table) | 18, 07 | `src/app/features/documents/profile-settings.html` |
+| Client-side live preview from a pure function (number format) | 18 | `src/app/features/documents/types-settings.ts`, `src/app/core/documents/documents.models.ts` |
+| Discriminated union narrowed by `@if` in a template | 18 | `src/app/features/tasks/tasks.page.html`, `src/app/core/tasks/tasks.models.ts` |
 
 ## Glossary
 

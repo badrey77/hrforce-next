@@ -14,7 +14,9 @@
     "tasks": "Mes tâches",
     "leave": "Congés",
     "tasksWithCount": "Mes tâches, {{count}} en attente",
-    "tasksLive": "{{count}} tâche(s) en attente"
+    "tasksLive": "{{count}} tâche(s) en attente",
+    "documents": "Documents",
+    "myDocuments": "Mes documents"
   },
   "language": {
     "label": "Langue",
@@ -468,7 +470,12 @@
       "employment_salary": "Salaire",
       "leave_request": "Demande de congé",
       "workflow_instance": "Circuit d’approbation",
-      "workflow_task": "Étape d’approbation"
+      "workflow_task": "Étape d’approbation",
+      "company_profile": "En-tête des documents",
+      "document_signatory": "Signataire",
+      "document_type": "Type de document",
+      "issued_document": "Document émis",
+      "document_request": "Demande de document"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -604,6 +611,71 @@
         "acted_at": "Traitée le",
         "comment": "Commentaire",
         "created_at": "Créée le"
+      },
+      "issued_document": {
+        "number": "Numéro",
+        "type_code": "Type",
+        "year": "Année",
+        "seq": "Séquence",
+        "language": "Langue",
+        "leave_request_id": "Demande de congé",
+        "document_request_id": "Demande en libre-service",
+        "org_unit_id": "Unité",
+        "signatory_id": "Signataire",
+        "template_version": "Modèle",
+        "renderer": "Moteur de rendu",
+        "content_sha256": "Empreinte SHA-256",
+        "size_bytes": "Taille (octets)",
+        "issue_date": "Date d’émission",
+        "issued_by": "Émis par",
+        "issued_at": "Émis le",
+        "client_request_id": "Identifiant de soumission",
+        "status": "Statut",
+        "voided_by": "Annulé par",
+        "voided_at": "Annulé le",
+        "void_reason": "Motif d’annulation"
+      },
+      "document_request": {
+        "language": "Langue",
+        "purpose": "Objet",
+        "status": "Statut",
+        "requested_by": "Demandée par",
+        "requested_at": "Demandée le",
+        "issued_document_id": "Document émis"
+      },
+      "document_signatory": {
+        "org_unit_id": "Unité",
+        "name_fr": "Nom (français)",
+        "name_ar": "Nom (arabe)",
+        "title_fr": "Fonction (français)",
+        "title_ar": "Fonction (arabe)",
+        "active": "Actif"
+      },
+      "document_type": {
+        "number_format": "Format de numéro",
+        "languages": "Langues",
+        "self_service": "Libre-service",
+        "default_signatory_id": "Signataire par défaut",
+        "active": "Actif"
+      },
+      "company_profile": {
+        "legal_name_fr": "Raison sociale (français)",
+        "legal_name_ar": "Raison sociale (arabe)",
+        "address_fr": "Adresse (français)",
+        "address_ar": "Adresse (arabe)",
+        "city_fr": "Ville (français)",
+        "city_ar": "Ville (arabe)",
+        "phone": "Téléphone",
+        "email": "E-mail",
+        "nif": "NIF",
+        "nis": "NIS",
+        "rc": "RC",
+        "ai": "Article d’imposition",
+        "footer_fr": "Pied de page (français)",
+        "footer_ar": "Pied de page (arabe)",
+        "logo": "Logo",
+        "logo_mime": "Type du logo",
+        "logo_sha256": "Empreinte du logo"
       }
     },
     "events": {
@@ -624,6 +696,11 @@
         "reject": "Étape « {{step}} » refusée : {{comment}}",
         "cancel": "Demande annulée",
         "escalate": "Étape « {{step}} » transmise à l’étape suivante (aucun responsable disponible)"
+      },
+      "document": {
+        "issued": "Document {{number}} émis",
+        "downloaded": "Document {{number}} téléchargé",
+        "voided": "Document {{number}} annulé : {{reason}}"
       }
     },
     "values": {
@@ -774,7 +851,8 @@
       "pay": "Paie",
       "bank": "Banque et sécurité sociale",
       "leave": "Congés",
-      "history": "Historique"
+      "history": "Historique",
+      "documents": "Documents"
     },
     "identity": {
       "edit": "Modifier",
@@ -1113,7 +1191,12 @@
     "problems": {
       "closed": "La demande de {{name}} a déjà été traitée par quelqu'un d'autre.",
       "selfApproval": "Vous ne pouvez pas traiter votre propre demande.",
-      "notCandidate": "Cette tâche ne vous est plus attribuée."
+      "notCandidate": "Cette tâche ne vous est plus attribuée.",
+      "documentProfileIncomplete": "Impossible d’émettre le document de {{name}} : l’en-tête de l’entreprise est incomplet (Documents › Paramétrage).",
+      "documentEmploymentEnded": "Impossible d’émettre l’attestation de {{name}} : son emploi a pris fin.",
+      "documentNoSignatory": "Impossible d’émettre le document de {{name}} : aucun signataire ne couvre son unité.",
+      "documentTypeInactive": "Impossible d’émettre le document de {{name}} : ce type de document est désactivé.",
+      "documentRetry": "Le document de {{name}} n’a pas pu être généré pour l’instant. Réessayez dans un moment."
     },
     "notOpen": "La tâche du lien n’est plus ouverte : elle a déjà été traitée ou ne vous est plus attribuée."
   },
@@ -1171,7 +1254,8 @@
     "types": {
       "task": {
         "assigned": "Demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} ({{days}} j) : à vous de la traiter.",
-        "escalated": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible)."
+        "escalated": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible).",
+        "assigned_document": "Demande « {{documentType}} » à traiter : {{employeeName}}."
       },
       "leave": {
         "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1179,7 +1263,11 @@
         "cancelled": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} a été annulée.",
         "submitted_on_behalf": "{{actorName}} a déposé pour vous une demande « {{leaveType}} » du {{startDate}} au {{endDate}}."
       },
-      "unknown": "Nouvelle notification"
+      "unknown": "Nouvelle notification",
+      "document": {
+        "ready": "Votre document « {{documentType}} » est prêt : vous pouvez le télécharger.",
+        "rejected": "Votre demande « {{documentType}} » a été refusée."
+      }
     },
     "typesNamed": {
       "task": {
@@ -1200,6 +1288,10 @@
         "rejected": "Ma demande est refusée",
         "cancelled": "Une demande que je devais traiter est annulée",
         "submitted_on_behalf": "Les RH déposent une demande pour moi"
+      },
+      "document": {
+        "ready": "Mon document demandé est prêt",
+        "rejected": "Ma demande de document est refusée"
       }
     }
   },
@@ -1305,6 +1397,290 @@
       "locked": "Trop de codes incorrects : réessayez dans 15 minutes.",
       "requiredByPolicy": "Votre entreprise exige la validation en deux étapes : elle ne peut pas être désactivée.",
       "codeFormat": "Le code comporte 6 chiffres."
+    }
+  },
+  "documents": {
+    "typeNames": {
+      "attestation_travail": "Attestation de travail",
+      "certificat_travail": "Certificat de travail",
+      "titre_conge": "Titre de congé"
+    },
+    "languages": {
+      "fr": "Français",
+      "ar": "Arabe"
+    },
+    "status": {
+      "issued": "Émis",
+      "void": "Annulé"
+    },
+    "statusFilter": {
+      "all": "Tous",
+      "issued": "Émis",
+      "void": "Annulés"
+    },
+    "requestStatus": {
+      "pending": "En attente",
+      "approved": "Délivrée",
+      "rejected": "Refusée",
+      "cancelled": "Annulée"
+    },
+    "warnings": {
+      "leave-cancelled": "Congé annulé"
+    },
+    "fields": {
+      "number": "Numéro",
+      "type": "Type de document",
+      "employee": "Employé",
+      "language": "Langue",
+      "issueDate": "Date d’émission",
+      "status": "Statut",
+      "unit": "Unité",
+      "issuedBy": "Émis par",
+      "signatory": "Signataire",
+      "leaveRequest": "Demande de congé",
+      "origin": "Origine",
+      "size": "Taille",
+      "sha256": "Empreinte (SHA-256)"
+    },
+    "form": {
+      "required": "Ce champ est obligatoire.",
+      "tooLong": "Texte trop long.",
+      "email": "Adresse e-mail invalide.",
+      "identifier": "Chiffres, lettres majuscules, espaces, « / » et « - » seulement (30 caractères au plus).",
+      "invalid": "Valeur invalide."
+    },
+    "list": {
+      "title": "Registre des documents",
+      "filters": "Filtres du registre",
+      "search": "Rechercher",
+      "searchPlaceholder": "Numéro, nom ou matricule",
+      "allTypes": "Tous les types",
+      "unit": "Unité",
+      "from": "Émis à partir du",
+      "to": "Émis jusqu’au",
+      "total": "{{count}} document(s)",
+      "empty": "Aucun document émis pour l’instant.",
+      "noMatch": "Aucun document ne correspond à ces filtres.",
+      "loadError": "Impossible de charger les documents."
+    },
+    "detail": {
+      "back": "← Registre des documents",
+      "tabs": "Sections du document",
+      "tab": {
+        "details": "Détails",
+        "history": "Historique"
+      },
+      "loadError": "Impossible de charger le document.",
+      "notFound": "Document introuvable.",
+      "openEmployee": "Voir la fiche",
+      "openLeaveRequest": "Voir la demande de congé",
+      "selfService": "Demande de l’employé (libre-service)",
+      "kb": "Ko",
+      "leaveCancelled": "Le congé de ce titre a été annulé après son émission. Annulez le titre s’il ne doit plus servir.",
+      "voidedOn": "Annulé le {{date}} par {{by}}."
+    },
+    "feedback": {
+      "issued": "Document {{number}} émis. Ouvrez le PDF pour l’imprimer, le signer et le cacheter.",
+      "voided": "Document annulé. Son numéro reste au registre."
+    },
+    "pdf": {
+      "open": "Ouvrir le PDF",
+      "opening": "Ouverture…",
+      "download": "Télécharger",
+      "downloading": "Téléchargement…",
+      "savedInstead": "Le navigateur a bloqué le nouvel onglet : le PDF a été téléchargé.",
+      "notFound": "Ce PDF n’est pas disponible.",
+      "error": "Impossible d’obtenir le PDF. Réessayez."
+    },
+    "void": {
+      "action": "Annuler le document",
+      "title": "Annuler le document {{number}}",
+      "intro": "Le document reste au registre avec son numéro, marqué « annulé ». Cette action est définitive.",
+      "reason": "Motif",
+      "reasonHint": "Entre 3 et 500 caractères, conservé dans l’historique.",
+      "reasonRequired": "Indiquez un motif d’au moins 3 caractères.",
+      "tooLong": "500 caractères au plus.",
+      "confirm": "Annuler le document"
+    },
+    "issue": {
+      "action": "Émettre un document",
+      "title": "Émettre un document",
+      "chooseLeave": "Choisir une demande approuvée",
+      "pickEmployeeFirst": "Choisissez d’abord l’employé.",
+      "leaveHint": "Seules les demandes approuvées de l’employé sont proposées.",
+      "leaveLoadError": "Impossible de charger les demandes de congé de l’employé.",
+      "noApprovedLeave": "Cet employé n’a aucune demande de congé approuvée.",
+      "signatoryAuto": "Automatique (signataire par défaut)",
+      "signatoryHint": "Proposé : le signataire par défaut du type, sinon le plus proche de l’unité de l’employé.",
+      "noSignatory": "Aucun signataire actif ne couvre cet employé.",
+      "preview": "Aperçu",
+      "previewing": "Préparation de l’aperçu…",
+      "previewHint": "L’aperçu ouvre un spécimen dans un nouvel onglet ; aucun numéro n’est consommé.",
+      "submit": "Émettre",
+      "issuing": "Émission…"
+    },
+    "problems": {
+      "profileIncomplete": "L’en-tête de l’entreprise est incomplet pour cette langue. Champs manquants :",
+      "completeProfile": "Compléter l’en-tête",
+      "askAdmin": "Demandez à l’administrateur RH central de compléter l’en-tête des documents.",
+      "employmentEnded": "L’emploi de cet employé a pris fin : émettez plutôt un certificat de travail.",
+      "employmentNotEnded": "Le certificat de travail exige une date de fin d’emploi atteinte.",
+      "leaveNotApproved": "Cette demande de congé n’est pas approuvée.",
+      "typeInactive": "Ce type de document est désactivé.",
+      "noSignatory": "Aucun signataire ne couvre cet employé : ajoutez-en un dans le paramétrage.",
+      "busy": "Un autre document de ce type est en cours d’émission. Réessayez dans un instant.",
+      "renderFailed": "Le PDF n’a pas pu être généré. Réessayez ; si le problème persiste, contactez le support.",
+      "clientRequestReused": "Ce formulaire a déjà servi pour un autre document : rechargez la page.",
+      "numberTaken": "Ce numéro existe déjà : vérifiez le format de numérotation du type.",
+      "forbiddenScope": "Cet employé est hors de votre périmètre pour cette action.",
+      "subjectNotFound": "Employé ou demande introuvable (ou hors de votre périmètre).",
+      "alreadyVoid": "Ce document est déjà annulé.",
+      "companyWide": "Seul un administrateur ayant ce droit sur toute l’entreprise peut modifier ce paramétrage.",
+      "formatTaken": "Ce format est déjà utilisé par un autre type de document."
+    },
+    "employee": {
+      "title": "Documents émis",
+      "empty": "Aucun document émis pour cet employé.",
+      "more": "Voir les {{count}} documents dans le registre"
+    },
+    "leave": {
+      "title": "Titre de congé",
+      "issue": "Émettre le titre de congé",
+      "none": "Aucun titre émis pour cette demande."
+    },
+    "tasks": {
+      "requestedAt": "Demandée le",
+      "approveHint": "Approuver émet le document avec le signataire par défaut ; l’employé le télécharge depuis « Mes documents »."
+    },
+    "settings": {
+      "title": "Paramétrage des documents",
+      "intro": "L’en-tête, les signataires et la numérotation sont des données de l’entreprise ; le texte légal de chaque document est fixe.",
+      "tabs": "Sections du paramétrage",
+      "tab": {
+        "profile": "En-tête",
+        "signatories": "Signataires",
+        "types": "Types"
+      },
+      "actions": "Actions",
+      "edit": "Modifier",
+      "yes": "Oui",
+      "no": "Non"
+    },
+    "profile": {
+      "title": "En-tête de l’entreprise",
+      "intro": "Imprimé en haut de chaque document. Les champs arabes sont nécessaires pour émettre en arabe.",
+      "loadError": "Impossible de charger l’en-tête.",
+      "complete": "complet",
+      "incomplete": "incomplet",
+      "saved": "En-tête enregistré.",
+      "fields": {
+        "legalNameFr": "Raison sociale (français)",
+        "legalNameAr": "Raison sociale (arabe)",
+        "addressFr": "Adresse (français)",
+        "addressAr": "Adresse (arabe)",
+        "cityFr": "« Fait à » (français)",
+        "cityAr": "« Fait à » (arabe)",
+        "footerFr": "Pied de page (français)",
+        "footerAr": "Pied de page (arabe)",
+        "phone": "Téléphone",
+        "email": "E-mail",
+        "nif": "NIF",
+        "nis": "NIS",
+        "rc": "RC",
+        "ai": "Article d’imposition (AI)"
+      },
+      "logo": "Logo",
+      "logoCurrent": "Logo actuel",
+      "logoPreview": "Aperçu du nouveau logo",
+      "noLogo": "Aucun logo.",
+      "chooseLogo": "Choisir une image",
+      "logoHint": "PNG ou JPEG, 256 Ko au plus.",
+      "logoType": "Format refusé : PNG ou JPEG seulement.",
+      "logoSize": "Image trop lourde : 256 Ko au plus.",
+      "uploadLogo": "Enregistrer le logo",
+      "removeLogo": "Retirer le logo",
+      "logoSaved": "Logo enregistré.",
+      "logoRemoved": "Logo retiré."
+    },
+    "signatories": {
+      "title": "Signataires",
+      "intro": "Un signataire signe pour toute l’entreprise ou pour une unité et ses sous-unités. Nom et fonction sont imprimés ; la signature et le cachet sont apposés à la main.",
+      "new": "Nouveau signataire",
+      "edit": "Modifier le signataire",
+      "scope": "Signe pour",
+      "company": "Toute l’entreprise",
+      "unit": "Une unité (et ses sous-unités)",
+      "unitHint": "Il signe pour les employés de cette unité et de ses sous-unités.",
+      "fields": {
+        "nameFr": "Nom (français)",
+        "nameAr": "Nom (arabe)",
+        "titleFr": "Fonction (français)",
+        "titleAr": "Fonction (arabe)"
+      },
+      "name": "Nom",
+      "titleCol": "Fonction",
+      "defaultFor": "Par défaut pour",
+      "active": "Actif",
+      "empty": "Aucun signataire.",
+      "loadError": "Impossible de charger les signataires.",
+      "created": "Signataire ajouté.",
+      "saved": "Signataire enregistré."
+    },
+    "types": {
+      "title": "Types de documents",
+      "intro": "Numérotation sans trou, par type et par année d’émission. Un nouveau format s’applique au prochain numéro.",
+      "numberFormat": "Format de numéro",
+      "formatHint": "Lettres majuscules, chiffres, « / _ . - » et les jetons {YYYY}, {YY}, {SEQ} ou {SEQ:5} (numéro sur 5 chiffres).",
+      "preview": "Prochain numéro :",
+      "formatErrors": {
+        "literal": "Caractère non autorisé : majuscules, chiffres et « / _ . - » seulement, hors jetons.",
+        "seq": "Le format doit contenir exactement un {SEQ} (ou {SEQ:n}).",
+        "year": "Le format doit contenir l’année : {YYYY} ou {YY}.",
+        "length": "Le numéro obtenu dépasse 40 caractères."
+      },
+      "nextNumber": "Prochain numéro",
+      "languages": "Langues",
+      "languagesRequired": "Choisissez au moins une langue.",
+      "selfService": "Les employés peuvent la demander eux-mêmes (« Mes documents »)",
+      "selfServiceShort": "Libre-service",
+      "selfServiceHint": "Chaque demande passe par une validation RH avant émission.",
+      "defaultSignatory": "Signataire par défaut",
+      "defaultSignatoryHint": "Sans signataire par défaut, le plus proche de l’unité de l’employé signe.",
+      "nearestSignatory": "Le plus proche de l’employé",
+      "active": "Actif",
+      "empty": "Aucun type de document.",
+      "loadError": "Impossible de charger les types de documents.",
+      "saved": "Type de document enregistré."
+    },
+    "mine": {
+      "title": "Mes documents",
+      "notLinked": "Votre compte n'est lié à aucun dossier employé : demandez aux RH de le lier pour demander des attestations.",
+      "newRequest": "Demander une attestation",
+      "noSelfService": "Aucun document ne peut être demandé en libre-service pour l’instant.",
+      "purpose": "Objet",
+      "purposeHint": "Facultatif, 200 caractères au plus. Lu par les RH, jamais imprimé.",
+      "submit": "Envoyer la demande",
+      "requested": "Demande envoyée aux RH.",
+      "cancelled": "Demande annulée.",
+      "requests": "Mes demandes",
+      "noRequests": "Aucune demande.",
+      "requestedOn": "demandée le {{date}}",
+      "rejectedBecause": "Refusée : {{comment}}",
+      "issuedAs": "Délivrée : document {{number}}.",
+      "documents": "Mes documents émis",
+      "noDocuments": "Aucun document pour l’instant.",
+      "loadError": "Impossible de charger vos documents.",
+      "linkedMissing": "L’élément du lien n’est plus disponible.",
+      "cancel": "Annuler",
+      "cancelTitle": "Annuler cette demande ?",
+      "confirmCancel": "Annuler la demande",
+      "keep": "Garder",
+      "problems": {
+        "notSelfService": "Ce document ne peut pas être demandé en libre-service.",
+        "pending": "Vous avez déjà une demande en attente pour ce document.",
+        "employmentEnded": "Votre emploi a pris fin : demandez un certificat de travail aux RH.",
+        "notCancellable": "Cette demande ne peut plus être annulée."
+      }
     }
   }
 }

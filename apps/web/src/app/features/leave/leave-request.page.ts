@@ -12,10 +12,13 @@
  * the timeline's code out of this page's chunk until the section scrolls into view (chapter 13). The `resolver`
  * names what the page already knows: leave types (LeaveCatalog), the request's workflow step keys (its definition's
  * labels), and the employee's unit. It reads signals, so names appear as soon as that data arrives.
+ * Titre de congé (docs/contracts/documents.md › Web): `<app-leave-titles>` lists the titres issued for this request and,
+ * when it is approved, links to the issue page (leave-titles.ts).
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { Session } from '../../core/auth/session';
 import { isApiProblemError } from '../../core/http/api-problem';
 import { LanguageService } from '../../core/i18n/language.service';
 import { LeaveApi } from '../../core/leave/leave-api';
@@ -24,11 +27,12 @@ import { CanDirective } from '../../shared/can/can.directive';
 import { displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { LeaveRequestView } from '../../shared/leave/leave-request-view';
 import { Timeline } from '../../shared/timeline/timeline';
+import { LeaveTitles } from './leave-titles';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 
 @Component({
   selector: 'app-leave-request-page',
-  imports: [TranslocoDirective, RouterLink, CanDirective, LeaveRequestView, Timeline],
+  imports: [TranslocoDirective, RouterLink, CanDirective, LeaveRequestView, Timeline, LeaveTitles],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -42,6 +46,12 @@ import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
           </a>
         </header>
         <app-leave-request-view [request]="r" />
+
+        @if (canTitles()) {
+          <section class="panel" aria-labelledby="leave-titles-title" data-section="titles">
+            <app-leave-titles [request]="r" />
+          </section>
+        }
 
         <section class="panel" aria-labelledby="leave-history-title" data-section="history">
           <h2 id="leave-history-title">{{ t('leave.detail.history') }}</h2>
@@ -71,6 +81,8 @@ import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 export class LeaveRequestPage {
   private readonly catalog = inject(LeaveCatalog);
   private readonly lang = inject(LanguageService).current;
+  /** "Titre de congé" block (leave-titles.ts): the register rows need `document.read`. */
+  protected readonly canTitles = inject(Session).allows('document.read');
 
   readonly id = input.required<string>();
   protected readonly request = inject(LeaveApi).requestResource(this.id);

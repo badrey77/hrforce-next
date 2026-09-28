@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from './modules/audit/index.js';
 import { AuthorizationModule } from './modules/authorization/index.js';
+import { DocumentsModule } from './modules/documents/index.js';
 import { EmploymentModule } from './modules/employment/index.js';
 import { IdentityModule } from './modules/identity/index.js';
 import { LeaveModule } from './modules/leave/index.js';
@@ -22,6 +23,7 @@ import { PlatformModule } from './platform/platform.module.js';
     StaffingModule,
     WorkflowModule,
     LeaveModule,
+    DocumentsModule,
   ],
 })
 export class AppModule {}

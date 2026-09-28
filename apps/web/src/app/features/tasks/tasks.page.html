@@ -31,11 +31,18 @@
             <li>
               <button type="button" class="task" [attr.data-task]="task.id" [attr.aria-pressed]="task.id === selectedId()" (click)="select(task)">
                 <span class="who">{{ task.subject.employee.person | displayName: lang() }}</span>
-                <span class="what">
-                  {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
-                  {{ t('leave.fields.range', { from: (task.subject.startDate | date: 'mediumDate' : undefined : locale()), to: (task.subject.endDate | date: 'mediumDate' : undefined : locale()) }) }}
-                  · {{ t('leave.fields.daysCount', { days: (task.subject.days | number: '1.0-1' : locale()) }) }}
-                </span>
+                <!-- The union narrows inside @if: leaveTypeId/startDate exist only on a leave subject. -->
+                @if (task.subject.type === 'leave_request') {
+                  <span class="what">
+                    {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
+                    {{ t('leave.fields.range', { from: (task.subject.startDate | date: 'mediumDate' : undefined : locale()), to: (task.subject.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                    · {{ t('leave.fields.daysCount', { days: (task.subject.days | number: '1.0-1' : locale()) }) }}
+                  </span>
+                } @else {
+                  <span class="what" data-subject="document_request">
+                    {{ catalog.labelOf(task.subject.documentType.labels) }} · {{ t('documents.languages.' + task.subject.language) }}
+                  </span>
+                }
                 <span class="step">
                   {{ t('tasks.step', { step: catalog.labelOf(task.stepLabels) }) }}
                   @if (task.escalated) {
@@ -56,7 +63,25 @@
     <section class="panel detail" aria-labelledby="task-panel-title">
       @if (selected(); as task) {
         <h2 id="task-panel-title" #panelHeading tabindex="-1">{{ task.subject.employee.person | displayName: lang() }}</h2>
-        @if (detail.error()) {
+        @if (task.subject.type === 'document_request') {
+          <dl class="facts" data-panel="document-request">
+            <dt>{{ t('documents.fields.employee') }}</dt>
+            <dd data-field="employee">{{ task.subject.employee.person | displayName: lang() }} <span class="code">({{ task.subject.employee.matricule }})</span></dd>
+            @if (task.subject.employee.unit; as unit) {
+              <dt>{{ t('documents.fields.unit') }}</dt>
+              <dd>{{ unit | displayName: lang() }}</dd>
+            }
+            <dt>{{ t('documents.fields.type') }}</dt>
+            <dd data-field="document-type">{{ catalog.labelOf(task.subject.documentType.labels) }}</dd>
+            <dt>{{ t('documents.fields.language') }}</dt>
+            <dd>{{ t('documents.languages.' + task.subject.language) }}</dd>
+            <dt>{{ t('documents.mine.purpose') }}</dt>
+            <dd data-field="purpose" dir="auto">{{ task.subject.purpose || '—' }}</dd>
+            <dt>{{ t('documents.tasks.requestedAt') }}</dt>
+            <dd>{{ task.subject.requestedAt | date: 'medium' : undefined : locale() }}</dd>
+          </dl>
+          <p class="field-hint">{{ t('documents.tasks.approveHint') }}</p>
+        } @else if (detail.error()) {
           <div class="form-error" role="alert">
             <p>{{ t('tasks.detailError') }}</p>
             <button class="btn secondary" type="button" (click)="detail.reload()">{{ t('common.retry') }}</button>
@@ -83,7 +108,7 @@
     @if (rejecting(); as task) {
       <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" novalidate>
         <h2 id="reject-title">{{ t('tasks.rejectTitle') }}</h2>
-        <p>{{ task.subject.employee.person | displayName: lang() }} — {{ catalog.nameOf(task.subject.leaveTypeId) }}</p>
+        <p>{{ task.subject.employee.person | displayName: lang() }} — {{ subjectLabel(task) }}</p>
         @let comment = rejectForm.controls.comment;
         <div class="field">
           <label for="reject-comment">{{ t('tasks.comment') }}</label>

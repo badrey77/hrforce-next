@@ -19,6 +19,8 @@ export interface NotificationMailInput {
   data: Readonly<Record<string, unknown>>;
   /** the leave type's label in the recipient's locale (falls back to the code) */
   leaveTypeLabel: string | null;
+  /** the document type's label in the recipient's locale (document notifications; falls back to the code) */
+  documentTypeLabel?: string | null;
   /** absolute link (`${WEB_BASE_URL}` + the notification's path) */
   link: string;
 }
@@ -38,6 +40,10 @@ interface Facts {
   end: string;
   days: string;
   actor: string;
+  /** the subject is a self-service document request (task.assigned) */
+  document: boolean;
+  docType: string;
+  number: string;
 }
 
 interface Wording {
@@ -55,15 +61,20 @@ const WORDING: Record<MailLocale, Wording> = {
   fr: {
     greeting: (name) => `Bonjour ${name},`,
     subjects: {
-      'task.assigned': (f) => `HRForce — demande de congé à traiter : ${f.employee}`,
+      'task.assigned': (f) => (f.document ? `HRForce — demande ${deFr(f.docType)} à traiter : ${f.employee}` : `HRForce — demande de congé à traiter : ${f.employee}`),
       'task.escalated': (f) => (f.own ? 'HRForce — votre demande de congé est transmise aux RH' : `HRForce — demande de congé de ${f.employee} transmise aux RH`),
       'leave.approved': (f) => (f.own ? 'HRForce — votre demande de congé est approuvée' : `HRForce — demande de congé de ${f.employee} approuvée`),
       'leave.rejected': (f) => (f.own ? 'HRForce — votre demande de congé est refusée' : `HRForce — demande de congé de ${f.employee} refusée`),
       'leave.cancelled': (f) => `HRForce — demande de congé annulée : ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — une demande de congé a été déposée pour vous',
+      'document.ready': (f) => `HRForce — votre document est prêt (${f.docType})`,
+      'document.rejected': () => 'HRForce — votre demande de document est refusée',
     },
     bodies: {
-      'task.assigned': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
+      'task.assigned': (f) =>
+        f.document
+          ? `La demande ${deFr(f.docType)} de ${f.employee} attend votre décision.`
+          : `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
       'task.escalated': (f) =>
         `L’étape du responsable hiérarchique n’a pas pu être attribuée pour ${f.own ? 'votre demande' : `la demande de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}) : elle est transmise directement aux ressources humaines.`,
       'leave.approved': (f) => `${f.own ? 'Votre demande de congé' : `La demande de congé de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) a été approuvée par ${f.actor}.`,
@@ -71,6 +82,8 @@ const WORDING: Record<MailLocale, Wording> = {
         `${f.own ? 'Votre demande de congé' : `La demande de congé de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
       'leave.cancelled': (f) => `${f.actor} a annulé la demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}). Elle ne demande plus votre décision.`,
       'leave.submitted_on_behalf': (f) => `${f.actor} a déposé pour vous une demande de congé : ${f.type}, du ${f.start} au ${f.end} (${f.days}).`,
+      'document.ready': (f) => `Votre demande a été approuvée par ${f.actor} : ${f.docType} n° ${f.number}. Vous pouvez la télécharger dans « Mes documents ».`,
+      'document.rejected': (f) => `Votre demande (${f.docType}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
     },
     action: {
       'task.assigned': 'Ouvrir la tâche',
@@ -79,6 +92,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'leave.rejected': 'Voir la demande',
       'leave.cancelled': 'Ouvrir mes tâches',
       'leave.submitted_on_behalf': 'Voir la demande',
+      'document.ready': 'Ouvrir mes documents',
+      'document.rejected': 'Ouvrir mes documents',
     },
     footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
     signature: 'L’équipe HRForce',
@@ -88,15 +103,20 @@ const WORDING: Record<MailLocale, Wording> = {
   ar: {
     greeting: (name) => `مرحبًا ${name}،`,
     subjects: {
-      'task.assigned': (f) => `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`,
+      'task.assigned': (f) => (f.document ? `HRForce — طلب ${f.docType} للمعالجة: ${f.employee}` : `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`),
       'task.escalated': (f) => (f.own ? 'HRForce — تمت إحالة طلب عطلتك إلى الموارد البشرية' : `HRForce — تمت إحالة طلب عطلة ${f.employee} إلى الموارد البشرية`),
       'leave.approved': (f) => (f.own ? 'HRForce — تمت الموافقة على طلب عطلتك' : `HRForce — تمت الموافقة على طلب عطلة ${f.employee}`),
       'leave.rejected': (f) => (f.own ? 'HRForce — تم رفض طلب عطلتك' : `HRForce — تم رفض طلب عطلة ${f.employee}`),
       'leave.cancelled': (f) => `HRForce — تم إلغاء طلب العطلة: ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — تم تقديم طلب عطلة باسمك',
+      'document.ready': (f) => `HRForce — وثيقتك جاهزة (${f.docType})`,
+      'document.rejected': () => 'HRForce — تم رفض طلب وثيقتك',
     },
     bodies: {
-      'task.assigned': (f) => `طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
+      'task.assigned': (f) =>
+        f.document
+          ? `طلب ${f.docType} الخاص بـ ${f.employee} في انتظار قرارك.`
+          : `طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
       'task.escalated': (f) =>
         `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلبك' : `لطلب ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
       'leave.approved': (f) =>
@@ -105,6 +125,8 @@ const WORDING: Record<MailLocale, Wording> = {
         `تم رفض ${f.own ? 'طلب عطلتك' : `طلب العطلة الخاص بـ ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
       'leave.cancelled': (f) => `ألغى ${f.actor} طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}). لم يعد الطلب في انتظار قرارك.`,
       'leave.submitted_on_behalf': (f) => `قدّم ${f.actor} طلب عطلة باسمك: ${f.type}، من ${f.start} إلى ${f.end} (${f.days}).`,
+      'document.ready': (f) => `وافق ${f.actor} على طلبك: ${f.docType} رقم ${f.number}. يمكنك تحميلها من «وثائقي».`,
+      'document.rejected': (f) => `تم رفض طلبك (${f.docType}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
     },
     action: {
       'task.assigned': 'فتح المهمة',
@@ -113,6 +135,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'leave.rejected': 'عرض الطلب',
       'leave.cancelled': 'فتح مهامي',
       'leave.submitted_on_behalf': 'عرض الطلب',
+      'document.ready': 'فتح وثائقي',
+      'document.rejected': 'فتح وثائقي',
     },
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
     signature: 'فريق HRForce',
@@ -122,15 +146,20 @@ const WORDING: Record<MailLocale, Wording> = {
   en: {
     greeting: (name) => `Hello ${name},`,
     subjects: {
-      'task.assigned': (f) => `HRForce — leave request awaiting your decision: ${f.employee}`,
+      'task.assigned': (f) => (f.document ? `HRForce — ${f.docType} request awaiting your decision: ${f.employee}` : `HRForce — leave request awaiting your decision: ${f.employee}`),
       'task.escalated': (f) => (f.own ? 'HRForce — your leave request went straight to HR' : `HRForce — ${f.employee}’s leave request went straight to HR`),
       'leave.approved': (f) => (f.own ? 'HRForce — your leave request was approved' : `HRForce — ${f.employee}’s leave request approved`),
       'leave.rejected': (f) => (f.own ? 'HRForce — your leave request was rejected' : `HRForce — ${f.employee}’s leave request rejected`),
       'leave.cancelled': (f) => `HRForce — leave request cancelled: ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — a leave request was filed for you',
+      'document.ready': (f) => `HRForce — your document is ready (${f.docType})`,
+      'document.rejected': () => 'HRForce — your document request was rejected',
     },
     bodies: {
-      'task.assigned': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
+      'task.assigned': (f) =>
+        f.document
+          ? `The ${f.docType} request of ${f.employee} is awaiting your decision.`
+          : `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
       'task.escalated': (f) =>
         `The line-manager step could not be assigned for ${f.own ? 'your request' : `the request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}); it went straight to human resources.`,
       'leave.approved': (f) => `${f.own ? 'Your leave request' : `The leave request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}, ${f.days}) was approved by ${f.actor}.`,
@@ -138,6 +167,8 @@ const WORDING: Record<MailLocale, Wording> = {
         `${f.own ? 'Your leave request' : `The leave request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}) was rejected by ${f.actor}. The details are in the app.`,
       'leave.cancelled': (f) => `${f.actor} cancelled the leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}). It no longer needs your decision.`,
       'leave.submitted_on_behalf': (f) => `${f.actor} filed a leave request for you: ${f.type}, ${f.start} to ${f.end} (${f.days}).`,
+      'document.ready': (f) => `Your request was approved by ${f.actor}: ${f.docType} no. ${f.number}. You can download it from My documents.`,
+      'document.rejected': (f) => `Your request (${f.docType}) was rejected by ${f.actor}. The details are in the app.`,
     },
     action: {
       'task.assigned': 'Open the task',
@@ -146,6 +177,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'leave.rejected': 'View the request',
       'leave.cancelled': 'Open my tasks',
       'leave.submitted_on_behalf': 'View the request',
+      'document.ready': 'Open my documents',
+      'document.rejected': 'Open my documents',
     },
     footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
     signature: 'The HRForce team',
@@ -153,6 +186,12 @@ const WORDING: Record<MailLocale, Wording> = {
     daysUnit: (days) => `${days} day${days === '1' ? '' : 's'}`,
   },
 };
+
+/** "de" + a French noun phrase, with elision: d’attestation de travail, de certificat de travail (label lower-cased). */
+function deFr(label: string): string {
+  const lower = label.charAt(0).toLowerCase() + label.slice(1);
+  return /^[aeiouyhéèêàâîô]/i.test(lower) ? `d’${lower}` : `de ${lower}`;
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -189,6 +228,9 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
     end: formatDate(str(d['endDate']), input.locale),
     days: w.daysUnit(formatDays(d['days'], input.locale)),
     actor: str(d['actorName']) || w.someone,
+    document: d['subjectType'] === 'document_request',
+    docType: input.documentTypeLabel ?? str(d['documentType']),
+    number: str(d['number']),
   };
   const subject = w.subjects[input.type](facts);
   const body = w.bodies[input.type](facts);

@@ -203,6 +203,24 @@ algorithm:
 
 Because it is one global rule, every breadcrumb in the app is fixed at once.
 
+### Mixed Latin and Arabic in one line: `<bdi>` and `dir="auto"`
+
+In an Arabic page, a Latin value (a person's name, a matricule) printed next to a date is a
+classic trap: the browser's bidi algorithm joins the Latin letters and the date's digits into
+ONE left-to-right run, so "Amina Benali · 29/09/2026" can come out as "2026/09/Amina Benali · 29".
+The fix is plain HTML, no Angular API: wrap each interpolated value in `<bdi>` ("bidirectional
+isolate"), which lays it out on its own and places it as a single unit in the surrounding line.
+`features/documents/document-detail.page.html` (the "issued by" row) and
+`shared/leave/leave-request-view.ts` do this; `shared/timeline/timeline-value.ts` wraps every
+timeline value. A whole input or paragraph whose language is not known in advance (a purpose, a
+reason typed by a user) gets `dir="auto"` instead: its direction follows its first strong
+character.
+
+The generated PDFs have the same problem one level down: the API removes Unicode bidi control
+characters (RLO, LRE, isolates…) from every printed value, because one unterminated control
+pasted into a name would mirror the rest of the legal sentence
+(`apps/api/src/modules/documents/domain/snapshot.ts`, `withoutBidiControls`).
+
 
 ### The css-logical guardrail
 

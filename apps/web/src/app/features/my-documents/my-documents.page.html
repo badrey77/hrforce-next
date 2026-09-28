@@ -1,0 +1,160 @@
+<!--
+  Three states from MyEmployment.linked(): null → asking; false → "not linked" explanation; true → the page.
+  Requests and documents are cards (one per item, readable at 390 px); `data-item` is what the ?document= / ?request=
+  highlight looks for.
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('documents.mine.title') }}</h1>
+  </header>
+
+  @if (linked()) {
+    @if (me.employment(); as employment) {
+      <p class="muted" data-field="me">
+        {{ employment.person | displayName: lang() }} · <span class="code">{{ employment.matricule }}</span> ·
+        {{ employment.unit | displayName: lang() }}
+      </p>
+    }
+    @if (feedback(); as key) {
+      <p class="feedback" role="status">{{ t(key) }}</p>
+    }
+
+    <section aria-labelledby="request-title">
+      <h2 id="request-title">{{ t('documents.mine.newRequest') }}</h2>
+      @if (catalog.loaded() && !catalog.selfServiceTypes().length) {
+        <p class="muted" data-state="no-self-service">{{ t('documents.mine.noSelfService') }}</p>
+      } @else {
+        @let c = form.controls;
+        <form [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="request">
+          @if (formError(); as error) {
+            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+          }
+          <div class="field">
+            <label for="request-type">{{ t('documents.fields.type') }}</label>
+            <select id="request-type" formControlName="typeCode" required
+              [attr.aria-invalid]="c.typeCode.invalid && c.typeCode.touched" aria-describedby="request-type-error">
+              @for (type of catalog.selfServiceTypes(); track type.id) {
+                <option [value]="type.code">{{ catalog.labelOf(type.labels) }}</option>
+              }
+            </select>
+            @if (c.typeCode.invalid && c.typeCode.touched) {
+              <p class="field-error" id="request-type-error">{{ c.typeCode.hasError('serverKey') ? t(c.typeCode.getError('serverKey')) : t('documents.form.required') }}</p>
+            }
+          </div>
+          <fieldset class="field">
+            <legend>{{ t('documents.fields.language') }}</legend>
+            <div class="radios">
+              @for (language of languages(); track language) {
+                <div class="check">
+                  <input type="radio" formControlName="language" [id]="'request-lang-' + language" [value]="language" />
+                  <label [for]="'request-lang-' + language">{{ t('documents.languages.' + language) }}</label>
+                </div>
+              }
+            </div>
+          </fieldset>
+          <div class="field">
+            <label for="request-purpose">{{ t('documents.mine.purpose') }}</label>
+            <input id="request-purpose" type="text" formControlName="purpose" dir="auto" [attr.maxlength]="200"
+              [attr.aria-invalid]="c.purpose.invalid && c.purpose.touched" aria-describedby="request-purpose-hint" />
+            <p class="field-hint" id="request-purpose-hint">{{ t('documents.mine.purposeHint') }}</p>
+          </div>
+          <div class="form-actions">
+            <button class="btn" type="submit" data-action="request" [disabled]="submitting()">{{ t('documents.mine.submit') }}</button>
+          </div>
+        </form>
+      }
+    </section>
+
+    @if (linkedMissing()) {
+      <p class="warning" role="status" data-state="item-missing">{{ t('documents.mine.linkedMissing') }}</p>
+    }
+
+    @if (mine.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('documents.mine.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="mine.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (mine.hasValue()) {
+      <section aria-labelledby="requests-title" [attr.aria-busy]="mine.isLoading()">
+        <h2 id="requests-title">{{ t('documents.mine.requests') }}</h2>
+        <ul class="items">
+          @for (r of requests(); track r.id) {
+            @let key = 'request:' + r.id;
+            <li [attr.data-item]="key" [attr.data-request]="r.id" [class.highlight]="key === highlighted()"
+              [attr.aria-current]="key === highlighted() ? 'true' : null" [attr.tabindex]="key === highlighted() ? -1 : null">
+              <div class="head">
+                <p>
+                  <strong>{{ label(r.type.labels) }}</strong> · {{ t('documents.languages.' + r.language) }} ·
+                  {{ t('documents.mine.requestedOn', { date: (r.requestedAt | date: 'mediumDate' : undefined : locale()) }) }}
+                </p>
+                <p>
+                  <span class="badge" [attr.data-status]="r.status">{{ t('documents.requestStatus.' + r.status) }}</span>
+                  @if (canCancel(r)) {
+                    &ngsp;<button class="btn secondary" type="button" data-action="cancel" (click)="openCancel(r)">{{ t('documents.mine.cancel') }}</button>
+                  }
+                </p>
+              </div>
+              @if (r.purpose) {
+                <p class="muted" dir="auto">{{ t('documents.mine.purpose') }} : {{ r.purpose }}</p>
+              }
+              @if (r.rejectionComment) {
+                <p class="warning" dir="auto" data-field="rejection">{{ t('documents.mine.rejectedBecause', { comment: r.rejectionComment }) }}</p>
+              }
+              @if (r.document; as doc) {
+                <p data-field="issued">{{ t('documents.mine.issuedAs', { number: doc.number }) }}</p>
+              }
+              <app-workflow-stepper [progress]="r.workflow" />
+            </li>
+          } @empty {
+            <li class="muted" data-state="no-requests">{{ t('documents.mine.noRequests') }}</li>
+          }
+        </ul>
+      </section>
+
+      <section aria-labelledby="documents-title">
+        <h2 id="documents-title">{{ t('documents.mine.documents') }}</h2>
+        <ul class="items">
+          @for (d of documents(); track d.id) {
+            @let key = 'document:' + d.id;
+            <li [attr.data-item]="key" [attr.data-document]="d.id" [class.highlight]="key === highlighted()"
+              [attr.aria-current]="key === highlighted() ? 'true' : null" [attr.tabindex]="key === highlighted() ? -1 : null">
+              <div class="head">
+                <p>
+                  <strong>{{ label(d.type.labels) }}</strong> · <span class="code" dir="ltr">{{ d.number }}</span> ·
+                  {{ t('documents.languages.' + d.language) }} · {{ d.issueDate | date: 'mediumDate' : undefined : locale() }}
+                </p>
+                <app-pdf-actions [documentId]="d.id" [number]="d.number" [mine]="true" />
+              </div>
+            </li>
+          } @empty {
+            <li class="muted" data-state="no-documents">{{ t('documents.mine.noDocuments') }}</li>
+          }
+        </ul>
+      </section>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  } @else if (me.linked() === null && !lostLink()) {
+    <p class="muted">{{ t('common.loading') }}</p>
+  } @else {
+    <div class="warning" role="alert" data-state="not-linked">
+      <p>{{ t('documents.mine.notLinked') }}</p>
+    </div>
+  }
+
+  <dialog #cancelDialog class="modal" aria-labelledby="cancel-title" (close)="onCancelClosed()">
+    @if (cancelling(); as request) {
+      <h2 id="cancel-title">{{ t('documents.mine.cancelTitle') }}</h2>
+      <p>{{ label(request.type.labels) }}</p>
+      @if (cancelError(); as key) {
+        <p class="form-error" role="alert">{{ t(key) }}</p>
+      }
+      <div class="form-actions">
+        <button class="btn" type="button" data-action="confirm-cancel" [disabled]="cancelSubmitting()" (click)="confirmCancel()">
+          {{ t('documents.mine.confirmCancel') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="closeCancel()">{{ t('documents.mine.keep') }}</button>
+      </div>
+    }
+  </dialog>
+</ng-container>

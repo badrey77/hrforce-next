@@ -253,6 +253,13 @@
           </div>
         }
 
+        <!-- Documents: register rows of this employee + "Issue" (employee-documents-tab.ts). -->
+        @case ('documents') {
+          <div data-panel="documents">
+            <app-employee-documents-tab [employee]="e" />
+          </div>
+        }
+
         <!-- History: the timeline's code is fetched only when this tab is opened (chapter 13). ---------------- -->
         @case ('history') {
           <div data-panel="history">

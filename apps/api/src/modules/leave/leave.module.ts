@@ -5,15 +5,18 @@ import { EmployeeLeaveController, LeaveController, MyLeaveController } from './a
 import { LeaveClock } from './application/leave-clock.js';
 import { LeaveConfigService } from './application/leave-config.service.js';
 import { LeaveService } from './application/leave.service.js';
+import { LeaveFacts } from './infra/leave-facts.js';
 import { LeaveRepository } from './infra/leave.repository.js';
 
 /**
  * Leave (docs/contracts/leave.md): configuration (types, holidays, policy), requests approved through the workflow
  * engine (subject `leave_request`), the balance ledger, accruals and the self-service / HR endpoints.
+ * Exports {@link LeaveFacts} (read-only request facts + resumption date) for the Documents module's titre de congé.
  */
 @Module({
   imports: [StaffingModule, WorkflowModule],
   controllers: [MyLeaveController, LeaveController, EmployeeLeaveController],
-  providers: [LeaveService, LeaveConfigService, LeaveRepository, LeaveClock],
+  providers: [LeaveService, LeaveConfigService, LeaveRepository, LeaveClock, LeaveFacts],
+  exports: [LeaveFacts],
 })
 export class LeaveModule {}

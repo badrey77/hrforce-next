@@ -2,7 +2,7 @@
  * First-run setup of a real company on an empty (or partly filled) database — used on staging/production, where the
  * demo seed must never run. Creates, in ONE transaction (as the migrator):
  *   company → its root unit (direction_generale) with its site → system roles → leave policy, leave types, holidays
- *   and workflow definitions (defaults, NOT the demo data) → the first admin account (INVITED, setup link to mail)
+ *   and workflow definitions, document types (defaults, NOT the demo data) → the first admin account (INVITED, setup link to mail)
  *   → a grant of `admin_rh_central` on the root unit including sub-units, from `today`; the security policy with the
  *   defaults (two-step sign-in enforced: the first admin enrolls at first sign-in).
  * Refuses when a company with the same code already exists (it never modifies an existing company).
@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import type { Transaction } from 'kysely';
 import type { DB } from '../platform/db/schema.js';
 import { seedGrants, seedSecurityPolicy, seedSystemRoles } from '../modules/authorization/index.js';
+import { seedDocumentDefaults } from '../modules/documents/index.js';
 import { inviteUser, type InviteResult } from '../modules/identity/index.js';
 import { seedLeaveDefaults } from '../modules/leave/index.js';
 import { seedOrganization } from '../modules/organization/index.js';
@@ -72,6 +73,8 @@ export async function bootstrapCompany(tx: Transaction<DB>, input: BootstrapInpu
   // two-step sign-in ENFORCED with the default permission list (docs/contracts/mfa.md)
   await seedSecurityPolicy(tx, companyId, { mfaEnforced: true });
   await seedLeaveDefaults(tx, companyId);
+  // docs/contracts/documents.md: the three document types and the self-service workflow (no letterhead yet)
+  await seedDocumentDefaults(tx, companyId);
 
   const admin = await inviteUser(tx, {
     email: input.adminEmail,

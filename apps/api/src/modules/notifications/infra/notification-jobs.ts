@@ -80,8 +80,18 @@ export async function sendNotificationEmail(tx: Transaction<DB>, deps: EmailJobD
       .executeTakeFirst();
     if (type) leaveTypeLabel = lang === 'ar' ? type.name_ar : lang === 'en' ? type.name_en : type.name_fr;
   }
+  let documentTypeLabel: string | null = null;
+  if (typeof data['documentType'] === 'string') {
+    const type = await tx
+      .selectFrom('document_type')
+      .select(['name_fr', 'name_ar', 'name_en'])
+      .where('company_id', '=', payload.companyId)
+      .where('code', '=', data['documentType'])
+      .executeTakeFirst();
+    if (type) documentTypeLabel = lang === 'ar' ? type.name_ar : lang === 'en' ? type.name_en : type.name_fr;
+  }
   const link = `${deps.webBaseUrl}${linkOf({ type: n.type, subjectType: n.subject_type, subjectId: n.subject_id, data })}`;
-  const mail = renderNotificationMail({ type: n.type, locale: lang, recipientName: recipient.display_name, data, leaveTypeLabel, link });
+  const mail = renderNotificationMail({ type: n.type, locale: lang, recipientName: recipient.display_name, data, leaveTypeLabel, documentTypeLabel, link });
   await deps.mail.send({ to: recipient.email, ...mail });
   return 'sent';
 }

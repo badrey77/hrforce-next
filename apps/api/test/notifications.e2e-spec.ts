@@ -368,6 +368,8 @@ describe('endpoints', () => {
       { type: 'leave.rejected', email: true, default: true },
       { type: 'leave.cancelled', email: false, default: false },
       { type: 'leave.submitted_on_behalf', email: true, default: true },
+      { type: 'document.ready', email: true, default: true },
+      { type: 'document.rejected', email: true, default: true },
     ]);
     const put = await client('agent').put('/api/me/notification-preferences').send([{ type: 'leave.approved', email: false }, { type: 'task.escalated', email: true }]).expect(200);
     expect(put.body).toEqual(expect.arrayContaining([{ type: 'leave.approved', email: false, default: true }, { type: 'task.escalated', email: true, default: false }]));

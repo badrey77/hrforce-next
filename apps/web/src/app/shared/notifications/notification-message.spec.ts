@@ -64,6 +64,21 @@ describe('notificationMessage', () => {
     }
   });
 
+  it('documents: task.assigned about a document request has its own sentence; the type code becomes a name key', () => {
+    const task = notificationMessage({ type: 'task.assigned', data: { subjectType: 'document_request', documentType: 'attestation_travail', employeeName: 'BENALI Amina' } }, FORMAT);
+    expect(task.key).toBe('notifications.types.task.assigned_document');
+    expect(task.documentTypeKey).toBe('documents.typeNames.attestation_travail');
+    expect(notificationKey({ type: 'task.assigned', data: { subjectType: 'leave_request' } })).toBe('notifications.types.task.assigned');
+    const ready = notificationMessage({ type: 'document.ready', data: { documentType: 'attestation_travail' } }, FORMAT);
+    expect(ready.key).toBe('notifications.types.document.ready');
+    for (const file of [fr, ar, en]) {
+      for (const key of [task.key, ready.key, 'notifications.types.document.rejected', 'documents.typeNames.attestation_travail']) {
+        expect(typeof at(file, key)).toBe('string');
+      }
+      expect(at(file, task.key)).toContain('{{documentType}}');
+    }
+  });
+
   it('missing or null data shows an ellipsis, never a raw {{placeholder}}', () => {
     const message = notificationMessage({ type: 'leave.rejected', data: { actorName: null } }, FORMAT);
     expect(message.params['actorName']).toBe('…');

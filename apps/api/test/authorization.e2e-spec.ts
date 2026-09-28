@@ -145,9 +145,12 @@ describe('Authorization (e2e, real grants)', () => {
       assertNoSecrets(res.body);
       const scope = [{ unitId: unitA('REG-EST'), includeDescendants: true }];
       expect(res.body.permissions).toEqual([
+        'document.issue', 'document.read',
         'employee.create', 'employee.read', 'employee.update', 'leave.adjust', 'leave.approve_hr', 'leave.read', 'leave.request', 'org_unit.read', 'site.read',
       ]);
       expect(res.body.scopes).toEqual({
+        'document.issue': scope,
+        'document.read': scope,
         'employee.create': scope,
         'employee.read': scope,
         'employee.update': scope,
@@ -163,7 +166,7 @@ describe('Authorization (e2e, real grants)', () => {
 
     it('admin holds everything except employee.medical.read on DG (+); a member without grants holds nothing', async () => {
       const admin = await client('admin').get('/api/me').expect(200);
-      expect(admin.body.permissions).toHaveLength(24);
+      expect(admin.body.permissions).toHaveLength(29);
       expect(admin.body.permissions).not.toContain('employee.medical.read');
       expect(admin.body.scopes['employee.salary.read']).toEqual([{ unitId: unitA('DG'), includeDescendants: true }]);
       const newbie = await client('newbie').get('/api/me').expect(200);
@@ -272,6 +275,7 @@ describe('Authorization (e2e, real grants)', () => {
         'employee.salary.read', 'employee.salary.update', 'employee.bank.read', 'employee.bank.update',
         'employee.nss.read', 'employee.nss.update', 'employee.medical.read',
         'leave.request_self', 'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust', 'leave.configure',
+        'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self',
       ]);
       expect(items[0]).toEqual({
         code: 'org_unit.read',
@@ -522,7 +526,7 @@ describe('Authorization (e2e, real grants)', () => {
     });
 
     it('permission is a read-only catalogue; grants are never deleted and only shortened', async () => {
-      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(25);
+      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(30);
       await expect(inTenant(COMPANY_A, `insert into permission values ('x.y', 'x', 'x', 'x', 'access', false, 999)`)).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role_grant')).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role')).rejects.toThrow(/permission denied/);

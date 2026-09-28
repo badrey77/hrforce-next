@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -37,6 +37,11 @@ export const PERMISSION_CODES = [
   'leave.approve_hr',
   'leave.adjust',
   'leave.configure',
+  'document.read',
+  'document.issue',
+  'document.void',
+  'document.configure',
+  'document.request_self',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -69,6 +74,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
     permissions: [
       'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
+      'document.read', 'document.issue',
     ],
   },
   {
@@ -82,10 +88,11 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
     permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read'],
   },
   {
-    // self-service (docs/contracts/leave.md): request one's own leave; the manager step needs no permission
+    // self-service (docs/contracts/leave.md, documents.md): request one's own leave and attestations; the manager
+    // step needs no permission
     code: 'employe',
     names: { fr: 'Employé (libre-service)', ar: 'موظف (الخدمة الذاتية)', en: 'Employee (self-service)' },
-    permissions: ['leave.request_self'],
+    permissions: ['leave.request_self', 'document.request_self'],
   },
 ];
 

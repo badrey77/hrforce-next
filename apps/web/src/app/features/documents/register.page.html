@@ -1,0 +1,88 @@
+<!-- Same structure as features/leave/leave-list.page.html: filters from the URL, results, pager. -->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('documents.list.title') }}</h1>
+    <div class="form-actions">
+      <a *appCan="'document.issue'" class="btn" routerLink="/documents/new" data-action="issue">{{ t('documents.issue.action') }}</a>
+      <a *appCan="'document.configure'" class="btn secondary" routerLink="/documents/settings" data-action="settings">{{ t('documents.settings.title') }}</a>
+    </div>
+  </header>
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('documents.list.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="doc-q">{{ t('documents.list.search') }}</label>
+      <input id="doc-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('documents.list.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="doc-type">{{ t('documents.fields.type') }}</label>
+      <select id="doc-type" (change)="onField('typeCode', $event)">
+        <option value="" [selected]="!current.typeCode">{{ t('documents.list.allTypes') }}</option>
+        @for (type of catalog.types(); track type.id) {
+          <option [value]="type.code" [selected]="type.code === current.typeCode">{{ catalog.labelOf(type.labels) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="doc-status">{{ t('documents.fields.status') }}</label>
+      <select id="doc-status" (change)="onField('status', $event)">
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('documents.statusFilter.' + status) }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="doc-unit">{{ t('documents.list.unit') }}</label>
+        <app-org-unit-picker inputId="doc-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="doc-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="doc-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    <div class="field">
+      <label for="doc-from">{{ t('documents.list.from') }}</label>
+      <input id="doc-from" type="date" [value]="current.from ?? ''" (change)="onField('from', $event)" />
+    </div>
+    <div class="field">
+      <label for="doc-to">{{ t('documents.list.to') }}</label>
+      <input id="doc-to" type="date" [value]="current.to ?? ''" (change)="onField('to', $event)" />
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('documents.list.total', { count: total() }) }}</p>
+      <app-document-table [items]="items()" [empty]="filtered() ? t('documents.list.noMatch') : t('documents.list.empty')" />
+      @if (items().length) {
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="doc-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="doc-page-size" (change)="onField('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

@@ -30,7 +30,7 @@ import { notificationMessage } from './notification-message';
   template: `
     <ng-container *transloco="let t">
       @let m = message();
-      @let sentence = t(m.key, m.params);
+      @let sentence = t(m.key, m.documentTypeKey ? withDocumentType(m.params, m.documentTypeKey, t(m.documentTypeKey)) : m.params);
       <span class="sentence" data-sentence>{{ sentence === m.key ? t('notifications.types.unknown') : sentence }}</span>
       <time class="when" [attr.datetime]="notification().createdAt" [title]="notification().createdAt | date: 'medium' : undefined : locale()">{{
         notification().createdAt | relativeTime: lang() : now()
@@ -51,6 +51,14 @@ export class NotificationText {
   readonly notification = input.required<NotificationView>();
   /** "Now" for the relative time (see relative-time.pipe.ts). */
   readonly now = input<number>(Date.now());
+
+  /**
+   * Adds the translated document type name to the placeholders (a pipe-free two-step translation: the template
+   * translates the type's key first, then the sentence). An unknown code (Transloco returns the key) shows the code.
+   */
+  protected withDocumentType(params: Readonly<Record<string, string>>, key: string, name: string): Record<string, string> {
+    return { ...params, documentType: name === key ? key.slice(key.lastIndexOf('.') + 1) : name };
+  }
 
   protected readonly message = computed(() => {
     const locale = this.locale();

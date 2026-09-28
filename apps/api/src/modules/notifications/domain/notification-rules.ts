@@ -14,6 +14,8 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'leave.rejected': true,
   'leave.cancelled': false,
   'leave.submitted_on_behalf': true,
+  'document.ready': true,
+  'document.rejected': true,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -37,12 +39,16 @@ export interface LinkSource {
  *   leave.cancelled          → /tasks (the recipients were approvers of a task that no longer exists)
  *   other leave_request ones → /me/leave?request=<id> for the employee's own user, else /leave/requests/<id>
  *                              (the requester who filed it on someone's behalf)
+ *   document.ready           → /me/documents?document=<issued document id>
+ *   document.rejected        → /me/documents?request=<document request id>
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
   if (n.type === 'task.assigned' && n.subjectType === 'workflow_task') return `/tasks?task=${id}`;
   if (n.type === 'leave.cancelled') return '/tasks';
   if (n.subjectType === 'leave_request') return n.data['audience'] === 'employee' ? `/me/leave?request=${id}` : `/leave/requests/${id}`;
+  if (n.subjectType === 'issued_document') return `/me/documents?document=${id}`;
+  if (n.subjectType === 'document_request') return `/me/documents?request=${id}`;
   return '/notifications';
 }
 

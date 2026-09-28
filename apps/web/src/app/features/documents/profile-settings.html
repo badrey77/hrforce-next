@@ -1,0 +1,113 @@
+<!--
+  Pairs render French | Arabic in two columns (.bilingual, one column under 48rem). `[formControlName]="name"` binds a
+  control whose name is computed in the loop (see the component header). `[attr.lang]`/`dir` mark each input's language
+  so browsers pick the right keyboard, spell checker and direction.
+-->
+<section *transloco="let t" aria-labelledby="profile-title" data-section="profile">
+  <h2 id="profile-title">{{ t('documents.profile.title') }}</h2>
+  <p class="field-hint">{{ t('documents.profile.intro') }}</p>
+
+  @if (profile.error() && !profile.hasValue()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('documents.profile.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="profile.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (view(); as v) {
+    <p class="badges" data-field="completeness">
+      @for (language of languages; track language) {
+        <span class="badge" [attr.data-status]="v.complete[language] ? 'approved' : 'pending'" [attr.data-complete]="language">
+          {{ t('documents.languages.' + language) }} :
+          {{ v.complete[language] ? t('documents.profile.complete') : t('documents.profile.incomplete') }}
+        </span>
+      }
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate data-form="profile">
+      @if (feedback(); as key) {
+        <p class="feedback" role="status">{{ t(key) }}</p>
+      }
+      @if (formError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+
+      @for (pair of pairs; track pair.base) {
+        <div class="bilingual">
+          @for (suffix of ['Fr', 'Ar']; track suffix) {
+            @let name = pair.base + suffix;
+            @let arabic = suffix === 'Ar';
+            <div class="field">
+              <label [for]="'profile-' + name">{{ t('documents.profile.fields.' + name) }}</label>
+              @if (pair.multiline) {
+                <textarea [id]="'profile-' + name" [formControlName]="name" rows="2" [attr.lang]="arabic ? 'ar' : 'fr'" [dir]="arabic ? 'rtl' : 'ltr'"
+                  [attr.aria-invalid]="invalid(name)" [attr.aria-describedby]="'profile-' + name + '-error'"></textarea>
+              } @else {
+                <input type="text" [id]="'profile-' + name" [formControlName]="name" [attr.lang]="arabic ? 'ar' : 'fr'" [dir]="arabic ? 'rtl' : 'ltr'"
+                  [attr.aria-invalid]="invalid(name)" [attr.aria-describedby]="'profile-' + name + '-error'" />
+              }
+              @if (invalid(name)) {
+                <p class="field-error" [id]="'profile-' + name + '-error'" [attr.data-error]="name">{{ control(name)?.getError('server') ?? t(errorKey(name)) }}</p>
+              }
+            </div>
+          }
+        </div>
+      }
+
+      <div class="bilingual">
+        @for (name of singles; track name) {
+          <div class="field">
+            <label [for]="'profile-' + name">{{ t('documents.profile.fields.' + name) }}</label>
+            <input [type]="name === 'email' ? 'email' : name === 'phone' ? 'tel' : 'text'" [id]="'profile-' + name" [formControlName]="name" dir="ltr"
+              [class.uppercase]="name !== 'email' && name !== 'phone'"
+              [attr.aria-invalid]="invalid(name)" [attr.aria-describedby]="'profile-' + name + '-error'" />
+            @if (invalid(name)) {
+              <p class="field-error" [id]="'profile-' + name + '-error'" [attr.data-error]="name">{{ control(name)?.getError('server') ?? t(errorKey(name)) }}</p>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-profile" [disabled]="saving()">{{ t('common.save') }}</button>
+      </div>
+    </form>
+
+    <!-- Logo: its own small flow (file → check → preview → upload), outside the text form. -->
+    <section aria-labelledby="logo-title" data-section="logo">
+      <h3 id="logo-title">{{ t('documents.profile.logo') }}</h3>
+      @if (logoMessage(); as message) {
+        <p [class]="'key' in message && (message.key === 'documents.profile.logoSaved' || message.key === 'documents.profile.logoRemoved') ? 'feedback' : 'form-error'" role="status">
+          {{ 'key' in message ? t(message.key) : message.text }}
+        </p>
+      }
+      <div class="logo">
+        @if (pendingUrl(); as url) {
+          <img [src]="url" [alt]="t('documents.profile.logoPreview')" data-logo="pending" />
+        } @else if (logoUrl(); as url) {
+          <img [src]="url" [alt]="t('documents.profile.logoCurrent')" data-logo="current" />
+        } @else {
+          <p class="muted" data-logo="none">{{ t('documents.profile.noLogo') }}</p>
+        }
+      </div>
+      <div class="field">
+        <label for="profile-logo">{{ t('documents.profile.chooseLogo') }}</label>
+        <input #logoInput id="profile-logo" type="file" accept="image/png,image/jpeg" aria-describedby="profile-logo-hint profile-logo-error" (change)="onFile($event)" />
+        <p class="field-hint" id="profile-logo-hint">{{ t('documents.profile.logoHint') }}</p>
+        @if (logoError(); as error) {
+          <p class="field-error" id="profile-logo-error" data-error="logo">{{ t(error === 'type' ? 'documents.profile.logoType' : 'documents.profile.logoSize') }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="button" data-action="upload-logo" [disabled]="!pendingFile() || logoBusy()" (click)="uploadLogo(logoInput)">
+          {{ t('documents.profile.uploadLogo') }}
+        </button>
+        @if (v.hasLogo) {
+          <button class="btn secondary" type="button" data-action="remove-logo" [disabled]="logoBusy()" (click)="removeLogo()">
+            {{ t('documents.profile.removeLogo') }}
+          </button>
+        }
+      </div>
+    </section>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

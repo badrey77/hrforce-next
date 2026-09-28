@@ -1,9 +1,10 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { seedDemoAccess, seedGrants, seedSecurityPolicy, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
+import { seedCompanyProfile, seedDemoDocumentSettings, seedDocumentDefaults, seedSignatory } from '../../src/modules/documents/index.js';
 import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
-import { LEAVE_DEMO_USERS, seedDemoLeave } from '../../src/modules/leave/index.js';
+import { LEAVE_DEMO_USERS, seedDemoLeave, seedLeaveDefaults } from '../../src/modules/leave/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
 import { query, type TestDatabase } from './test-database.js';
@@ -135,7 +136,15 @@ async function roleIds(db: TestDatabase, companyId: string): Promise<Record<stri
 export interface FixtureOptions {
   /** + the leave demo without requests (defaults, agent/chef users, links, heads, accruals 2025-07 → 2026-09) */
   leave?: boolean;
+  /**
+   * + documents (docs/contracts/documents.md › Authorization matrix): DEMO's letterhead and signatories
+   * (seedDemoDocumentSettings), BETA's letterhead (French only) and a company-wide signatory, BETA's leave defaults
+   */
+  documents?: boolean;
 }
+
+/** BETA's company-wide signatory (documents fixture). */
+export const BETA_SIGNATORY = id('b601');
 
 /** Seeds both companies, users, roles and grants (idempotent). */
 export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new Date()), options: FixtureOptions = {}): Promise<AccessFixture> {
@@ -160,6 +169,15 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
       await seedDemoEmployees(tx);
       await seedEmployees(tx, COMPANY_B, [EMPLOYEE_B]);
       if (options.leave) await seedDemoLeave(tx, { requests: false });
+      // the three document types + the self-service workflow of both companies (created after migration 0014)
+      await seedDocumentDefaults(tx, COMPANY_A);
+      await seedDocumentDefaults(tx, COMPANY_B);
+      if (options.documents) {
+        await seedDemoDocumentSettings(tx);
+        await seedLeaveDefaults(tx, COMPANY_B);
+        await seedCompanyProfile(tx, COMPANY_B, { legalNameFr: 'Beta SARL', legalNameAr: null, addressFr: '1 rue de Sétif, Sétif', addressAr: null, cityFr: 'Sétif', cityAr: null });
+        await seedSignatory(tx, COMPANY_B, { id: BETA_SIGNATORY, orgUnitId: null, nameFr: 'Salima Beta', nameAr: 'سليمة بيتا', titleFr: 'Gérante', titleAr: 'المسيرة' });
+      }
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },
       ]);

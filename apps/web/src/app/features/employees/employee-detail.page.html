@@ -18,9 +18,19 @@
           <span class="badge" data-field="status" [attr.data-status]="e.status">{{ t('employees.status.' + e.status) }}</span>
         </p>
       </div>
-      @if (can('end') && e.status !== 'ended') {
-        <button class="btn secondary" type="button" data-action="end" (click)="openEnd()">{{ t('employees.end.action') }}</button>
-      }
+      <div class="header-actions">
+        @if (can('end') && e.status !== 'ended') {
+          <button class="btn secondary" type="button" data-action="end" (click)="openEnd()">{{ t('employees.end.action') }}</button>
+        }
+        <!--
+          Rehire: once this employment has an end date, a user who may create employees can start a new employment
+          for the same person. `[routerLink]` with an array builds /employees/<id>/rehire and encodes the id.
+          `canRehire()` only says "somewhere"; the API checks the new unit and the person's other employments.
+        -->
+        @if (canRehire() && e.endDate) {
+          <a class="btn secondary" data-action="rehire" [routerLink]="['/employees', e.id, 'rehire']">{{ t('employees.rehire.action') }}</a>
+        }
+      </div>
     </header>
 
     @if (feedback(); as key) {

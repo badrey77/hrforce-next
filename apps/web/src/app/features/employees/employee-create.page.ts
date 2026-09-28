@@ -47,10 +47,12 @@ import {
   employeeProblemToForm,
   isoDate,
   JOB_TITLE_MAX,
-  MATRICULE_PATTERN,
+  matricule,
   money,
   NAME_MAX,
   NATIONALITY_PATTERN,
+  normaliseMatricule,
+  normaliseMatriculeControl,
   normaliseMoney,
   notBlank,
 } from './employee-forms';
@@ -89,7 +91,7 @@ export class EmployeeCreatePage {
         nin: ['', digits(18)],
       }),
       employment: this.fb.group({
-        matricule: ['', [Validators.required, Validators.pattern(MATRICULE_PATTERN)]],
+        matricule: ['', [Validators.required, matricule]],
         hireDate: [todayIso(), [Validators.required, isoDate]],
       }),
       assignment: this.fb.group({
@@ -134,6 +136,11 @@ export class EmployeeCreatePage {
     });
   }
 
+  /** `(blur)` of the matricule input: show the value as it will be saved (employee-forms.ts › `matricule`). */
+  protected normaliseMatricule(): void {
+    normaliseMatriculeControl(this.form.controls.employment.controls.matricule);
+  }
+
   protected submit(): void {
     this.formError.set(null);
     this.submitted.set(true);
@@ -172,7 +179,7 @@ export class EmployeeCreatePage {
       sex: identity.sex,
       nationality: identity.nationality,
       nin: orNull(digitsOnly(identity.nin)),
-      matricule: employment.matricule.trim(),
+      matricule: normaliseMatricule(employment.matricule),
       hireDate: employment.hireDate,
       orgUnitId: assignment.orgUnitId ?? '',
       siteId: assignment.siteId,

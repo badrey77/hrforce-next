@@ -256,6 +256,14 @@ page does.
   (`shared/notifications/notification-message.ts`, a pure function): the leave type *code* is
   named by `LeaveCatalog.nameOfCode()`, dates and day counts are formatted in the UI language,
   missing data shows "…", and an unknown type falls back to a generic sentence.
+- **Wording by audience.** Each notification carries `audience` (`employee` | `requester` |
+  `approver` | `null`): who the recipient is to the request. For `leave.approved`,
+  `leave.rejected` and `task.escalated`, the employee reads "Votre demande…", anyone else (an
+  HR user who filed it on their behalf) a sentence naming the employee, from a parallel key
+  tree `notifications.typesNamed.<type>` (`notificationKey()` picks it). Whole sentences per
+  language, not a `{{whose}}` placeholder: "your" vs "X's" changes word order and agreement in
+  French and Arabic. The bell and the /notifications page both render through
+  `<app-notification-text>`, so one pure function covers both.
 
 ## 8. Links into pages: query params as entry points
 

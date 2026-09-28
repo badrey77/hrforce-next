@@ -2,9 +2,9 @@
  * Notification rules (docs/contracts/notifications.md › Notifications) — pure: e-mail defaults per type, the link of a
  * notification, the list cursor. No Nest, no Kysely.
  */
-import { NOTIFICATION_TYPES, type NotificationType } from '../../../platform/notifications/notifier.js';
+import { NOTIFICATION_TYPES, type NotificationAudience, type NotificationType } from '../../../platform/notifications/notifier.js';
 
-export { NOTIFICATION_TYPES, type NotificationType };
+export { NOTIFICATION_TYPES, type NotificationAudience, type NotificationType };
 
 /** E-mail default per type (contract › Types): an absent preference row means this value. */
 export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
@@ -44,6 +44,18 @@ export function linkOf(n: LinkSource): string {
   if (n.type === 'leave.cancelled') return '/tasks';
   if (n.subjectType === 'leave_request') return n.data['audience'] === 'employee' ? `/me/leave?request=${id}` : `/leave/requests/${id}`;
   return '/notifications';
+}
+
+const AUDIENCES: readonly NotificationAudience[] = ['approver', 'employee', 'requester'];
+
+/**
+ * Who the recipient is to the subject, as stored in the row's internal `audience` key (null for an unknown value).
+ * The client words the sentence with it: `employee` → "your request", anything else → a sentence that names the
+ * employee (e.g. `leave.approved` to the HR user who filed it on the employee's behalf).
+ */
+export function audienceOf(data: Readonly<Record<string, unknown>>): NotificationAudience | null {
+  const value = data['audience'];
+  return typeof value === 'string' && (AUDIENCES as readonly string[]).includes(value) ? (value as NotificationAudience) : null;
 }
 
 /** Data as returned to the client: the internal `audience` key (used for the link) is left out. */

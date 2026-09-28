@@ -1,6 +1,6 @@
 # HRForce Next — project state and decisions (handoff)
 
-Last updated: 2026-09-26. This file carries what was decided in conversation and is not obvious from the code.
+Last updated: 2026-09-28. This file carries what was decided in conversation and is not obvious from the code.
 Keep it current: when a decision is made or an open question is answered, update this file in the same commit.
 
 ## Where we are
@@ -37,6 +37,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-26 | Fonts: **Cairo** for Arabic, **Source Sans 3** for French/English, self-hosted (no Google Fonts CDN — offline sites, Law 18-07) |
 | 2026-09-26 | Local start scripts: `scripts/dev-up.sh` (bash) and `scripts/dev-up.ps1` (PowerShell) |
 | 2026-09-26 | M2 starts with **Leave** using **Algerian defaults** (Law 90-11) as editable data, to be confirmed; default approval chain **unit head → regional HR**. In parallel: a **staging deploy pack** for any Docker Linux host (target still to choose). Workflow engine = ADR 006; SSO moves to ADR 007 |
+| 2026-09-28 | M2 is complete. Next: a **hardening pass** over the known small issues (before M3 documents/numbering). Items that wait on a product decision (role trust, MFA reset visibility, access-admin edge cases) stay open |
 
 ## M2 progress
 
@@ -45,6 +46,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 - **Notifications + worker + live updates: built and independently verified 2026-09-27** (live bell < 0.2 s, links open for every recipient, SSE isolation, worker role least-privilege; 3 small web fixes) (contract `docs/contracts/notifications.md`): in-app bell (SSE over Postgres LISTEN/NOTIFY), emails per preference via Graphile Worker jobs, monthly/daily cron (audit partitions, leave accruals, cleanups), leave events on History.
 - **MFA (TOTP + recovery codes): built and independently verified 2026-09-27** (browser fr/ar, brute force / replay / token-swap / enforcement-bypass probes, CSP through Caddy; 3 small web fixes) (contract `docs/contracts/mfa.md`, see its "Settled by the build"). Default policy: enforced for holders of sensitive and access-management permissions; the DEMO company has enforcement off.
+- **Hardening pass: built and independently verified 2026-09-28** (full gate green on Windows, browser fr/ar/en at 1280 and 390 px, security probes). Leave/escalation notifications carry an `audience` and name the employee to anyone but the employee (in-app and e-mail); `GET /employees?lang=ar` sorts by Arabic name (collation `ar-x-icu`); rehire screen `/employees/:id/rehire`; lower-case matricule accepted; breadcrumb mirrored in RTL; `public/lang-boot.js` sets lang/dir before first paint. Tooling: guardrails now run on Windows (`tools/guardrails/lib/node-bin.ts`); `dev-up` scripts pin the web port to 4200 (the API's `PORT=3000` leaked into `ng serve`).
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -71,15 +73,14 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 ## Known small issues (not fixed)
 
-- An HR user who filed leave on someone's behalf gets `leave.approved` worded "your request…" without the employee's name.
 - The worker role can SELECT every public table (salary included); the app role can enqueue any job type (same trust question as open question 3).
 
 - MFA admin reset follows the `GET /access/users/:id` visibility rule: a regional `access.grant` holder can reset the factor of a user who has one grant in their region even if that user also holds company-wide rights (reset only weakens a factor; the password is still needed). Product decision pending, like the access-admin edge cases above.
-- Arabic employee list sorts by the Latin name; breadcrumb "›" not mirrored in Arabic.
-- Web rejects a lower-case matricule (the API would upper-case it).
-- No rehire screen (API supports `personId`).
-- An Arabic session also downloads one Latin font file (index.html starts as `lang="fr"`).
 - Refresh/access tokens: the access token stays valid ≤ 15 min after logout/reset (stateless by contract).
+- A first visit with no stored language whose account locale is Arabic still starts in French (and may load one Latin font file) until sign-in applies the account language.
+- The rehire link shows on any ended employment; if the person was already rehired, the user learns it from the 409 after submitting.
+- Create/rehire forms show server errors at the top of the form: off-screen at 390 px after pressing the bottom button.
+- `apps/api/test/worker.e2e-spec.ts` ("drains the jobs") failed once in a full run on Windows and passed on rerun (suspected host/Docker clock skew).
 
 ## Environment facts
 
@@ -90,4 +91,4 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 1. Push and get the first green GitHub Actions run on PG18.
 2. Staging deploy (needs the target — open question 2).
-3. M2: leave, workflow engine + "My tasks", notifications, MFA; SSO (ADR 006) once open question 1 is answered.
+3. M3 (ADR 003): documents and numbering, the outbox pattern, sister-app integration. SSO (ADR 007) once open question 1 is answered.

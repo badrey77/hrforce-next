@@ -14,11 +14,18 @@
  * - **Params built by a pure function** (`employeeListParams`): what is sent is decided in plain TypeScript, unit
  *   tested without TestBed, and the resource only wires it to signals. Empty filters are LEFT OUT (the API applies
  *   its defaults); sort, direction and paging are always sent so the server and the URL cannot disagree.
+ * - **A second signal as a second key: the UI language.** With `sort=name` the API orders by the Latin name unless
+ *   asked for `lang=ar` (Arabic name first, Latin as a fallback). The language is NOT list state — it is not in the
+ *   page URL (a shared link must not force the recipient's sort language); it comes from the UI. So `listResource`
+ *   takes it as its own optional signal (`sortLanguage`), read inside the same request function: switching the
+ *   UI to Arabic changes that signal, which builds a new request, so the list re-sorts without any code "listening"
+ *   for the switch. `lang` is sent only for Arabic (the API's default is `fr`), which keeps French URLs unchanged.
  * - `httpResource` needs an injection context: call the `…Resource()` methods from a field initializer.
  */
 import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
+import type { AppLanguage } from '../i18n/languages';
 import {
   type CreateEmployee,
   DEFAULT_EMPLOYEE_QUERY,
@@ -37,8 +44,19 @@ export function employeeUrl(id: string, suffix = ''): string {
   return `${EMPLOYEES_API_BASE}/${encodeURIComponent(id)}${suffix}`;
 }
 
-/** Query params of `GET /employees` for a resolved query. */
-export function employeeListParams(query: EmployeeQuery): Record<string, string> {
+/**
+ * The `lang` the list asks the API to sort names in: `'ar'` in an Arabic UI, else nothing (the API defaults to the
+ * Latin name). Contract: `GET /employees?lang=fr|ar`.
+ */
+export type EmployeeSortLanguage = 'ar' | null;
+
+/** UI language → the list's sort language (only Arabic changes the API's order). */
+export function sortLanguageOf(lang: AppLanguage): EmployeeSortLanguage {
+  return lang === 'ar' ? 'ar' : null;
+}
+
+/** Query params of `GET /employees` for a resolved query (`lang` only when the names are to be sorted in Arabic). */
+export function employeeListParams(query: EmployeeQuery, sortLanguage: EmployeeSortLanguage = null): Record<string, string> {
   const params: Record<string, string> = {};
   const q = query.q.trim();
   if (q) params['q'] = q;
@@ -53,6 +71,7 @@ export function employeeListParams(query: EmployeeQuery): Record<string, string>
   params['dir'] = query.dir;
   params['page'] = String(query.page);
   params['pageSize'] = String(query.pageSize);
+  if (sortLanguage === 'ar') params['lang'] = 'ar';
   return params;
 }
 
@@ -60,11 +79,17 @@ export function employeeListParams(query: EmployeeQuery): Record<string, string>
 export class EmployeesApi {
   private readonly http = inject(HttpClient);
 
-  /** `GET /employees` as a resource; `undefined` from `query` = no request. */
-  listResource(query: () => EmployeeQuery | undefined): HttpResourceRef<EmployeePage | undefined> {
+  /**
+   * `GET /employees` as a resource; `undefined` from `query` = no request. `sortLanguage` (optional) is read in the
+   * same request function, so a change of either signal re-fetches.
+   */
+  listResource(
+    query: () => EmployeeQuery | undefined,
+    sortLanguage: () => EmployeeSortLanguage = () => null,
+  ): HttpResourceRef<EmployeePage | undefined> {
     return httpResource<EmployeePage>(() => {
       const value = query();
-      return value ? { url: EMPLOYEES_API_BASE, params: employeeListParams(value) } : undefined;
+      return value ? { url: EMPLOYEES_API_BASE, params: employeeListParams(value, sortLanguage()) } : undefined;
     });
   }
 
@@ -79,10 +104,10 @@ export class EmployeesApi {
   /**
    * `GET /employees?q=` as a one-shot Observable, for the employee picker (shared/employee-picker): the picker drives
    * it from an RxJS `debounceTime`/`switchMap` pipeline, like the org-unit picker's search. Active employees only,
-   * first 10 by name.
+   * first 10 by name (in Arabic order when `sortLanguage` is `'ar'`).
    */
-  search(q: string, pageSize = 10): Observable<EmployeePage> {
-    const params = employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, q, pageSize });
+  search(q: string, pageSize = 10, sortLanguage: EmployeeSortLanguage = null): Observable<EmployeePage> {
+    const params = employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, q, pageSize }, sortLanguage);
     return this.http.get<EmployeePage>(EMPLOYEES_API_BASE, { params });
   }
 

@@ -84,8 +84,10 @@ Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
 # Background jobs (Graphile Worker): notification e-mails and the monthly/daily cron. Built by seed:dev above.
 Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
   '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce Worker'; npm run start:worker -w '@hrforce/api'")
+# PORT (3000, loaded from apps\api\.env above) would override `ng serve --port 4200`: the Angular dev server reads
+# process.env.PORT first and would take the API's port. The web window gets its own PORT.
 Start-Process -FilePath $shell -WorkingDirectory $root -ArgumentList @(
-  '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce Web'; npm start -w '@hrforce/web'")
+  '-NoExit', '-Command', "`$Host.UI.RawUI.WindowTitle = 'HRForce Web'; `$env:PORT = '4200'; npm start -w '@hrforce/web'")
 
 Write-Host @'
 

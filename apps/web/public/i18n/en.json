@@ -730,7 +730,7 @@
     "hints": {
       "nationality": "2-letter country code (e.g. DZ).",
       "nin": "18 digits.",
-      "matricule": "Capitals, digits or \"-\", up to 20 characters. Cannot be changed later.",
+      "matricule": "Letters, digits or \"-\", up to 20 characters; saved in capitals. Cannot be changed later.",
       "firstAssignment": "The assignment starts on the hire date.",
       "salary": "Monthly amount, at most 2 decimals (e.g. 85000.00).",
       "rib": "20 digits (spaces are ignored).",
@@ -817,6 +817,19 @@
       "hint": "No earlier than the start of the current assignment.",
       "submit": "Confirm"
     },
+    "rehire": {
+      "action": "Rehire",
+      "title": "Rehire {{name}}",
+      "intro": "A new employment for the same person. Their identity comes from their record and cannot be changed here.",
+      "back": "Back to the employee",
+      "previous": "Previous employment",
+      "nameAr": "Name (Arabic)",
+      "newEmployment": "New employment",
+      "matriculeHint": "A new matricule (the previous employment keeps its own): letters, digits or \"-\", saved in capitals.",
+      "hireDateHint": "After the previous employment ended ({{date}}).",
+      "stillOpen": "This employment has not ended: end it before rehiring the person.",
+      "submit": "Create the new employment"
+    },
     "endReasons": {
       "resignation": "Resignation",
       "retirement": "Retirement",
@@ -837,6 +850,7 @@
       "matriculeTaken": "This employee number is already taken.",
       "ninTaken": "This NIN is already recorded for another person.",
       "employmentOpen": "This person already has an open employment.",
+      "hireDate": "The hire date must follow the end of this person's previous employment.",
       "employmentEnded": "This employment has ended and can no longer be changed.",
       "assignmentDate": "The effective date must follow the start of the current assignment and fall within the employment.",
       "salaryDate": "The effective date must follow the current salary’s.",
@@ -1166,6 +1180,15 @@
         "submitted_on_behalf": "{{actorName}} filed a “{{leaveType}}” request for you, {{startDate}} to {{endDate}}."
       },
       "unknown": "New notification"
+    },
+    "typesNamed": {
+      "task": {
+        "escalated": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available)."
+      },
+      "leave": {
+        "approved": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
+        "rejected": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, was rejected by {{actorName}}."
+      }
     },
     "typeLabels": {
       "task": {

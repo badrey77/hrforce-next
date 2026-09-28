@@ -39,6 +39,7 @@ interface View {
   readAt: string | null;
   subject: { type: string; id: string };
   data: Record<string, unknown>;
+  audience: string | null;
   link: string;
 }
 
@@ -148,7 +149,7 @@ describe('who is notified (types, recipients, actor, dedup)', () => {
     expect(who(list)).toEqual(ids('agent'));
     expect(list[0]?.data).toMatchObject({ audience: 'employee', actorName: USERS.est.displayName });
     const mine = (await client('agent').get('/api/me/notifications').expect(200)).body.items as View[];
-    expect(mine.find((n) => n.type === 'leave.approved')).toMatchObject({ subject: { type: 'leave_request', id: requestId }, link: `/me/leave?request=${requestId}` });
+    expect(mine.find((n) => n.type === 'leave.approved')).toMatchObject({ subject: { type: 'leave_request', id: requestId }, audience: 'employee', link: `/me/leave?request=${requestId}` });
   });
 
   it('leave.rejected: to the requester; the comment (reason) is never in the data', async () => {
@@ -170,7 +171,7 @@ describe('who is notified (types, recipients, actor, dedup)', () => {
     const cancelled = (await about(atHr)).filter((r) => r.type === 'leave.cancelled');
     expect(who(cancelled)).toEqual(ids('admin', 'est'));
     const view = ((await client('est').get('/api/me/notifications').expect(200)).body.items as View[]).find((n) => n.type === 'leave.cancelled' && n.subject.id === atHr);
-    expect(view?.link).toBe('/tasks');
+    expect(view).toMatchObject({ link: '/tasks', audience: 'approver' });
   });
 
   it('leave.submitted_on_behalf: the employee’s own user (not the HR actor); approval then tells both (requester link /leave/requests/…)', async () => {
@@ -187,6 +188,12 @@ describe('who is notified (types, recipients, actor, dedup)', () => {
     expect(who(approved)).toEqual(ids('admin', 'agent'));
     const adminView = ((await client('admin').get('/api/me/notifications').expect(200)).body.items as View[]).find((n) => n.type === 'leave.approved' && n.subject.id === id);
     expect(adminView?.link).toBe(`/leave/requests/${id}`);
+    // the client words it by audience: the HR filer is a `requester` (a sentence naming the employee), the employee
+    // keeps "your request"; the internal key stays out of `data`
+    expect(adminView).toMatchObject({ audience: 'requester', data: { employeeName: expect.any(String) } });
+    expect(adminView?.data).not.toHaveProperty('audience');
+    const agentView = ((await client('agent').get('/api/me/notifications').expect(200)).body.items as View[]).find((n) => n.type === 'leave.approved' && n.subject.id === id);
+    expect(agentView).toMatchObject({ audience: 'employee', link: `/me/leave?request=${id}` });
   });
 
   it('task.escalated: the requester is told (the engine decided); the HR task goes to rh.admin, not to Karim himself', async () => {

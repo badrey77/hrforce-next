@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MIGRATION_FILE_PATTERN as MIGRATOR_PATTERN } from '../../../apps/api/src/platform/db/migrator.ts';
+import { packageBin } from '../lib/node-bin.ts';
 import { REPO_ROOT } from '../lib/report.ts';
 import { checkImmutability, checkMigrationNames, checkMigrations, findSqlRaw, MIGRATION_FILE_PATTERN, resolveBase } from './migrations.ts';
 
@@ -113,8 +114,8 @@ describe('migrations: sql.raw is banned', () => {
 
   it('is also enforced by oxlint (hrforce/no-sql-raw JS plugin)', () => {
     const dir = tempRepo({ 'bad.ts': "import { sql } from 'kysely';\nexport const q = sql.raw('drop table x');\n" });
-    const bin = path.join(REPO_ROOT, 'node_modules/.bin/oxlint');
-    const result = spawnSync(bin, ['-c', path.join(REPO_ROOT, '.oxlintrc.json'), path.join(dir, 'bad.ts')], { cwd: REPO_ROOT, encoding: 'utf8' });
+    const { command, args } = packageBin('oxlint', ['-c', path.join(REPO_ROOT, '.oxlintrc.json'), path.join(dir, 'bad.ts')]);
+    const result = spawnSync(command, args, { cwd: REPO_ROOT, encoding: 'utf8' });
     expect(result.status).not.toBe(0);
     expect(result.stdout + result.stderr).toMatch(/no-sql-raw/);
   });

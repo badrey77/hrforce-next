@@ -14,6 +14,13 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
+/**
+ * Who the recipient is to the notification's subject (contract › Wording by audience): `employee` = the person the
+ * leave request is for ("your request"); `requester` = they filed it for someone else; `approver` = a task
+ * candidate; `null` = unknown (treated as "someone else"). Chooses the wording, never who may see what.
+ */
+export type NotificationAudience = 'employee' | 'requester' | 'approver';
+
 export interface NotificationView {
   readonly id: string;
   /** One of `NOTIFICATION_TYPES`; kept a `string` so a type added by the API later still renders (generic sentence). */
@@ -23,6 +30,8 @@ export interface NotificationView {
   readonly subject: { readonly type: 'workflow_task' | 'leave_request'; readonly id: string };
   /** Names/dates needed to render, e.g. `{employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}`. */
   readonly data: Readonly<Record<string, string | number | null>>;
+  /** Per recipient: picks "your request" (`employee`) or a sentence naming the employee (anything else). */
+  readonly audience: NotificationAudience | null;
   /** App path, e.g. `/tasks?task=…` or `/me/leave?request=…`. */
   readonly link: string;
 }

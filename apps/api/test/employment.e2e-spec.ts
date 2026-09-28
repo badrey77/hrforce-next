@@ -56,6 +56,9 @@ const key = (i: Item) => fold(`${i.person.lastName} ${i.person.firstName}`);
 const unitKey = (i: Item) => fold(i.unit.name);
 const matricules = (items: Item[]) => items.map((i) => i.matricule);
 const enc = encodeURIComponent;
+/** `sort=name&lang=ar` key: Arabic last / first name, each falling back to the Latin one. */
+const nameAr = (i: Item) => [i.person.lastNameAr?.trim() || i.person.lastName, i.person.firstNameAr?.trim() || i.person.firstName] as const;
+const byMatricule = (a: Item, b: Item) => (a.matricule < b.matricule ? -1 : a.matricule > b.matricule ? 1 : 0);
 
 beforeAll(async () => {
   db = await createTestDatabase();
@@ -160,6 +163,41 @@ describe('GET /api/employees — scope, filters, search, sorting, paging', () =>
     expect(hire.map((i) => i.hireDate)).toEqual(hire.map((i) => i.hireDate).toSorted());
     const units = await all('admin', 'sort=unit&dir=desc');
     expect(units.map(unitKey)).toEqual(units.map(unitKey).toSorted().toReversed());
+  });
+
+  it('sorting: lang=ar orders sort=name by the Arabic last then first name (Latin fallback), ICU Arabic collation; dir; lang ignored elsewhere', async () => {
+    const arabic = new Intl.Collator('ar');
+    const compare = (a: Item, b: Item) => arabic.compare(nameAr(a)[0], nameAr(b)[0]) || arabic.compare(nameAr(a)[1], nameAr(b)[1]) || byMatricule(a, b);
+    const asc = await all('admin', 'status=all&lang=ar');
+    expect(asc.length).toBeGreaterThan(30);
+    expect(matricules(asc)).toEqual(matricules(asc.toSorted(compare)));
+    // the seed has people without an Arabic name: they fall back to their Latin name, after every Arabic one (ascending)
+    const withAr = asc.map((i) => Boolean(i.person.lastNameAr));
+    expect(withAr).toContain(false);
+    expect(withAr.indexOf(false)).toBeGreaterThan(withAr.lastIndexOf(true));
+    // it differs from the Latin order, and the explicit sort=name is the same thing
+    expect(matricules(asc)).not.toEqual(matricules(await all('admin', 'status=all')));
+    expect(matricules(await all('admin', 'status=all&sort=name&lang=ar'))).toEqual(matricules(asc));
+    const desc = await all('admin', 'status=all&sort=name&dir=desc&lang=ar');
+    expect(matricules(desc)).toEqual(matricules(asc).toReversed());
+    // lang=fr is the default; lang has no effect on the other keys; paging is stable
+    expect(matricules(await all('admin', 'status=all&lang=fr'))).toEqual(matricules(await all('admin', 'status=all')));
+    for (const other of ['sort=matricule', 'sort=hireDate', 'sort=unit&dir=desc']) {
+      expect(matricules(await all('admin', `status=all&${other}&lang=ar`)), other).toEqual(matricules(await all('admin', `status=all&${other}`)));
+    }
+    const pages = await Promise.all([1, 2, 3].map((page) => list('admin', `status=all&lang=ar&pageSize=15&page=${page}`)));
+    expect(matricules(pages.flatMap((p) => p.items))).toEqual(matricules(asc));
+    // alef forms share one base letter under the ICU Arabic collation (إبراهيم < أحمد), unlike code-point order
+    const rows = await query<{ n: string }>(db.superuserUrl, `select n from (values ('أحمد'), ('إبراهيم'), ('آمنة'), ('بلقاسم')) v(n) order by n collate "ar-x-icu"`);
+    expect(rows.map((r) => r.n)).toEqual(['آمنة', 'إبراهيم', 'أحمد', 'بلقاسم']);
+  });
+
+  it('lang: only fr or ar, else 422 with errors[].field = lang', async () => {
+    for (const bad of ['lang=en', 'lang=AR', 'lang=', 'lang=ar-DZ']) {
+      const res = await client('admin').get(`/api/employees?${bad}`);
+      expect(res.status, bad).toBe(422);
+      expect(res.body.errors, bad).toEqual(expect.arrayContaining([expect.objectContaining({ field: 'lang' })]));
+    }
   });
 
   it('paging: page/pageSize, total on every page, past the end, limits', async () => {

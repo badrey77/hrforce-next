@@ -90,7 +90,14 @@
       <div class="grid">
         <div class="field">
           <label for="new-matricule">{{ t('employees.fields.matricule') }}</label>
-          <input id="new-matricule" type="text" formControlName="matricule" autocomplete="off" maxlength="20" required
+          <!--
+            `(blur)="…"` is an EVENT binding like `(click)`: Angular calls the method when the input loses focus. It
+            runs after the form control got its last value, so it can rewrite it in capitals ("emp-1" → "EMP-1").
+            `class="uppercase"` shows capitals while typing without touching the value (no caret jump); the
+            validator accepts lower case because the API upper-cases (employee-forms.ts › `matricule`).
+          -->
+          <input id="new-matricule" class="uppercase" type="text" formControlName="matricule" autocomplete="off" maxlength="20" required
+            autocapitalize="characters" spellcheck="false" (blur)="normaliseMatricule()"
             [attr.aria-invalid]="employment.matricule.invalid && employment.matricule.touched"
             aria-describedby="new-matricule-hint new-matricule-error" />
           <p class="field-hint" id="new-matricule-hint">{{ t('employees.hints.matricule') }}</p>

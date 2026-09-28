@@ -28,6 +28,8 @@
  * - **Leave tab** (`leave.read`): a child component (`<app-employee-leave-tab>`, employee-leave-tab.ts) that owns its
  *   own resources (balances, ledger), so they are only requested when the tab is opened — `@switch` renders just the
  *   active panel, and a component that is not rendered is not created.
+ * - **"Rehire"** is a link to `/employees/:id/rehire`, shown when the employment has an end date and the session
+ *   holds `employee.create` (not an `_actions` entry: it creates a NEW employment, whose unit is not known yet).
  * - **`DecimalPipe` with an explicit locale** for money (`"85000.00" | number: '1.2-2' : locale()`): the string is
  *   formatted, never added to or rounded (money stays a decimal string, see core/employees/employees.models.ts).
  */
@@ -102,6 +104,8 @@ export class EmployeeDetailPage {
   private readonly canAudit = inject(Session).allows('audit.read');
   /** Leave tab (docs/contracts/leave.md › Web): balances and ledger need `leave.read` (held anywhere; the API scopes). */
   private readonly canLeave = inject(Session).allows('leave.read');
+  /** "Rehire" on an employment with an end date (employee-rehire.page.ts); the route has the same guard. */
+  protected readonly canRehire = inject(Session).allows('employee.create');
   protected readonly lang = inject(LanguageService).current;
   protected readonly locale = computed(() => dateLocaleOf(this.lang()));
 

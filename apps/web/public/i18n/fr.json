@@ -730,7 +730,7 @@
     "hints": {
       "nationality": "Code pays à 2 lettres (ex. DZ).",
       "nin": "18 chiffres.",
-      "matricule": "Majuscules, chiffres ou « - », 20 caractères au plus. Non modifiable ensuite.",
+      "matricule": "Lettres, chiffres ou « - », 20 caractères au plus ; enregistré en majuscules. Non modifiable ensuite.",
       "firstAssignment": "L'affectation commence à la date d'embauche.",
       "salary": "Montant mensuel, 2 décimales au plus (ex. 85000,00).",
       "rib": "20 chiffres (les espaces sont ignorés).",
@@ -817,6 +817,19 @@
       "hint": "Au plus tôt le début de l'affectation en cours.",
       "submit": "Confirmer la sortie"
     },
+    "rehire": {
+      "action": "Réembaucher",
+      "title": "Réembaucher {{name}}",
+      "intro": "Nouvel emploi pour la même personne. Son identité reprend sa fiche et ne se modifie pas ici.",
+      "back": "Retour à la fiche de l'employé",
+      "previous": "Emploi précédent",
+      "nameAr": "Nom (arabe)",
+      "newEmployment": "Nouvel emploi",
+      "matriculeHint": "Un nouveau matricule (celui de l'emploi précédent lui reste attaché) : lettres, chiffres ou « - », enregistré en majuscules.",
+      "hireDateHint": "Après la fin de l'emploi précédent ({{date}}).",
+      "stillOpen": "Cet emploi n'est pas terminé : mettez-y fin avant de réembaucher la personne.",
+      "submit": "Créer le nouvel emploi"
+    },
     "endReasons": {
       "resignation": "Démission",
       "retirement": "Retraite",
@@ -837,6 +850,7 @@
       "matriculeTaken": "Ce matricule est déjà utilisé.",
       "ninTaken": "Ce NIN est déjà enregistré pour une autre personne.",
       "employmentOpen": "Cette personne a déjà un emploi en cours.",
+      "hireDate": "La date d'embauche doit suivre la fin de l'emploi précédent de cette personne.",
       "employmentEnded": "Cet emploi est terminé : il ne peut plus être modifié.",
       "assignmentDate": "La date d'effet doit suivre le début de l'affectation en cours et rester dans la période d'emploi.",
       "salaryDate": "La date d'effet doit suivre celle du salaire en cours.",
@@ -1166,6 +1180,15 @@
         "submitted_on_behalf": "{{actorName}} a déposé pour vous une demande « {{leaveType}} » du {{startDate}} au {{endDate}}."
       },
       "unknown": "Nouvelle notification"
+    },
+    "typesNamed": {
+      "task": {
+        "escalated": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible)."
+      },
+      "leave": {
+        "approved": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} a été approuvée.",
+        "rejected": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} a été refusée par {{actorName}}."
+      }
     },
     "typeLabels": {
       "task": {

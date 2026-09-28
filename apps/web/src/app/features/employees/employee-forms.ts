@@ -18,6 +18,11 @@
  *   (`identity.birthDate`, `employment.hireDate`). The error lands on the root (`form.errors.birthAfterHire`), and
  *   the template shows it next to the hire date. See docs/angular/14-big-forms-and-url-state.md.
  * - **`bothOrNeither`**: a GROUP validator for an optional section — leave the bank block empty, or fill both.
+ * - **Validate what will be SENT, not what was typed** (`matricule`). The API trims and upper-cases the matricule
+ *   before checking `^[A-Z0-9][A-Z0-9-]{0,19}$`, so "emp-0042" is a valid entry. The validator therefore tests
+ *   `normaliseMatricule(value)` — the same transformation the API applies — instead of the raw text; the form also
+ *   shows the value in capitals while typing (CSS `text-transform`) and writes the normalised value back on blur.
+ *   Rule, display and payload agree, and nobody is told "invalid format" for typing in lower case.
  *
  * Problems → controls (`employeeProblemToForm`): the API names fields as BODY properties (`matricule`, `nin`,
  * `rib`), while the create form nests them (`employment.matricule`, `identity.nin`, `bank.rib`). A path table
@@ -37,6 +42,27 @@ export const JOB_TITLE_MAX = 120;
 /** numeric(12,2): at most 10 integer digits, 2 decimals; `,` accepted as the decimal separator (French habit). */
 export const MONEY_PATTERN = /^\d{1,10}([.,]\d{1,2})?$/;
 export const NATIONALITY_PATTERN = /^[A-Z]{2}$/;
+
+/** What the API stores for a typed matricule: trimmed, upper case (`" emp-0042 "` → `"EMP-0042"`). */
+export function normaliseMatricule(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+/** The contract pattern, tested on the NORMALISED value (lower case accepted). Error `pattern`, like the built-in. */
+export const matricule: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+  const value: unknown = control.value;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  return MATRICULE_PATTERN.test(normaliseMatricule(value)) ? null : { pattern: { requiredPattern: String(MATRICULE_PATTERN) } };
+};
+
+/**
+ * Writes the normalised matricule back into its control (on blur): the field then shows exactly what will be saved.
+ * No-op when nothing changes, so the control does not emit for nothing.
+ */
+export function normaliseMatriculeControl(control: AbstractControl<string>): void {
+  const normalised = normaliseMatricule(control.value);
+  if (normalised !== control.value) control.setValue(normalised);
+}
 
 /** The value without whitespace (`"0040 0123"` → `"00400123"`). */
 export function digitsOnly(value: string): string {
@@ -228,6 +254,19 @@ export const CREATE_SLUGS: SlugTable = {
   'matricule-taken': { key: 'employees.problems.matriculeTaken', field: 'employment.matricule' },
   'nin-taken': { key: 'employees.problems.ninTaken', field: 'identity.nin' },
   'employment-open': { key: 'employees.problems.employmentOpen' },
+  'assignment-date': { key: 'employees.problems.assignmentDate', field: 'employment.hireDate' },
+  'forbidden-scope': { key: 'employees.problems.forbiddenScope', field: 'assignment.orgUnitId' },
+  'forbidden-field': { key: 'employees.problems.forbiddenField' },
+};
+
+/**
+ * `POST /employees` with `personId` (the rehire form). `employment-open` (the person already works here again) has
+ * no field to point at: above the form. `hire-date` (not after the previous employment's end) on the hire date.
+ */
+export const REHIRE_SLUGS: SlugTable = {
+  'matricule-taken': { key: 'employees.problems.matriculeTaken', field: 'employment.matricule' },
+  'employment-open': { key: 'employees.problems.employmentOpen' },
+  'hire-date': { key: 'employees.problems.hireDate', field: 'employment.hireDate' },
   'assignment-date': { key: 'employees.problems.assignmentDate', field: 'employment.hireDate' },
   'forbidden-scope': { key: 'employees.problems.forbiddenScope', field: 'assignment.orgUnitId' },
   'forbidden-field': { key: 'employees.problems.forbiddenField' },

@@ -243,6 +243,7 @@ export type EmployeeProblemSlug =
   | 'matricule-taken'
   | 'nin-taken'
   | 'employment-open'
+  | 'hire-date'
   | 'employment-ended'
   | 'assignment-date'
   | 'salary-date'

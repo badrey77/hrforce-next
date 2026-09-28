@@ -1,4 +1,12 @@
-import { notificationMessage } from './notification-message';
+import ar from '../../../../public/i18n/ar.json';
+import en from '../../../../public/i18n/en.json';
+import fr from '../../../../public/i18n/fr.json';
+import { notificationKey, notificationMessage, WORDED_BY_AUDIENCE } from './notification-message';
+
+/** The string at a dotted key of a translation file (undefined when missing). */
+function at(file: unknown, key: string): unknown {
+  return key.split('.').reduce<unknown>((node, part) => (typeof node === 'object' && node !== null ? Reflect.get(node, part) : undefined), file);
+}
 import { relativeTime } from '../relative-time/relative-time.pipe';
 
 const FORMAT = {
@@ -27,6 +35,33 @@ describe('notificationMessage', () => {
     const data = { employeeName: 'Amina BENALI', employeeNameAr: 'أمينة بن علي' };
     expect(notificationMessage({ type: 'task.assigned', data }, { ...FORMAT, arabic: true }).params['employeeName']).toBe('أمينة بن علي');
     expect(notificationMessage({ type: 'task.assigned', data }, FORMAT).params['employeeName']).toBe('Amina BENALI');
+  });
+
+  it('wording by audience: "your request" for the employee, a sentence naming the employee for anyone else', () => {
+    for (const type of ['leave.approved', 'leave.rejected', 'task.escalated']) {
+      expect(notificationKey({ type, audience: 'employee' })).toBe(`notifications.types.${type}`);
+      expect(notificationKey({ type, audience: 'requester' })).toBe(`notifications.typesNamed.${type}`);
+      expect(notificationKey({ type, audience: 'approver' })).toBe(`notifications.typesNamed.${type}`);
+      expect(notificationKey({ type, audience: null })).toBe(`notifications.typesNamed.${type}`); // null = someone else
+      expect(notificationKey({ type })).toBe(`notifications.typesNamed.${type}`); // older payload without the field
+    }
+    // Types that always name the employee (approvers) or only reach the employee keep their one sentence.
+    for (const type of ['task.assigned', 'leave.cancelled', 'leave.submitted_on_behalf', 'future.type']) {
+      expect(notificationKey({ type, audience: 'approver' })).toBe(`notifications.types.${type}`);
+    }
+    const data = { employeeName: 'Walid MANSOURI', employeeNameAr: 'وليد منصوري' };
+    const named = notificationMessage({ type: 'leave.approved', audience: 'requester', data }, { ...FORMAT, arabic: true });
+    expect(named.key).toBe('notifications.typesNamed.leave.approved');
+    expect(named.params['employeeName']).toBe('وليد منصوري');
+  });
+
+  it('every audience-worded type has both sentences in fr, ar and en, the named one with {{employeeName}}', () => {
+    for (const file of [fr, ar, en]) {
+      for (const type of WORDED_BY_AUDIENCE) {
+        expect(typeof at(file, `notifications.types.${type}`)).toBe('string');
+        expect(at(file, `notifications.typesNamed.${type}`)).toContain('{{employeeName}}');
+      }
+    }
   });
 
   it('missing or null data shows an ellipsis, never a raw {{placeholder}}', () => {

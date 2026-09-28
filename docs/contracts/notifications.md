@@ -78,6 +78,7 @@ interface NotificationView {
   id: string; type: string; createdAt: string; readAt: string | null;
   subject: { type: 'workflow_task' | 'leave_request'; id: string };
   data: Record<string, string | number | null>;   // e.g. {employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}
+  audience: 'approver' | 'employee' | 'requester' | null; // who the caller is to the subject (see "Wording by audience")
   link: string;                                    // app path, e.g. "/tasks?task=…"
 }
 ```
@@ -133,3 +134,22 @@ migration 0012).
   head with only `employe` opens it), the employee's own user to `/me/leave?request=…`, an HR requester who filed on
   behalf to `/leave/requests/<id>` (they hold `leave.read`). The web request detail shows its **History without
   `audit.read`** (the API scopes a `leave_request` timeline like the request; `rh_regional` has no `audit.read`).
+
+## Wording by audience (hardening, 2026-09-28)
+
+Fixes "an HR user who filed leave on someone's behalf gets `leave.approved` worded 'your request…'".
+
+- `NotificationView.audience` (top level, per recipient) exposes the row's internal audience: `employee` = the
+  recipient is the employee the request is for; `requester` = they filed it for someone else; `approver` = a task
+  candidate; `null` = a row without one (treat as "someone else"). `data` still never contains `audience`.
+- **Clients word the sentence by audience.** `employee` → "your request" (`Votre demande…`, `طلبك…`, `Your request…`);
+  any other audience → a sentence that names the employee (`employeeName`, or `employeeNameAr` in Arabic when present),
+  e.g. "La demande de congé de Walid Mansouri a été approuvée".
+- Types concerned: `leave.approved`, `leave.rejected` (employee or requester) and `task.escalated` (the requester:
+  `employee` when they filed their own, `requester` when HR filed it). `task.assigned` and `leave.cancelled` go to
+  approvers and always name the employee; `leave.submitted_on_behalf` only goes to the employee ("pour vous").
+- **E-mails** (`mail-templates.ts`) follow the same rule in fr/ar/en, subject and body. Employee: subject
+  `HRForce — votre demande de congé est approuvée` / `… est refusée` / `… est transmise aux RH`, body `Votre demande de
+  congé (…) a été approuvée par <actor>.` Someone else: subject `HRForce — demande de congé de <Name> approuvée` /
+  `refusée` / `transmise aux RH`, body `La demande de congé de <Name> (…) a été approuvée par <actor>.`
+

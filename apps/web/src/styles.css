@@ -221,9 +221,19 @@ time {
 }
 
 /*
- * Breadcrumb "A › B › C". Flex lays items out from inline-start to inline-end, so the order follows
- * the page direction; the separator sits alone at the start of a flex item, where the Unicode bidi
- * algorithm mirrors "›" into "‹" in RTL. Nothing here needs a left/right rule.
+ * Breadcrumb "A › B › C" (every `<ol class="breadcrumb">` of the app). Flex lays items out from inline-start to
+ * inline-end, so the ORDER follows the page direction without a left/right rule. The separator's SHAPE must follow
+ * too: in RTL "A ‹ B ‹ C" reads right to left, each arrow pointing at the next step.
+ * Relying on the Unicode bidi algorithm to mirror "›" is not dependable: a lone neutral character in generated
+ * content takes its direction from its neighbours, and a Latin unit name next to it can keep it pointing right.
+ * So the direction is taken out of the bidi algorithm's hands:
+ * - each item is a small flex row, so layout puts the separator at the item's inline-start (the right in RTL),
+ *   and `gap` spaces it (a gap has no side, unlike margin-inline-end);
+ * - the separator itself is `direction: ltr` (its own flex item, its own bidi paragraph), so the glyph is drawn
+ *   exactly as written — never mirrored — and `:dir(rtl)` picks "‹" for RTL pages. `:dir()` matches the direction
+ *   the element INHERITS from `<html dir>` (set by LanguageService), not only a `dir` attribute on itself;
+ * - `content: '›' / ''` gives the arrow an empty alternative text, so screen readers do not announce it between
+ *   steps (the `<ol>` already says it is a list). Browsers without that syntax keep the first declaration.
  */
 .breadcrumb {
   display: flex;
@@ -236,9 +246,21 @@ time {
   color: var(--color-text-muted);
 }
 
+.breadcrumb > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
 .breadcrumb > li + li::before {
   content: '›';
-  margin-inline-end: var(--space-1);
+  content: '›' / '';
+  direction: ltr;
+}
+
+.breadcrumb > li + li:dir(rtl)::before {
+  content: '‹';
+  content: '‹' / '';
 }
 
 /* Text for screen readers only (e.g. why a tree row is muted). Stays in the accessibility tree, takes no space. */
@@ -403,6 +425,19 @@ table.data th.num {
 
 .code {
   font-family: var(--font-mono);
+}
+
+/*
+ * Shows an input's text in capitals WITHOUT changing its value (e.g. the matricule, which the API upper-cases):
+ * rewriting the value on every keystroke would move the caret. The form normalises the value itself on blur and
+ * on submit (features/employees/employee-forms.ts › matricule). The placeholder keeps its own case.
+ */
+.uppercase {
+  text-transform: uppercase;
+}
+
+.uppercase::placeholder {
+  text-transform: none;
 }
 
 .field textarea {

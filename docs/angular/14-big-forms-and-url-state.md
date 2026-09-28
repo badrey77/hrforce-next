@@ -394,7 +394,53 @@ where a template cannot help: the organization page's id → name map (a `comput
 reads the language), and the org-unit picker's input text (an `effect()` rewrites it on
 a language switch, because an input's value is state, not an expression).
 
-## 6. Testing
+## 6. Validate what will be sent: the matricule
+
+The API trims and upper-cases the matricule before checking `^[A-Z0-9][A-Z0-9-]{0,19}$`. A
+`Validators.pattern()` on the raw text rejected "emp-0042", which the API would have
+accepted. Three small pieces make the form agree with the API
+([`employee-forms.ts`](../../apps/web/src/app/features/employees/employee-forms.ts)):
+
+- **The validator tests the normalised value** (`matricule`: `normaliseMatricule(value)`, the
+  same transformation as the server), with the same `pattern` error key as the built-in.
+- **Display in capitals without touching the value**: `class="uppercase"`
+  (`text-transform: uppercase`, `styles.css`). Rewriting the control on every keystroke would
+  move the caret to the end.
+- **Write the normalised value back on `(blur)`**: `(blur)="normaliseMatricule()"` is an
+  event binding like `(click)`. It runs after the form control got its last value (reactive
+  forms update on `input`), so the field then shows exactly what will be saved. The submit
+  normalises again, so a user who presses Enter without leaving the field sends the same body.
+
+## 7. Rehire: a create flow over an existing record
+
+`POST /employees` with `personId` creates a **new employment** for a person who already
+exists (the person fields are refused). The web offers it as `/employees/:id/rehire`
+(`:id` = an ended employment):
+
+- **Its own route below the param** (`employees.routes.ts`), with the same guard as `new`
+  (`canMatch: [permissionGuard('employee.create')]`). The router matches segment by
+  segment, so `:id/rehire` and `:id` never compete. It is a separate task, not a tab: it
+  creates something else and has its own permission.
+- **The entry point** is a link on the detail header (`data-action="rehire"`), shown when
+  the employment has an end date and the session holds `employee.create`. Not an `_actions`
+  entry: the server cannot judge a unit that is not chosen yet; the POST decides.
+- **The page reuses the detail resource** (`detailResource(this.id)`,
+  [`employee-rehire.page.ts`](../../apps/web/src/app/features/employees/employee-rehire.page.ts))
+  and shows the identity read-only.
+- **Prefill without an `effect()`.** The page renders the form only once the employment has
+  loaded — `@if (detail(); as e) { <app-rehire-form [previous]="e" /> }` — so the form
+  ([`rehire-form.ts`](../../apps/web/src/app/features/employees/rehire-form.ts)) takes it as
+  a **required input** and fills itself once in `ngOnInit`: hire date = the day after the
+  previous end (or today), unit and job title = the last ones. An `effect()` watching the
+  resource would re-fill the form on every reload and overwrite what the user typed.
+- **Same nested groups as the create page, minus `identity`**, so the create page's
+  validators and its body-field → control table (`CREATE_FIELD_PATHS`) apply unchanged.
+  A `notBefore(() => this.minHireDate())` validator mirrors the 409 `hire-date` rule.
+- **Problems** (`REHIRE_SLUGS`): `matricule-taken` and `hire-date` on their fields,
+  `employment-open` (the person already works here again) above the form, a 422 on
+  `personId` (the person left the caller's scope) as the translated "not found".
+
+## 8. Testing
 
 - **URL state** (`employees.page.spec.ts`, `RouterTestingHarness` with
   `withComponentInputBinding()`): navigate to a URL with query params and assert the API

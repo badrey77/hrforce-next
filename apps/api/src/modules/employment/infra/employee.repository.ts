@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { sql, type RawBuilder } from 'kysely';
 import type { UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { currentTx } from '../../../platform/context/request-context.js';
-import type { EmployeeSort, StatusFilter } from '../domain/employee.js';
+import type { EmployeeSort, ListLang, StatusFilter } from '../domain/employee.js';
 
 /** Postgres error raised by a constraint (pg's DatabaseError fields). */
 export function constraintViolation(error: unknown): { code: string; constraint: string } | undefined {
@@ -105,6 +105,7 @@ export interface ListParams {
   status: StatusFilter;
   sort: EmployeeSort;
   dir: 'asc' | 'desc';
+  lang: ListLang;
   limit: number;
   offset: number;
 }
@@ -114,6 +115,19 @@ export type PersonPatch = Partial<Omit<PersonRow, 'id'>>;
 const DATE = (column: string) => sql<string>`${sql.ref(column)}::text`;
 const VALID_FROM = (alias: string) => sql<string>`lower(${sql.ref(`${alias}.valid`)})::text`;
 const VALID_TO = (alias: string) => sql<string | null>`upper(${sql.ref(`${alias}.valid`)})::text`;
+
+/**
+ * `sort=name&lang=ar` (docs/contracts/employment.md › GET /employees): Arabic last name, then Arabic first name, each
+ * falling back to its Latin field when the Arabic one is missing (blank counts as missing), then the matricule.
+ * Collation `ar-x-icu`: the ICU Arabic collation predefined by initdb in every ICU-enabled build (the official
+ * postgres:16/18 images, Debian and Alpine). It orders by the Arabic alphabet and treats the alef forms (ا أ إ آ) as the
+ * same base letter, so "إبراهيم" sorts before "أحمد"; the database default (libc) would order by code point instead
+ * (آ < أ < إ). Latin fallbacks sort after the Arabic names (ascending), case- and accent-insensitive at the first level.
+ */
+const ARABIC_NAME_ORDER = (dir: RawBuilder<unknown>) => sql`
+  coalesce(nullif(btrim(r.last_name_ar), ''), r.last_name) collate "ar-x-icu" ${dir},
+  coalesce(nullif(btrim(r.first_name_ar), ''), r.first_name) collate "ar-x-icu" ${dir},
+  r.matricule ${dir}`;
 
 /**
  * Persons, employments, assignments, salaries and sensitive data — always through the request transaction
@@ -196,7 +210,7 @@ export class EmployeeRepository {
   async listPage(companyId: string, params: ListParams): Promise<{ rows: ListRow[]; total: number }> {
     const dir = params.dir === 'desc' ? sql`desc` : sql`asc`;
     const order = {
-      name: sql`r.sort_name ${dir}, r.matricule ${dir}`,
+      name: params.lang === 'ar' ? ARABIC_NAME_ORDER(dir) : sql`r.sort_name ${dir}, r.matricule ${dir}`,
       matricule: sql`r.matricule ${dir}`,
       hireDate: sql`r.hire_date ${dir}, r.sort_name asc`,
       unit: sql`search_normalize(uv.name) ${dir}, r.sort_name asc`,

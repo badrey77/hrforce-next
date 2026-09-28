@@ -86,7 +86,7 @@ describe('EmployeeCreatePage', () => {
   async function fillRequired(): Promise<void> {
     fill('new-last-name', ' BENALI ');
     fill('new-first-name', 'Amina');
-    fill('new-matricule', 'EMP-0042');
+    fill('new-matricule', 'emp-0042'); // lower case is accepted: the form upper-cases it, like the API
     fill('new-hire-date', '2025-02-01');
     fill('new-job-title', 'Chargée de clientèle');
     await settle();
@@ -135,6 +135,7 @@ describe('EmployeeCreatePage', () => {
     fill('new-salary', '85000,5');
     await submit();
 
+    expect((el().querySelector('#new-matricule') as HTMLInputElement).value).toBe('EMP-0042'); // normalised on blur
     const post = http.expectOne('/api/employees');
     expect(post.request.method).toBe('POST');
     // The nested form is flattened to the API's body; blocks only when filled in.

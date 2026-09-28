@@ -41,7 +41,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { catchError, debounceTime, map, of, Subject, switchMap } from 'rxjs';
-import { EmployeesApi } from '../../core/employees/employees-api';
+import { EmployeesApi, sortLanguageOf } from '../../core/employees/employees-api';
 import type { EmployeeListItem } from '../../core/employees/employees.models';
 import { LanguageService } from '../../core/i18n/language.service';
 import type { AppLanguage } from '../../core/i18n/languages';
@@ -117,7 +117,8 @@ export class EmployeePicker implements ControlValueAccessor {
         debounceTime(EMPLOYEE_PICKER_DEBOUNCE_MS),
         switchMap((q) => {
           this.state.set('loading');
-          return this.api.search(q).pipe(
+          // Same name order as the list: Arabic in an Arabic UI (`lang=ar`), Latin otherwise.
+          return this.api.search(q, undefined, sortLanguageOf(this.lang())).pipe(
             map((page) => page.items),
             catchError(() => of(null)),
           );

@@ -11,7 +11,11 @@ export interface NotificationMailInput {
   type: NotificationType;
   locale: MailLocale;
   recipientName: string;
-  /** the notification's data (employeeName, employeeNameAr, leaveType, startDate, endDate, days, actorName, …) */
+  /**
+   * the notification's data (employeeName, employeeNameAr, leaveType, startDate, endDate, days, actorName, …) and the
+   * internal `audience`: `employee` (the recipient is the employee: "your request") or `requester` / `approver` (someone
+   * else: the sentence names the employee). A missing audience counts as someone else — naming is never wrong.
+   */
   data: Readonly<Record<string, unknown>>;
   /** the leave type's label in the recipient's locale (falls back to the code) */
   leaveTypeLabel: string | null;
@@ -26,6 +30,8 @@ export interface NotificationMail {
 }
 
 interface Facts {
+  /** the recipient is the employee the request is for */
+  own: boolean;
   employee: string;
   type: string;
   start: string;
@@ -50,18 +56,19 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Bonjour ${name},`,
     subjects: {
       'task.assigned': (f) => `HRForce — demande de congé à traiter : ${f.employee}`,
-      'task.escalated': () => 'HRForce — votre demande de congé est transmise aux RH',
-      'leave.approved': () => 'HRForce — demande de congé approuvée',
-      'leave.rejected': () => 'HRForce — demande de congé refusée',
+      'task.escalated': (f) => (f.own ? 'HRForce — votre demande de congé est transmise aux RH' : `HRForce — demande de congé de ${f.employee} transmise aux RH`),
+      'leave.approved': (f) => (f.own ? 'HRForce — votre demande de congé est approuvée' : `HRForce — demande de congé de ${f.employee} approuvée`),
+      'leave.rejected': (f) => (f.own ? 'HRForce — votre demande de congé est refusée' : `HRForce — demande de congé de ${f.employee} refusée`),
       'leave.cancelled': (f) => `HRForce — demande de congé annulée : ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — une demande de congé a été déposée pour vous',
     },
     bodies: {
       'task.assigned': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
       'task.escalated': (f) =>
-        `L’étape du responsable hiérarchique n’a pas pu être attribuée pour la demande de ${f.employee} (${f.type}, du ${f.start} au ${f.end}) : elle est transmise directement aux ressources humaines.`,
-      'leave.approved': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) a été approuvée par ${f.actor}.`,
-      'leave.rejected': (f) => `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
+        `L’étape du responsable hiérarchique n’a pas pu être attribuée pour ${f.own ? 'votre demande' : `la demande de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}) : elle est transmise directement aux ressources humaines.`,
+      'leave.approved': (f) => `${f.own ? 'Votre demande de congé' : `La demande de congé de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) a été approuvée par ${f.actor}.`,
+      'leave.rejected': (f) =>
+        `${f.own ? 'Votre demande de congé' : `La demande de congé de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
       'leave.cancelled': (f) => `${f.actor} a annulé la demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}). Elle ne demande plus votre décision.`,
       'leave.submitted_on_behalf': (f) => `${f.actor} a déposé pour vous une demande de congé : ${f.type}, du ${f.start} au ${f.end} (${f.days}).`,
     },
@@ -82,17 +89,20 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `مرحبًا ${name}،`,
     subjects: {
       'task.assigned': (f) => `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`,
-      'task.escalated': () => 'HRForce — تمت إحالة طلب عطلتك إلى الموارد البشرية',
-      'leave.approved': () => 'HRForce — تمت الموافقة على طلب العطلة',
-      'leave.rejected': () => 'HRForce — تم رفض طلب العطلة',
+      'task.escalated': (f) => (f.own ? 'HRForce — تمت إحالة طلب عطلتك إلى الموارد البشرية' : `HRForce — تمت إحالة طلب عطلة ${f.employee} إلى الموارد البشرية`),
+      'leave.approved': (f) => (f.own ? 'HRForce — تمت الموافقة على طلب عطلتك' : `HRForce — تمت الموافقة على طلب عطلة ${f.employee}`),
+      'leave.rejected': (f) => (f.own ? 'HRForce — تم رفض طلب عطلتك' : `HRForce — تم رفض طلب عطلة ${f.employee}`),
       'leave.cancelled': (f) => `HRForce — تم إلغاء طلب العطلة: ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — تم تقديم طلب عطلة باسمك',
     },
     bodies: {
       'task.assigned': (f) => `طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
-      'task.escalated': (f) => `تعذر إسناد خطوة المسؤول المباشر لطلب ${f.employee} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
-      'leave.approved': (f) => `تمت الموافقة على طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) من طرف ${f.actor}.`,
-      'leave.rejected': (f) => `تم رفض طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'task.escalated': (f) =>
+        `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلبك' : `لطلب ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
+      'leave.approved': (f) =>
+        `تمت الموافقة على ${f.own ? 'طلب عطلتك' : `طلب العطلة الخاص بـ ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) من طرف ${f.actor}.`,
+      'leave.rejected': (f) =>
+        `تم رفض ${f.own ? 'طلب عطلتك' : `طلب العطلة الخاص بـ ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
       'leave.cancelled': (f) => `ألغى ${f.actor} طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}). لم يعد الطلب في انتظار قرارك.`,
       'leave.submitted_on_behalf': (f) => `قدّم ${f.actor} طلب عطلة باسمك: ${f.type}، من ${f.start} إلى ${f.end} (${f.days}).`,
     },
@@ -113,17 +123,19 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Hello ${name},`,
     subjects: {
       'task.assigned': (f) => `HRForce — leave request awaiting your decision: ${f.employee}`,
-      'task.escalated': () => 'HRForce — your leave request went straight to HR',
-      'leave.approved': () => 'HRForce — leave request approved',
-      'leave.rejected': () => 'HRForce — leave request rejected',
+      'task.escalated': (f) => (f.own ? 'HRForce — your leave request went straight to HR' : `HRForce — ${f.employee}’s leave request went straight to HR`),
+      'leave.approved': (f) => (f.own ? 'HRForce — your leave request was approved' : `HRForce — ${f.employee}’s leave request approved`),
+      'leave.rejected': (f) => (f.own ? 'HRForce — your leave request was rejected' : `HRForce — ${f.employee}’s leave request rejected`),
       'leave.cancelled': (f) => `HRForce — leave request cancelled: ${f.employee}`,
       'leave.submitted_on_behalf': () => 'HRForce — a leave request was filed for you',
     },
     bodies: {
       'task.assigned': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
-      'task.escalated': (f) => `The line-manager step could not be assigned for the request of ${f.employee} (${f.type}, ${f.start} to ${f.end}); it went straight to human resources.`,
-      'leave.approved': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) was approved by ${f.actor}.`,
-      'leave.rejected': (f) => `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}) was rejected by ${f.actor}. The details are in the app.`,
+      'task.escalated': (f) =>
+        `The line-manager step could not be assigned for ${f.own ? 'your request' : `the request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}); it went straight to human resources.`,
+      'leave.approved': (f) => `${f.own ? 'Your leave request' : `The leave request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}, ${f.days}) was approved by ${f.actor}.`,
+      'leave.rejected': (f) =>
+        `${f.own ? 'Your leave request' : `The leave request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}) was rejected by ${f.actor}. The details are in the app.`,
       'leave.cancelled': (f) => `${f.actor} cancelled the leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}). It no longer needs your decision.`,
       'leave.submitted_on_behalf': (f) => `${f.actor} filed a leave request for you: ${f.type}, ${f.start} to ${f.end} (${f.days}).`,
     },
@@ -170,6 +182,7 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
   const d = input.data;
   const employee = (input.locale === 'ar' && str(d['employeeNameAr'])) || str(d['employeeName']);
   const facts: Facts = {
+    own: d['audience'] === 'employee',
     employee,
     type: input.leaveTypeLabel ?? str(d['leaveType']),
     start: formatDate(str(d['startDate']), input.locale),

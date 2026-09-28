@@ -96,8 +96,28 @@ describe('EmployeesPage (URL as state)', () => {
     expect(el().querySelector('[role="status"]')?.textContent).toContain('1 employé(s)');
 
     TestBed.inject(LanguageService).use('ar', { remember: false });
-    await settle();
+    // Switching to Arabic re-sorts: a new request with lang=ar (the page URL does not change).
+    const arabic = await flushList();
+    expect(arabic.request.params.get('lang')).toBe('ar');
+    expect(arabic.request.params.get('sort')).toBe('name');
+    expect(params()).toEqual({});
     expect(cells().slice(1, 3)).toEqual(['بن علي أمينة', UNIT_ANNABA.nameAr]);
+  });
+
+  it('sends lang=ar only in the Arabic UI; fr and en leave it out, en does not re-fetch after fr', async () => {
+    const first = await open('/employees');
+    expect(first.request.params.has('lang')).toBe(false);
+
+    const language = TestBed.inject(LanguageService);
+    language.use('en', { remember: false });
+    await settle();
+    http.expectNone(isList);
+
+    language.use('ar', { remember: false });
+    expect((await flushList()).request.params.get('lang')).toBe('ar');
+
+    language.use('fr', { remember: false });
+    expect((await flushList()).request.params.has('lang')).toBe(false);
   });
 
   it('debounces the search and writes it with replaceUrl, resetting the page', async () => {

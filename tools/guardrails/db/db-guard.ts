@@ -13,6 +13,7 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import type { Client } from 'pg';
+import { type Command, npmCommand, packageBin } from '../lib/node-bin.ts';
 import { type GuardResult, isMain, printResult, REPO_ROOT, type Violation } from '../lib/report.ts';
 import { MIGRATIONS_DIR } from '../migrations/migrations.ts';
 import { evaluateAudited, evaluateCompanyId, isTenantTable, loadAuditExempt, loadCatalog, loadExempt, parseMigrationTables } from './catalog.ts';
@@ -20,8 +21,8 @@ import { createThrowawayDb, superuserUrlFromEnv, withClient } from './throwaway-
 
 const API_DIR = path.join(REPO_ROOT, 'apps/api');
 
-function run(command: string, args: string[], env: NodeJS.ProcessEnv, cwd = REPO_ROOT): { ok: boolean; output: string } {
-  const result = spawnSync(command, args, { cwd, env: { ...process.env, ...env }, encoding: 'utf8' });
+function run({ command, args, shell = false }: Command, env: NodeJS.ProcessEnv, cwd = REPO_ROOT): { ok: boolean; output: string } {
+  const result = spawnSync(command, args, { cwd, env: { ...process.env, ...env }, encoding: 'utf8', shell });
   return { ok: result.status === 0, output: `${result.stdout ?? ''}${result.stderr ?? ''}${result.error ? String(result.error) : ''}`.trim() };
 }
 
@@ -30,9 +31,8 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv, cwd = REPO
  * file instead of writing it. `outFile` overrides src/platform/db/schema.ts (tests).
  */
 export function codegen(url: string, { verify = true, outFile }: { verify?: boolean; outFile?: string } = {}): { ok: boolean; output: string } {
-  const bin = path.join(REPO_ROOT, 'node_modules/.bin/kysely-codegen');
   const args = [...(verify ? ['--verify'] : []), ...(outFile ? ['--out-file', outFile] : [])];
-  return run(bin, args, { MIGRATOR_DATABASE_URL: url }, API_DIR);
+  return run(packageBin('kysely-codegen', args), { MIGRATOR_DATABASE_URL: url }, API_DIR);
 }
 
 export function schemaDriftViolation(output: string): Violation {
@@ -55,7 +55,7 @@ async function loadAuditParents(client: Client): Promise<string[]> {
 export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): Promise<GuardResult[]> {
   const db = await createThrowawayDb(superuserUrl);
   try {
-    const migrate = run('npm', ['run', 'migrate', '-w', '@hrforce/api'], { MIGRATOR_DATABASE_URL: db.migratorUrl, LOG_LEVEL: 'warn' }, root);
+    const migrate = run(npmCommand(['run', 'migrate', '-w', '@hrforce/api']), { MIGRATOR_DATABASE_URL: db.migratorUrl, LOG_LEVEL: 'warn' }, root);
     if (!migrate.ok) {
       return [{ name: 'db (migrate)', violations: [{ file: MIGRATIONS_DIR, rule: 'db/migrate', message: `migrations failed:\n${migrate.output}` }] }];
     }

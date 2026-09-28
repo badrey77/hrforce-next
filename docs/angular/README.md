@@ -183,6 +183,12 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Clipboard API; Blob + object URL + temporary `<a download>`; `DOCUMENT` | 17 | `src/app/core/browser/clipboard.ts`, `download.ts`, `src/app/features/security/recovery-codes.ts` |
 | `model()` two-way binding with `[(x)]="signal"` | 17, 02 | `src/app/features/security/recovery-codes.ts` |
 | Enforcement guard in a shared `canMatch` array; outermost interceptor for a 403 problem | 17, 05, 06 | `src/app/core/auth/mfa-enrollment.ts`, `src/app/app.routes.ts`, `src/app/app.config.ts` |
+| Sorting in the UI language: a second resource key outside the URL, `computed()` as an equality gate | 08, 14 | `src/app/features/employees/employees.page.ts`, `src/app/core/employees/employees-api.ts` |
+| RTL glyphs: `:dir(rtl)`, `direction: ltr` on a pseudo-element, `content: 'x' / ''` alt text | 08 | `src/styles.css` (`.breadcrumb`) |
+| Language before first paint: CSP-safe boot script in `public/` | 08 | `public/lang-boot.js`, `src/index.html` |
+| `(blur)` event binding; validate the normalised value; `text-transform` for display | 14, 07 | `src/app/features/employees/employee-forms.ts` (`matricule`), `employee-create.page.html` |
+| Route below a param (`:id/rehire`) with its own guard; prefill via required input + `ngOnInit` | 14, 05 | `src/app/features/employees/employees.routes.ts`, `employee-rehire.page.ts`, `rehire-form.ts` |
+| Wording by audience: parallel key tree chosen by a pure function | 16 | `src/app/shared/notifications/notification-message.ts` |
 | `observe: 'response'` to branch on the HTTP status | 17, 06 | `src/app/core/auth/auth-api.ts` (`login`) |
 | Reusing a CVA in another form; `role="alertdialog"` confirm dialog | 17, 07 | `src/app/features/access/security-policy.page.ts`, `user-detail.page.html` |
 

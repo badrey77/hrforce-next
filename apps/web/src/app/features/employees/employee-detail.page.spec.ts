@@ -101,6 +101,22 @@ describe('EmployeeDetailPage', () => {
     expect(text('[data-field="unit"]')).toBe('وكالة عنابة');
   });
 
+  it('offers "Rehire" (a link to /employees/:id/rehire) once the employment has an end date, with employee.create', async () => {
+    await open();
+    expect(el().querySelector('[data-action="rehire"]')).toBeNull(); // still employed
+
+    await harness.navigateByUrl('/employees/e-2');
+    await settle();
+    http.expectOne('/api/employees/e-2').flush(detail({ id: 'e-2', endDate: '2025-06-30', status: 'ended', _actions: [] }));
+    await settle();
+    expect(el().querySelector('[data-action="rehire"]')?.getAttribute('href')).toBe('/employees/e-2/rehire');
+    expect(el().querySelector('[data-action="end"]')).toBeNull();
+
+    TestBed.inject(Session).set(meWith(['employee.read']));
+    await settle();
+    expect(el().querySelector('[data-action="rehire"]')).toBeNull(); // not without employee.create
+  });
+
   it('hides Pay and Bank & NSS when redacted, History without audit.read, and buttons without _actions', async () => {
     TestBed.inject(Session).set(meWith(['employee.read']));
     await open(redactedDetail());

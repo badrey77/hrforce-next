@@ -12,6 +12,12 @@
     -->
     <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Applies the language stored on this device to <html lang dir> before the body is styled, so an Arabic
+      session starts right-to-left and never fetches the Latin font it does not use (public/lang-boot.js explains).
+      A file, not an inline script: the CSP is script-src 'self'. Classic (blocking) on purpose: it must run first.
+    -->
+    <script src="lang-boot.js"></script>
   </head>
   <body>
     <app-root></app-root>

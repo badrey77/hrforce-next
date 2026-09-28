@@ -7,6 +7,14 @@
  * as nesting, the same as `audit.events.<type>`). The template falls back to `notifications.types.unknown` when a type
  * has no key yet (the API may add one before the web).
  *
+ * **Wording by audience** (notifications contract): the same event reads differently for the employee it is about
+ * ("Your request … was approved") and for anyone else — an HR user who filed it on their behalf, an approver
+ * ("Amina BENALI's request … was approved"). For the types in `WORDED_BY_AUDIENCE`, any audience other than
+ * `employee` (including `null`, and a missing field from an older payload) uses the sentence under
+ * `notifications.typesNamed.<type>`, which names the employee. A parallel key tree rather than one sentence with a
+ * `{{whose}}` placeholder: "your" vs "X's" changes word order and agreement in French and Arabic, so each language
+ * needs whole sentences.
+ *
  * `data` holds names, dates and the leave type CODE (contract › NotificationView), never ids to resolve: the
  * recipient may not be allowed to read the employee, so the server wrote what they may see.
  */
@@ -28,12 +36,24 @@ export interface NotificationMessage {
   readonly params: Readonly<Record<string, string>>;
 }
 
+/** Types whose sentence depends on `audience`; the others already name the employee (or only go to them). */
+export const WORDED_BY_AUDIENCE: ReadonlySet<string> = new Set(['leave.approved', 'leave.rejected', 'task.escalated']);
+
+/** Translation key of a notification's sentence: "your request" for its employee, "X's request" for anyone else. */
+export function notificationKey(notification: Pick<NotificationView, 'type'> & Partial<Pick<NotificationView, 'audience'>>): string {
+  const aboutSomeoneElse = WORDED_BY_AUDIENCE.has(notification.type) && notification.audience !== 'employee';
+  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}`;
+}
+
 /** Every placeholder a sentence may use; missing data shows as an ellipsis rather than a raw `{{placeholder}}`. */
 const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey'] as const;
 const MISSING = '…';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function notificationMessage(notification: Pick<NotificationView, 'type' | 'data'>, format: MessageFormatters): NotificationMessage {
+export function notificationMessage(
+  notification: Pick<NotificationView, 'type' | 'data'> & Partial<Pick<NotificationView, 'audience'>>,
+  format: MessageFormatters,
+): NotificationMessage {
   const params: Record<string, string> = {};
   for (const name of PLACEHOLDERS) params[name] = MISSING;
   for (const [name, value] of Object.entries(notification.data ?? {})) {
@@ -45,5 +65,5 @@ export function notificationMessage(notification: Pick<NotificationView, 'type' 
   }
   const arabicName = notification.data?.['employeeNameAr'];
   if (format.arabic && typeof arabicName === 'string' && arabicName.trim()) params['employeeName'] = arabicName;
-  return { key: `notifications.types.${notification.type}`, params };
+  return { key: notificationKey(notification), params };
 }

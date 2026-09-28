@@ -32,7 +32,7 @@ Also: `org_unit_version.name_ar` (optional) — Arabic unit name, date-effective
 
 | Method + path | Permission | Purpose |
 |---|---|---|
-| `GET /employees` | `employee.read` | list — query: `q` (name Latin/Arabic, matricule, NIN; accent/case-insensitive), `unitId` + `includeSubUnits` (default true), `siteId`, `status` (`active` default / `ended` / `all`), `asOf`, `sort` (`name` default / `matricule` / `hireDate` / `unit`), `dir` (`asc`/`desc`), `page` (1-based), `pageSize` (default 25, max 100) → `{items: EmployeeListItem[], total, page, pageSize}` |
+| `GET /employees` | `employee.read` | list — query: `q` (name Latin/Arabic, matricule, NIN; accent/case-insensitive), `unitId` + `includeSubUnits` (default true), `siteId`, `status` (`active` default / `ended` / `all`), `asOf`, `sort` (`name` default / `matricule` / `hireDate` / `unit`), `dir` (`asc`/`desc`), `lang` (`fr` default / `ar`: the UI language; with `sort=name`, `ar` orders by the Arabic last name then first name, each falling back to the Latin one when missing, collation ICU `ar-x-icu`, then matricule; no effect on other sort keys; any other value → 422, `errors[].field = lang`), `page` (1-based), `pageSize` (default 25, max 100) → `{items: EmployeeListItem[], total, page, pageSize}` |
 | `GET /employees/:id` | `employee.read` | detail (`:id` = employment id) |
 | `POST /employees` | `employee.create` over the first unit | create person (or reuse `personId` for a rehire) + employment + first assignment (+ optional `salary`, `bank`, `nss` blocks if permitted) → 201 detail + Location |
 | `PATCH /employees/:id/person` | `employee.update` | person fields (names, birth, sex, nationality, nin) |
@@ -46,12 +46,30 @@ Also: `org_unit_version.name_ar` (optional) — Arabic unit name, date-effective
 
 **Settled by the build (the contract left these open):**
 - `hire-date` (409, field `hireDate`): a rehire's hire date must be after the end of the person's previous employment (also the backstop for the per-person no-overlap constraint).
-- `POST /employees` body is **flat** for person and first-assignment fields — `{personId? | lastName, firstName, lastNameAr?, firstNameAr?, birthDate?, birthPlace?, sex?, nationality?, nin?}, matricule, hireDate, orgUnitId, siteId?, jobTitle` — with the sensitive blocks **nested** as in the detail: `salary: {baseSalary}`, `bank: {rib, bankName}`, `nss: {nss}`. With `personId` the person fields are refused (422). The first assignment and the first salary start at `hireDate`. The matricule is trimmed and upper-cased by the API (the web form asks for upper case).
+- `POST /employees` body is **flat** for person and first-assignment fields — `{personId? | lastName, firstName, lastNameAr?, firstNameAr?, birthDate?, birthPlace?, sex?, nationality?, nin?}, matricule, hireDate, orgUnitId, siteId?, jobTitle` — with the sensitive blocks **nested** as in the detail: `salary: {baseSalary}`, `bank: {rib, bankName}`, `nss: {nss}`. With `personId` the person fields are refused (422). The first assignment and the first salary start at `hireDate`. The matricule is trimmed and upper-cased by the API; the web accepts lower case too (create and rehire forms show it in capitals, upper-case the value on blur and before sending).
 - `forbidden-field` is checked against the `.update` permission over the first unit; `errors[].field` is the block name (`salary`/`bank`/`nss`). Nothing is written when it fires. A `PUT /employees/:id/{salary,bank,nss}` by a caller who holds that `.update` permission nowhere is a plain 403 `forbidden` from the guard (before the id is looked up, so it reveals nothing).
 - Money in request bodies must be a JSON **string** (`"85000"`, `"85000.5"`, `"85000.50"`; > 0, at most 10 digits before the point and 2 after); a JSON number is a 422. Responses always carry two decimals.
 - Once `endDate` is recorded (even a future one) the employment is closed for writes: every write answers `employment-ended` and `_actions` is empty. `status` stays `active` until the end date has passed.
 - `assignments[].unit.path` items also carry `nameAr` (`{id, name, nameAr}`).
 - An unknown `orgUnitId` / `siteId` in a body is a 422 `not_found` on that field (a unit of another company counts as unknown).
+- **Arabic name order (hardening, 2026-09-28).** `GET /employees?sort=name&lang=ar` sorts by
+  `coalesce(last_name_ar, last_name)`, then `coalesce(first_name_ar, first_name)` (a blank Arabic name counts as
+  missing), then `matricule`, all in `dir`, with `id` ascending as the final tiebreak — collation **`ar-x-icu`** (ICU
+  Arabic, predefined by initdb in every ICU-enabled build, incl. the official `postgres:16`/`postgres:18` Debian and
+  Alpine images; the database default libc collation orders Arabic by code point, e.g. آ < أ < إ, and musl/Alpine has
+  no Arabic collation at all). ICU Arabic follows the Arabic alphabet, treats the alef forms (ا أ إ آ) as one base
+  letter, and puts Latin fallbacks after every Arabic name when ascending. `lang=fr` (default) keeps the Latin order
+  (`sort_name`: accent/case-folded last + first name). The web sends `lang=ar` only when the UI is Arabic —
+  employee list and employee picker — and never puts it in the page URL; switching the UI to or from Arabic re-fetches
+  the list (fr ↔ en sends the same request, so it does not).
+- **Rehire (web, hardening 2026-09-28).** Route `/employees/:id/rehire` (`employee.create`; without it the route does
+  not match and the app shows "not found"), reached from the "Rehire" action of an employee whose employment has an
+  end date (`:id` = that ended employment). The person's identity is shown read-only; the form sends
+  `POST /employees` with `personId` + matricule, hire date, first assignment and optional salary — person fields are
+  **never sent**. On the API side the flat person fields next to `personId` are a 422 on each field, and unknown
+  keys (e.g. a nested `person` object) are stripped and ignored. A person outside the caller's `employee.create`
+  scope is a 422 `not_found` on `personId`; a person rehired since (another open employment) is a 409
+  `employment-open`, shown above the form.
 
 ```ts
 interface NamePair { lastName: string; firstName: string; lastNameAr: string | null; firstNameAr: string | null }

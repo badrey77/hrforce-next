@@ -43,7 +43,7 @@ describe('NotificationBell', () => {
     document.body.appendChild(fixture.nativeElement);
     await settle();
     http.expectOne(isList).flush({
-      items: [notification('n-1'), notification('n-2', { type: 'leave.approved', readAt: '2026-09-26T10:00:00Z', link: '/me/leave?request=r-2' })],
+      items: [notification('n-1'), notification('n-2', { type: 'leave.approved', audience: 'employee', readAt: '2026-09-26T10:00:00Z', link: '/me/leave?request=r-2' })],
       nextCursor: null,
     });
     http.expectOne(isCount).flush({ count: 1 });
@@ -103,6 +103,8 @@ describe('NotificationBell', () => {
     expect(first?.classList.contains('unread')).toBe(true);
     expect(first?.textContent).toContain('Demande « annual » de BENALI Amina');
     expect(first?.textContent).toContain('(non lue)');
+    // audience 'employee' → "your request" wording.
+    expect(el().querySelector('[data-notification="n-2"]')?.textContent).toContain('Votre demande « annual »');
     expect(el().querySelector('[data-notification="n-2"]')?.textContent).toContain('a été approuvée');
     expect(el().querySelector('[data-notification="n-1"]')?.getAttribute('href')).toBe('/tasks?task=k-n-1');
 
@@ -147,10 +149,12 @@ describe('NotificationBell', () => {
 
   it('a live notification appears at the top of the open panel', async () => {
     await openPanel();
-    fake.last().send('notification', notification('n-3', { type: 'leave.rejected', data: { leaveType: 'annual', startDate: '2026-10-05', endDate: '2026-10-09', actorName: 'Karim Haddad' } }));
+    // audience 'requester' (HR filed it for Walid) → the sentence names the employee instead of "your request".
+    fake.last().send('notification', notification('n-3', { type: 'leave.rejected', audience: 'requester', data: { employeeName: 'Walid MANSOURI', leaveType: 'annual', startDate: '2026-10-05', endDate: '2026-10-09', actorName: 'Karim Haddad' } }));
     await settle();
     const items = [...el().querySelectorAll('[data-notification]')].map((a) => a.getAttribute('data-notification'));
     expect(items).toEqual(['n-3', 'n-1', 'n-2']);
+    expect(el().querySelector('[data-notification="n-3"]')?.textContent).toContain('La demande « annual » de Walid MANSOURI');
     expect(el().querySelector('[data-notification="n-3"]')?.textContent).toContain('refusée par Karim Haddad');
     expect(bell().getAttribute('aria-label')).toBe('Notifications, 2 non lue(s)');
   });

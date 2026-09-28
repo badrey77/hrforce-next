@@ -97,8 +97,15 @@ async function pickUnit(): Promise<void> {
   fill('grant-unit', 'Oran');
   // Generous margin: with `shouldAdvanceTime` the faked Date.now() (read by debounceTime) moves in 20 ms steps and can
   // lag real time by up to one step, so the debounce may fire a little after DEBOUNCE_MS of real time.
+  // It can fire later still on a loaded machine, so poll for the request (up to ~1 s more) instead of one fixed sleep.
   await new Promise((resolve) => setTimeout(resolve, ORG_UNIT_PICKER_DEBOUNCE_MS + 100));
-  http.expectOne((r) => r.url === '/api/org/units').flush({ items: [AG_ORAN] });
+  let searches = http.match((r) => r.url === '/api/org/units');
+  for (let i = 0; i < 50 && searches.length === 0; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    searches = http.match((r) => r.url === '/api/org/units');
+  }
+  expect(searches).toHaveLength(1);
+  searches[0]?.flush({ items: [AG_ORAN] });
   await settle();
   (el().querySelector('app-org-unit-picker [role="option"]') as HTMLElement).click();
   await settle();

@@ -4,6 +4,7 @@ import { isIsoDate } from '../../organization/index.js';
 import {
   END_REASONS,
   isPositiveMoney,
+  LIST_LANGS,
   JOB_TITLE_MAX,
   MATRICULE_PATTERN,
   NIN_PATTERN,
@@ -74,6 +75,7 @@ export class ListEmployeesQueryDto extends createZodDto(
     asOf: isoDate.optional(),
     sort: z.enum(['name', 'matricule', 'hireDate', 'unit']).default('name'),
     dir: z.enum(['asc', 'desc']).default('asc'),
+    lang: z.enum(LIST_LANGS).default('fr'),
     page: z.coerce.number().int().min(1).max(100000).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(25),
   }),

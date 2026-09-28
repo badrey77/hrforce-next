@@ -53,7 +53,9 @@ API_PID=$!
 # Background jobs (Graphile Worker): notification e-mails and the monthly/daily cron. Built by seed:dev above.
 npm run start:worker -w @hrforce/api &
 WORKER_PID=$!
-npm start -w @hrforce/web &
+# PORT (3000, from apps/api/.env above) would override `ng serve --port 4200`: the Angular dev server reads
+# process.env.PORT first, and would then take the API's port.
+PORT=4200 npm start -w @hrforce/web &
 WEB_PID=$!
 trap 'kill $API_PID $WORKER_PID $WEB_PID 2>/dev/null; exit 0' INT TERM
 

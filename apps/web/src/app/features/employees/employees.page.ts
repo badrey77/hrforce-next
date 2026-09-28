@@ -27,6 +27,11 @@
  * - **`aria-sort`** on the sorted column header (`ascending`/`descending`); the header's button says what a click
  *   will do. Sorting is the server's (`sort`/`dir` params), so it spans every page.
  * - **Names in the UI language**: `person | displayName: lang()` and `unit | displayName: lang()` (shared pipe).
+ * - **…and SORTED in the UI language.** `sortLanguage` is a `computed()` of the UI language (`'ar'` or `null`) given
+ *   to the list resource next to `query`; in Arabic the API is asked for `lang=ar` and orders by the Arabic name.
+ *   It is deliberately NOT a query param of the page: the URL holds what the user chose on THIS screen, the
+ *   language is a UI setting. Why a `computed()` and not `lang` directly: a `computed()` only notifies when its
+ *   VALUE changes, so switching fr → en (both `null`) does not re-fetch, while fr → ar does (`null` → `'ar'`).
  * - **Permission-aware filters**: the site select needs `site.read` and the unit picker `org_unit.read`
  *   (`Session.allows`, a `computed()` per code kept in a field); without them the filter is simply not offered and
  *   nothing is requested. "New employee" is page-level (`*appCan="'employee.create'"`).
@@ -38,7 +43,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { debounceTime, filter, Subject } from 'rxjs';
 import { Session } from '../../core/auth/session';
-import { EmployeesApi } from '../../core/employees/employees-api';
+import { EmployeesApi, sortLanguageOf } from '../../core/employees/employees-api';
 import {
   DEFAULT_EMPLOYEE_QUERY,
   EMPLOYEE_PAGE_SIZES,
@@ -101,7 +106,9 @@ export class EmployeesPage {
     }),
   );
 
-  protected readonly list = inject(EmployeesApi).listResource(this.query);
+  /** `'ar'` in an Arabic UI, else `null`: the equality gate in front of the resource (see header). */
+  protected readonly sortLanguage = computed(() => sortLanguageOf(this.lang()));
+  protected readonly list = inject(EmployeesApi).listResource(this.query, this.sortLanguage);
   protected readonly items = computed<readonly EmployeeListItem[]>(() => (this.list.hasValue() ? this.list.value().items : []));
   protected readonly total = computed(() => (this.list.hasValue() ? this.list.value().total : 0));
   protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / this.query().pageSize)));

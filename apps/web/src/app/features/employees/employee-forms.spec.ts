@@ -11,7 +11,9 @@ import {
   fieldErrorKey,
   fieldErrorParams,
   MATRICULE_PATTERN,
+  matricule,
   money,
+  normaliseMatricule,
   normaliseMoney,
 } from './employee-forms';
 import { resolveQuery, toQueryParams } from './employee-list-state';
@@ -51,6 +53,12 @@ describe('employee validators', () => {
     expect(MATRICULE_PATTERN.test('emp-1')).toBe(false);
     expect(MATRICULE_PATTERN.test('-EMP')).toBe(false);
     expect(MATRICULE_PATTERN.test('A'.repeat(21))).toBe(false);
+  });
+
+  it('matricule validator accepts lower case and spaces around it, like the API (trim + upper case)', () => {
+    for (const ok of ['EMP-0042', 'emp-0042', ' Emp-1 ', '']) expect(matricule(control(ok))).toBeNull();
+    for (const bad of ['emp 1', '-emp', 'é-1', 'a'.repeat(21)]) expect(matricule(control(bad))).toHaveProperty('pattern');
+    expect(normaliseMatricule(' emp-0042 ')).toBe('EMP-0042');
   });
 
   it('bothOrNeither and the cross-section birthBeforeHire', () => {

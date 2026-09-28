@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeCursor, EMAIL_DEFAULTS, emailDefault, encodeCursor, linkOf, NOTIFICATION_TYPES, publicData } from './notification-rules.js';
+import { audienceOf, decodeCursor, EMAIL_DEFAULTS, emailDefault, encodeCursor, linkOf, NOTIFICATION_TYPES, publicData } from './notification-rules.js';
 
 const ID = '0190a5d0-0000-7000-8000-000000000abc';
 
@@ -20,6 +20,14 @@ describe('notification rules', () => {
 
   it('publicData drops the audience and non-scalar values', () => {
     expect(publicData({ audience: 'employee', employeeName: 'A B', days: 2.5, x: { y: 1 }, n: null })).toEqual({ employeeName: 'A B', days: 2.5, x: null, n: null });
+  });
+
+  it('audienceOf reads the internal audience, null when absent or unknown', () => {
+    expect(audienceOf({ audience: 'employee' })).toBe('employee');
+    expect(audienceOf({ audience: 'requester' })).toBe('requester');
+    expect(audienceOf({ audience: 'approver' })).toBe('approver');
+    expect(audienceOf({})).toBeNull();
+    expect(audienceOf({ audience: 'boss' })).toBeNull();
   });
 
   it('cursor round-trips and rejects garbage', () => {

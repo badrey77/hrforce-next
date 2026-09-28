@@ -1,0 +1,94 @@
+<!--
+  Same markup conventions as the create page (employee-create.page.html): one <fieldset formGroupName="…"> per
+  section, `@let` to name a group's controls once, <app-field-error> for each field's message. Ids start with
+  `rehire-` so they never collide with another form of the feature.
+-->
+<form *transloco="let t" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  @if (formError(); as error) {
+    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @let employment = form.controls.employment.controls;
+  <fieldset class="section" formGroupName="employment" data-section="employment">
+    <legend>{{ t('employees.rehire.newEmployment') }}</legend>
+    <div class="grid">
+      <div class="field">
+        <label for="rehire-matricule">{{ t('employees.fields.matricule') }}</label>
+        <input id="rehire-matricule" class="uppercase" type="text" formControlName="matricule" autocomplete="off" maxlength="20"
+          required autocapitalize="characters" spellcheck="false" (blur)="normaliseMatricule()"
+          [attr.aria-invalid]="employment.matricule.invalid && employment.matricule.touched"
+          aria-describedby="rehire-matricule-hint rehire-matricule-error" />
+        <p class="field-hint" id="rehire-matricule-hint">{{ t('employees.rehire.matriculeHint') }}</p>
+        <app-field-error [control]="employment.matricule" errorId="rehire-matricule-error" />
+      </div>
+      <div class="field">
+        <label for="rehire-hire-date">{{ t('employees.fields.hireDate') }}</label>
+        <input id="rehire-hire-date" type="date" formControlName="hireDate" required [min]="minHireDate()"
+          [attr.aria-invalid]="employment.hireDate.invalid && employment.hireDate.touched"
+          aria-describedby="rehire-hire-date-hint rehire-hire-date-error" />
+        @if (previous().endDate; as end) {
+          <p class="field-hint" id="rehire-hire-date-hint">{{ t('employees.rehire.hireDateHint', { date: end }) }}</p>
+        }
+        <app-field-error [control]="employment.hireDate" errorId="rehire-hire-date-error" />
+      </div>
+    </div>
+  </fieldset>
+
+  @let assignment = form.controls.assignment.controls;
+  <fieldset class="section" formGroupName="assignment" data-section="assignment">
+    <legend>{{ t('employees.sections.assignment') }}</legend>
+    <div class="grid">
+      <div class="field">
+        <label for="rehire-unit">{{ t('employees.fields.unit') }}</label>
+        <app-org-unit-picker
+          formControlName="orgUnitId"
+          inputId="rehire-unit"
+          [asOf]="hireDate() || undefined"
+          [invalid]="assignment.orgUnitId.invalid && assignment.orgUnitId.touched"
+          describedBy="rehire-unit-error"
+        />
+        <app-field-error [control]="assignment.orgUnitId" errorId="rehire-unit-error" />
+      </div>
+      @if (canSites()) {
+        <div class="field">
+          <label for="rehire-site">{{ t('employees.fields.site') }}</label>
+          <select id="rehire-site" formControlName="siteId">
+            <option [ngValue]="null">{{ t('employees.fields.siteOfUnit') }}</option>
+            @for (site of sites(); track site.id) {
+              <option [ngValue]="site.id">{{ site.name }} ({{ site.code }})</option>
+            }
+          </select>
+        </div>
+      }
+      <div class="field">
+        <label for="rehire-job-title">{{ t('employees.fields.jobTitle') }}</label>
+        <input id="rehire-job-title" type="text" formControlName="jobTitle" autocomplete="off" dir="auto" required
+          [attr.aria-invalid]="assignment.jobTitle.invalid && assignment.jobTitle.touched" aria-describedby="rehire-job-title-error" />
+        <app-field-error [control]="assignment.jobTitle" errorId="rehire-job-title-error" />
+      </div>
+    </div>
+    <p class="field-hint">{{ t('employees.hints.firstAssignment') }}</p>
+  </fieldset>
+
+  @if (canSalary()) {
+    @let salary = form.controls.salary.controls;
+    <fieldset class="section sensitive" formGroupName="salary" data-section="salary">
+      <legend>{{ t('employees.sections.salary') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></legend>
+      <div class="field">
+        <label for="rehire-salary">{{ t('employees.fields.baseSalary') }}</label>
+        <input id="rehire-salary" type="text" inputmode="decimal" formControlName="baseSalary" autocomplete="off"
+          [attr.aria-invalid]="salary.baseSalary.invalid && salary.baseSalary.touched"
+          aria-describedby="rehire-salary-hint rehire-salary-error" />
+        <p class="field-hint" id="rehire-salary-hint">{{ t('employees.hints.salary') }}</p>
+        <app-field-error [control]="salary.baseSalary" errorId="rehire-salary-error" />
+      </div>
+    </fieldset>
+  }
+
+  <div class="form-actions">
+    <button class="btn" type="submit" [disabled]="submitting()">
+      {{ submitting() ? t('employees.form.saving') : t('employees.rehire.submit') }}
+    </button>
+    <a class="btn secondary" [routerLink]="['/employees', previous().id]">{{ t('common.cancel') }}</a>
+  </div>
+</form>

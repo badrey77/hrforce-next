@@ -23,6 +23,9 @@ export type EndReason = (typeof END_REASONS)[number];
 export type EmployeeStatus = 'active' | 'ended' | 'future';
 export type StatusFilter = 'active' | 'ended' | 'all';
 export type EmployeeSort = 'name' | 'matricule' | 'hireDate' | 'unit';
+/** UI language of a list: `ar` sorts `sort=name` by the Arabic names (Latin when missing); no effect on other keys. */
+export const LIST_LANGS = ['fr', 'ar'] as const;
+export type ListLang = (typeof LIST_LANGS)[number];
 
 /** Field blocks guarded by their own permissions (omitted and listed in `_redacted` without them). */
 export const FIELD_BLOCKS = ['salary', 'bank', 'nss'] as const;

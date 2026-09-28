@@ -4,7 +4,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { apiProblemInterceptor } from '../http/api-problem.interceptor';
-import { EmployeesApi, employeeListParams } from './employees-api';
+import { EmployeesApi, employeeListParams, sortLanguageOf } from './employees-api';
 import { DEFAULT_EMPLOYEE_QUERY, type EmployeeQuery } from './employees.models';
 
 describe('employeeListParams', () => {
@@ -47,6 +47,16 @@ describe('employeeListParams', () => {
   });
 });
 
+describe('employeeListParams › lang', () => {
+  it('adds lang=ar only for an Arabic sort language', () => {
+    expect(employeeListParams(DEFAULT_EMPLOYEE_QUERY, 'ar')['lang']).toBe('ar');
+    expect(employeeListParams(DEFAULT_EMPLOYEE_QUERY, null)).not.toHaveProperty('lang');
+    expect(sortLanguageOf('ar')).toBe('ar');
+    expect(sortLanguageOf('fr')).toBeNull();
+    expect(sortLanguageOf('en')).toBeNull();
+  });
+});
+
 describe('EmployeesApi', () => {
   let api: EmployeesApi;
   let http: HttpTestingController;
@@ -78,6 +88,16 @@ describe('EmployeesApi', () => {
     expect(second.request.params.get('unitId')).toBe('u-1');
     expect(second.request.params.get('includeSubUnits')).toBe('true');
     second.flush({ items: [], total: 0, page: 2, pageSize: 25 });
+  });
+
+  it('listResource re-fetches when the sort language changes', () => {
+    const lang = signal<'ar' | null>(null);
+    TestBed.runInInjectionContext(() => api.listResource(() => DEFAULT_EMPLOYEE_QUERY, lang));
+    TestBed.tick();
+    expect(http.expectOne((r) => r.url === '/api/employees').request.params.has('lang')).toBe(false);
+    lang.set('ar');
+    TestBed.tick();
+    expect(http.expectOne((r) => r.url === '/api/employees').request.params.get('lang')).toBe('ar');
   });
 
   it('detailResource is idle without an id, then GETs /employees/:id', () => {

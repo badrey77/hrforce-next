@@ -15,6 +15,7 @@ import {
   scopeAssignment,
   statusOf,
   type EmployeeSort,
+  type ListLang,
   type EndReason,
   type FieldBlock,
   type StatusFilter,
@@ -58,6 +59,8 @@ export interface ListEmployeesInput {
   asOf?: string | undefined;
   sort: EmployeeSort;
   dir: 'asc' | 'desc';
+  /** optional: `fr` when absent */
+  lang?: ListLang | undefined;
   page: number;
   pageSize: number;
 }
@@ -183,6 +186,7 @@ export class EmployeesService {
       status: input.status,
       sort: input.sort,
       dir: input.dir,
+      lang: input.lang ?? 'fr',
       limit: input.pageSize,
       offset: (input.page - 1) * input.pageSize,
     });

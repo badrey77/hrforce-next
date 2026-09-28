@@ -70,6 +70,7 @@ export function notification(id: string, extra: Partial<NotificationView> = {}):
     readAt: null,
     subject: { type: 'workflow_task', id: `k-${id}` },
     data: { employeeName: 'BENALI Amina', leaveType: 'annual', startDate: '2026-10-05', endDate: '2026-10-09', days: 5, actorName: 'Karim Haddad', stepKey: 'manager' },
+    audience: 'approver',
     link: `/tasks?task=k-${id}`,
     ...extra,
   };

@@ -174,6 +174,36 @@ properties (rotation isn't expressible logically):
 .chevron:dir(rtl) { transform: scaleX(-1); }
 ```
 
+### Direction-sensitive glyphs: the breadcrumb separator
+
+Logical properties flip *layout*; they do nothing for a *character* that points somewhere.
+Breadcrumbs (`<ol class="breadcrumb">`, used by the employee detail, the unit detail and
+both pickers) put "›" between steps. In Arabic the steps read right to left, so the arrow
+must point left: "المديرية العامة ‹ دائرة الشبكة". The Unicode bidi algorithm *can* mirror
+"›" into "‹", but only when the character resolves to right-to-left from its neighbours —
+a lone neutral in generated content next to a Latin unit name did not, so the arrow kept
+pointing right. The rules in `src/styles.css` take the decision away from the bidi
+algorithm:
+
+```css
+.breadcrumb > li { display: flex; align-items: baseline; gap: var(--space-1); }
+.breadcrumb > li + li::before { content: '›'; content: '›' / ''; direction: ltr; }
+.breadcrumb > li + li:dir(rtl)::before { content: '‹'; content: '‹' / ''; }
+```
+
+- Each item is a flex row, so **layout** puts the separator at the item's inline-start
+  (the right in RTL), and `gap` spaces it without a side.
+- `direction: ltr` on the separator makes it its own left-to-right run: the glyph is drawn
+  exactly as written, never mirrored. `:dir(rtl)` then picks "‹". `:dir()` matches the
+  direction an element **inherits** from `<html dir>` (set by `LanguageService`), unlike
+  `[dir="rtl"]`, which only matches an element carrying the attribute itself.
+- `content: '›' / ''` is the alt-text syntax: an empty alternative, so screen readers do
+  not read "›" between steps. The first declaration is the fallback for browsers that do
+  not know the syntax (they drop the second one; the build keeps both).
+
+Because it is one global rule, every breadcrumb in the app is fixed at once.
+
+
 ### The css-logical guardrail
 
 `tools/guardrails/css/css-logical.ts` is a CI check (not part of the Angular framework
@@ -244,6 +274,58 @@ page's (hence `font: inherit`, also applied to `<dialog>` so a modal always matc
 line up with equal-width digits (`font-variant-numeric: tabular-nums` on `table` and
 `time`). Components never set `font-family`, except the `ui-monospace, monospace` stack
 for codes.
+
+### Setting the language before the first paint
+
+`unicode-range` only helps if the right family comes first *when the browser first styles
+the page*. `index.html` ships `lang="fr"`, and `LanguageService` applies the stored
+language only once Angular boots. In between, the browser already styled the document for
+French, `:root`'s stack started with Source Sans 3, and an Arabic session downloaded a
+Latin Source Sans 3 file it never used (and was laid out left-to-right for a moment).
+
+The fix is a tiny script that runs before `<body>` is parsed:
+[`public/lang-boot.js`](../../apps/web/public/lang-boot.js), loaded from `index.html` with
+a plain `<script src="lang-boot.js"></script>` in `<head>`. It reads the same localStorage
+key as `LanguageService` (`hrforce.lang`) and sets `<html lang dir>`. Three details:
+
+- **A file, not an inline `<script>`.** The staging CSP (`deploy/Caddyfile`) is
+  `script-src 'self'`: no inline scripts, and `deploy/web/check-index-csp.mjs` fails the
+  image build on one. A same-origin file is allowed without weakening the policy.
+- **Classic and blocking on purpose.** Angular's own bundles are `type="module"`, which
+  the browser defers until the document is parsed. A classic script without `defer` runs
+  where it stands, so `lang` and `dir` are set before anything is styled. It is a few
+  hundred bytes, same origin, and revalidated like `favicon.ico`.
+- **Files in `public/` are copied as they are** (the `assets` entry of `angular.json`): no
+  hashing, no bundling — which is why it is plain ES5-style JavaScript and must stay in
+  sync by hand with `language.service.ts` and `languages.ts`. `LanguageService` stays the
+  authority: it re-applies the language at startup and may switch to the account's locale
+  after sign-in. A device with no stored choice still starts in French (and a later
+  account-locale switch to Arabic still costs that one Latin file).
+
+Measured on `/login` with Chrome: stored `ar` → only `cairo-latin` and `cairo-arabic`;
+stored `fr` → `source-sans-3-latin` (and Cairo's Arabic subset for the language menu).
+
+## Data sorted in the UI language
+
+Displaying an Arabic name is the web's job (`displayName` pipe, chapter 14); **sorting** by
+it is the server's, because the list is paged. `GET /api/employees` accepts `lang=ar`: with
+`sort=name` the API orders by the Arabic name (Latin as a fallback). The list page gives the
+resource a second key next to the URL query
+([`employees.page.ts`](../../apps/web/src/app/features/employees/employees.page.ts),
+[`employees-api.ts`](../../apps/web/src/app/core/employees/employees-api.ts)):
+
+```ts
+protected readonly sortLanguage = computed(() => sortLanguageOf(this.lang())); // 'ar' | null
+protected readonly list = inject(EmployeesApi).listResource(this.query, this.sortLanguage);
+```
+
+- The language is **not** a query param of the page: the URL holds what the user chose on
+  this screen; a link shared by an Arabic user must not re-sort the list of a French one.
+- It is read inside the resource's request function, so switching the UI to Arabic builds a
+  new request: the list re-sorts with no code "listening" for the switch.
+- The `computed()` is an **equality gate**: it only notifies when its value changes, so fr →
+  en (both `null`) does not re-fetch; fr → ar does. `lang` is sent only for Arabic; the API
+  answers 422 for a value other than `fr`/`ar`.
 
 ## The i18n parity guardrail
 

@@ -1,5 +1,5 @@
 /**
- * /documents/settings (`document.configure`) — Letterhead · Signatories · Types, as tabs. Only data is configured
+ * /documents/settings (`document.configure`) — Letterhead · Signatories · Types · File categories, as tabs. Only data is configured
  * here; the legal wording of each document is fixed in the API's templates (ADR 008).
  *
  * Angular concepts:
@@ -16,16 +16,17 @@ import { ChangeDetectionStrategy, Component, input, linkedSignal } from '@angula
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { CanDirective } from '../../shared/can/can.directive';
+import { FileCategoriesSettings } from './file-categories-settings';
 import { ProfileSettings } from './profile-settings';
 import { SignatoriesSettings } from './signatories-settings';
 import { TypesSettings } from './types-settings';
 
-export type SettingsTab = 'profile' | 'signatories' | 'types';
-export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 'types'];
+export type SettingsTab = 'profile' | 'signatories' | 'types' | 'categories';
+export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 'types', 'categories'];
 
 @Component({
   selector: 'app-document-settings-page',
-  imports: [TranslocoDirective, RouterLink, CanDirective, ProfileSettings, SignatoriesSettings, TypesSettings],
+  imports: [TranslocoDirective, RouterLink, CanDirective, ProfileSettings, SignatoriesSettings, TypesSettings, FileCategoriesSettings],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './documents.css',
   template: `
@@ -55,6 +56,9 @@ export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 
           @case ('types') {
             <app-document-types-settings />
           }
+          @case ('categories') {
+            <app-document-file-categories-settings />
+          }
         }
       </div>
     </ng-container>
@@ -62,7 +66,7 @@ export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 
 })
 export class DocumentSettingsPage {
   protected readonly tabs = SETTINGS_TABS;
-  /** `?tab=signatories|types` (bound by the router). */
+  /** `?tab=signatories|types|categories` (bound by the router). */
   readonly tab = input<string | undefined>();
   protected readonly active = linkedSignal<string | undefined, SettingsTab>({
     source: this.tab,

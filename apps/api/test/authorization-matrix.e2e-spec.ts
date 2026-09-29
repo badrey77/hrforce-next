@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { as, BETA_SIGNATORY, COMPANY_B, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
-import { DEMO_SIGNATORIES, demoLogoPng, DocumentsClock } from '../src/modules/documents/index.js';
+import { DEMO_SIGNATORIES, demoLogoPng, demoPdf, DocumentsClock } from '../src/modules/documents/index.js';
 import { LeaveClock } from '../src/modules/leave/index.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
@@ -39,8 +39,12 @@ type Row = readonly [actor: Actor, target: Target, status: number];
 interface Req {
   path: string;
   body?: object;
-  /** multipart upload of `file` (PUT /documents/settings/profile/logo) */
+  /** multipart upload of `file` (PUT /documents/settings/profile/logo, POST /employees/:id/files) */
   upload?: Buffer;
+  /** multipart text fields sent with `upload` */
+  fields?: Record<string, string>;
+  /** the upload's file name (default logo.png) */
+  filename?: string;
 }
 
 interface RouteSpec {
@@ -120,6 +124,16 @@ const DOC_CONFIG_ROWS = (ok: number): readonly Row[] => [
   ['admin', 'est', ok], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403],
   ['beta', 'other', ok], ['beta', 'est', 404],
 ];
+/** Employee files (filled in beforeAll): one file per target to read, one per target to delete, the categories. */
+const FILE = { est: '', ouest: '', other: '', delEst: '', delOuest: '', delOther: '', catA: '', catB: '', diplomaA: '', diplomaB: '' };
+const fileOf = (t: Target): string => (t === 'est' ? FILE.est : t === 'ouest' ? FILE.ouest : FILE.other);
+const delFileOf = (t: Target): string => (t === 'est' ? FILE.delEst : t === 'ouest' ? FILE.delOuest : FILE.delOther);
+const fileUpload = (t: Target, n: number): Req => ({
+  path: `/api/employees/${employeeOf(t)}/files`,
+  upload: demoPdf(`TEST DATA - matrix upload ${n}`),
+  filename: `piece-${n}.pdf`,
+  fields: { categoryId: t === 'other' ? FILE.diplomaB : FILE.diplomaA, title: `Pièce ${n}` },
+});
 const leaveDay = (n: number) => day(n);
 const leaveBody = (n: number, extra: object = {}) => ({ leaveTypeId: LV.annual, startDate: leaveDay(n), endDate: leaveDay(n), ...extra });
 const HR_ROWS: readonly Row[] = [
@@ -617,6 +631,35 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [['agent', 'est', 200], ['agent', 'ouest', 404], ['est', 'other', 200], ['admin', 'est', 409], ['ouest', 'est', 403], ['acces', 'est', 403]],
   },
 
+  // ── documents, Phase B: the employee file (docs/contracts/documents.md › Authorization matrix rows (Phase B)) ──
+  'GET /api/employee-files/categories': { access: 'authenticated', request: () => ({ path: '/api/employee-files/categories' }), rows: [...READERS, ['agent', '-', 200]] },
+  'POST /api/employee-files/categories': {
+    access: 'document.configure',
+    request: (_t, n) => ({ path: '/api/employee-files/categories', body: { code: `mx_cat_${n}`, labels: { fr: `Catégorie ${n}`, ar: 'فئة', en: `Category ${n}` } } }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PUT /api/employee-files/categories/:id': {
+    access: 'document.configure',
+    request: (t, n) => ({ path: `/api/employee-files/categories/${t === 'other' ? FILE.catB : FILE.catA}`, body: { retentionYearsAfterEnd: (n % 50) + 1 } }),
+    rows: DOC_CONFIG_ROWS(200),
+  },
+  'GET /api/employees/:id/files': { access: 'employee_file.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/files` }), rows: DOC_READ_ROWS },
+  'POST /api/employees/:id/files': { access: 'employee_file.upload', request: (t, n) => fileUpload(t, n), rows: DOC_ISSUE_ROWS(201) },
+  'GET /api/employees/:id/files/:fileId/content': {
+    access: 'employee_file.read',
+    request: (t) => ({ path: `/api/employees/${employeeOf(t)}/files/${fileOf(t)}/content` }),
+    rows: DOC_READ_ROWS,
+  },
+  // each success deletes its target's own file once; the refusals do not depend on the state
+  'POST /api/employees/:id/files/:fileId/delete': {
+    access: 'employee_file.delete',
+    request: (t) => ({ path: `/api/employees/${employeeOf(t)}/files/${delFileOf(t)}/delete`, body: { reason: 'Matrice' } }),
+    rows: [
+      ['admin', 'other', 404], ['est', 'est', 403], ['ouest', 'ouest', 403], ['acces', 'est', 403], ['beta', 'est', 404], ['agent', 'est', 403],
+      ['admin', 'est', 204], ['admin', 'ouest', 204], ['beta', 'other', 204],
+    ],
+  },
+
   // ── workflow: My tasks ─────────────────────────────────────────────────────────────────────────────────
   'GET /api/tasks': { access: 'authenticated', request: () => ({ path: '/api/tasks?status=open' }), rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]] },
   'POST /api/tasks/:id/approve': {
@@ -743,6 +786,28 @@ describe('Authorization matrix (e2e, real grants)', () => {
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [COMPANY_B, demoLogoPng()]);
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [unitCompany, demoLogoPng()]);
     expect(Object.values(DOC).every((v) => v !== ''), JSON.stringify(DOC)).toBe(true);
+    // employee files: categories, then one file to read and one to delete per target
+    const category = async (company: string, code: string) =>
+      (await query<{ id: string }>(db.superuserUrl, `select id from employee_file_category where company_id = $1 and code = $2`, [company, code]))[0]?.id ?? '';
+    Object.assign(FILE, {
+      catA: await category(unitCompany, 'other'),
+      catB: await category(COMPANY_B, 'other'),
+      diplomaA: await category(unitCompany, 'diploma'),
+      diplomaB: await category(COMPANY_B, 'diploma'),
+    });
+    const put = async (actor: ActorName, t: Target, label: string) => {
+      const req = fileUpload(t, 0);
+      const res = await as(app, actor, xsrf).post(req.path).field('categoryId', req.fields?.['categoryId'] ?? '').field('title', label)
+        .attach('file', demoPdf(`TEST DATA - matrix fixture ${label}`), 'fixture.pdf').expect(201);
+      return (res.body as { id: string }).id;
+    };
+    FILE.est = await put('admin', 'est', 'read est');
+    FILE.ouest = await put('admin', 'ouest', 'read ouest');
+    FILE.other = await put('beta', 'other', 'read other');
+    FILE.delEst = await put('admin', 'est', 'delete est');
+    FILE.delOuest = await put('admin', 'ouest', 'delete ouest');
+    FILE.delOther = await put('beta', 'other', 'delete other');
+    expect(Object.values(FILE).every((v) => v !== ''), JSON.stringify(FILE)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();
@@ -795,7 +860,9 @@ describe('Authorization matrix (e2e, real grants)', () => {
             : method === 'DELETE'
               ? client.delete(req.path)
               : client.patch(req.path);
-    const res = req.upload ? await call.attach('file', req.upload, 'logo.png') : req.body ? await call.send(req.body) : await call;
+    let multipart = call;
+    for (const [k, v] of Object.entries(req.fields ?? {})) multipart = multipart.field(k, v);
+    const res = req.upload ? await multipart.attach('file', req.upload, req.filename ?? 'logo.png') : req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
   });
 

@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -31,6 +31,7 @@ export const PERMISSION_CODES = [
   'employee.nss.read',
   'employee.nss.update',
   'employee.medical.read',
+  'employee.medical.update',
   'leave.request_self',
   'leave.read',
   'leave.request',
@@ -42,6 +43,9 @@ export const PERMISSION_CODES = [
   'document.void',
   'document.configure',
   'document.request_self',
+  'employee_file.read',
+  'employee_file.upload',
+  'employee_file.delete',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -60,13 +64,16 @@ export interface SystemRole {
 
 /**
  * System roles (is_system = true, permissions immutable through the API). By default only admin_rh_central holds the
- * salary / bank / NSS permissions and NO seeded role holds employee.medical.read (contract assumption).
+ * salary / bank / NSS permissions and NO seeded role holds employee.medical.read or employee.medical.update (contract
+ * assumptions; docs/contracts/documents.md › Assumptions 14: medical files stay unused until the owner creates a role).
  */
+export const MEDICAL_PERMISSIONS: readonly PermissionCode[] = ['employee.medical.read', 'employee.medical.update'];
+
 export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     code: 'admin_rh_central',
     names: { fr: 'Administrateur RH central', ar: 'مسؤول الموارد البشرية المركزي', en: 'Central HR administrator' },
-    permissions: PERMISSION_CODES.filter((code) => code !== 'employee.medical.read'),
+    permissions: PERMISSION_CODES.filter((code) => !MEDICAL_PERMISSIONS.includes(code)),
   },
   {
     code: 'rh_regional',
@@ -75,6 +82,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
       'document.read', 'document.issue',
+      'employee_file.read', 'employee_file.upload',
     ],
   },
   {

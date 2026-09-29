@@ -475,7 +475,9 @@
       "document_signatory": "Signataire",
       "document_type": "Type de document",
       "issued_document": "Document émis",
-      "document_request": "Demande de document"
+      "document_request": "Demande de document",
+      "employee_file": "Pièce du dossier",
+      "employee_file_category": "Catégorie du dossier"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -676,6 +678,34 @@
         "logo": "Logo",
         "logo_mime": "Type du logo",
         "logo_sha256": "Empreinte du logo"
+      },
+      "employee_file": {
+        "category_id": "Catégorie",
+        "title": "Titre",
+        "original_filename": "Nom du fichier",
+        "mime": "Type",
+        "size_bytes": "Taille (octets)",
+        "sha256": "Empreinte SHA-256",
+        "document_date": "Date du document",
+        "expires_on": "Date d’expiration",
+        "scan_status": "Analyse antivirus",
+        "uploaded_by": "Ajoutée par",
+        "uploaded_at": "Ajoutée le",
+        "deleted_at": "Supprimée le",
+        "deleted_by": "Supprimée par",
+        "delete_reason": "Motif de suppression",
+        "purged_at": "Contenu effacé le"
+      },
+      "employee_file_category": {
+        "code": "Code",
+        "name_fr": "Nom (français)",
+        "name_ar": "Nom (arabe)",
+        "name_en": "Nom (anglais)",
+        "access_class": "Accès",
+        "retention_years_after_end": "Conservation (années)",
+        "active": "Active",
+        "sort_order": "Ordre",
+        "is_system": "Système"
       }
     },
     "events": {
@@ -701,6 +731,11 @@
         "issued": "Document {{number}} émis",
         "downloaded": "Document {{number}} téléchargé",
         "voided": "Document {{number}} annulé : {{reason}}"
+      },
+      "employee_file": {
+        "downloaded": "Pièce du dossier téléchargée",
+        "deleted": "Pièce du dossier supprimée : {{reason}}",
+        "purged": "{{count}} pièce(s) effacée(s) (durée de conservation)"
       }
     },
     "values": {
@@ -852,7 +887,8 @@
       "bank": "Banque et sécurité sociale",
       "leave": "Congés",
       "history": "Historique",
-      "documents": "Documents"
+      "documents": "Documents",
+      "file": "Dossier"
     },
     "identity": {
       "edit": "Modifier",
@@ -1559,7 +1595,8 @@
       "tab": {
         "profile": "En-tête",
         "signatories": "Signataires",
-        "types": "Types"
+        "types": "Types",
+        "categories": "Catégories du dossier"
       },
       "actions": "Actions",
       "edit": "Modifier",
@@ -1681,6 +1718,106 @@
         "employmentEnded": "Votre emploi a pris fin : demandez un certificat de travail aux RH.",
         "notCancellable": "Cette demande ne peut plus être annulée."
       }
+    },
+    "file": {
+      "title": "Dossier de l’employé",
+      "add": "Ajouter une pièce",
+      "empty": "Aucune pièce dans le dossier.",
+      "loadError": "Impossible de charger le dossier.",
+      "medicalHidden": "Les pièces médicales éventuelles ne sont pas affichées : elles ne sont visibles qu’avec l’habilitation médicale.",
+      "showDeleted": "Afficher les pièces supprimées",
+      "medical": "Médical",
+      "uploaded": "Pièce ajoutée au dossier.",
+      "deleted": "Pièce supprimée.",
+      "documentDate": "datée du {{date}}",
+      "expiresOn": "expire le {{date}}",
+      "expired": "Expirée",
+      "uploadedBy": "Ajoutée le {{date}} par {{by}}",
+      "deletedOn": "Supprimée le {{date}} par {{by}}",
+      "purgedOn": "Contenu effacé le {{date}} (durée de conservation écoulée)",
+      "download": "Télécharger",
+      "downloading": "Téléchargement…",
+      "downloadNamed": "Télécharger « {{title}} »",
+      "downloadError": "Le téléchargement a échoué. Veuillez réessayer.",
+      "gone": "Cette pièce n’existe plus (supprimée entre-temps).",
+      "delete": "Supprimer",
+      "deleteNamed": "Supprimer « {{title}} »",
+      "deleteTitle": "Supprimer une pièce du dossier",
+      "deleteIntro": "Le fichier sera effacé ; sa trace (titre, auteur, motif) reste dans l’historique. Pièce :",
+      "deleteReason": "Motif de la suppression",
+      "deleteReasonHint": "Entre 3 et {{max}} caractères, conservé dans l’historique.",
+      "reasonRequired": "Indiquez le motif.",
+      "reasonTooShort": "Au moins 3 caractères.",
+      "reasonTooLong": "{{max}} caractères au maximum.",
+      "deleteConfirm": "Supprimer définitivement",
+      "fields": {
+        "file": "Fichier",
+        "category": "Catégorie",
+        "title": "Titre",
+        "documentDate": "Date du document",
+        "expiresOn": "Date d’expiration"
+      },
+      "upload": {
+        "title": "Ajouter une pièce au dossier",
+        "hint": "PDF, JPEG ou PNG, {{max}} au plus. Choisissez le fichier ou déposez-le dans ce cadre.",
+        "onlyFirst": "Un seul fichier à la fois : seul le premier a été retenu.",
+        "categoryPlaceholder": "Choisir une catégorie",
+        "titleHint": "Proposé à partir du nom du fichier ; 120 caractères au plus.",
+        "expiresHint": "Facultatif, par exemple pour une pièce d’identité.",
+        "sending": "Envoi du fichier…",
+        "checking": "Vérification par le serveur…",
+        "percent": "{{percent}} % ({{loaded}} sur {{total}})",
+        "submit": "Ajouter",
+        "uploading": "Envoi en cours…",
+        "abort": "Interrompre l’envoi",
+        "aborted": "Envoi interrompu : la pièce n’a pas été ajoutée."
+      },
+      "errors": {
+        "required": "Choisissez un fichier.",
+        "empty": "Ce fichier est vide.",
+        "unsupported_type": "Seuls les fichiers PDF, JPEG et PNG sont acceptés.",
+        "too_large": "Fichier trop volumineux.",
+        "duplicate": "Ce fichier figure déjà dans le dossier de cet employé."
+      },
+      "problems": {
+        "medicalForbidden": "Vous n’avez pas l’habilitation pour ajouter des pièces médicales.",
+        "alreadyDeleted": "Cette pièce a déjà été supprimée."
+      }
+    },
+    "fileCategories": {
+      "title": "Catégories du dossier",
+      "intro": "Les catégories classent les pièces du dossier des employés. La durée de conservation compte à partir de la fin du contrat ; vide = conservée sans limite.",
+      "new": "Nouvelle catégorie",
+      "edit": "Modifier la catégorie",
+      "name": "Nom",
+      "code": "Code",
+      "codeHint": "Lettres minuscules, chiffres et « _ », commençant par une lettre (2 à 40 caractères). Ne peut plus être modifié ensuite.",
+      "codeFixed": "Le code d’une catégorie existante ne se modifie pas.",
+      "codePattern": "Lettres minuscules, chiffres et « _ », commençant par une lettre (2 à 40 caractères).",
+      "codeTaken": "Ce code est déjà utilisé par une autre catégorie.",
+      "label": {
+        "fr": "Nom (français)",
+        "ar": "Nom (arabe)",
+        "en": "Nom (anglais)"
+      },
+      "retention": "Conservation après la fin du contrat (années)",
+      "retentionHint": "Laisser vide pour conserver sans limite. Passé ce délai, le contenu des fichiers est effacé chaque mois.",
+      "retentionInvalid": "Un nombre entier d’années entre 1 et {{max}}, ou vide.",
+      "retentionShort": "Conservation",
+      "keep": "Sans limite",
+      "years": "{{count}} an(s) après la fin",
+      "accessClass": "Accès",
+      "class": {
+        "standard": "Standard",
+        "medical": "Médical (habilitation dédiée)"
+      },
+      "system": "Système",
+      "active": "Active",
+      "activeHint": "Une catégorie inactive n’est plus proposée pour les nouveaux ajouts ; les pièces existantes restent.",
+      "empty": "Aucune catégorie.",
+      "loadError": "Impossible de charger les catégories.",
+      "created": "Catégorie créée.",
+      "saved": "Catégorie enregistrée."
     }
   }
 }

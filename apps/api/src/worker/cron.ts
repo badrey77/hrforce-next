@@ -13,6 +13,8 @@ export const CRON_ITEMS: readonly CronItem[] = [
   { task: TASKS.accruals, identifier: TASKS.accruals, match: '0 1 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
   { task: TASKS.authCleanup, identifier: TASKS.authCleanup, match: '0 3 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
   { task: TASKS.notificationsCleanup, identifier: TASKS.notificationsCleanup, match: '30 3 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
+  // docs/contracts/documents.md › Audit, retention, worker: day 1 of the month, 02:00
+  { task: TASKS.employeeFilesRetention, identifier: TASKS.employeeFilesRetention, match: '0 2 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
 ];
 
 export function parsedCronItems(): ParsedCronItem[] {

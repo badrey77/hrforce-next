@@ -99,6 +99,8 @@ services:
       MAIL_TRANSPORT: smtp
       SMTP_URL: ${SMTP_URL:?}
       MAIL_FROM: ${MAIL_FROM:?}
+      # Largest employee-file upload (bytes; default 10 MB, at most 20 MB; Caddy allows 25 MB on that route)
+      EMPLOYEE_FILE_MAX_BYTES: ${EMPLOYEE_FILE_MAX_BYTES:-10485760}
       # Deliberately absent: DEV_AUTH, DEV_PERMISSIONS (the API refuses them with NODE_ENV=production).
     depends_on:
       postgres:

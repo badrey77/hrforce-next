@@ -1,6 +1,8 @@
 import { sql } from 'kysely';
 import type { JobHelpers, TaskList } from 'graphile-worker';
 import type { Logger } from 'pino';
+import { PgAuditEvents } from '../modules/audit/index.js';
+import { algiersToday, runEmployeeFileRetention } from '../modules/documents/index.js';
 import { runAccruals } from '../modules/leave/index.js';
 import { cleanupReadNotifications, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
 import type { Database } from '../platform/db/database.js';
@@ -31,6 +33,7 @@ export const TASKS = {
   accruals: 'leave.accruals',
   authCleanup: 'auth.cleanup',
   notificationsCleanup: 'notifications.cleanup',
+  employeeFilesRetention: 'employee_files.retention',
 } as const;
 
 const requestIdOf = (task: string, job: JobInfo) => `job:${task}:${job.id}`;
@@ -94,6 +97,21 @@ export async function notificationsCleanupTask(deps: WorkerDeps, _payload: unkno
   return { companies: results.length, deleted: results.reduce((n, r) => n + (r.result ?? 0), 0) };
 }
 
+/**
+ * `employee_files.retention` (monthly) — company by company, removes the bytes of employee files whose category's
+ * retention after the end has passed (docs/contracts/documents.md › Audit, retention, worker); `payload.today`
+ * (YYYY-MM-DD) overrides the Algiers date for a manual run or a test.
+ */
+export async function employeeFilesRetentionTask(deps: WorkerDeps, payload: unknown, job: JobInfo): Promise<Record<string, unknown>> {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const given = p['today'];
+  if (given !== undefined && (typeof given !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(given))) throw new Error('employee_files.retention: payload.today must be YYYY-MM-DD');
+  const today = typeof given === 'string' ? given : algiersToday();
+  const audit = new PgAuditEvents(deps.db);
+  const results = await forEachCompany(deps.db, requestIdOf(TASKS.employeeFilesRetention, job), (tx, companyId) => runEmployeeFileRetention(tx, companyId, today, audit));
+  return { today, companies: results.length, purged: results.reduce((n, r) => n + (r.result?.purged ?? 0), 0) };
+}
+
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;
 
 const HANDLERS: Record<string, TaskFn> = {
@@ -102,6 +120,7 @@ const HANDLERS: Record<string, TaskFn> = {
   [TASKS.accruals]: accrualsTask,
   [TASKS.authCleanup]: (deps) => authCleanupTask(deps),
   [TASKS.notificationsCleanup]: notificationsCleanupTask,
+  [TASKS.employeeFilesRetention]: employeeFilesRetentionTask,
 };
 
 /** Graphile Worker task list: every handler with structured logging (a thrown error = a retry with back-off). */

@@ -16,7 +16,7 @@ import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
 import { TypstPdfRenderer } from '../platform/pdf/typst-renderer.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
-import { algiersToday, seedDemoDocuments } from '../modules/documents/index.js';
+import { algiersToday, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
@@ -42,9 +42,10 @@ async function main(): Promise<void> {
       const employees = await seedDemoEmployees(tx);
       const leave = await seedDemoLeave(tx, { requests: true });
       const documents = await seedDemoDocuments(tx, renderer, algiersToday());
-      return { employees, leave, documents };
+      const employeeFiles = await seedDemoEmployeeFiles(tx);
+      return { employees, leave, documents: { ...documents, employeeFiles } };
     }).then(({ employees, leave, documents }) => {
-      logger.info(documents, 'documents demo seeded (letterhead, signatories, issued documents, a pending request)');
+      logger.info(documents, 'documents demo seeded (letterhead, signatories, issued documents, a pending request, employee files)');
       logger.info({ employees }, 'demo employees seeded (fictitious test data)');
       logger.info(
         { ...leave, users: LEAVE_DEMO_USERS.map((u) => u.email) },

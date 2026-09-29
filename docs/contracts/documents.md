@@ -484,6 +484,9 @@ number; replay with `clientRequestId`.
 
 ## Phase B — employee file (attachments)
 
+> **Built 2026-09-29 (API).** Shape additions and decisions the web must know: *Settled by the build (Phase B API,
+> 2026-09-29)* at the end of this file (additions only; nothing below was removed or renamed).
+
 ### Storage decision
 
 Files live in Postgres **`bytea`** in a separate content table (ADR 005; ADR 008's reasons against large objects: no
@@ -586,3 +589,175 @@ interface EmployeeFileView { id: string; employmentId: string; category: { id: s
 | `POST /employees/:id/files` | same with 201 |
 | `POST …/:fileId/delete` | admin est/ouest 204, other 404; est est 403; ouest 403; acces 403; beta est 404, beta other 204 |
 | medical file (seeded by SQL in the fixture) | admin: listed? **no** (`_redacted`), content 404; a custom role with `employee.medical.read` on REG-EST: 200 |
+
+### Settled by the build (Phase B API, 2026-09-29)
+
+**Shape additions and answers for the web (everything else is as written above):**
+
+1. `GET /employee-files/categories` items also carry **`sortOrder`** (list order: `sortOrder`, then `code`). A category
+   created through the API gets `sortOrder` = the company's highest + 10 and is always `accessClass: 'standard'`,
+   `isSystem: false` (an `accessClass` key in the body is ignored).
+2. **File set of a URL.** `/employees/:id/files*` with `:id` = an employment shows the files of that employment **and of
+   the person's earlier employments** (`hire_date` before this one's) — a rehired person keeps their diplomas. Content
+   and delete accept a file of that set through the page's employment id (the web's reading is right). The reverse is
+   refused: through an older employment's URL, a later employment's files are absent (404).
+   `EmployeeFileView.employmentId` tells which employment a file was attached to. Uploads always attach to `:id` (an
+   ended employment is allowed).
+3. **Multipart order does not matter** (the body is read completely, bounded, before the handler runs): the web's order
+   (`categoryId`, `title`, optional dates, `file` last; empty dates omitted or `""`) works. Text fields: `categoryId`
+   uuid, `title` 1–120 after trimming, `documentDate` / `expiresOn` real calendar dates `YYYY-MM-DD`, or empty → null.
+   Extra 422 codes: `file` — `required`, `empty`, `too_large`, `unsupported_type`, **`one_file_only`** (a second file
+   part, or a file under another field name), **`invalid_multipart`** (unreadable body); `categoryId` — `not_found`,
+   **`inactive`**; **`expiresOn` `before_document_date`**. Field (DTO) errors come before the scope check (as issuing).
+4. Order of the upload checks: DTO 422 → employee 404 / 403 `forbidden-scope` (readable with `employee_file.read` but
+   outside `employee_file.upload`) → `file` and `categoryId` 422 together → medical 403 `forbidden-field`
+   (`errors[{field: 'categoryId', code: 'forbidden'}]`) → 409 `employee-file-duplicate`.
+5. **Categories:** code `^[a-z][a-z0-9_]{1,39}$` (422 on `code`), labels `fr`/`ar`/`en` each 1–120 after trimming,
+   `retentionYearsAfterEnd` `null` or an integer 1–100; the code, the access class and the system flag never change (a
+   database guard; `PUT` accepts only `labels`, `retentionYearsAfterEnd`, `active`). System categories may be edited
+   (labels, retention, active) like the others. `PUT` on another company's id → 404 (the matrix uses the
+   `DOC_CONFIG_ROWS` shape for it). The web's rules match.
+6. `_redacted: ['medical']` is set whenever the caller lacks `employee.medical.read` over the employee's unit, **whether
+   or not medical files exist** (no existence leak). List `_actions`: `upload` (`employee_file.upload`),
+   `upload_medical` (+ `employee.medical.update`). Per file: `delete` when the file is live and the caller holds
+   `employee_file.delete` (+ `employee.medical.update` for medical) over the unit.
+7. **`includeDeleted=true`** (ignored without `employee_file.delete` over the unit) lists **deleted and purged** files
+   (`deleted` / `purgedAt` set, `_actions: []`); without it both are absent. The web's switch rule matches.
+8. Deleting: 404 unknown / outside the set / invisible medical; 403 `forbidden-scope` (readable, no delete scope); 403
+   `forbidden-field` (medical without `employee.medical.update`); 409 `employee-file-deleted` (already deleted **or
+   purged**); else 204 and the event `employee_file.deleted {fileId, reason}` besides the audited row change.
+
+**Upload, storage, download**
+- `POST /employees/:id/files` runs **without the request transaction** (`@SkipTransaction`): the permission check runs
+  in its own short transaction, multer reads the body in memory **bounded at `EMPLOYEE_FILE_MAX_BYTES`** (default
+  10 MB, 1 KiB–20 MB; `limits: {fileSize: max, files: 1, fields: 10, parts: 11}` — the reader stops at max + 1 byte and
+  drains the rest without buffering), then the use case opens its own transaction with the request's tenant, user and
+  request id (RLS and the audit trigger as usual; tested: the change-log actor is the uploader). No pooled connection is
+  held while a slow upload streams in. Exactly the limit → 201; one byte more → 422 `too_large` (tested at 10 MB).
+- Sniffing (`modules/documents/domain/employee-files.ts`): PDF = `%PDF-<d>.<d>` at offset 0 **and** `%%EOF` in the
+  last 1 KB; JPEG = `FF D8 FF` plus at least one byte; PNG = signature + `IHDR` chunk. A PDF-headed polyglot
+  (`%PDF-1.4` + HTML + `%%EOF`) is accepted as a PDF (inherent to content sniffing); it is only ever served as an
+  attachment (below), which the tests assert.
+- `original_filename`: last path part (`/` and `\`), NFC, C0/C1 controls, DEL, LRM/RLM/ALM and bidi embeddings /
+  overrides / isolates removed, trimmed, ≤ 200 code points, `fichier` when nothing is left. The database refuses
+  control characters, `/` and `\` in it.
+- Download: `Content-Type` = the sniffed type; `Content-Disposition: attachment; filename="<ASCII fallback>";
+  filename*=UTF-8''<RFC 8187>` (fallback: every character outside `A-Za-z0-9._-` → `_`, ≤ 150); **the downloaded
+  name's extension always matches the sniffed type** (`page.html` holding a PDF downloads as `page.html.pdf`; `.pdf`,
+  `.jpg`/`.jpeg`, `.png` are kept); `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src
+  'none'`, `Cache-Control: private, no-store`, `Content-Length`, `ETag: "<sha256 hex>"`. Every successful download
+  writes `employee_file.downloaded {fileId, categoryCode, accessClass}` (subject `employee_file:<id>`); refused ones
+  write nothing.
+- Duplicates: checked before the insert and by a partial unique index (`company_id, employment_id, sha256` where
+  live), so a concurrent duplicate also answers 409. The same bytes on another employee, or after deleting the first
+  copy, are allowed.
+- Storage: `employee_file_content.content` is `STORAGE EXTERNAL` (no recompression of compressed formats). No
+  per-employee count or total-size limit (the contract sets none).
+
+**Database rules (migration 0015)**
+- `employee_file_guard`: only the tombstone (its three columns, once) and `purged_at` (once) may change.
+  `employee_file_content_delete_guard`: bytes are deleted only when their file is already tombstoned or purged (same
+  transaction, tombstone first). `employee_file_category_guard`: code, access class, system flag immutable; a `medical`
+  category must be a system one (check). `hrforce_app`: no DELETE on `employee_file` / `employee_file_category`, no
+  UPDATE on `employee_file_content`. `hrforce_worker`: SELECT (0012 defaults), `UPDATE (purged_at)` on
+  `employee_file`, DELETE on `employee_file_content`, EXECUTE on `audit.record_event` (the purge event). All tested.
+- `scan_status` check allows `not_scanned` (default), `clean`, `infected`, `failed`, so a future scanner needs no
+  schema change. File size ≤ 20 MB in the database.
+- Permissions: `employee_file.read` 670, `.upload` 680, `.delete` 690 (group `documents`), `employee.medical.update`
+  445 (group `sensitive`, `sensitive = true`). Grants: `admin_rh_central` the three `employee_file.*`, `rh_regional`
+  read + upload, nobody the medical ones (`SYSTEM_ROLES.admin_rh_central` = everything except `employee.medical.read`
+  and `employee.medical.update`). Since nobody holds them, a role with them can only be created by SQL today
+  (`role-escalation` through the API) — the owner's "Médecin du travail" role needs an operator. `employee.medical.update`
+  joins the MFA list of every existing security policy that lists `employee.medical.read`; new policies get it from
+  `security_policy_default_permissions()` (every sensitive permission).
+- Seeded categories: migration 0015 for existing companies, `seedDocumentDefaults` (bootstrap, seed:dev, fixtures) for
+  new ones. `seed:dev` adds demo files (ids `…8021-00000000000{1..4}`): EMP-0027 a diploma PDF, an ID card PNG
+  (expires 2031-03-31) and a **medical** certificate no seeded role can see; EMP-0036 a contract PDF.
+
+**Retention**
+- Cron `employee_files.retention` at `0 2 1 * *` (UTC, like the other jobs), company by company as `hrforce_worker`;
+  `payload.today` (`YYYY-MM-DD`) overrides the Algiers date (manual run, tests). A live file (not deleted, not purged) is
+  purged when its category has `retentionYearsAfterEnd = N`, **every employment of its person has ended**, and the
+  **latest** end date + N years is **before** today (a rehired person's files are kept while they work here). Purge =
+  `purged_at` set (audited row change, system actor, request id `job:employee_files.retention:<job>`), then the bytes
+  deleted. `employee_file.purged {count}` (subject null) is written per company **only when count > 0**. Idempotent;
+  tested with the worker role.
+
+**Timeline**
+- `employee:<id>` includes the `employee_file` rows and `employee_file.*` events of the files attached to **that**
+  employment; those of medical files only when the caller also holds `employee.medical.read` over the employee's unit
+  (tested both ways). Audit subject type `employee_file` added to the platform port; there is no `employee_file:<id>`
+  timeline subject.
+
+**Deploy**
+- `deploy/Caddyfile`: `request_body max_size 25MB` on `POST /api/employees/*/files` (verified with a stub upstream:
+  26 MB → 413 from Caddy, 20 MB passes, other routes unchanged). The CSP is now set by two mutually exclusive matchers:
+  employee-file downloads (`/api/employees/*/files/*/content`) get `sandbox; default-src 'none'` (Caddy's header block
+  used to overwrite the API's value with the app CSP); every other response keeps the unchanged app CSP (verified).
+- `deploy/compose.staging.yml`: `EMPLOYEE_FILE_MAX_BYTES` (default 10485760). `deploy/README.md › Backups`: deleted or
+  purged files survive in dumps up to `BACKUP_RETENTION_DAYS`.
+
+### Settled by the verification (Phase B, 2026-09-29)
+
+**Fixed during the verification**
+- **File names are read as UTF-8.** Browsers send `filename="…"` in a multipart body as raw UTF-8 bytes (no
+  `filename*`); multer's default parameter charset (latin1) stored « عقد العمل.pdf » as `Ø¹ÙØ¯ Ø§ÙØ¹ÙÙ.pdf` and let a
+  U+202E through as `â€®` (so the bidi stripping never saw it). The upload interceptor now sets
+  `defParamCharset: 'utf8'`; e2e test "a browser-style filename=… in raw UTF-8". `filename*=UTF-8''…` works as before.
+- **The web saves a download under the API's name rule** (`downloadFileName()`, `employee-files.models.ts`): a Blob
+  saved through `<a download>` takes the name the app gives, not `Content-Disposition`, so `page.html` holding a PDF was
+  saved as `page.html` (a PDF/HTML polyglot opened from the disk would render as HTML). It is now `page.html.pdf`, like
+  the API's header.
+- **Expiry before the document date is checked in the web** (`notBefore` on `expiresOn`, re-checked when the document
+  date changes), with the translated message "La date doit être au plus tôt le {date}." The API's 422
+  `before_document_date` stays the backstop (its message is English, like every server field message).
+- **A 413 from the reverse proxy** (body over Caddy's cap) is shown as « Fichier trop volumineux. » on the file field
+  instead of "unexpected error". Only reachable outside the page's own 10 MB pre-check (a larger API limit, or a
+  smaller proxy cap); verified with a 1 MB Caddy cap.
+- **Medical note wording**: `_redacted: ['medical']` is set whether or not medical files exist, so the note no longer
+  says they exist: « Les pièces médicales éventuelles ne sont pas affichées : elles ne sont visibles qu'avec
+  l'habilitation médicale. » (ar/en likewise).
+
+**Verified as written** (browser fr + ar, 1280 + 390 px; API probes; `hrforce_app` in SQL)
+- Upload of real PDF / JPEG / PNG (1.7–5.1 MB) with the progress bar moving 0 → 100 % under a 1 MB/s throttle, both
+  direct and through `deploy/Caddyfile` in Docker (HTTP/2); drag and drop; client pre-checks (11 MB, `.docx`); server
+  refusal of a GIF named `.png`; 409 duplicate; downloads byte-identical; delete with reason (empty reason refused),
+  show-deleted switch (admin only); timeline rows and events; category create / edit / deactivate, code locked, taken
+  code and retention bounds.
+- Scope: `rh_regional` Est → Ouest employee: list, upload, content 404; delete 403 in and out of region
+  (`employee_file.delete` missing — the permission check comes before the scope lookup); `lecture`, `employe` 403 on
+  every route, including the employee's own file (assumption 16); `includeDeleted` ignored for `rh_regional`.
+  IDOR: a file id through another employee's URL 404; medical id for `rh.admin` content/delete 404, absent from the list
+  with `includeDeleted`; unknown id and non-uuid 404.
+- Sniffing: GIF/SVG/HTML/EXE renamed, PDF without `%%EOF` in the last 1 KB, JPEG of 3 bytes, PNG without `IHDR` → 422
+  `unsupported_type`; empty → `empty`; exactly 10 485 760 bytes → 201, one more → 422 `too_large`; two file parts or a
+  file under another field → `one_file_only`; truncated body → `invalid_multipart`; JSON body → `file: required`.
+  **Accepted by design** (content sniffing, no antivirus — assumption 13): a PNG with HTML appended (served
+  `image/png`), a PDF with a `/JavaScript` OpenAction, a `%PDF`-headed HTML; all served as `attachment` with `nosniff`,
+  `sandbox; default-src 'none'`, `private, no-store`, through Caddy too (the app CSP is not applied to them; no CSP
+  violation on the app pages).
+- File names: `../../../etc/passwd.pdf` → `passwd.pdf`, `..\..\windows\win.ini.pdf` → `win.ini.pdf`, `a/b/c.png` →
+  `c.png`, 1 000 characters → 200, blank → `fichier`, `%2e%2e%2f` kept as text; a NUL byte → 422 `invalid_multipart`;
+  a raw CR/LF inside the quoted name breaks the part header → 422 (browsers send `%0D%0A`); `Content-Disposition` is
+  always ASCII-safe with the exact name in `filename*`.
+- Database as `hrforce_app`: UPDATE of `employee_file_content`, DELETE of `employee_file` / `employee_file_category` →
+  permission denied; bytes of a live file, any metadata column, a second tombstone → guard errors; code / access class /
+  system flag → guard error; a non-system medical category → check violation; another tenant sees 0 rows.
+- Memory: 5 concurrent 10 MB uploads → 201 each (~0.7 s), 5 concurrent 25 MB → 422, API RSS 165 → 188 MB, healthy.
+- Caddy: `max_size 25MB` is **decimal** (25 000 000 bytes): 20 and 23 MiB reach the API (422 `too_large`), 24 MiB and
+  more → 413 from Caddy. Any `EMPLOYEE_FILE_MAX_BYTES` up to its 20 MiB maximum still fits.
+
+**Known points for the owner (not changed)**
+- The app role may also set `purged_at` and delete the bytes of a live file (the purge path), bypassing retention —
+  the app-role trust question (HANDOFF open question 3).
+- An HR user sees and uploads to **their own** file when their own employment is in their scope (`rh.est` is linked to
+  EMP-0022, Région Est). Assumption 16 only covers the `employe` role.
+- The timeline shows the category of a created file as its id, `sha256` as `\x…` and `scan_status` as `not_scanned`
+  (same family as the Phase A timeline points).
+- **PDF engine (ADR 008), found while investigating a test crash:** a render thread shares the API process, so a Rust
+  allocation failure inside Typst aborts the **whole API** (exit `0xC0000409` on Windows); and `worker.terminate()`
+  does not interrupt native code — a timed-out render keeps its CPU and memory until Typst returns. With fixed templates
+  and JSON data this needs a pathological input: a 246 KB, 45 000 × 45 000 px 1-bit PNG logo (under the 256 KB logo
+  limit) took ~2 GB of memory in a direct Typst render (measured outside the API). Suggested hardening: refuse logos
+  over e.g. 4 000 × 4 000 px at upload (PNG `IHDR` / JPEG `SOF` dimensions). The test crash itself came from the
+  spec's own runaway template (`range(400000000)` builds an 8 GiB array); the spec now uses a bounded loop.

@@ -1,9 +1,4 @@
-import {
-  provideHttpClient,
-  withFetch,
-  withInterceptors,
-  withXsrfConfiguration,
-} from '@angular/common/http';
+import { provideHttpClient, withFetch } from '@angular/common/http';
 import {
   type ApplicationConfig,
   inject,
@@ -14,11 +9,8 @@ import {
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideTransloco } from '@jsverse/transloco';
 import { routes } from './app.routes';
-import { authRefreshInterceptor } from './core/auth/auth-refresh.interceptor';
-import { mfaEnrollmentInterceptor } from './core/auth/mfa-enrollment';
 import { initializeSession } from './core/auth/session-init';
-import { apiProblemInterceptor } from './core/http/api-problem.interceptor';
-import { XSRF_COOKIE_NAME, XSRF_HEADER_NAME } from './core/http/xsrf';
+import { appHttpFeatures } from './core/http/http-features';
 import { LanguageService } from './core/i18n/language.service';
 import { APP_LANGUAGES, DEFAULT_LANGUAGE } from './core/i18n/languages';
 import { TranslocoHttpLoader } from './core/i18n/transloco-http-loader';
@@ -27,15 +19,10 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(
-      withFetch(),
-      withXsrfConfiguration({ cookieName: XSRF_COOKIE_NAME, headerName: XSRF_HEADER_NAME }),
-      // Order = nesting: the FIRST is the outermost. apiProblemInterceptor wraps the refresh logic, so callers
-      // always get an ApiProblemError, retry or not (see core/auth/auth-refresh.interceptor.ts).
-      // mfaEnrollmentInterceptor is outside both: it sees the final error, parsed, after any refresh + retry
-      // (see core/auth/mfa-enrollment.ts).
-      withInterceptors([mfaEnrollmentInterceptor, apiProblemInterceptor, authRefreshInterceptor]),
-    ),
+    // fetch() transport + XSRF + interceptors [mfaEnrollment, apiProblem, authRefresh] (order = nesting, the first is
+    // the outermost: see core/http/http-features.ts). Uploads with a progress bar use a second client built from the
+    // same features over XMLHttpRequest (core/http/upload-http.ts).
+    provideHttpClient(withFetch(), ...appHttpFeatures()),
     provideTransloco({
       config: {
         availableLangs: [...APP_LANGUAGES],

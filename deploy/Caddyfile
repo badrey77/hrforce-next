@@ -38,11 +38,24 @@
 		Cross-Origin-Resource-Policy "same-origin"
 		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
 		X-Robots-Tag "noindex, nofollow"
-		# Scripts: only our own files (no inline script, no eval). Styles: 'unsafe-inline' is required because
-		# Angular injects component styles as <style> elements at runtime (no per-request nonce with a static
-		# server). Fonts are self-hosted (Cairo, Source Sans 3). The index.html build output must contain no inline
-		# <script> / on* handler: apps/web/Dockerfile fails the build otherwise (deploy/web/check-index-csp.mjs).
+	}
+
+	# Content-Security-Policy, by two mutually exclusive matchers (no ordering question between them):
+	#  - employee-file downloads (docs/contracts/documents.md › Upload validation): uploaded bytes are never a page —
+	#    the API's own `sandbox; default-src 'none'` is kept (and enforced here too);
+	#  - everything else: scripts only our own files (no inline script, no eval). Styles: 'unsafe-inline' is required
+	#    because Angular injects component styles as <style> elements at runtime (no per-request nonce with a static
+	#    server). Fonts are self-hosted (Cairo, Source Sans 3). The index.html build output must contain no inline
+	#    <script> / on* handler: apps/web/Dockerfile fails the build otherwise (deploy/web/check-index-csp.mjs).
+	@employeeFileContent path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+	@notEmployeeFileContent not path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+	header @employeeFileContent {
+		Content-Security-Policy "sandbox; default-src 'none'"
+		defer
+	}
+	header @notEmployeeFileContent {
 		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+		defer
 	}
 
 	@api path /api /api/*
@@ -51,6 +64,12 @@
 		# production by the API's env validation).
 		request_header -X-Dev-User-Id
 		request_header -X-Dev-Company-Id
+		# Employee-file uploads (POST /api/employees/:id/files): the API stops reading at EMPLOYEE_FILE_MAX_BYTES
+		# (10 MB by default, at most 20 MB) and answers 422 too_large; the proxy refuses anything beyond 25 MB outright.
+		@employeeFileUpload path_regexp ^/api/employees/[^/]+/files$
+		request_body @employeeFileUpload {
+			max_size 25MB
+		}
 		# Caddy replaces any client-sent X-Forwarded-For with the real client IP (no trusted_proxies configured),
 		# so the API's TRUST_PROXY_HOPS=1 yields the true client address for the login throttle.
 		reverse_proxy api:3000

@@ -208,8 +208,9 @@ return this.http.put<CompanyProfileView>(`${DOCUMENTS_API_BASE}/settings/profile
 `HttpClient` sees a `FormData` body and lets the browser write `Content-Type: multipart/form-data; boundary=…`. Never
 set that header yourself: without the generated boundary the server cannot split the parts. XSRF still applies (a PUT
 goes through the same interceptors). The server's 422 `errors[{field: 'file', code: 'unsupported_type' | 'too_large'}]`
-is translated by `logoProblem()` (`features/documents/document-forms.ts`). Phase B's employee file will add upload
-progress (`reportProgress: true`, `observe: 'events'`).
+is translated by `logoProblem()` (`features/documents/document-forms.ts`). Phase B's employee file adds upload
+progress (`reportProgress: true`, `observe: 'events'`) through a second, XHR-backed client — see
+[chapter 19](./19-uploads-progress-and-the-employee-file.md).
 
 ## 9. An idempotent submit
 

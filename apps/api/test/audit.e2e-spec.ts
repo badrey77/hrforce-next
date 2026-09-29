@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type request from 'supertest';
 import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
-import { DEMO_SIGNATORIES } from '../src/modules/documents/index.js';
+import { DEMO_SIGNATORIES, demoPdf } from '../src/modules/documents/index.js';
 import { as, COMPANY_A, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
@@ -62,7 +62,8 @@ const M1_TABLES = [
   'role', 'role_grant', 'role_permission', 'site',
 ];
 const AUDITED_TABLES = [
-  'assignment', 'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employment', 'employment_salary',
+  'assignment', 'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
+  'employment', 'employment_salary',
   'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
@@ -356,7 +357,7 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/access/users/:id/mfa/reset': 'auth.mfa_reset',
   };
   const PENDING_ONLY_WRITES = ['POST /api/me/mfa/enroll/start'];
-  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '' };
+  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '' };
 
   beforeAll(async () => {
     const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
@@ -382,11 +383,19 @@ describe('exit criterion: every write through the API produces an audit row with
     LV.titreType = (await query<{ id: string }>(db.superuserUrl, `select id from document_type where company_id = $1 and code = 'titre_conge'`, [COMPANY_A]))[0]?.id ?? '';
     LV.toVoid = (await client('admin').post('/api/documents').send({ typeCode: 'attestation_travail', employmentId: employeeA(28), language: 'fr' }).expect(201)).body.id;
     LV.ownDocRequest = (await client('admin').post('/api/me/documents/requests').send({ typeCode: 'attestation_travail', language: 'fr' }).expect(201)).body.id;
+    // employee file: a category to edit, the diploma category, a file to delete
+    const category = async (code: string) => (await query<{ id: string }>(db.superuserUrl, 'select id from employee_file_category where company_id = $1 and code = $2', [COMPANY_A, code]))[0]?.id ?? '';
+    LV.fileCategory = await category('other');
+    LV.diploma = await category('diploma');
+    LV.fileToDelete = (
+      await client('admin').post(`/api/employees/${employeeA(27)}/files`).field('categoryId', LV.diploma).field('title', 'À supprimer')
+        .attach('file', demoPdf('TEST DATA - audit delete'), 'delete.pdf').expect(201)
+    ).body.id;
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
   });
 
   interface Write {
-    request: () => { path: string; body: object; upload?: Buffer };
+    request: () => { path: string; body: object; upload?: Buffer; fields?: Record<string, string> };
     /** tables that must have a row for this request */
     tables: string[];
   }
@@ -508,6 +517,27 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: '/api/me/documents/requests', body: { typeCode: 'attestation_travail', language: 'ar' } }),
       tables: ['document_request', 'workflow_instance', 'workflow_task'],
     },
+    'POST /api/employee-files/categories': {
+      request: () => ({ path: '/api/employee-files/categories', body: { code: 'aud_training', labels: { fr: 'Formations', ar: 'التكوين', en: 'Training' }, retentionYearsAfterEnd: 10 } }),
+      tables: ['employee_file_category'],
+    },
+    'PUT /api/employee-files/categories/:id': {
+      request: () => ({ path: `/api/employee-files/categories/${LV.fileCategory}`, body: { retentionYearsAfterEnd: 30 } }),
+      tables: ['employee_file_category'],
+    },
+    'POST /api/employees/:id/files': {
+      request: () => ({
+        path: `/api/employees/${employeeA(27)}/files`,
+        body: {},
+        upload: demoPdf('TEST DATA - audit upload'),
+        fields: { categoryId: LV.diploma, title: 'Diplôme', documentDate: '2015-06-30' },
+      }),
+      tables: ['employee_file'],
+    },
+    'POST /api/employees/:id/files/:fileId/delete': {
+      request: () => ({ path: `/api/employees/${employeeA(27)}/files/${LV.fileToDelete}/delete`, body: { reason: 'Pièce erronée' } }),
+      tables: ['employee_file'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -564,11 +594,13 @@ describe('exit criterion: every write through the API produces an audit row with
   it.each(Object.keys(WRITES))('%s', async (key) => {
     const spec = WRITES[key];
     if (!spec) throw new Error(key);
-    const { path: url, body, upload } = spec.request();
+    const { path: url, body, upload, fields } = spec.request();
     const requestId = rid('write');
     const admin = client('admin');
     const call = key.startsWith('PATCH') ? admin.patch(url) : key.startsWith('PUT') ? admin.put(url) : key.startsWith('DELETE') ? admin.delete(url) : admin.post(url);
-    const res = upload ? await call.set('X-Request-Id', requestId).attach('file', upload, 'logo.png') : await call.set('X-Request-Id', requestId).send(body);
+    let multipart = call.set('X-Request-Id', requestId);
+    for (const [k, v] of Object.entries(fields ?? {})) multipart = multipart.field(k, v);
+    const res = upload ? await multipart.attach('file', upload, fields ? 'piece.pdf' : 'logo.png') : await call.set('X-Request-Id', requestId).send(body);
     expect(res.status, JSON.stringify(res.body)).toBeLessThan(300);
     const rows = await changes('request_id = $1', [requestId]);
     expect(rows.length).toBeGreaterThan(0);

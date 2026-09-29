@@ -475,7 +475,9 @@
       "document_signatory": "Signatory",
       "document_type": "Document type",
       "issued_document": "Issued document",
-      "document_request": "Document request"
+      "document_request": "Document request",
+      "employee_file": "File document",
+      "employee_file_category": "File category"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -676,6 +678,34 @@
         "logo": "Logo",
         "logo_mime": "Logo type",
         "logo_sha256": "Logo fingerprint"
+      },
+      "employee_file": {
+        "category_id": "Category",
+        "title": "Title",
+        "original_filename": "File name",
+        "mime": "Type",
+        "size_bytes": "Size (bytes)",
+        "sha256": "SHA-256 fingerprint",
+        "document_date": "Document date",
+        "expires_on": "Expiry date",
+        "scan_status": "Virus scan",
+        "uploaded_by": "Added by",
+        "uploaded_at": "Added on",
+        "deleted_at": "Deleted on",
+        "deleted_by": "Deleted by",
+        "delete_reason": "Reason for deletion",
+        "purged_at": "Content erased on"
+      },
+      "employee_file_category": {
+        "code": "Code",
+        "name_fr": "Name (French)",
+        "name_ar": "Name (Arabic)",
+        "name_en": "Name (English)",
+        "access_class": "Access",
+        "retention_years_after_end": "Retention (years)",
+        "active": "Active",
+        "sort_order": "Order",
+        "is_system": "System"
       }
     },
     "events": {
@@ -701,6 +731,11 @@
         "issued": "Document {{number}} issued",
         "downloaded": "Document {{number}} downloaded",
         "voided": "Document {{number}} voided: {{reason}}"
+      },
+      "employee_file": {
+        "downloaded": "File document downloaded",
+        "deleted": "File document deleted: {{reason}}",
+        "purged": "{{count}} document(s) erased (retention period)"
       }
     },
     "values": {
@@ -852,7 +887,8 @@
       "bank": "Bank & NSS",
       "leave": "Leave",
       "history": "History",
-      "documents": "Documents"
+      "documents": "Documents",
+      "file": "File"
     },
     "identity": {
       "edit": "Edit",
@@ -1559,7 +1595,8 @@
       "tab": {
         "profile": "Letterhead",
         "signatories": "Signatories",
-        "types": "Types"
+        "types": "Types",
+        "categories": "File categories"
       },
       "actions": "Actions",
       "edit": "Edit",
@@ -1681,6 +1718,106 @@
         "employmentEnded": "Your employment has ended: ask HR for an employment certificate.",
         "notCancellable": "This request can no longer be cancelled."
       }
+    },
+    "file": {
+      "title": "Employee file",
+      "add": "Add a document",
+      "empty": "No document in the file.",
+      "loadError": "The file could not be loaded.",
+      "medicalHidden": "Medical documents, if any, are not shown: they are visible only with the medical permission.",
+      "showDeleted": "Show deleted documents",
+      "medical": "Medical",
+      "uploaded": "Document added to the file.",
+      "deleted": "Document deleted.",
+      "documentDate": "dated {{date}}",
+      "expiresOn": "expires on {{date}}",
+      "expired": "Expired",
+      "uploadedBy": "Added on {{date}} by {{by}}",
+      "deletedOn": "Deleted on {{date}} by {{by}}",
+      "purgedOn": "Content erased on {{date}} (retention period over)",
+      "download": "Download",
+      "downloading": "Downloading…",
+      "downloadNamed": "Download “{{title}}”",
+      "downloadError": "The download failed. Please try again.",
+      "gone": "This document no longer exists (deleted meanwhile).",
+      "delete": "Delete",
+      "deleteNamed": "Delete “{{title}}”",
+      "deleteTitle": "Delete a document from the file",
+      "deleteIntro": "The file will be erased; its trace (title, author, reason) stays in the history. Document:",
+      "deleteReason": "Reason for deletion",
+      "deleteReasonHint": "Between 3 and {{max}} characters, kept in the history.",
+      "reasonRequired": "Give the reason.",
+      "reasonTooShort": "At least 3 characters.",
+      "reasonTooLong": "At most {{max}} characters.",
+      "deleteConfirm": "Delete permanently",
+      "fields": {
+        "file": "File",
+        "category": "Category",
+        "title": "Title",
+        "documentDate": "Document date",
+        "expiresOn": "Expiry date"
+      },
+      "upload": {
+        "title": "Add a document to the file",
+        "hint": "PDF, JPEG or PNG, at most {{max}}. Choose the file or drop it in this box.",
+        "onlyFirst": "One file at a time: only the first one was kept.",
+        "categoryPlaceholder": "Choose a category",
+        "titleHint": "Proposed from the file name; at most 120 characters.",
+        "expiresHint": "Optional, e.g. for an ID document.",
+        "sending": "Sending the file…",
+        "checking": "The server is checking the file…",
+        "percent": "{{percent}} % ({{loaded}} of {{total}})",
+        "submit": "Add",
+        "uploading": "Sending…",
+        "abort": "Stop sending",
+        "aborted": "Sending stopped: the document was not added."
+      },
+      "errors": {
+        "required": "Choose a file.",
+        "empty": "This file is empty.",
+        "unsupported_type": "Only PDF, JPEG and PNG files are accepted.",
+        "too_large": "The file is too large.",
+        "duplicate": "This file is already in this employee’s file."
+      },
+      "problems": {
+        "medicalForbidden": "You are not allowed to add medical documents.",
+        "alreadyDeleted": "This document was already deleted."
+      }
+    },
+    "fileCategories": {
+      "title": "File categories",
+      "intro": "Categories sort the documents of employee files. Retention counts from the end of employment; empty = kept without limit.",
+      "new": "New category",
+      "edit": "Edit the category",
+      "name": "Name",
+      "code": "Code",
+      "codeHint": "Lower-case letters, digits and “_”, starting with a letter (2 to 40 characters). Cannot be changed later.",
+      "codeFixed": "The code of an existing category cannot be changed.",
+      "codePattern": "Lower-case letters, digits and “_”, starting with a letter (2 to 40 characters).",
+      "codeTaken": "This code is already used by another category.",
+      "label": {
+        "fr": "Name (French)",
+        "ar": "Name (Arabic)",
+        "en": "Name (English)"
+      },
+      "retention": "Retention after the end of employment (years)",
+      "retentionHint": "Leave empty to keep without limit. After that period, the files’ content is erased monthly.",
+      "retentionInvalid": "A whole number of years between 1 and {{max}}, or empty.",
+      "retentionShort": "Retention",
+      "keep": "No limit",
+      "years": "{{count}} years after the end",
+      "accessClass": "Access",
+      "class": {
+        "standard": "Standard",
+        "medical": "Medical (dedicated permission)"
+      },
+      "system": "System",
+      "active": "Active",
+      "activeHint": "An inactive category is no longer offered for new documents; existing documents stay.",
+      "empty": "No category.",
+      "loadError": "The categories could not be loaded.",
+      "created": "Category created.",
+      "saved": "Category saved."
     }
   }
 }

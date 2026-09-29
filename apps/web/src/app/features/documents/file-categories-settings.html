@@ -1,0 +1,140 @@
+<!--
+  Categories of the employee file: a read-only table and one create/edit panel above it (the Signatories tab's layout).
+  `formGroupName="labels"` nests the three label inputs in the `labels` group, so `formControlName="fr"` inside means
+  `labels.fr`.
+-->
+<section *transloco="let t" aria-labelledby="file-categories-title" data-section="file-categories">
+  <div class="toolbar">
+    <h2 id="file-categories-title">{{ t('documents.fileCategories.title') }}</h2>
+    @if (editing() === null) {
+      <button class="btn" type="button" data-action="new-category" (click)="open(null)">{{ t('documents.fileCategories.new') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('documents.fileCategories.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (editing(); as id) {
+    @let c = form.controls;
+    <form class="panel single" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="category-form-title" data-form="category">
+      <h3 id="category-form-title">{{ id === 'new' ? t('documents.fileCategories.new') : t('documents.fileCategories.edit') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="field">
+        <label for="category-code">{{ t('documents.fileCategories.code') }}</label>
+        <input id="category-code" type="text" formControlName="code" dir="ltr" class="code" autocomplete="off"
+          [attr.aria-invalid]="c.code.invalid && c.code.touched" aria-describedby="category-code-hint category-code-error" />
+        <p class="field-hint" id="category-code-hint">{{ t(id === 'new' ? 'documents.fileCategories.codeHint' : 'documents.fileCategories.codeFixed') }}</p>
+        @if (c.code.invalid && c.code.touched) {
+          <p class="field-error" id="category-code-error" data-error="code">
+            @if (c.code.hasError('serverKey')) {
+              {{ t(c.code.getError('serverKey')) }}
+            } @else if (c.code.hasError('server')) {
+              {{ c.code.getError('server') }}
+            } @else if (c.code.hasError('pattern')) {
+              {{ t('documents.fileCategories.codePattern') }}
+            } @else {
+              {{ t('documents.form.required') }}
+            }
+          </p>
+        }
+      </div>
+
+      <div formGroupName="labels">
+        @for (language of languages; track language) {
+          @let control = form.get('labels.' + language);
+          <div class="field">
+            <label [for]="'category-label-' + language">{{ t('documents.fileCategories.label.' + language) }}</label>
+            <input type="text" [id]="'category-label-' + language" [formControlName]="language" [attr.lang]="language"
+              [dir]="language === 'ar' ? 'rtl' : 'ltr'"
+              [attr.aria-invalid]="!!control && control.invalid && control.touched" [attr.aria-describedby]="'category-label-' + language + '-error'" />
+            @if (control && control.invalid && control.touched) {
+              <p class="field-error" [id]="'category-label-' + language + '-error'" [attr.data-error]="'label-' + language">
+                {{ control.getError('server') ?? (control.hasError('maxlength') ? t('documents.form.tooLong') : t('documents.form.required')) }}
+              </p>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="field">
+        <label for="category-retention">{{ t('documents.fileCategories.retention') }}</label>
+        <input id="category-retention" type="number" min="1" [max]="retentionMax" step="1" formControlName="retentionYearsAfterEnd"
+          [attr.aria-invalid]="c.retentionYearsAfterEnd.invalid && c.retentionYearsAfterEnd.touched"
+          aria-describedby="category-retention-hint category-retention-error" />
+        <p class="field-hint" id="category-retention-hint">{{ t('documents.fileCategories.retentionHint') }}</p>
+        @if (c.retentionYearsAfterEnd.invalid && c.retentionYearsAfterEnd.touched) {
+          <p class="field-error" id="category-retention-error" data-error="retention">
+            {{ c.retentionYearsAfterEnd.getError('server') ?? t('documents.fileCategories.retentionInvalid', { max: retentionMax }) }}
+          </p>
+        }
+      </div>
+
+      @if (id !== 'new') {
+        <div class="check field">
+          <input id="category-active" type="checkbox" formControlName="active" aria-describedby="category-active-hint" />
+          <label for="category-active">{{ t('documents.fileCategories.active') }}</label>
+        </div>
+        <p class="field-hint" id="category-active-hint">{{ t('documents.fileCategories.activeHint') }}</p>
+      }
+
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-category" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @if (categories.error() && !categories.hasValue()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('documents.fileCategories.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="categories.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (categories.hasValue()) {
+    <div class="table-scroll">
+      <table class="data" data-table="file-categories">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('documents.fileCategories.name') }}</th>
+            <th scope="col">{{ t('documents.fileCategories.code') }}</th>
+            <th scope="col">{{ t('documents.fileCategories.accessClass') }}</th>
+            <th scope="col">{{ t('documents.fileCategories.retentionShort') }}</th>
+            <th scope="col">{{ t('documents.fileCategories.active') }}</th>
+            <th scope="col"><span class="visually-hidden">{{ t('documents.settings.actions') }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (category of items(); track category.id) {
+            <tr [attr.data-category]="category.code" [class.muted]="!category.active">
+              <td>
+                {{ name(category) }}
+                @if (category.isSystem) {
+                  <span class="badge">{{ t('documents.fileCategories.system') }}</span>
+                }
+              </td>
+              <td><span class="code" dir="ltr">{{ category.code }}</span></td>
+              <td>{{ t('documents.fileCategories.class.' + category.accessClass) }}</td>
+              <td data-field="retention">
+                {{ category.retentionYearsAfterEnd === null ? t('documents.fileCategories.keep') : t('documents.fileCategories.years', { count: category.retentionYearsAfterEnd }) }}
+              </td>
+              <td>{{ category.active ? t('documents.settings.yes') : t('documents.settings.no') }}</td>
+              <td>
+                <button class="btn secondary" type="button" data-action="edit-category" [disabled]="editing() !== null" (click)="open(category)">
+                  {{ t('documents.settings.edit') }}
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="muted" data-state="empty">{{ t('documents.fileCategories.empty') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

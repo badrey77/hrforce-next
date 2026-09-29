@@ -41,6 +41,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-28 | **M3 starts with documents and numbering, generated documents first**: numbered HR documents (attestation/certificat de travail, titre de congé) from fr/ar templates as API-generated PDFs with a register of issued documents, gap-free per-company sequences; then an employee file (attachments stored in Postgres, per ADR 005). Outbox and sister-app integration come later in M3 |
 | 2026-09-28 | **ADR 008 accepted**: PDFs rendered with Typst embedded in the API (`@myriaddreamin/typst-ts-node-compiler`), stored PDF bytes, gap-free counters in Postgres (≈ +51 MB image, +50 MB RAM per API process). Documents assumptions 5–7 confirmed: regional HR issues in scope, only central HR voids, employees self-request an attestation via a one-step HR workflow, documents hand-signed (no scanned signature/stamp) |
 | 2026-09-29 | Certificat de travail in Arabic is **« شهادة نهاية العمل »** (was « شهادة العمل », too close to the attestation « شهادة عمل »). Documents Phase A committed; Phase B (employee file) starts |
+| 2026-09-29 | Documents Phase B committed. The Typst logo-memory crash risk is fixed next (pixel-size limit on logos). HR users seeing/uploading to their own employee file: **left as is for now** (product decision pending) |
 
 ## M2 progress
 
@@ -53,7 +54,8 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 ## M3 progress
 
-- **Documents Phase A (generated documents + numbering + register): built and independently verified 2026-09-29** (contract `docs/contracts/documents.md`, ADR 008). Typst PDFs in fr/ar checked visually (shaping, bidi, gender agreement), gap-free numbering under concurrency, identical reprints, void keeps the number, self-service attestation via workflow `document.hr_only`, titre de congé from approved leave. Verifier fixes: bidi control characters stripped from printed data (an RTL override mirrored the legal sentence), `<bdi>` on the Arabic detail page, lower-case number formats. Chrome/Edge PDF viewer works under the production CSP. API image 344 → 422 MB. **Next: Phase B (employee file).**
+- **Documents Phase A (generated documents + numbering + register): built and independently verified 2026-09-29** (contract `docs/contracts/documents.md`, ADR 008). Typst PDFs in fr/ar checked visually (shaping, bidi, gender agreement), gap-free numbering under concurrency, identical reprints, void keeps the number, self-service attestation via workflow `document.hr_only`, titre de congé from approved leave. Verifier fixes: bidi control characters stripped from printed data (an RTL override mirrored the legal sentence), `<bdi>` on the Arabic detail page, lower-case number formats. Chrome/Edge PDF viewer works under the production CSP. API image 344 → 422 MB.
+- **Documents Phase B (employee file): built and independently verified 2026-09-29.** Dossier tab (upload with XHR progress, drag-and-drop, download, delete with reason), file categories settings, content sniffing (PDF/JPEG/PNG), attachment downloads with sandbox CSP through Caddy, audited downloads, medical category hidden, monthly retention purge. Verifier fixes: UTF-8 upload filenames (multer read them as latin1), download name follows the real type, client expiry-date check, 413 message, medical note wording, and an 8 GB allocation in the Typst spec's own test template (the Windows 0xC0000409 crash).
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -78,6 +80,8 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 - **`AUTH_MFA_KEY`** (32 bytes, base64) is required in production: existing staging installs must add it to `deploy/.env` before the next deploy (`init-env.sh` generates it for new installs). Losing it makes every enrolled factor unusable (users would need an admin reset).
 - A company without a `security_policy` row is treated as MFA-enforced (safe default). DEMO has enforcement off; `bootstrap` creates companies with it on.
+- **Employee file (Documents Phase B):** `EMPLOYEE_FILE_MAX_BYTES` (default 10 MB, max 20 MB; the web's `EMPLOYEE_FILE_MAX_BYTES` in `core/employee-files/employee-files.models.ts` must match). Caddy caps uploads to `/api/employees/*/files` at 25 MB. Deleted/purged files survive in backups for `BACKUP_RETENTION_DAYS`.
+- A "Médecine du travail" role cannot be created through the API (role creation refuses permissions no one holds): if the owner wants it, an operator inserts it by SQL with `employee.medical.read` + `employee.medical.update`.
 
 ## Known small issues (not fixed)
 
@@ -92,6 +96,8 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - `identity.e2e-spec` (429 after 30 failed logins) also failed once in a full run and passed on rerun (time-sensitive).
 - Documents: a signed-in user without `document.read` opening `/documents` gets an empty page instead of 404 (same as `/leave`); the timeline shows the signatory as a raw id and the SHA-256 as hex; a single unbroken 200-character token overflows the PDF margin.
 - Documents Arabic wording to fix once confirmed: the Arabic titre sentence lacks the day count; some Arabic messages are always masculine (see the contract's verification section).
+- **Typst can crash the whole API process** (ADR 008): an out-of-memory in the native renderer aborts the process, and `worker.terminate()` does not stop a native render (it runs to completion). Realistic trigger: a letterhead logo under 256 KB but huge in pixels (a 45000×45000 1-bit PNG needs ≈ 2 GB). Proposed fix: refuse logos above ~4000×4000 px at upload (PNG IHDR / JPEG SOF).
+- Employee file: HR users can see and upload to their own file when it is in their scope (e.g. rh.est linked to EMP-0022): product decision. The timeline shows the file category as an id, sha256 as hex and `scan_status` raw. The app role can set `purged_at` (trust question 3).
 
 ## Environment facts
 

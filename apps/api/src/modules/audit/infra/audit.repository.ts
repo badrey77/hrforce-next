@@ -132,9 +132,9 @@ export class AuditRepository {
   async timeline(
     companyId: string,
     subject: TimelineSubject,
-    options: { cursor: TimelineCursor | null; limit: number; unitScope: UnitIdQuery },
+    options: { cursor: TimelineCursor | null; limit: number; unitScope: UnitIdQuery; medicalFiles?: boolean },
   ): Promise<TimelineRow[]> {
-    const changes = this.changeFilter(companyId, subject, options.unitScope);
+    const changes = this.changeFilter(companyId, subject, options.unitScope, options.medicalFiles ?? false);
     const after = options.cursor
       ? sql`(x.at, x.kind, x.id) < (${options.cursor.at}::timestamptz, ${options.cursor.kind}::int, ${options.cursor.id}::bigint)`
       : sql`true`;
@@ -162,7 +162,7 @@ export class AuditRepository {
         select 1 as kind, e.id, e.at, ${AT_MICROS('e.at')} as at_micros, e.actor_user_id, e.request_id,
                null, null, null, null, null, e.type, e.data
           from audit.event e
-         where e.company_id = ${companyId}::uuid and (${this.eventSubject(companyId, subject)})
+         where e.company_id = ${companyId}::uuid and (${this.eventSubject(companyId, subject, options.medicalFiles ?? false)})
            and (${this.eventFilter(options.unitScope)})
       ) x
       where ${after}
@@ -186,10 +186,21 @@ export class AuditRepository {
   }
 
   /**
-   * Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests,
-   * its issued documents and its self-service document requests.
+   * Employee-file ids of an employment (never deleted by the app: tombstones), without the medical ones unless
+   * `medical` (the caller holds employee.medical.read over the employee's unit).
    */
-  private eventSubject(companyId: string, subject: TimelineSubject): RawBuilder<boolean> {
+  private employeeFileIds(companyId: string, employmentId: string, medical: boolean): RawBuilder<unknown> {
+    const classFilter = medical ? sql`` : sql`and k.access_class <> 'medical'`;
+    return sql`select f.id from employee_file f
+      join employee_file_category k on k.company_id = f.company_id and k.id = f.category_id
+     where f.company_id = ${companyId}::uuid and f.employment_id = ${employmentId}::uuid ${classFilter}`;
+  }
+
+  /**
+   * Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests,
+   * its issued documents, its self-service document requests and its employee files (medical ones per `medicalFiles`).
+   */
+  private eventSubject(companyId: string, subject: TimelineSubject, medicalFiles: boolean): RawBuilder<boolean> {
     const own = sql<boolean>`(e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid)`;
     if (subject.type !== 'employee') return own;
     return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
@@ -197,7 +208,8 @@ export class AuditRepository {
       or (e.subject_type = 'issued_document' and e.subject_id in (
       select d.id from issued_document d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid))
       or (e.subject_type = 'document_request' and e.subject_id in (
-      select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid)))`;
+      select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'employee_file' and e.subject_id in (${this.employeeFileIds(companyId, subject.id, medicalFiles)})))`;
   }
 
   /**
@@ -209,7 +221,7 @@ export class AuditRepository {
   }
 
   /** Which change_log rows belong to the subject (alias `c`). */
-  private changeFilter(companyId: string, subject: TimelineSubject, unitScope: UnitIdQuery): RawBuilder<boolean> {
+  private changeFilter(companyId: string, subject: TimelineSubject, unitScope: UnitIdQuery, medicalFiles: boolean): RawBuilder<boolean> {
     const id = subject.id;
     switch (subject.type) {
       case 'org_unit':
@@ -228,9 +240,10 @@ export class AuditRepository {
         return sql<boolean>`c.table_name in ('role', 'role_permission') and c.row_id = ${id}::uuid`;
       case 'employee':
         // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
-        // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests, issued documents and
-        // document requests (none of them is ever deleted by the app)
+        // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests, issued documents,
+        // document requests and employee files (medical ones per `medicalFiles`; none of them is ever deleted by the app)
         return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
+          or (c.table_name = 'employee_file' and c.row_id in (${this.employeeFileIds(companyId, id, medicalFiles)}))
           or (c.table_name = 'leave_request' and c.row_id in (
                 select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${id}::uuid))
           or (c.table_name = 'issued_document' and c.row_id in (

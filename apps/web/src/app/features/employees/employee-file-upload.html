@@ -1,0 +1,104 @@
+<!--
+  The upload form (employee-file-upload.ts). One template feature appears here for the first time in the app:
+  `(dragover)`, `(drop)`, `(dragenter)`, `(dragleave)` — event bindings on DOM drag-and-drop events; `$event` is the
+  browser's `DragEvent`, passed to the handler. The file input is the accessible way in; the zone around it also
+  accepts a dropped file.
+  `<bdi>` isolates a file name's direction: an Arabic name in a French line (or the reverse) does not reorder the
+  text around it.
+-->
+<form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate aria-labelledby="file-upload-title" data-form="upload-file">
+  <h3 id="file-upload-title">{{ t('documents.file.upload.title') }}</h3>
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" data-error="form">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+  @let c = form.controls;
+  @let fileInvalid = c.file.invalid && c.file.touched;
+  @let busy = progress() !== null;
+
+  <div
+    class="field drop-zone"
+    data-drop-zone
+    [class.over]="dragOver()"
+    (dragenter)="onDragOver($event)"
+    (dragover)="onDragOver($event)"
+    (dragleave)="dragOver.set(false)"
+    (drop)="onDrop($event)"
+  >
+    <label for="file-input">{{ t('documents.file.fields.file') }}</label>
+    <input id="file-input" type="file" [accept]="accept" [disabled]="busy" (change)="onFileInput($event)"
+      [attr.aria-invalid]="fileInvalid" aria-describedby="file-input-hint file-input-error" />
+    <p class="field-hint" id="file-input-hint">{{ t('documents.file.upload.hint', { max: (maxBytes | fileSize: lang()) }) }}</p>
+    @if (file(); as f) {
+      <p class="chosen" data-field="chosen"><bdi>{{ f.name }}</bdi> · {{ f.size | fileSize: lang() }}</p>
+    }
+    @if (onlyFirst()) {
+      <p class="field-hint" data-state="only-first">{{ t('documents.file.upload.onlyFirst') }}</p>
+    }
+    @if (fileInvalid) {
+      <p class="field-error" id="file-input-error" data-error="file">{{ c.file.getError('server') ?? t(fileErrorKey(c.file)) }}</p>
+    }
+  </div>
+
+  <div class="field">
+    <label for="file-category">{{ t('documents.file.fields.category') }}</label>
+    <select id="file-category" formControlName="categoryId" required
+      [attr.aria-invalid]="c.categoryId.invalid && c.categoryId.touched" aria-describedby="file-category-error">
+      <option value="" disabled>{{ t('documents.file.upload.categoryPlaceholder') }}</option>
+      @for (category of categories(); track category.id) {
+        <option [value]="category.id">{{ label(category) }}{{ category.accessClass === 'medical' ? ' — ' + t('documents.file.medical') : '' }}</option>
+      }
+    </select>
+    <app-field-error [control]="c.categoryId" errorId="file-category-error" />
+  </div>
+
+  <div class="field">
+    <label for="file-title">{{ t('documents.file.fields.title') }}</label>
+    <input id="file-title" type="text" formControlName="title" dir="auto"
+      [attr.aria-invalid]="c.title.invalid && c.title.touched" aria-describedby="file-title-hint file-title-error" />
+    <p class="field-hint" id="file-title-hint">{{ t('documents.file.upload.titleHint') }}</p>
+    <app-field-error [control]="c.title" errorId="file-title-error" />
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label for="file-document-date">{{ t('documents.file.fields.documentDate') }}</label>
+      <input id="file-document-date" type="date" formControlName="documentDate"
+        [attr.aria-invalid]="c.documentDate.invalid && c.documentDate.touched" aria-describedby="file-document-date-error" />
+      <app-field-error [control]="c.documentDate" errorId="file-document-date-error" />
+    </div>
+    <div class="field">
+      <label for="file-expires-on">{{ t('documents.file.fields.expiresOn') }}</label>
+      <input id="file-expires-on" type="date" formControlName="expiresOn"
+        [attr.aria-invalid]="c.expiresOn.invalid && c.expiresOn.touched" aria-describedby="file-expires-on-hint file-expires-on-error" />
+      <p class="field-hint" id="file-expires-on-hint">{{ t('documents.file.upload.expiresHint') }}</p>
+      <app-field-error [control]="c.expiresOn" errorId="file-expires-on-error" />
+    </div>
+  </div>
+
+  <!--
+    `[attr.value]` rather than `[value]`: binding `null` to an ATTRIBUTE removes it, and a <progress> without a value
+    is "indeterminate" (an animated bar) — right while the total is unknown. `[value]` would set the property to 0.
+  -->
+  @if (progress(); as p) {
+    <div class="upload-progress" data-state="uploading">
+      <label for="file-progress">{{ percent() === 100 ? t('documents.file.upload.checking') : t('documents.file.upload.sending') }}</label>
+      <progress id="file-progress" max="100" [attr.value]="percent()"></progress>
+      <span class="field-hint" data-field="percent">
+        @if (percent() !== null) {
+          {{ t('documents.file.upload.percent', { percent: percent(), loaded: (p.loaded | fileSize: lang()), total: (p.total | fileSize: lang()) }) }}
+        }
+      </span>
+    </div>
+  }
+
+  <div class="form-actions">
+    <button class="btn" type="submit" data-action="upload" [disabled]="busy">
+      {{ busy ? t('documents.file.upload.uploading') : t('documents.file.upload.submit') }}
+    </button>
+    @if (busy) {
+      <button class="btn secondary" type="button" data-action="abort-upload" (click)="abort()">{{ t('documents.file.upload.abort') }}</button>
+    } @else {
+      <button class="btn secondary" type="button" data-action="cancel-upload" (click)="cancel()">{{ t('common.cancel') }}</button>
+    }
+  </div>
+</form>

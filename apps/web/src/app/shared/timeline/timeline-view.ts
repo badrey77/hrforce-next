@@ -46,6 +46,9 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   // Documents (documents contract › Audit): who issued / voided a document.
   issued_by: 'user',
   voided_by: 'user',
+  // Employee file (documents contract › Phase B): who added / deleted a document.
+  uploaded_by: 'user',
+  deleted_by: 'user',
 };
 
 /**
@@ -65,6 +68,7 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'issued_document.type_code': 'documents.typeNames.',
   'document_request.status': 'documents.requestStatus.',
   'document_request.language': 'documents.languages.',
+  'employee_file_category.access_class': 'documents.fileCategories.class.',
 };
 
 /**
@@ -88,6 +92,8 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // as JSON — one unreadable line here, and the document's detail page already shows what was printed.
   issued_document: ['employment_id', 'document_type_id', 'snapshot'],
   document_request: ['employment_id', 'document_type_id', 'workflow_instance_id'],
+  // Employee file: the employment repeats the subject.
+  employee_file: ['employment_id'],
 };
 
 export type DisplayValue =

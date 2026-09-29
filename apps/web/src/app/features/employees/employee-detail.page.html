@@ -260,6 +260,13 @@
           </div>
         }
 
+        <!-- Dossier: the uploaded documents of the person's file (employee-file-tab.ts). -->
+        @case ('file') {
+          <div data-panel="file">
+            <app-employee-file-tab [employee]="e" />
+          </div>
+        }
+
         <!-- History: the timeline's code is fetched only when this tab is opened (chapter 13). ---------------- -->
         @case ('history') {
           <div data-panel="history">

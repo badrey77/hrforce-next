@@ -61,9 +61,9 @@ describe('separation of duties / dates', () => {
 describe('system roles', () => {
   const byCode = new Map(SYSTEM_ROLES.map((r) => [r.code, r]));
 
-  it('admin_rh_central holds everything except employee.medical.read; nobody holds medical', () => {
-    expect(byCode.get('admin_rh_central')?.permissions).toEqual(PERMISSION_CODES.filter((c) => c !== 'employee.medical.read'));
-    expect(SYSTEM_ROLES.some((r) => r.permissions.includes('employee.medical.read'))).toBe(false);
+  it('admin_rh_central holds everything except employee.medical.read / update; nobody holds medical', () => {
+    expect(byCode.get('admin_rh_central')?.permissions).toEqual(PERMISSION_CODES.filter((c) => c !== 'employee.medical.read' && c !== 'employee.medical.update'));
+    expect(SYSTEM_ROLES.some((r) => r.permissions.includes('employee.medical.read') || r.permissions.includes('employee.medical.update'))).toBe(false);
   });
 
   it('match the contract table', () => {
@@ -71,6 +71,7 @@ describe('system roles', () => {
       'org_unit.read', 'site.read', 'employee.read', 'employee.create', 'employee.update',
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
       'document.read', 'document.issue',
+      'employee_file.read', 'employee_file.upload',
     ]);
     expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);

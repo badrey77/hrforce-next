@@ -17,6 +17,7 @@ import { LEAVE_DEMO, LeaveFacts } from '../../leave/index.js';
 import { DEMO_ORGANIZATION } from '../../organization/index.js';
 import { seedWorkflowDefinitions, type SeedDefinition } from '../../workflow/index.js';
 import { DocumentIssuer } from '../application/document-issuer.js';
+import { SYSTEM_FILE_CATEGORIES } from '../domain/employee-files.js';
 import { DEFAULT_DOCUMENT_TYPES, DOCUMENT_WORKFLOW_CODE, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
 import { DocumentsRepository } from './documents.repository.js';
 
@@ -29,9 +30,18 @@ export const DOCUMENT_DEFINITION: SeedDefinition = {
   steps: [{ key: 'hr', kind: 'permission', permission: 'document.issue', labels: { fr: 'RH', ar: 'الموارد البشرية', en: 'HR' } }],
 };
 
-/** The three document types and the `document.hr_only` workflow of a company (new companies; 0014 did existing ones). */
+/**
+ * The three document types, the `document.hr_only` workflow and the five employee-file categories of a company (new
+ * companies; migrations 0014 and 0015 did existing ones). Returns the document type ids by code.
+ */
 export async function seedDocumentDefaults(db: Executor, companyId: string): Promise<Map<string, string>> {
   await seedWorkflowDefinitions(db, companyId, [DOCUMENT_DEFINITION]);
+  for (const c of SYSTEM_FILE_CATEGORIES) {
+    await sql`
+      insert into employee_file_category (company_id, code, name_fr, name_ar, name_en, access_class, sort_order, is_system)
+      values (${companyId}::uuid, ${c.code}, ${c.names.fr}, ${c.names.ar}, ${c.names.en}, ${c.accessClass}, ${c.sortOrder}, true)
+      on conflict (company_id, code) do nothing`.execute(db);
+  }
   for (const t of DEFAULT_DOCUMENT_TYPES) {
     await sql`
       insert into document_type (company_id, code, name_fr, name_ar, name_en, number_format, languages, self_service, sort_order)

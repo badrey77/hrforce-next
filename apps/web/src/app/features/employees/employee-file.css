@@ -1,0 +1,135 @@
+/* Dossier tab and its upload form (employee-file-tab.ts, employee-file-upload.ts). Logical properties only. */
+.file-group {
+  margin-block-end: var(--space-3);
+}
+
+.file-group > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* `display: flex` removes the default disclosure triangle: put it back, pointing the reading way. */
+.file-group > summary::before {
+  content: '▸';
+  content: '▸' / '';
+}
+
+.file-group > summary:dir(rtl)::before {
+  content: '◂';
+  content: '◂' / '';
+}
+
+.file-group[open] > summary::before {
+  content: '▾';
+  content: '▾' / '';
+}
+
+.file-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.file-card.gone {
+  color: var(--color-text-muted);
+  border-style: dashed;
+}
+
+.file-type {
+  min-inline-size: 2.75rem;
+  padding-block: var(--space-1);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.file-type[data-kind='pdf'] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.file-type[data-kind='image'] {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.file-title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.file-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.show-deleted {
+  margin-block-end: var(--space-3);
+}
+
+.drop-zone {
+  padding: var(--space-3);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+}
+
+.drop-zone.over {
+  border-color: var(--color-primary);
+  background: var(--color-surface-alt);
+}
+
+.chosen {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.upload-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+
+.upload-progress progress {
+  flex: 1 1 12rem;
+}
+
+@media (max-width: 48rem) {
+  .file-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .file-actions {
+    grid-column: 1 / -1;
+  }
+}

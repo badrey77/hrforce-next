@@ -14,5 +14,9 @@
   {
     "table": "issued_document_file",
     "reason": "Immutable PDF bytes of an issued document (docs/contracts/documents.md, ADR 008 §5): insert-only for hrforce_app (no UPDATE, no DELETE); its integrity is the audited issued_document.content_sha256, and diffing 20–30 KB of bytes per document would bloat audit.change_log for nothing."
+  },
+  {
+    "table": "employee_file_content",
+    "reason": "Bytes of an uploaded employee file (docs/contracts/documents.md › Phase B, ADR 005): one row per employee_file, inserted with it and removed only after its tombstone (deleted_at) or retention mark (purged_at) is set — both audited row changes of employee_file, which also carries the audited sha256 and size. Diffing up to 10–20 MB of bytes per upload would bloat audit.change_log for nothing."
   }
 ]

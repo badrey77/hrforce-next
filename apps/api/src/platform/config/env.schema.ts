@@ -93,6 +93,11 @@ export const apiEnvSchema = z
   PDF_RENDER_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(1),
   /** Directory holding `fonts/` and `templates/` (default: apps/api/assets/pdf, resolved from the package root). */
   PDF_ASSETS_DIR: z.string().min(1).optional(),
+  /**
+   * Largest employee-file upload in bytes (docs/contracts/documents.md › Phase B): default 10 MB, at most 20 MB (the
+   * database's limit). The multipart reader stops at this size; the reverse proxy allows 25 MB on the upload route.
+   */
+  EMPLOYEE_FILE_MAX_BYTES: z.coerce.number().int().min(1024).max(20 * 1024 * 1024).default(10 * 1024 * 1024),
 })
   .superRefine((env, ctx) => {
     const devOnly = (path: string, message: string) => {

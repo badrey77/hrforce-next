@@ -217,6 +217,12 @@ those passwords (`/password/forgot` flow) right after seeding.
   ssh deploy@<host> 'cd /opt/hrforce/deploy && docker compose exec -T backup sh -c "cat \$(ls -1t /backups/hrforce-*.dump | head -n 1)"' > hrforce-latest.dump
   ```
 - Roles are cluster-level and not in the dump; they are recreated from `.env` by `create-roles.sql`.
+- **Employee files** (uploaded PDF/JPEG/PNG, docs/contracts/documents.md › Phase B) are stored in Postgres and are in
+  every dump. A file deleted in the app (or purged by the retention job) is gone from the database at once but stays
+  in the dumps taken before, i.e. up to `BACKUP_RETENTION_DAYS` (14 days) on the server — and as long as any copy
+  taken off the host is kept. Uploads are limited by the API (`EMPLOYEE_FILE_MAX_BYTES`, default 10 MB, at most
+  20 MB; optional in `.env`) and by Caddy (`request_body max_size 25MB` on `POST /api/employees/*/files`); expect the
+  dump to grow by the size of the files uploaded.
 - Manual dump now: `docker compose exec backup /bin/sh /hrforce/backup.sh --once`. List: `docker compose exec backup ls -lh /backups`.
 
 ### Restore test (monthly, and after any change to the backup setup)

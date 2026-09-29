@@ -147,6 +147,48 @@ export interface DocumentType {
   sort_order: Generated<number>;
 }
 
+export interface EmployeeFile {
+  category_id: string;
+  company_id: string;
+  delete_reason: string | null;
+  deleted_at: Timestamp | null;
+  deleted_by: string | null;
+  document_date: Timestamp | null;
+  employment_id: string;
+  expires_on: Timestamp | null;
+  id: Generated<string>;
+  mime: string;
+  original_filename: string;
+  purged_at: Timestamp | null;
+  scan_status: Generated<string>;
+  sha256: Buffer;
+  size_bytes: number;
+  title: string;
+  uploaded_at: Generated<Timestamp>;
+  uploaded_by: string;
+}
+
+export interface EmployeeFileCategory {
+  access_class: Generated<string>;
+  active: Generated<boolean>;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_system: Generated<boolean>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  retention_years_after_end: number | null;
+  sort_order: Generated<number>;
+}
+
+export interface EmployeeFileContent {
+  company_id: string;
+  content: Buffer;
+  file_id: string;
+}
+
 export interface Employment {
   company_id: string;
   created_at: Generated<Timestamp>;
@@ -501,6 +543,9 @@ export interface DB {
   document_sequence: DocumentSequence;
   document_signatory: DocumentSignatory;
   document_type: DocumentType;
+  employee_file: EmployeeFile;
+  employee_file_category: EmployeeFileCategory;
+  employee_file_content: EmployeeFileContent;
   employment: Employment;
   employment_salary: EmploymentSalary;
   issued_document: IssuedDocument;

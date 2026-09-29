@@ -139,6 +139,18 @@ describe('EmployeeDetailPage', () => {
     expect(el().querySelector('[data-panel="leave"] [data-state="no-balance"]')).not.toBeNull();
   });
 
+  it('adds a Dossier tab for employee_file.read holders (the file loads only when it is opened)', async () => {
+    TestBed.inject(Session).set(meWith(['employee.read', 'employee_file.read']));
+    await open(redactedDetail());
+    expect(tabs()).toEqual(['identity', 'assignments', 'file']);
+    http.expectNone((r) => r.url === '/api/employees/e-1/files');
+    await tab('file');
+    http.expectOne((r) => r.url === '/api/employees/e-1/files').flush({ items: [], _redacted: [], _actions: [] });
+    http.expectOne('/api/employee-files/categories').flush({ items: [] });
+    await settle();
+    expect(el().querySelector('[data-panel="file"] [data-state="empty"]')).not.toBeNull();
+  });
+
   it('shows the Bank & NSS tab when only one block is readable, with only that block', async () => {
     const { bank: _b, ...rest } = detail();
     await open({ ...rest, _redacted: ['bank'], _actions: ['update_nss'] });

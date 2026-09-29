@@ -9,6 +9,7 @@ import type { TimelineEntry, TimelineView } from './timeline-views.js';
 export const AUDIT_READ = 'audit.read';
 export const LEAVE_READ = 'leave.read';
 export const DOCUMENT_READ = 'document.read';
+export const MEDICAL_READ = 'employee.medical.read';
 
 function subjectNotFound(): NotFoundException {
   return new NotFoundException('Subject not found');
@@ -25,7 +26,9 @@ function subjectNotFound(): NotFoundException {
  * user, or a current candidate of its open task (no audit.read needed); an issued document (its register row and its
  * document.* events) like GET /documents/:id — document.read over the employee's scope unit (no audit.read needed).
  * The employee timeline also lists the employee's issued documents and self-service document requests with their
- * events. Anything else — unknown, other company, out of scope — is 404.
+ * events, and its employee-file rows and events — those of MEDICAL files only when the caller also holds
+ * employee.medical.read over the employee's unit (a file title can be medical data).
+ * Anything else — unknown, other company, out of scope — is 404.
  */
 @Injectable()
 export class TimelineService {
@@ -38,12 +41,13 @@ export class TimelineService {
   async timeline(subject: TimelineSubject, cursor: TimelineCursor | null, limit: number): Promise<TimelineView> {
     const { companyId } = requireContext();
     if (!companyId) throw subjectNotFound();
-    await this.assertVisible(companyId, subject);
+    const { medicalFiles } = await this.assertVisible(companyId, subject);
 
     const rows = await this.repo.timeline(companyId, subject, {
       cursor,
       limit: limit + 1,
       unitScope: await this.scopes.scopeOf(AUDIT_READ),
+      medicalFiles,
     });
     const page = rows.slice(0, limit);
     const last = page.at(-1);
@@ -54,21 +58,23 @@ export class TimelineService {
     return { items: page.map((row) => toEntry(row, names, masked)), nextCursor };
   }
 
-  private async assertVisible(companyId: string, subject: TimelineSubject): Promise<void> {
+  /** 404 unless the caller may see the subject's history; `medicalFiles`: medical employee-file entries are included. */
+  private async assertVisible(companyId: string, subject: TimelineSubject): Promise<{ medicalFiles: boolean }> {
+    const plain = { medicalFiles: false };
     switch (subject.type) {
       case 'org_unit':
         if (!(await this.scopes.inScope(AUDIT_READ, subject.id))) throw subjectNotFound();
-        return;
+        return plain;
       case 'site':
       case 'role':
         // company-wide: audit.read held anywhere (checked by the route's @RequirePermission)
         if (!(await this.repo.rowKnown(companyId, subject.type, subject.id))) throw subjectNotFound();
-        return;
+        return plain;
       case 'employee': {
         // the employee's scope: the unit of its assignment valid today, else its last one (ended), else its first
         const unitId = await this.repo.employeeScopeUnit(companyId, subject.id);
         if (!unitId || !(await this.scopes.inScope(AUDIT_READ, unitId))) throw subjectNotFound();
-        return;
+        return { medicalFiles: await this.scopes.inScope(MEDICAL_READ, unitId) };
       }
       case 'leave_request': {
         const request = await this.repo.leaveRequestAccess(companyId, subject.id);
@@ -80,22 +86,22 @@ export class TimelineService {
           (await this.scopes.inScope(LEAVE_READ, request.orgUnitId)) ||
           (request.workflowInstanceId !== null && (await this.workflow.isCandidate(request.workflowInstanceId)));
         if (!visible) throw subjectNotFound();
-        return;
+        return plain;
       }
       case 'issued_document': {
         const employmentId = await this.repo.issuedDocumentEmployment(companyId, subject.id);
         const unitId = employmentId ? await this.repo.employeeScopeUnit(companyId, employmentId) : undefined;
         if (!unitId || !(await this.scopes.inScope(DOCUMENT_READ, unitId))) throw subjectNotFound();
-        return;
+        return plain;
       }
       case 'user': {
         const member = (await this.repo.members(companyId)).some((m) => m.id === subject.id);
         if (!member) throw subjectNotFound();
         const units = await this.repo.grantUnitsOf(companyId, subject.id);
-        if (units.length === 0) return;
+        if (units.length === 0) return plain;
         const readable = await this.scopes.unitIds(AUDIT_READ);
         if (!units.some((u) => readable.has(u))) throw subjectNotFound();
-        return;
+        return plain;
       }
     }
   }

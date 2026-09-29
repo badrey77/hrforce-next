@@ -80,6 +80,12 @@ the files it discusses, so you can jump straight to the source.
     not an `<iframe>` (`RESOURCE_URL`, `DomSanitizer`), `data:` images under a strict CSP, file inputs + `FormData`,
     an idempotent submit, form values as signals, narrowing a discriminated union in a template.
 
+19. [19-uploads-progress-and-the-employee-file.md](./19-uploads-progress-and-the-employee-file.md) — the employee
+    file: upload progress (`reportProgress`, `observe: 'events'`, `HttpEventType`), why fetch cannot do it and a
+    second XHR-backed `HttpClient` in a child `EnvironmentInjector`, cancel = unsubscribe, a form control no input is
+    bound to, drag and drop, client-side checks as a courtesy, `<progress>` + `[attr.value]`, `<details>` groups,
+    confirm-before-delete, a size pipe over `Intl.NumberFormat`, testing uploads.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen.
 
 ## Concept → chapter → file index
@@ -208,6 +214,16 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `[formControlName]` bound to a computed name (form built from a field table) | 18, 07 | `src/app/features/documents/profile-settings.html` |
 | Client-side live preview from a pure function (number format) | 18 | `src/app/features/documents/types-settings.ts`, `src/app/core/documents/documents.models.ts` |
 | Discriminated union narrowed by `@if` in a template | 18 | `src/app/features/tasks/tasks.page.html`, `src/app/core/tasks/tasks.models.ts` |
+| Upload progress: `reportProgress`, `observe: 'events'`, `HttpEventType` | 19, 06 | `src/app/core/employee-files/employee-files-api.ts` |
+| Second `HttpClient` (`withXhr()`) in a child `EnvironmentInjector`; shared HTTP features | 19, 04, 06 | `src/app/core/http/upload-http.ts`, `http-features.ts`, `src/app/app.config.ts` |
+| Cancel a request by unsubscribing; `takeUntilDestroyed` | 19 | `src/app/features/employees/employee-file-upload.ts` |
+| Form control set by code (file input, drop), pristine-only proposed value | 19, 07 | `src/app/features/employees/employee-file-upload.ts` |
+| Drag and drop with `(dragover)`/`(drop)` event bindings | 19 | `src/app/features/employees/employee-file-upload.html` |
+| Client-side file checks as a courtesy (server sniffs the bytes) | 19 | `src/app/core/employee-files/employee-files.models.ts` (`checkFile`) |
+| `<progress>` with `[attr.value]` (null = indeterminate) | 19, 02 | `src/app/features/employees/employee-file-upload.html` |
+| `<details>`/`<summary>` groups; cards instead of a table at 390 px | 19 | `src/app/features/employees/employee-file-tab.html`, `employee-file.css` |
+| Confirm-before-delete dialog with a required reason | 19, 02 | `src/app/features/employees/employee-file-tab.html` |
+| Pure pipe over `Intl.NumberFormat` units (`fileSize`) | 19, 13 | `src/app/shared/file-size/file-size.pipe.ts` |
 
 ## Glossary
 

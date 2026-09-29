@@ -23,7 +23,11 @@ describe('TypstPdfRenderer (worker thread)', () => {
     '#let d = json(bytes(sys.inputs.data))\n#set document(date: datetime(year: 2026, month: 1, day: 2))\n#set text(font: "Source Sans 3")\nNuméro #d.number — #d.at("note", default: "")\n',
   );
   writeFileSync(path.join(dir, 'templates', 'broken.typ'), '#let x = (\n');
-  writeFileSync(path.join(dir, 'templates', 'slow.typ'), '#let n = 0\n#for i in range(400000000) { n = n + 1 }\n#n\n');
+  // CPU-bound with bounded memory (~15 s alone, ~0.4 µs per iteration): Typst's range() builds a whole array, and the
+  // former `range(400000000)` grew it to an 8 GiB allocation that aborted the whole test process (Rust OOM abort,
+  // exit 0xC0000409 on Windows) — a render thread shares the process. terminate() cannot interrupt native code: the
+  // timed-out thread keeps running until this loop ends, so keep it finite.
+  writeFileSync(path.join(dir, 'templates', 'slow.typ'), '#let n = 0\n#for i in range(6000) { for j in range(6000) { n = n + 1 } }\n#n\n');
   // 5 s: the limit also covers the cold start of a thread (spawn, loading the binding and the fonts), which can take
   // well over a second while the whole suite runs in parallel; the slow template still runs far longer than that
   const renderer = new TypstPdfRenderer({ assetsDir: dir, timeoutMs: 5000 });

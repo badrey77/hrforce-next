@@ -24,6 +24,10 @@ app receives (see chapter 04 — it's a root-level provider). Each argument is a
 - **`withFetch()`** — use the browser's `fetch()` API as the transport, instead of
   `XMLHttpRequest` (the older default). Mentioned here because it changes nothing about
   how you call `HttpClient`, but it's why the network tab shows `fetch` requests.
+  One exception: fetch cannot report UPLOAD progress, so file uploads with a progress bar use a second client built
+  from the same features with `withXhr()` (`core/http/upload-http.ts`; the shared features live in
+  `core/http/http-features.ts`, which `app.config.ts` now spreads: `provideHttpClient(withFetch(), ...appHttpFeatures())`).
+  See [chapter 19](./19-uploads-progress-and-the-employee-file.md) §2–3.
 - **`withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })`**
   (names in [`core/http/xsrf.ts`](../../apps/web/src/app/core/http/xsrf.ts)) implements
   the double-submit CSRF pattern from [ADR 004](../adr/004-browser-auth.md). The API sets

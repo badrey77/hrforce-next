@@ -1,0 +1,153 @@
+<!--
+  Dossier tab (employee-file-tab.ts). One card per file at every width: on a desktop the card lays its three parts
+  (type, text, buttons) out in a row, on a phone the buttons wrap under the text (employee-file.css) — one markup, no
+  table to squeeze into 390 px.
+  First use in the app: `<details>`/`<summary>` for collapsible groups (`open` = expanded at first; the browser keeps
+  the state afterwards), and `<bdi>` around user-provided names inside a sentence.
+-->
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <h2>{{ t('documents.file.title') }}</h2>
+    @if (canUpload() && !adding()) {
+      <button class="btn" type="button" data-action="add-file" (click)="openUpload()">{{ t('documents.file.add') }}</button>
+    }
+  </div>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (adding()) {
+    <app-employee-file-upload [employmentId]="employee().id" [categories]="uploadable()"
+      (uploaded)="onUploaded()" (cancelled)="adding.set(false)" />
+  }
+
+  @if (medicalHidden()) {
+    <p class="field-hint" data-state="medical-hidden">{{ t('documents.file.medicalHidden') }}</p>
+  }
+
+  @if (canSeeDeleted()) {
+    <div class="check show-deleted">
+      <input id="file-show-deleted" type="checkbox" [checked]="showDeleted()" (change)="toggleDeleted($event)" />
+      <label for="file-show-deleted">{{ t('documents.file.showDeleted') }}</label>
+    </div>
+  }
+
+  <section [attr.aria-busy]="list.isLoading()" data-panel="file-list">
+    @if (list.error() && !list.hasValue()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(loadErrorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      @for (group of groups(); track group.category.id) {
+        <details class="file-group" open [attr.data-category]="group.category.code">
+          <summary>
+            {{ label(group.category) }} <span class="badge">{{ group.files.length }}</span>
+            @if (group.category.accessClass === 'medical') {
+              <span class="badge" data-status="rejected">{{ t('documents.file.medical') }}</span>
+            }
+          </summary>
+          <ul class="file-list">
+            @for (f of group.files; track f.id) {
+              @let gone = f.deleted !== null || f.purgedAt !== null;
+              <li class="file-card" [attr.data-file]="f.id" [class.gone]="gone">
+                <span class="file-type" [attr.data-kind]="kind(f.mime)">{{ badge(f.mime) }}</span>
+                <div class="file-text">
+                  <p class="file-title" dir="auto">{{ f.title }}</p>
+                  <p class="file-meta">
+                    <bdi class="file-name">{{ f.originalFilename }}</bdi>
+                    · {{ f.sizeBytes | fileSize: lang() }}
+                    @if (f.documentDate) {
+                      · {{ t('documents.file.documentDate', { date: (f.documentDate | date: 'mediumDate' : undefined : locale()) }) }}
+                    }
+                    @if (f.expiresOn) {
+                      · {{ t('documents.file.expiresOn', { date: (f.expiresOn | date: 'mediumDate' : undefined : locale()) }) }}
+                      @if (f.expiresOn < today) {
+                        <span class="badge" data-status="rejected" data-state="expired">{{ t('documents.file.expired') }}</span>
+                      }
+                    }
+                  </p>
+                  <p class="file-meta">
+                    {{ t('documents.file.uploadedBy', {
+                      date: (f.uploadedAt | date: 'medium' : undefined : locale()),
+                      by: f.uploadedBy?.displayName ?? t('audit.system')
+                    }) }}
+                  </p>
+                  @if (f.deleted; as d) {
+                    <p class="file-meta" data-state="deleted">
+                      {{ t('documents.file.deletedOn', { date: (d.at | date: 'medium' : undefined : locale()), by: d.by?.displayName ?? t('audit.system') }) }}
+                      — <bdi>{{ d.reason }}</bdi>
+                    </p>
+                  } @else if (f.purgedAt) {
+                    <p class="file-meta" data-state="purged">
+                      {{ t('documents.file.purgedOn', { date: (f.purgedAt | date: 'mediumDate' : undefined : locale()) }) }}
+                    </p>
+                  }
+                  @if (downloadError()?.id === f.id) {
+                    <p class="form-error" role="alert" data-error="download">{{ t(downloadError()?.key ?? 'documents.file.downloadError') }}</p>
+                  }
+                </div>
+                @if (!gone) {
+                  <div class="file-actions">
+                    <!--
+                      `[attr.aria-label]`: the visible text "Télécharger" repeats on every card; the accessible
+                      name adds the title so a screen-reader list of buttons says WHICH file.
+                    -->
+                    <button class="btn secondary" type="button" data-action="download-file" [disabled]="downloading() !== null"
+                      [attr.aria-label]="t('documents.file.downloadNamed', { title: f.title })" (click)="download(f)">
+                      {{ downloading() === f.id ? t('documents.file.downloading') : t('documents.file.download') }}
+                    </button>
+                    @if (actionsOf(f).includes('delete')) {
+                      <button class="btn secondary" type="button" data-action="delete-file"
+                        [attr.aria-label]="t('documents.file.deleteNamed', { title: f.title })" (click)="openDelete(f)">
+                        {{ t('documents.file.delete') }}
+                      </button>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </details>
+      } @empty {
+        <p class="muted" data-state="empty">{{ t('documents.file.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  <!-- Delete confirmation: always in the DOM, closed until showModal(). -->
+  <dialog #deleteDialog class="modal" aria-labelledby="file-delete-title" aria-describedby="file-delete-intro" (close)="onDeleteClosed()">
+    <form [formGroup]="deleteForm" (ngSubmit)="submitDelete()" novalidate>
+      <h2 id="file-delete-title">{{ t('documents.file.deleteTitle') }}</h2>
+      <p id="file-delete-intro">
+        {{ t('documents.file.deleteIntro') }}
+        @if (deleting(); as f) {
+          <strong dir="auto" data-field="delete-title">{{ f.title }}</strong>
+        }
+      </p>
+      @if (deleteError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let reason = deleteForm.controls.reason;
+      <div class="field">
+        <label for="file-delete-reason">{{ t('documents.file.deleteReason') }}</label>
+        <textarea id="file-delete-reason" formControlName="reason" rows="3" required dir="auto"
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="file-delete-reason-hint file-delete-reason-error"></textarea>
+        <p class="field-hint" id="file-delete-reason-hint">{{ t('documents.file.deleteReasonHint', { max: reasonMax }) }}</p>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="file-delete-reason-error" data-error="reason">
+            {{ reason.getError('server') ?? (reason.hasError('maxlength') ? t('documents.file.reasonTooLong', { max: reasonMax })
+              : reason.hasError('minlength') ? t('documents.file.reasonTooShort') : t('documents.file.reasonRequired')) }}
+          </p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn danger" type="submit" data-action="confirm-delete" [disabled]="deleteSubmitting()">{{ t('documents.file.deleteConfirm') }}</button>
+        <button class="btn secondary" type="button" (click)="cancelDelete()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

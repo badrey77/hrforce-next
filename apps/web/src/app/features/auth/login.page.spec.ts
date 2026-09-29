@@ -176,7 +176,7 @@ describe('LoginPage', () => {
     TestBed.inject(LanguageService).use('ar', { remember: false });
     const text = await failLogin(423, 'urn:hrforce:problem:account-locked', { 'Retry-After': '900' });
 
-    expect(text).toBe('محاولات فاشلة كثيرة لهذا الحساب. أعد المحاولة بعد 15 دقيقة.');
+    expect(text).toBe('محاولات فاشلة كثيرة لهذا الحساب. يرجى إعادة المحاولة بعد 15 دقيقة.');
   });
 
   it('maps 422 field errors onto the controls', async () => {

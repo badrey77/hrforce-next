@@ -184,6 +184,7 @@ locale is `ar`: leave.approved (employee) « تمت الموافقة على طل
 leave.submitted_on_behalf « تم تقديم طلب عطلة باسمك من طرف Amina Benali: … », document.ready « تمت الموافقة على طلبك من
 طرف Karim Haddad: شهادة عمل رقم ATT-2026-00005. يمكنك تحميل الوثيقة من «وثائقي». ». Day counts seen: « يوم واحد »,
 « يومان », « 5 أيام », « 12 يومًا ». Every HTML part is `dir="rtl"`. No masculine imperative or masculine pronoun about
-the recipient, actor or employee remains in these mails. The web UI (ar.json) still addresses the user with masculine
-imperatives in about sixty messages (« أعد المحاولة », « اختر », « أدخل », « أصدر بدلًا من ذلك … »): the round only
-neutralised third-person references to the employee; aligning the UI with the e-mail rule is an open product choice.
+the recipient, actor or employee remains in these mails. The web UI (ar.json) follows the same rule since 2026-09-29
+(owner decision « neutral everywhere »): requests read « يرجى + masdar » (« يرجى إعادة المحاولة »), buttons, titles and
+select placeholders are verbal nouns (« التحقق », « اختيار النوع »), and the audit « by » columns are passive
+(« أُصدرت من طرف », « قُدّم من طرف ») instead of « أصدرها », « قدّمها ».

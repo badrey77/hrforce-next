@@ -27,10 +27,11 @@ import { todayIso } from '../../core/date/iso-date';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
 import { fieldErrorKey, GRANT_SLUGS, isoDate, validToAfterFrom } from './access-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-grant-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, OrgUnitPicker],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, OrgUnitPicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './grant-form.html',
   styleUrl: './access.css',

@@ -170,6 +170,13 @@ describe('EmployeeRehirePage', () => {
     expect(text('[data-state="open"]')).toContain("Cet emploi n'est pas terminé");
   });
 
+  it('a person who already has an open employment gets a message, not the form', async () => {
+    await setup();
+    await open({ ...ENDED, person: { ...ENDED.person, hasOpenEmployment: true } });
+    expect(el().querySelector('form')).toBeNull();
+    expect(text('[data-state="person-employed"]')).toContain('a déjà un emploi en cours');
+  });
+
   it('without employee.create the route does not match', async () => {
     await setup(['employee.read']);
     await harness.navigateByUrl('/employees/e-1/rehire');

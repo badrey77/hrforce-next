@@ -26,18 +26,19 @@ import {
   PERSON_SLUGS,
 } from './employee-forms';
 import { FieldError } from './field-error';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
 @Component({
   selector: 'app-person-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, FieldError],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="person-form-title" novalidate>
       <h3 id="person-form-title">{{ t('employees.identity.editTitle') }}</h3>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       @let c = form.controls;
       <div class="grid">

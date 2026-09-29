@@ -13,9 +13,27 @@ import type { AuditChange, AuditOp, TimelineEntry } from '../../core/audit/audit
 
 /**
  * What an id-like value refers to, so a page can name it. `leaveType` = a leave type id (LeaveCatalog), `step` = a
- * workflow step key (`manager`, `hr`) named by the request's workflow definition.
+ * workflow step key (`manager`, `hr`) named by the request's workflow definition, `signatory` = a document
+ * signatory id, `fileCategory` = an employee file category id.
  */
-export type AuditRefKind = 'unit' | 'site' | 'role' | 'roleCode' | 'permission' | 'user' | 'kind' | 'leaveType' | 'step';
+export type AuditRefKind =
+  | 'unit'
+  | 'site'
+  | 'role'
+  | 'roleCode'
+  | 'permission'
+  | 'user'
+  | 'kind'
+  | 'leaveType'
+  | 'step'
+  | 'signatory'
+  | 'fileCategory';
+
+/**
+ * References whose raw value means nothing to a reader (a bare UUID, unlike a role code or a unit id an admin may
+ * recognise): when the page cannot name them, the line says "name not available" instead of printing the id.
+ */
+const OPAQUE_REFS: ReadonlySet<AuditRefKind> = new Set<AuditRefKind>(['signatory', 'fileCategory']);
 
 /**
  * Names a referenced value (a unit id, a role code…) from data the host page already has, or `undefined` to show
@@ -49,7 +67,20 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   // Employee file (documents contract › Phase B): who added / deleted a document.
   uploaded_by: 'user',
   deleted_by: 'user',
+  // Documents: the signatory of an issued document, the default one of a type; the category of an employee file.
+  signatory_id: 'signatory',
+  default_signatory_id: 'signatory',
+  category_id: 'fileCategory',
 };
+
+/**
+ * SHA-256 columns (`bytea`): the audit diff holds them as Postgres writes a bytea in JSON, `\x` + 64 hex digits.
+ * Shown as a short fingerprint (the document detail page's convention), the full value on hover.
+ */
+const HASH_FIELDS: ReadonlySet<string> = new Set(['content_sha256', 'sha256', 'logo_sha256']);
+const HEX = /^(?:\\x)?([0-9a-f]{2,})$/i;
+/** Hex digits shown: enough to compare two fingerprints by eye. */
+export const SHORT_HASH_LENGTH = 12;
 
 /**
  * Columns holding a code from a fixed list, shown through a translation key `<prefix><value>` (e.g. a leave request
@@ -69,6 +100,8 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'document_request.status': 'documents.requestStatus.',
   'document_request.language': 'documents.languages.',
   'employee_file_category.access_class': 'documents.fileCategories.class.',
+  // Reserved for a future antivirus (documents contract › Phase B): today always `not_scanned`.
+  'employee_file.scan_status': 'audit.values.employee_file.scan_status.',
 };
 
 /**
@@ -108,6 +141,10 @@ export type DisplayValue =
   | { readonly kind: 'timestamp'; readonly iso: string }
   /** A code from a fixed list (`ENUM_FIELDS`): shown as `t(key)`, or `text` when the key is unknown. */
   | { readonly kind: 'key'; readonly key: string; readonly text: string }
+  /** A SHA-256 fingerprint: `hex` in full (for `title`), `short` = its first `SHORT_HASH_LENGTH` digits. */
+  | { readonly kind: 'hash'; readonly hex: string; readonly short: string }
+  /** An id the page cannot name (`OPAQUE_REFS`): a neutral "name not available", never the raw id. */
+  | { readonly kind: 'unnamed' }
   | { readonly kind: 'text'; readonly text: string };
 
 export interface FieldLine {
@@ -168,23 +205,31 @@ export function localDay(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function displayValue(
-  value: unknown,
-  masked: boolean,
-  ref: AuditRefKind | undefined,
-  resolve: AuditNameResolver,
-  enumPrefix?: string,
-): DisplayValue {
+interface FieldKind {
+  readonly ref?: AuditRefKind | undefined;
+  readonly enumPrefix?: string | undefined;
+  readonly hash?: boolean;
+}
+
+function displayValue(value: unknown, masked: boolean, field: FieldKind, resolve: AuditNameResolver): DisplayValue {
+  const { ref, enumPrefix } = field;
   if (masked || value === MASK) return { kind: 'masked' };
   if (value === null || value === undefined || value === '') return { kind: 'empty' };
   if (typeof value === 'boolean') return { kind: 'bool', value };
   if (enumPrefix && typeof value === 'string') return { kind: 'key', key: enumPrefix + value, text: value };
+  if (field.hash && typeof value === 'string') {
+    const hex = HEX.exec(value)?.[1]?.toLowerCase();
+    if (hex) return { kind: 'hash', hex, short: hex.slice(0, SHORT_HASH_LENGTH) };
+  }
   if (typeof value === 'string') {
     const range = RANGE.exec(value);
     if (range?.[1]) return { kind: 'range', from: range[1], to: range[2] ?? null };
     if (DATE.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'date', iso: value };
     if (TIMESTAMP.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'timestamp', iso: value };
-    return { kind: 'text', text: (ref && resolve(ref, value)) || value };
+    const name = ref ? resolve(ref, value) : undefined;
+    if (name) return { kind: 'text', text: name };
+    if (ref && OPAQUE_REFS.has(ref)) return { kind: 'unnamed' };
+    return { kind: 'text', text: value };
   }
   if (typeof value === 'number') return { kind: 'text', text: String(value) };
   return { kind: 'text', text: JSON.stringify(value) };
@@ -195,13 +240,16 @@ function isHidden(table: string, field: string): boolean {
 }
 
 function fieldLine(table: string, op: AuditOp, change: AuditChange, resolve: AuditNameResolver): FieldLine {
-  const ref = REFERENCE_FIELDS[change.field];
-  const enumPrefix = ENUM_FIELDS[`${table}.${change.field}`];
+  const kind: FieldKind = {
+    ref: REFERENCE_FIELDS[change.field],
+    enumPrefix: ENUM_FIELDS[`${table}.${change.field}`],
+    hash: HASH_FIELDS.has(change.field),
+  };
   return {
     field: change.field,
     labelKey: `audit.fields.${table}.${change.field}`,
-    before: op === 'insert' ? null : displayValue(change.before, change.masked, ref, resolve, enumPrefix),
-    after: op === 'delete' ? null : displayValue(change.after, change.masked, ref, resolve, enumPrefix),
+    before: op === 'insert' ? null : displayValue(change.before, change.masked, kind, resolve),
+    after: op === 'delete' ? null : displayValue(change.after, change.masked, kind, resolve),
   };
 }
 

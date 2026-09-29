@@ -2,7 +2,7 @@
   <h3 id="grant-form-title">{{ t('access.grantForm.title') }}</h3>
 
   @if (formError(); as error) {
-    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 
   @let role = form.controls.roleId;

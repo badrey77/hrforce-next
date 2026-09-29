@@ -3,7 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
+import { ADMIN_PERMISSIONS, ME_FIXTURE, meWith } from '../../../testing/auth-fixtures';
+import { issuedDocument } from '../../../testing/document-fixtures';
+import { CAT_DIPLOMA, FILE_CATEGORIES } from '../../../testing/employee-file-fixtures';
 import { detail, problem, redactedDetail } from '../../../testing/employee-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { installIntersectionObserver, untilDeferredRequest } from '../../../testing/intersection-observer';
@@ -24,6 +26,20 @@ async function settle(): Promise<void> {
 }
 
 const URL = '/api/employees/e-1';
+
+/** A timeline row inserting `changes` into `table` (docs/contracts/audit.md › Endpoint). */
+function insertEntry(id: string, table: string, changes: [string, unknown][]) {
+  return {
+    id,
+    at: '2026-09-28T10:00:00Z',
+    actor: null,
+    requestId: null,
+    kind: 'change',
+    table,
+    op: 'insert',
+    changes: changes.map(([field, after]) => ({ field, before: null, after, masked: false })),
+  };
+}
 const AG_ORAN: OrgUnitSummary = { id: 'a-oran', kind: 'agency', code: 'AG-ORAN', name: 'Agence Oran', site: null, path: [] };
 
 describe('EmployeeDetailPage', () => {
@@ -54,6 +70,8 @@ describe('EmployeeDetailPage', () => {
   const text = (selector: string) => el().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
   const tabs = () => [...el().querySelectorAll('[role="tab"]')].map((b) => b.getAttribute('data-tab'));
   const click = (selector: string) => (el().querySelector(selector) as HTMLElement).click();
+  /** The "after" value of one field line of one timeline entry. */
+  const line = (entry: string, field: string) => text(`[data-entry="${entry}"] [data-field="${field}"] .after`);
 
   async function open(body: EmployeeDetail = detail()): Promise<void> {
     await harness.navigateByUrl('/employees/e-1');
@@ -115,6 +133,13 @@ describe('EmployeeDetailPage', () => {
     TestBed.inject(Session).set(meWith(['employee.read']));
     await settle();
     expect(el().querySelector('[data-action="rehire"]')).toBeNull(); // not without employee.create
+  });
+
+  it('no "Rehire" when the person already has an open employment (rehired since, or an end date still ahead)', async () => {
+    const ended = detail({ endDate: '2025-06-30', status: 'ended', _actions: [] });
+    await open({ ...ended, person: { ...ended.person, hasOpenEmployment: true } });
+
+    expect(el().querySelector('[data-action="rehire"]')).toBeNull();
   });
 
   it('hides Pay and Bank & NSS when redacted, History without audit.read, and buttons without _actions', async () => {
@@ -301,10 +326,41 @@ describe('EmployeeDetailPage', () => {
     installIntersectionObserver();
     await open();
     await tab('history');
+    // Names for file rows: the categories are read only while the History tab is shown.
+    http.expectOne('/api/employee-files/categories').flush({ items: FILE_CATEGORIES });
     const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
     expect(req.request.params.get('subject')).toBe('employee:e-1');
     req.flush({ items: [], nextCursor: null });
     await settle();
+  });
+
+  it('History names file categories and signatories, shortens fingerprints, translates scan_status', async () => {
+    installIntersectionObserver();
+    TestBed.inject(Session).set(meWith([...ADMIN_PERMISSIONS, 'document.read']));
+    await open();
+    await tab('history');
+    http.expectOne('/api/employee-files/categories').flush({ items: FILE_CATEGORIES });
+    const docs = http.expectOne((r) => r.url === '/api/documents');
+    expect(docs.request.params.get('employmentId')).toBe('e-1');
+    docs.flush({ items: [issuedDocument()], total: 1, page: 1, pageSize: 100 });
+    const req = await untilDeferredRequest(http, (r) => r.url === '/api/audit/timeline', settle);
+    const hash = 'ab12'.repeat(16);
+    req.flush({
+      items: [
+        insertEntry('c:1', 'employee_file', [['category_id', CAT_DIPLOMA.id], ['sha256', `\\x${hash}`], ['scan_status', 'not_scanned']]),
+        insertEntry('c:2', 'issued_document', [['signatory_id', 's-dg']]),
+        insertEntry('c:3', 'issued_document', [['signatory_id', 's-unknown']]),
+      ],
+      nextCursor: null,
+    });
+    await settle();
+
+    expect(line('c:1', 'category_id')).toBe('Diplômes');
+    expect(line('c:1', 'sha256')).toBe('ab12ab12ab12…');
+    expect(el().querySelector('[data-entry="c:1"] [data-value="hash"]')?.getAttribute('title')).toBe(hash);
+    expect(line('c:1', 'scan_status')).toBe('non analysé');
+    expect(line('c:2', 'signatory_id')).toBe('Nadia Rahmani');
+    expect(line('c:3', 'signatory_id')).toBe('nom non disponible');
   });
 
   it('a 404 reads "not found" without a retry button', async () => {

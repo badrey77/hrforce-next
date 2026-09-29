@@ -276,6 +276,12 @@ language switch (the `relativeTime` pipe's pattern, chapter 16). It uses `Intl.N
 unit: 'megabyte' })`: Angular's locale data has no unit names, the browser's `Intl` has them; the locale ids are the
 date ones (`fr`, `ar-DZ` with Latin digits, `en-US`).
 
+Under 1 kB the unit is written in full (`unitDisplay: 'long'`): the short English unit has
+no plural ("800 byte"), the long one follows each language's CLDR plural rules — "1 byte" /
+"800 bytes", "1 octet" / "800 octets", and the Arabic form the browser's data gives. No
+"(s)" by hand and no plural table of our own: `Intl.NumberFormat` applies the plural
+rules itself. kB and MB stay short ("244 kB", "2,5 Mo").
+
 ## 12. Testing uploads
 
 - **Replace the upload client** in TestBed: `{ provide: UPLOAD_HTTP_CLIENT, useExisting: HttpClient }`

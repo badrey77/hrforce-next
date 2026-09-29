@@ -417,7 +417,7 @@
     "mfaReset": {
       "button": "إعادة تعيين التحقق بخطوتين",
       "title": "إعادة تعيين التحقق بخطوتين؟",
-      "confirm": "سيتعيّن على {{name}} إعادة إعداد تطبيق المصادقة. ستُحذف رموز الاسترداد وتُغلق كل جلساته.",
+      "confirm": "سيتعيّن على {{name}} إعادة إعداد تطبيق المصادقة. ستُحذف رموز الاسترداد وتُغلق كل جلسات هذا الحساب.",
       "submit": "إعادة التعيين",
       "done": "تمت إعادة تعيين التحقق بخطوتين لـ {{role}}.",
       "self": "لا يمكنك إعادة تعيين التحقق بخطوتين لحسابك."
@@ -685,7 +685,7 @@
         "original_filename": "اسم الملف",
         "mime": "النوع",
         "size_bytes": "الحجم (بايت)",
-        "sha256": "بصمة SHA-256",
+        "sha256": "البصمة SHA-256",
         "document_date": "تاريخ الوثيقة",
         "expires_on": "تاريخ انتهاء الصلاحية",
         "scan_status": "فحص الفيروسات",
@@ -756,8 +756,17 @@
           "permission": "حاملو صلاحية",
           "none": "لا أحد"
         }
+      },
+      "employee_file": {
+        "scan_status": {
+          "not_scanned": "لم يُفحص",
+          "clean": "لا تهديد",
+          "infected": "تهديد مكتشف",
+          "failed": "تعذّر الفحص"
+        }
       }
-    }
+    },
+    "unnamed": "الاسم غير متاح"
   },
   "employees": {
     "title": "الموظفون",
@@ -942,7 +951,8 @@
       "matriculeHint": "رقم تعريفي جديد (يبقى رقم الوظيفة السابقة خاصًا بها): حروف أو أرقام أو « - »، يُسجَّل بحروف كبيرة.",
       "hireDateHint": "بعد نهاية الوظيفة السابقة ({{date}}).",
       "stillOpen": "هذه الوظيفة لم تنتهِ بعد: أنهِها قبل إعادة توظيف هذا الشخص.",
-      "submit": "إنشاء الوظيفة الجديدة"
+      "submit": "إنشاء الوظيفة الجديدة",
+      "personEmployed": "توجد بالفعل علاقة عمل سارية، أو لم يحلّ تاريخ نهايتها بعد: لا يمكن إعادة التوظيف حاليًا."
     },
     "endReasons": {
       "resignation": "استقالة",
@@ -1229,8 +1239,8 @@
       "selfApproval": "لا يمكنك معالجة طلبك الخاص.",
       "notCandidate": "لم تعد هذه المهمة مسندة إليك.",
       "documentProfileIncomplete": "تعذر إصدار وثيقة {{name}}: ترويسة المؤسسة غير مكتملة (الوثائق › الإعداد).",
-      "documentEmploymentEnded": "تعذر إصدار شهادة {{name}}: انتهى عمله.",
-      "documentNoSignatory": "تعذر إصدار وثيقة {{name}}: لا يوجد موقّع يغطي وحدته.",
+      "documentEmploymentEnded": "تعذر إصدار شهادة {{name}}: انتهت علاقة العمل.",
+      "documentNoSignatory": "تعذر إصدار وثيقة {{name}}: لا يوجد موقّع يغطي وحدة العمل.",
       "documentTypeInactive": "تعذر إصدار وثيقة {{name}}: هذا النوع من الوثائق معطّل.",
       "documentRetry": "تعذر توليد وثيقة {{name}} حاليًا. أعد المحاولة بعد قليل."
     },
@@ -1295,9 +1305,9 @@
       },
       "leave": {
         "approved": "تمت الموافقة على طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}}.",
-        "rejected": "رفض {{actorName}} طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}}.",
+        "rejected": "رُفض طلبك «{{leaveType}}» من {{startDate}} إلى {{endDate}}، من طرف {{actorName}}.",
         "cancelled": "أُلغي طلب «{{leaveType}}» الخاص بـ {{employeeName}} من {{startDate}} إلى {{endDate}}.",
-        "submitted_on_behalf": "قدّم {{actorName}} نيابةً عنك طلب «{{leaveType}}» من {{startDate}} إلى {{endDate}}."
+        "submitted_on_behalf": "قُدّم نيابةً عنك طلب «{{leaveType}}» من {{startDate}} إلى {{endDate}}، من طرف {{actorName}}."
       },
       "unknown": "إشعار جديد",
       "document": {
@@ -1311,7 +1321,7 @@
       },
       "leave": {
         "approved": "تمت الموافقة على طلب «{{leaveType}}» الخاص بـ {{employeeName}} من {{startDate}} إلى {{endDate}}.",
-        "rejected": "رفض {{actorName}} طلب «{{leaveType}}» الخاص بـ {{employeeName}} من {{startDate}} إلى {{endDate}}."
+        "rejected": "رُفض طلب «{{leaveType}}» الخاص بـ {{employeeName}} من {{startDate}} إلى {{endDate}}، من طرف {{actorName}}."
       }
     },
     "typeLabels": {
@@ -1559,7 +1569,7 @@
       "profileIncomplete": "ترويسة المؤسسة غير مكتملة لهذه اللغة. الحقول الناقصة:",
       "completeProfile": "إكمال الترويسة",
       "askAdmin": "اطلب من المسؤول المركزي للموارد البشرية إكمال ترويسة الوثائق.",
-      "employmentEnded": "انتهى عمل هذا الموظف: أصدر بدلًا من ذلك شهادة نهاية العمل.",
+      "employmentEnded": "انتهت علاقة العمل: أصدر بدلًا من ذلك شهادة نهاية العمل.",
       "employmentNotEnded": "تتطلب شهادة نهاية العمل تاريخ نهاية عمل قد حلّ.",
       "leaveNotApproved": "طلب العطلة هذا غير موافق عليه.",
       "typeInactive": "هذا النوع من الوثائق معطّل.",

@@ -5,6 +5,7 @@ import { currentContext } from '../../../platform/context/request-context.js';
 import { KYSELY, type Database } from '../../../platform/db/database.js';
 import type { DB } from '../../../platform/db/schema.js';
 import type { AccountStatus, Locale, LoginOutcome, PasswordTokenPurpose } from '../domain/account.js';
+import { throttleNow } from '../domain/throttle.js';
 
 /*
  * Access to the `auth` schema — ONLY through the SECURITY DEFINER functions of migration 0007 (hrforce_app has no
@@ -26,6 +27,7 @@ export interface LoginRecord {
 }
 
 export interface LoginFailures {
+  /** the database clock, never before the newest failure returned (throttleNow) */
   dbNow: Date;
   emailFailures: Date[];
   ipFailures: Date[];
@@ -109,7 +111,9 @@ export class IdentityRepository {
       select db_now, email_failures, ip_failures from auth.login_failures(${email}, ${ip}::inet)`.execute(this.executor());
     const row = rows[0];
     if (!row) throw new Error('auth.login_failures returned no row');
-    return { dbNow: toDate(row.db_now), emailFailures: toDates(row.email_failures), ipFailures: toDates(row.ip_failures) };
+    const emailFailures = toDates(row.email_failures);
+    const ipFailures = toDates(row.ip_failures);
+    return { dbNow: throttleNow(toDate(row.db_now), emailFailures, ipFailures), emailFailures, ipFailures };
   }
 
   async createSession(userId: string, refreshHash: Buffer, ip: string | null, userAgent: string | null): Promise<NewSession | null> {

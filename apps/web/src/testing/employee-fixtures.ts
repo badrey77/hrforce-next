@@ -38,6 +38,8 @@ export function detail(extra: Partial<EmployeeDetail> = {}): EmployeeDetail {
       sex: 'F',
       nationality: 'DZ',
       nin: '109901234567890123',
+      // Consistent with the employment by default: an ended one leaves the person without an open employment.
+      hasOpenEmployment: !extra.endDate,
     },
     endReason: null,
     assignments: [

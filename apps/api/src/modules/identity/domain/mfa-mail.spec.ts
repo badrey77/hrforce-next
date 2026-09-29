@@ -10,6 +10,14 @@ describe('MFA security mails', () => {
     expect(ar.text).toContain('3');
   });
 
+  it('Arabic wording is gender-neutral (the user’s sex is not known): no masculine imperative', () => {
+    for (const kind of ['recovery_used', 'reset'] as const) {
+      const mail = renderMfaMail(kind === 'reset' ? { kind, locale: 'ar', displayName: 'أمينة' } : { kind, locale: 'ar', displayName: 'أمينة', codesLeft: 2 });
+      expect(mail.text).not.toMatch(/أنشئ |أعد |فأبلغ|لم تكن/);
+      expect(mail.text).toContain('إذا لم يصدر هذا الإجراء عنك، يرجى إبلاغ مسؤولك فورًا.');
+    }
+  });
+
   it('reset: escapes the name in HTML', () => {
     const mail = renderMfaMail({ kind: 'reset', locale: 'fr', displayName: '<b>X</b>' });
     expect(mail.subject).toMatch(/réinitialisée/);

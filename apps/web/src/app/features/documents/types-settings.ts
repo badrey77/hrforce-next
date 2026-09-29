@@ -39,6 +39,7 @@ import {
 } from '../../core/documents/documents.models';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { CONFIG_SLUGS } from './document-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** The only type employees may request themselves (contract: `selfService` is refused on the others). */
 export const SELF_SERVICE_TYPE = 'attestation_travail';
@@ -67,7 +68,7 @@ function atLeastOne(group: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-document-types-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './types-settings.html',
   styleUrl: './documents.css',

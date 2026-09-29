@@ -353,6 +353,42 @@ below, with no inputs to thread through, but the contract is then less visible a
 site. Here the timeline is one level down, so an input is simpler and trivial to fake in
 tests.
 
+#### Values that are not names: fingerprints, codes, opaque ids
+
+`timeline-view.ts` turns each stored value into a `DisplayValue` (a discriminated union
+the small `<app-timeline-value>` component renders with `@switch`). Besides dates and
+names, three cases came with the Documents tables:
+
+- **`hash`**: `sha256`/`content_sha256`/`logo_sha256` are `bytea` columns, stored in the
+  diff as `\x` + 64 hex digits. They show as the first 12 digits followed by "…", with the
+  full value in a `[title]` tooltip — the document detail page's convention.
+- **`key`** for `employee_file.scan_status` (`ENUM_FIELDS`): a code from a fixed list shown
+  through `audit.values.employee_file.scan_status.<code>`.
+- **`unnamed`**: a signatory or file category **UUID** tells a reader nothing (unlike a role
+  code). When the resolver cannot name one, the line says "nom non disponible" rather
+  than printing the id (`OPAQUE_REFS`).
+
+The employee page names them from **resources that exist only while the History tab is
+shown**
+([`features/employees/employee-detail.page.ts`](../../apps/web/src/app/features/employees/employee-detail.page.ts)):
+
+```ts
+private readonly historyShown = computed(() => this.activeTab() === 'history');
+private readonly fileCategories = inject(EmployeeFilesApi).categoriesResource(this.historyShown);
+private readonly historyDocuments = inject(DocumentsApi).listResource(() =>
+  this.historyShown() && this.canDocuments()
+    ? { ...DEFAULT_DOCUMENT_QUERY, employmentId: this.id(), pageSize: DOCUMENTS_FOR_NAMES }
+    : undefined,
+);
+```
+
+An `httpResource` whose request function returns `undefined` sends nothing, so opening an
+employee costs no extra call; opening History costs one (two with `document.read`: each
+issued document carries its signatory's names). The resolver reads `value()` of these
+resources — a signal read inside the timeline's `computed()` — so the names replace
+"nom non disponible" as soon as the answers arrive. The document detail page needs no
+extra call: its detail already names the signatory.
+
 ## 6. Testing pipes, lists and `@defer`
 
 - **A pure view model** (`buildTimeline`) is tested as plain functions: groups,

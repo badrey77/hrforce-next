@@ -103,3 +103,18 @@ interface GrantView {
   - **Users**: search list (name, email, status, current grants as chips). User detail: grants table (role, unit with path, sub-units yes/no, from, to, granted by) with "End" (date dialog) and "Add grant" form (role select, org-unit picker, include sub-units checkbox default on, from/to). 409 codes mapped to fields.
   - **Roles**: list; role detail with a permission checklist grouped by group, sensitive ones flagged; system roles read-only; create/edit custom roles.
 - Labels for roles/permissions come from the API in the active language (same pattern as unit kinds).
+
+### Settled by the verification (cleanup, 2026-09-29)
+
+- **Every refused feature URL shows the 404 page and keeps the URL**, on a direct load (deep link / reload): checked
+  in a real browser (fr + ar, 1280 + 390 px) for `lecture.ouest` (`/documents`, `/documents/new`, `/documents/settings`,
+  `/documents/<id>`, `/leave`, `/leave/settings`, `/leave/requests/<id>`, `/access`, `/access/users`,
+  `/access/roles/new`, `/access/security`, `/me/leave`, `/me/documents`, `/employees/new`, `/employees/<id>/rehire`)
+  and `agent.annaba` (`/employees…`, `/organization`, `/documents…`, `/leave…`, `/access…`). Leave and Documents
+  parents require ANY of their children's permissions (`permissionGuard` accepts a list); `new`/`settings`/`roles/new`
+  are followed by their own 404 entry so they never fall through to `:id`.
+- **A refused route downloads no chunk of the refused feature** (network log: no script defining `DOCUMENTS_ROUTES`,
+  `LEAVE_ROUTES`, `ACCESS_ROUTES`, `EmployeeCreatePage`, `EmployeeRehirePage`, `MyLeavePage`, `MyDocumentsPage`, the
+  settings/issue/role-editor/security-policy pages…; the same probe finds them for a user who holds the permission).
+- Allowed routes still open for `rh.admin` on a direct load and after a reload: `/employees/new`, `/documents`,
+  `/documents/new`, `/documents/settings`, `/access/roles/new`, `/access/security`, `/leave`, `/leave/settings`.

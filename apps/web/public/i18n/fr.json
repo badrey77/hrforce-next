@@ -756,8 +756,17 @@
           "permission": "les détenteurs d’une permission",
           "none": "personne"
         }
+      },
+      "employee_file": {
+        "scan_status": {
+          "not_scanned": "non analysé",
+          "clean": "aucune menace",
+          "infected": "menace détectée",
+          "failed": "échec de l’analyse"
+        }
       }
-    }
+    },
+    "unnamed": "nom non disponible"
   },
   "employees": {
     "title": "Employés",
@@ -942,7 +951,8 @@
       "matriculeHint": "Un nouveau matricule (celui de l'emploi précédent lui reste attaché) : lettres, chiffres ou « - », enregistré en majuscules.",
       "hireDateHint": "Après la fin de l'emploi précédent ({{date}}).",
       "stillOpen": "Cet emploi n'est pas terminé : mettez-y fin avant de réembaucher la personne.",
-      "submit": "Créer le nouvel emploi"
+      "submit": "Créer le nouvel emploi",
+      "personEmployed": "Cette personne a déjà un emploi en cours, ou dont la date de fin n’est pas encore passée : elle ne peut pas être réembauchée pour l’instant."
     },
     "endReasons": {
       "resignation": "Démission",

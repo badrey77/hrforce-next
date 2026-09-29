@@ -67,6 +67,11 @@ export interface EmployeeDetail extends EmployeeListItem {
     sex: 'M' | 'F' | null;
     nationality: string;
     nin: string | null;
+    /**
+     * The same person has an employment that is not over today (no end date, or one on/after today) — this one or
+     * another, whatever the caller's scope. A boolean only: never the other employment's id or unit.
+     */
+    hasOpenEmployment: boolean;
   };
   endReason: string | null;
   /** Newest first. */

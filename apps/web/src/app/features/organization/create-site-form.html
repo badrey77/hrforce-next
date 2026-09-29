@@ -3,7 +3,7 @@
   <h3 id="create-site-title">{{ t('org.sites.createTitle') }}</h3>
 
   @if (formError(); as error) {
-    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 
   @let code = form.controls.code;

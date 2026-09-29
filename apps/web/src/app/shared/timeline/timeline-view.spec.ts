@@ -111,4 +111,47 @@ describe('buildTimeline (pure view model)', () => {
 
     expect(event as EventView).toMatchObject({ sentenceKey: 'audit.events.workflow.approve', params: { step: 'RH régionales' } });
   });
+
+  it('documents rows: short SHA-256 fingerprints, scan_status as a key, unnamed signatory/category ids hidden', () => {
+    const hex = 'ab12'.repeat(16);
+    const [group] = buildTimeline(
+      [
+        {
+          id: 'c:9',
+          at: '2026-09-26T10:00:00Z',
+          actor: null,
+          requestId: null,
+          kind: 'change',
+          table: 'employee_file',
+          op: 'insert',
+          changes: [
+            { field: 'category_id', before: null, after: 'c-diploma', masked: false },
+            { field: 'sha256', before: null, after: `\\x${hex}`, masked: false },
+            { field: 'scan_status', before: null, after: 'not_scanned', masked: false },
+            { field: 'uploaded_by', before: null, after: 'u-x', masked: false },
+          ],
+        },
+      ],
+      (kind, value) => (kind === 'fileCategory' && value === 'c-diploma' ? 'Diplômes' : undefined),
+      NOW,
+    );
+    const entry = group?.entries[0] as ChangeView;
+    const lines = entry.lines.map((l) => [l.field, l.after]);
+    expect(lines).toEqual([
+      ['category_id', { kind: 'text', text: 'Diplômes' }],
+      ['sha256', { kind: 'hash', hex, short: 'ab12ab12ab12' }],
+      ['scan_status', { kind: 'key', key: 'audit.values.employee_file.scan_status.not_scanned', text: 'not_scanned' }],
+      // A user id stays as stored when nobody names it (an admin may recognise it); a signatory/category id does not.
+      ['uploaded_by', { kind: 'text', text: 'u-x' }],
+    ]);
+
+    const [unnamed] = buildTimeline(
+      [{ id: 'c:10', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'issued_document', op: 'insert',
+        changes: [{ field: 'signatory_id', before: null, after: 's-1', masked: false }] }],
+      NO_NAMES,
+      NOW,
+    );
+    const unnamedEntry = unnamed?.entries[0] as ChangeView;
+    expect(unnamedEntry.lines[0]?.after).toEqual({ kind: 'unnamed' });
+  });
 });

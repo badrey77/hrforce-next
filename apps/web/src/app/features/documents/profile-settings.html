@@ -27,7 +27,7 @@
         <p class="feedback" role="status">{{ t(key) }}</p>
       }
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
 
       @for (pair of pairs; track pair.base) {

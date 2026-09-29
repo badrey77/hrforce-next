@@ -55,6 +55,9 @@ import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
+import { DocumentsApi } from '../../core/documents/documents-api';
+import { DEFAULT_DOCUMENT_QUERY } from '../../core/documents/documents.models';
+import { EmployeeFilesApi } from '../../core/employee-files/employee-files-api';
 import { EmployeesApi } from '../../core/employees/employees-api';
 import {
   END_REASONS,
@@ -68,7 +71,7 @@ import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-pro
 import type { FormMessage } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
-import { LeaveCatalog } from '../../core/leave/leave-catalog';
+import { LeaveCatalog, pickLabel } from '../../core/leave/leave-catalog';
 import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { Timeline } from '../../shared/timeline/timeline';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
@@ -83,6 +86,8 @@ import { BankForm, NssForm, SalaryForm } from './sensitive-forms';
 
 export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'history';
 type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
+/** Documents read to name signatories in the History: the API's page maximum (documents contract › GET /documents). */
+const DOCUMENTS_FOR_NAMES = 100;
 
 @Component({
   selector: 'app-employee-detail-page',
@@ -167,13 +172,38 @@ export class EmployeeDetailPage {
   private readonly injector = inject(Injector);
 
   /**
-   * Names for ids in the History tab: units and sites of this employee's assignments, and leave types (the tab also
-   * lists the employee's leave requests and their approval events — notifications contract › Audit gap).
+   * The History tab also lists the employee's issued documents and file uploads, whose rows hold a signatory id and a
+   * file category id. Both lists below exist only while that tab is shown (a resource whose request function returns
+   * `undefined` sends nothing): the file categories (`@Authenticated`, anyone may read them) and, for a viewer with
+   * `document.read`, this employee's documents — each carries its signatory's names. A signatory the viewer cannot
+   * see this way is shown as "name not available" by the timeline, never as a raw id.
+   */
+  private readonly historyShown = computed(() => this.activeTab() === 'history');
+  private readonly fileCategories = inject(EmployeeFilesApi).categoriesResource(this.historyShown);
+  private readonly historyDocuments = inject(DocumentsApi).listResource(() =>
+    this.historyShown() && this.canDocuments()
+      ? { ...DEFAULT_DOCUMENT_QUERY, employmentId: this.id(), pageSize: DOCUMENTS_FOR_NAMES }
+      : undefined,
+  );
+
+  /**
+   * Names for ids in the History tab: units and sites of this employee's assignments, leave types (the tab also
+   * lists the employee's leave requests and their approval events — notifications contract › Audit gap), file
+   * categories and document signatories (above).
    */
   protected readonly auditNames: AuditNameResolver = (kind, value) => {
     if (kind === 'leaveType') {
       const catalog = this.injector.get(LeaveCatalog);
       return catalog.type(value) ? catalog.nameOf(value) : undefined;
+    }
+    if (kind === 'fileCategory') {
+      const category = this.fileCategories.hasValue() ? this.fileCategories.value().items.find((c) => c.id === value) : undefined;
+      return category ? pickLabel(category.labels, this.lang()) : undefined;
+    }
+    if (kind === 'signatory') {
+      const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
+      const signatory = documents.find((d) => d.signatory.id === value)?.signatory;
+      return signatory ? (this.lang() === 'ar' ? signatory.names.ar : signatory.names.fr) : undefined;
     }
     const e = this.detail();
     if (!e) return undefined;

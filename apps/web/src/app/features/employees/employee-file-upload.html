@@ -9,7 +9,7 @@
 <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate aria-labelledby="file-upload-title" data-form="upload-file">
   <h3 id="file-upload-title">{{ t('documents.file.upload.title') }}</h3>
   @if (formError(); as error) {
-    <p class="form-error" role="alert" data-error="form">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
   @let c = form.controls;
   @let fileInvalid = c.file.invalid && c.file.touched;

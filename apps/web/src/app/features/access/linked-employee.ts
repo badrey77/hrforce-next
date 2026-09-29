@@ -27,6 +27,7 @@ import { LanguageService } from '../../core/i18n/language.service';
 import { CanDirective } from '../../shared/can/can.directive';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { EmployeePicker } from '../../shared/employee-picker/employee-picker';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const LINK_SLUGS: SlugTable = {
   'employment-linked': { key: 'access.link.problems.taken', field: 'employmentId' },
@@ -36,7 +37,7 @@ export const LINK_SLUGS: SlugTable = {
 
 @Component({
   selector: 'app-linked-employee',
-  imports: [TranslocoDirective, ReactiveFormsModule, CanDirective, DisplayNamePipe, EmployeePicker],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, CanDirective, DisplayNamePipe, EmployeePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section *transloco="let t" class="panel" aria-labelledby="linked-title" data-section="linked-employee">
@@ -47,7 +48,7 @@ export const LINK_SLUGS: SlugTable = {
         <p class="feedback" role="status">{{ t(key) }}</p>
       }
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       @if (user().employment; as employment) {
         <p data-field="linked">

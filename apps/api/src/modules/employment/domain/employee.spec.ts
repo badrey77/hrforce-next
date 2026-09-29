@@ -4,6 +4,7 @@ import {
   assertRehireDate,
   employeeActions,
   EmploymentRuleViolation,
+  hasOpenEmployment,
   isPositiveMoney,
   planAssignment,
   planEnd,
@@ -81,6 +82,15 @@ describe('employment rules', () => {
     expect(slugOf(() => assertRehireDate('2026-06-30', '2026-06-30'))).toBe('hire-date');
     expect(slugOf(() => assertRehireDate('2026-06-30', '2026-07-01'))).toBeUndefined();
     expect(slugOf(() => assertRehireDate(null, '2000-01-01'))).toBeUndefined();
+  });
+
+  it('open employment: no end date, or an end date on or after today', () => {
+    const today = '2026-09-29';
+    expect(hasOpenEmployment([{ endDate: '2026-03-31' }, { endDate: null }], today)).toBe(true);
+    expect(hasOpenEmployment([{ endDate: '2026-09-29' }], today)).toBe(true);
+    expect(hasOpenEmployment([{ endDate: '2026-12-31' }], today)).toBe(true);
+    expect(hasOpenEmployment([{ endDate: '2026-09-28' }, { endDate: '2020-01-31' }], today)).toBe(false);
+    expect(hasOpenEmployment([], today)).toBe(false);
   });
 
   it('money: positive decimal strings, ≤ 10 integer digits, ≤ 2 decimals', () => {

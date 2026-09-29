@@ -24,6 +24,7 @@ import type { Site } from '../../core/org/org.models';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
 import { ASSIGNMENT_SLUGS, employeeProblemToForm, isoDate, JOB_TITLE_MAX, notBefore, notBlank } from './employee-forms';
 import { FieldError } from './field-error';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** The day after `iso` (`YYYY-MM-DD`), computed in UTC so no time zone shifts it. */
 export function nextDay(iso: string): string {
@@ -34,14 +35,14 @@ export function nextDay(iso: string): string {
 
 @Component({
   selector: 'app-assignment-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, OrgUnitPicker, FieldError],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, OrgUnitPicker, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="assign-title" novalidate>
       <h3 id="assign-title">{{ t('employees.assignments.newTitle') }}</h3>
       <p class="field-hint">{{ t('employees.assignments.newIntro') }}</p>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       @let c = form.controls;
       <div class="grid">

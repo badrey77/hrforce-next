@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOTIFICATION_TYPES } from './notification-rules.js';
-import { formatDate, formatDays, renderNotificationMail, type MailLocale } from './mail-templates.js';
+import { arabicDays, formatDate, formatDays, renderNotificationMail, type MailLocale } from './mail-templates.js';
 
 const data = {
   employeeName: 'Walid Mansouri',
@@ -47,8 +47,8 @@ describe('notification mails', () => {
       ['leave.approved', 'en', /^Your leave request \(/m, /^The leave request of Walid Mansouri \(/m],
       ['leave.rejected', 'en', /^Your leave request \(/m, /^The leave request of Walid Mansouri \(/m],
       ['task.escalated', 'en', /for your request \(/, /for the request of Walid Mansouri \(/],
-      ['leave.approved', 'ar', /تمت الموافقة على طلب عطلتك \(/, /تمت الموافقة على طلب العطلة الخاص بـ وليد منصوري \(/],
-      ['leave.rejected', 'ar', /تم رفض طلب عطلتك \(/, /تم رفض طلب العطلة الخاص بـ وليد منصوري \(/],
+      ['leave.approved', 'ar', /تمت الموافقة على طلب عطلتك \(/, /تمت الموافقة على طلب عطلة وليد منصوري \(/],
+      ['leave.rejected', 'ar', /تم رفض طلب عطلتك \(/, /تم رفض طلب عطلة وليد منصوري \(/],
       ['task.escalated', 'ar', /المباشر لطلبك \(/, /المباشر لطلب وليد منصوري \(/],
     ];
     it.each(cases)('%s in %s', (type, locale, own, other) => {
@@ -69,6 +69,52 @@ describe('notification mails', () => {
       expect(approvedSubject('employee')).toBe('HRForce — votre demande de congé est approuvée');
       expect(approvedSubject('requester')).toBe('HRForce — demande de congé de Walid Mansouri approuvée');
     });
+  });
+
+  it('Arabic wording is gender-neutral: actors through the passive, no masculine imperative or verb', () => {
+    const masculine = /ألغى|قدّم|وافق |أنشئ|اختر |أعد |فأبلغ|لم تكن|الخاص بـ/;
+    for (const type of NOTIFICATION_TYPES) {
+      for (const audience of ['employee', 'requester']) {
+        for (const subjectType of ['leave_request', 'document_request']) {
+          const mail = renderNotificationMail({
+            type,
+            locale: 'ar',
+            recipientName: 'نادية',
+            data: { ...data, audience, subjectType, number: 'ATT-2026-00001' },
+            leaveTypeLabel: 'عطلة سنوية',
+            documentTypeLabel: 'شهادة عمل',
+            link,
+          });
+          expect(`${mail.subject}\n${mail.text}`, `${type}/${audience}/${subjectType}`).not.toMatch(masculine);
+        }
+      }
+    }
+    const task = renderNotificationMail({ type: 'task.assigned', locale: 'ar', recipientName: 'نادية', data: { ...data, subjectType: 'document_request' }, leaveTypeLabel: null, documentTypeLabel: 'شهادة عمل', link });
+    expect(task.text).toContain('طلب شهادة عمل من وليد منصوري في انتظار قرارك.');
+    const cancelled = renderNotificationMail({ type: 'leave.cancelled', locale: 'ar', recipientName: 'نادية', data, leaveTypeLabel: 'عطلة سنوية', link });
+    expect(cancelled.text).toContain('تم إلغاء طلب عطلة وليد منصوري (عطلة سنوية، من 12/10/2026 إلى 14/10/2026) من طرف Karim Haddad.');
+  });
+
+  it.each([
+    ['1', 'يوم واحد'],
+    ['2', 'يومان'],
+    ['3', '3 أيام'],
+    ['10', '10 أيام'],
+    ['11', '11 يومًا'],
+    ['99', '99 يومًا'],
+    ['100', '100 يوم'],
+    ['102', '102 يوم'],
+    ['103', '103 أيام'],
+    ['111', '111 يومًا'],
+    ['0.5', 'نصف يوم'],
+    ['2.5', '2.5 يوم'],
+  ])('Arabic day count %s → %s', (days, text) => {
+    expect(arabicDays(days)).toBe(text);
+  });
+
+  it('Arabic mails use the day-count agreement', () => {
+    const mail = renderNotificationMail({ type: 'leave.approved', locale: 'ar', recipientName: 'نادية', data: { ...data, days: 3 }, leaveTypeLabel: 'عطلة سنوية', link });
+    expect(mail.text).toContain('من 12/10/2026 إلى 14/10/2026، 3 أيام)');
   });
 
   it('escapes HTML in names', () => {

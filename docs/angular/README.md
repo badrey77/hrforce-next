@@ -24,11 +24,12 @@ the files it discusses, so you can jump straight to the source.
 4. [04-dependency-injection.md](./04-dependency-injection.md) — `inject()`, providers,
    the injector tree, tokens.
 5. [05-routing.md](./05-routing.md) — routes, lazy loading, the router ↔ component
-   input bridge.
+   input bridge, the not-found route (and why a guarded feature needs its own).
 6. [06-http-and-errors.md](./06-http-and-errors.md) — `HttpClient`, interceptors,
    `httpResource`, the dev proxy.
 7. [07-forms.md](./07-forms.md) — typed reactive forms, validators, server-error
-   mapping, `ControlValueAccessor`.
+   mapping, a form error the user can see on a phone (`[appRevealAlert]`),
+   `ControlValueAccessor`.
 8. [08-i18n-and-rtl.md](./08-i18n-and-rtl.md) — Transloco, language switching, RTL,
    the guardrails that keep them correct.
 9. [09-testing.md](./09-testing.md) — Vitest + `TestBed`, `HttpTestingController`,
@@ -47,7 +48,7 @@ the files it discusses, so you can jump straight to the source.
 13. [13-pipes-defer-and-lists.md](./13-pipes-defer-and-lists.md) — custom pure pipes
     and `DatePipe`, locale data (`registerLocaleData`, why not `LOCALE_ID`), cursor
     pagination with "load more", content projection, and `@defer` (triggers, prefetch,
-    sub-blocks, separate chunks, testing it).
+    sub-blocks, separate chunks, testing it), timeline values (fingerprints, opaque ids).
 14. [14-big-forms-and-url-state.md](./14-big-forms-and-url-state.md) — the Employees
     screens: URL as state (query params → signal inputs → resource, `merge`,
     `replaceUrl` for keystrokes, back/forward), nested typed `FormGroup`s, validator
@@ -223,7 +224,11 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | `<progress>` with `[attr.value]` (null = indeterminate) | 19, 02 | `src/app/features/employees/employee-file-upload.html` |
 | `<details>`/`<summary>` groups; cards instead of a table at 390 px | 19 | `src/app/features/employees/employee-file-tab.html`, `employee-file.css` |
 | Confirm-before-delete dialog with a required reason | 19, 02 | `src/app/features/employees/employee-file-tab.html` |
-| Pure pipe over `Intl.NumberFormat` units (`fileSize`) | 19, 13 | `src/app/shared/file-size/file-size.pipe.ts` |
+| Pure pipe over `Intl.NumberFormat` units (`fileSize`); plurals via `unitDisplay: 'long'` | 19, 13 | `src/app/shared/file-size/file-size.pipe.ts` |
+| "Any of" permission guard on a feature parent; `**` child for an empty remainder; `{ ...NOT_FOUND_ROUTE, path }` | 05, 12 | `src/app/core/auth/permission.guard.ts`, `src/app/shared/not-found/not-found.route.ts`, `src/app/features/leave/leave.routes.ts` |
+| Testing the real route table (every refused URL → 404) | 05, 09 | `src/app/app.routes.spec.ts` |
+| Attribute directive with an input named like its selector; `host` attributes; `afterRenderEffect` to scroll + focus | 07, 16 | `src/app/shared/reveal-alert/reveal-alert.directive.ts` |
+| Timeline values: fingerprints, opaque ids, resources that exist only while a tab is shown | 13 | `src/app/shared/timeline/timeline-view.ts`, `src/app/features/employees/employee-detail.page.ts` |
 
 ## Glossary
 

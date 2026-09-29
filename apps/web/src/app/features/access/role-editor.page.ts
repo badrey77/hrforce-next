@@ -40,10 +40,11 @@ import { atLeastOne, fieldErrorKey, notBlank, ROLE_CODE_PATTERN, ROLE_NAME_MAX, 
 import { AccessNav } from './access-nav';
 import { accessAuditNames } from './audit-names';
 import { PermissionChecklist } from './permission-checklist';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-access-role-editor-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, AccessNav, PermissionChecklist, HistoryTabs],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, AccessNav, PermissionChecklist, HistoryTabs],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './role-editor.page.html',
   styleUrl: './access.css',

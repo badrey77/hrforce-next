@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emailLockedUntil, ipThrottledUntil, retryAfterSeconds } from './throttle.js';
+import { emailLockedUntil, ipThrottledUntil, retryAfterSeconds, throttleNow } from './throttle.js';
 
 const T0 = Date.parse('2026-09-25T10:00:00Z');
 const at = (minutes: number) => new Date(T0 + minutes * 60_000);
@@ -37,6 +37,27 @@ describe('IP throttle (30 failures in 15 min → 429 until the oldest of them le
 
   it('ignores failures outside the window', () => {
     expect(ipThrottledUntil([...thirty.slice(1), at(-20)], at(8))).toBeNull();
+  });
+});
+
+describe('throttleNow (the database clock may step back)', () => {
+  const thirty = Array.from({ length: 30 }, (_, i) => at(i * 0.25));
+
+  it('is the database clock when every failure is older', () => {
+    expect(throttleNow(at(8), thirty, [at(1)])).toEqual(at(8));
+    expect(throttleNow(at(8))).toEqual(at(8));
+  });
+
+  it('never goes before the newest failure: a 30th failure 5 ms "in the future" still counts, Retry-After stays ≤ the lock', () => {
+    const newest = thirty[29] as Date;
+    const stepBack = new Date(newest.getTime() - 5);
+    expect(ipThrottledUntil(thirty, stepBack)).toBeNull(); // the raw clock would miss it
+    const now = throttleNow(stepBack, [], thirty);
+    expect(now).toEqual(newest);
+    expect(ipThrottledUntil(thirty, now)).toEqual(at(15));
+    const five = [at(4), at(3), at(2), at(1), at(0)];
+    const lockNow = throttleNow(new Date(at(4).getTime() - 5), five, []);
+    expect(retryAfterSeconds(emailLockedUntil(five, lockNow) as Date, lockNow)).toBe(900);
   });
 });
 

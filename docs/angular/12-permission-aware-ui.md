@@ -173,11 +173,13 @@ Both re-render at the same moments. Pick the one that reads best:
 
 ```ts
 // apps/web/src/app/core/auth/permission.guard.ts
-export function permissionGuard(code?: string): CanMatchFn {
+export function permissionGuard(code?: PermissionRequirement): CanMatchFn {
   return (route) => {
     const fromData: unknown = route.data?.[PERMISSION_DATA_KEY];
-    const required = code ?? (typeof fromData === 'string' ? fromData : undefined);
-    return required !== undefined && inject(Session).can(required);
+    const required = code ?? (isRequirement(fromData) ? fromData : undefined);
+    if (required === undefined) return false;
+    const session = inject(Session);
+    return typeof required === 'string' ? session.can(required) : required.some((c) => session.can(c));
   };
 }
 ```
@@ -202,6 +204,25 @@ export function permissionGuard(code?: string): CanMatchFn {
   it too. The argument form is shorter for a one-off sub-route
   (`features/organization/organization.routes.ts`: `canMatch: [permissionGuard('site.read')]`).
   Neither given → deny. A typo must not open a route.
+- **"Any of" for a feature parent.** `PermissionRequirement` is `string | readonly string[]`;
+  an array means "at least one of these". Leave and Documents need a different permission
+  per page (list `leave.read`, settings `leave.configure`), so their parent route asks for
+  any of them and each child checks its own:
+
+  ```ts
+  // apps/web/src/app/app.routes.ts
+  {
+    path: 'leave',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['leave.read', 'leave.configure'] },
+    loadChildren: () => import('./features/leave/leave.routes').then((m) => m.LEAVE_ROUTES),
+  },
+  ```
+
+  A user with none of them never downloads the chunk. A user with `leave.configure` only
+  who opens `/leave` gets past the parent, and the child table's last entry,
+  `NOT_FOUND_ROUTE`, shows the 404 page (chapter 05, "The not-found route", explains why
+  the app-level `**` alone would have left a blank page). An empty array denies.
 - **Several `canMatch` guards.** The router runs them all and takes the **first
   non-`true` result in array order** (`prioritizedGuardValue` in
   `node_modules/@angular/router/fesm2022/_router-chunk.mjs`). So with
@@ -216,8 +237,12 @@ export function permissionGuard(code?: string): CanMatchFn {
   spy).
 - A side effect worth knowing: `features/access/access.routes.ts` lists `roles/new`
   (guarded by `access.manage_roles`) **before** `roles/:id`. Without the permission,
-  `roles/new` does not match, the router tries `roles/:id` with `id = 'new'`, and the
-  editor shows "Rôle introuvable". That is the "try the next route" semantics at work.
+  `roles/new` does not match and the router tries the next entry — the "try the next
+  route" semantics at work. Left alone, that next entry would be `roles/:id` with
+  `id = 'new'` (the editor would say "Rôle introuvable" after asking the API). So the
+  table puts `{ ...NOT_FOUND_ROUTE, path: 'roles/new' }` right after the guarded entry:
+  every refused URL shows the same 404 page. Employees (`new`) and Documents (`new`,
+  `settings`) do the same.
 - A guard runs **once per navigation**. If permissions change while a page is open, the
   guard does not run again. The page's `*appCan`/`@if` keep the visible UI in sync.
 

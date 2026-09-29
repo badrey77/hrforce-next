@@ -27,8 +27,11 @@ src/
     leave/       balance cards, request form with live preview, read-only request view, leave rules
     display-name/ displayName pipe (Arabic name in the Arabic UI, else Latin) — people and units
     timeline/    audit timeline + <app-history-tabs>
+    not-found/   the 404 page + NOT_FOUND_ROUTE (app-level `**`, and the end of guarded feature tables)
+    reveal-alert/ [appRevealAlert]: scroll + focus a form's error banner when a new message appears
+    file-size/   fileSize pipe (Intl units and plurals)
   features/<name>/  one page/flow per feature: access, auth, employees, home, leave, my-leave, organization, tasks,
-                 not-found, placeholder
+                 placeholder
   shell/         app-chrome widgets (language switcher, user menu) — not a route, not shared feature UI
   testing/       test-only helpers (translocoTesting, org fixtures), excluded from the app build
 ```
@@ -108,6 +111,13 @@ the route's `data`: `canMatch: [authGuard, permissionGuard()], data: { permissio
 Without the permission the route does not match and the visitor lands on the 404 page
 (deliberately `false`, not a `UrlTree`; see chapter 12). Order matters: `authGuard` first,
 so signed-out visitors are still sent to /login.
+
+A feature whose pages need **different** permissions: put the list of codes on the parent
+(`data: { permission: ['x.read', 'x.configure'] }` = any of them), a
+`canMatch: [permissionGuard('…')]` on each child, `{ ...NOT_FOUND_ROUTE, path: 'new' }`
+right after each guarded static path that sits before a `:id`, and `NOT_FOUND_ROUTE` last
+in the child table (chapter 05, "The not-found route", for why). Then add the URLs to
+`app.routes.spec.ts` with a user who lacks the permission.
 
 ## Recipe: hide a button by permission
 
@@ -198,8 +208,11 @@ The audit timeline is one shared component; a page only wraps its detail view
 4. **Name the ids you already have.** Add a `resolver` field, `(kind, value) => name |
    undefined`, reading data the page holds (`organization.page.ts` uses the tree and
    the sites; `features/access/audit-names.ts` uses the role catalogue and the page's
-   grants). Keep it a field, not an inline arrow. Never fetch just for names: an unknown
-   id shows as stored.
+   grants). Keep it a field, not an inline arrow. Do not fetch just for names: an unknown
+   id shows as stored. Exception: an id that means nothing to a reader (a signatory or file
+   category UUID, `OPAQUE_REFS` in `timeline-view.ts`) shows "name not available" when
+   unnamed; the employee page names them with small reference reads that exist only while
+   its History tab is shown (chapter 13, "Passing data down").
 5. **New tables or events?** Add `audit.fields.<table>.<column>`, `audit.tables.<table>`
    and `audit.events.<type>` keys to `fr.json` and `ar.json` (same placeholders; the
    i18n guardrail checks both). Unknown columns fall back to the column name, unknown
@@ -351,7 +364,9 @@ sends the fields that actually changed.
    return; }`, then call the API method, and on error call your feature's
    `orgWriteError`-style helper (or write a one-off `applyServerErrors(this.form,
    error.problem)` call for a simple form like `login.page.ts`'s), setting a
-   `formError` signal for anything not matched to a field.
+   `formError` signal for anything not matched to a field. Show it at the top of the form
+   with `role="alert" [appRevealAlert]="error"` (import `RevealAlert`), so it is scrolled
+   into view and focused on a phone (chapter 07).
 4. **Test**: drive real `input`/`submit` DOM events, flush an `HttpTestingController`
    response with a `422`/`409` body, assert the right `#field-error` element shows the
    right text — see `login.page.spec.ts` or `organization.page.spec.ts`'s "maps a 409

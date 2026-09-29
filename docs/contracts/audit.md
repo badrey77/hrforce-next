@@ -43,7 +43,7 @@ New catalogue code `audit.read` (group `access`, labels fr/ar/en), added by the 
 ## Endpoint
 
 `GET /api/audit/timeline?subject=<type>:<id>&before=<cursor>&limit=50` — `audit.read`.
-Subject types: `org_unit` (includes its `org_unit_version` rows), `site`, `role` (includes `role_permission`), `user` (its `role_grant` rows + events about it). Out-of-scope or unknown subject → 404. Newest first, cursor pagination.
+Subject types: `org_unit` (includes its `org_unit_version` rows), `site`, `role` (includes `role_permission`), `user` (its `role_grant` rows + events about it). Out-of-scope or unknown subject → 404. Newest first, cursor pagination. Order: `at` desc, then kind (event before change), then id desc — deterministic for a given data set. `at` is the database clock at the start of the writing transaction, so the rows of one request share it, and two requests sent one after the other can appear in the other order if the database clock steps back between them (NTP / VM time sync; seen on Docker Desktop); tests compare with the stored order, not the sending order.
 
 ```ts
 interface TimelineEntry {

@@ -714,8 +714,14 @@ describe('GET /api/audit/timeline', () => {
     expect(items.map((i) => Date.parse(i.at))).toEqual(items.map((i) => Date.parse(i.at)).toSorted((a, b) => b - a));
     const byAdmin = items.filter((i) => i.actor?.id === USERS.admin.id);
     expect(byAdmin.every((i) => i.actor?.displayName === USERS.admin.displayName && i.requestId)).toBe(true);
-    // newest first: the move (insert of the 2027-07 version + close of the 2027-01 one), then the rename
-    const [moveInsert, moveClose, renameInsert, renameClose] = byAdmin.map((i) => ({ table: i.table, op: i.op, changes: i.changes }));
+    // each request's rows, newest first within it: the move (insert of the 2027-07 version + close of the 2027-01 one)
+    // and the rename. Which request comes first is the `at` order checked above (database clock, which can step back a
+    // few ms between two requests on Docker Desktop), not the order they were sent in.
+    expect(byAdmin).toHaveLength(4);
+    const rowsOf = (res: { headers: Record<string, unknown> }) =>
+      byAdmin.filter((i) => i.requestId === String(res.headers['x-request-id'])).map((i) => ({ table: i.table, op: i.op, changes: i.changes }));
+    const [moveInsert, moveClose] = rowsOf(move);
+    const [renameInsert, renameClose] = rowsOf(rename);
     expect(moveInsert).toMatchObject({ table: 'org_unit_version', op: 'insert' });
     expect(moveInsert?.changes).toEqual(expect.arrayContaining([
       { field: 'parent_id', before: null, after: unitA('REG-OUEST'), masked: false },
@@ -744,8 +750,17 @@ describe('GET /api/audit/timeline', () => {
     const sameInstant = user.items.filter((i) => i.at === createdAt).map((i) => i.kind);
     expect(sameInstant[0]).toBe('event');
 
+    // newest first by the stored timestamp, then id. The three requests ran one after the other, but `at` comes from
+    // the database clock, which can step back a few ms (Docker Desktop's VM time sync): expect the order of the rows
+    // as stored rather than the order the requests were sent in.
     const est = await timeline('admin', `user:${USERS.est.id}`);
-    expect(est.items.map((i) => i.event?.type).filter(Boolean)).toEqual(['auth.session_reuse', 'auth.logout', 'auth.login']);
+    const stored = await query<{ type: string }>(
+      db.superuserUrl,
+      `select type from audit.event where subject_id = $1 and type like 'auth.%' order by at desc, id desc`,
+      [USERS.est.id],
+    );
+    expect(stored.map((e) => e.type).toSorted()).toEqual(['auth.login', 'auth.logout', 'auth.session_reuse']);
+    expect(est.items.map((i) => i.event?.type).filter(Boolean)).toEqual(stored.map((e) => e.type));
     expect(est.items.find((i) => i.event?.type === 'auth.session_reuse')?.actor).toBeNull();
 
     const role = await timeline('admin', `role:${fx.customA}`);

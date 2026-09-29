@@ -188,3 +188,12 @@ export function employeeActions(
   if (can.nssUpdate) actions.push('update_nss');
   return actions;
 }
+
+/**
+ * Whether a person still has an employment that is not over on `today` (no end date, or an end date on or after
+ * today) — `person.hasOpenEmployment` of the detail, which the web uses to offer "Rehire" only once the person is no
+ * longer employed.
+ */
+export function hasOpenEmployment(employments: readonly { endDate: string | null }[], today: string): boolean {
+  return employments.some((e) => e.endDate === null || e.endDate >= today);
+}

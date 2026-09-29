@@ -9,6 +9,9 @@
  * - **`Intl.NumberFormat` with `style: 'unit'`** rather than Angular's `DecimalPipe`: Angular's locale data has no unit
  *   names ("ko", "Mo", "كيلوبايت"), the browser's `Intl` has them for every language. The locale ids are the same as
  *   for dates (`fr`, `ar-DZ`, `en-US` — core/i18n/date-locale.ts).
+ * - **Plurals come from `Intl` too.** With `unitDisplay: 'long'` the browser picks the plural form of the unit from
+ *   the language's CLDR plural rules (French, English and Arabic each have their own; Arabic has six categories), so
+ *   there is no "(s)" to write by hand. Only bytes use the long form — see the comment inside.
  * - Binary steps (1 024), as file managers show them. The logic is the exported function, testable without TestBed.
  */
 import { Pipe, type PipeTransform } from '@angular/core';
@@ -21,7 +24,9 @@ export function formatFileSize(bytes: number, lang: AppLanguage): string {
   return new Intl.NumberFormat(dateLocaleOf(lang), {
     style: 'unit',
     unit,
-    unitDisplay: 'short',
+    // Bytes in full words: the short English unit has no plural ("800 byte"), the long one follows the language's
+    // plural rules ("1 byte" / "800 bytes", "1 octet" / "800 octets"). kB/MB stay short ("244 kB", "2,5 Mo").
+    unitDisplay: unit === 'byte' ? 'long' : 'short',
     maximumFractionDigits: value < 10 && unit !== 'byte' ? 1 : 0,
   }).format(value);
 }

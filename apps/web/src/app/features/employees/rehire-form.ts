@@ -51,6 +51,7 @@ import {
   REHIRE_SLUGS,
 } from './employee-forms';
 import { FieldError } from './field-error';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** True when the problem is the API's 422 on `personId` (the person is unknown or out of the caller's scope). */
 function isPersonNotFound(error: unknown): boolean {
@@ -59,7 +60,7 @@ function isPersonNotFound(error: unknown): boolean {
 
 @Component({
   selector: 'app-rehire-form',
-  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './rehire-form.html',
   styleUrl: './employees.css',

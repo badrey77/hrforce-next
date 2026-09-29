@@ -30,6 +30,7 @@ import { type FormMessage, problemToForm, type SlugTable } from '../../core/http
 import { LanguageService } from '../../core/i18n/language.service';
 import { pickLabel } from '../../core/leave/leave-catalog';
 import { CONFIG_SLUGS } from './document-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const CATEGORY_LABEL_MAX = 120;
 /** Lower-case letters, digits and `_`, starting with a letter (like the seeded `id_document`). */
@@ -48,7 +49,7 @@ function wholeYears(control: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-document-file-categories-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './file-categories-settings.html',
   styleUrl: './documents.css',

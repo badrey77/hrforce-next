@@ -24,6 +24,7 @@ import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import type { HolidayInput, PublicHoliday } from '../../core/leave/leave.models';
 import { isoDate, leaveErrorKey } from '../../shared/leave/leave-forms';
 import { LABEL_MAX } from './leave-types-settings';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 
 /** 409 slugs of the holiday write, shown on the field the user can fix (in the UI language, not the server's text). */
@@ -32,7 +33,7 @@ const HOLIDAY_SLUGS: SlugTable = {
 };
 @Component({
   selector: 'app-holidays-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './holidays-settings.html',
 })

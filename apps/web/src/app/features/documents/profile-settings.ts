@@ -32,6 +32,7 @@ import { DocumentsApi } from '../../core/documents/documents-api';
 import { type CompanyProfileFields, type CompanyProfileView, DOCUMENT_LANGUAGES } from '../../core/documents/documents.models';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { CONFIG_SLUGS, LOGO_FIELD_KEYS, type LogoFieldError, logoFieldError, logoProblem, PROFILE_FIELDS, type ProfileField } from './document-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const LOGO_MAX_BYTES = 256 * 1024;
 export const LOGO_TYPES: readonly string[] = ['image/png', 'image/jpeg'];
@@ -56,7 +57,7 @@ type LogoError = LogoFieldError | null;
 
 @Component({
   selector: 'app-document-profile-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './profile-settings.html',
   styleUrl: './documents.css',

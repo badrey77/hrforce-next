@@ -40,10 +40,11 @@ import {
   ORG_NAME_MAX,
   orgWriteError,
 } from './org-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-create-unit-form',
-  imports: [ReactiveFormsModule, TranslocoDirective],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-unit-form.html',
 })

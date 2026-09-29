@@ -1,6 +1,6 @@
 /**
  * One value of a changed field: `<app-timeline-value [value]="line.after" />` — masked, empty, yes/no, a date range,
- * a timestamp (DatePipe, in the UI language) or text (already resolved to a name when the page knew it).
+ * a timestamp (DatePipe, in the UI language), a short fingerprint, "name not available" or text (already resolved to a name when the page knew it).
  *
  * Angular concepts:
  * - **`@case ('key')`**: a code from a fixed list (a leave status, a task outcome) translated with `t(key)`; Transloco
@@ -12,6 +12,8 @@
  * - **`@switch` over a discriminated union.** `@case ('range')` narrows `v` to the range variant, so `v.from` type-checks.
  * - **`:host { display: contents }`**: the host element `<app-timeline-value>` does not create a box of its own,
  *   so the value flows inline in the sentence.
+ * - A fingerprint (`hash`) shows its first 12 hex digits and the full value in the `title` tooltip; an id the page
+ *   cannot name (`unnamed`, e.g. a signatory the viewer may not list) shows a neutral phrase, never the raw UUID.
  * - `<bdi>` (plain HTML) isolates a value's text direction: a Latin code or id inside an Arabic sentence (or an
  *   Arabic name in the French UI) does not scramble the punctuation around it.
  */
@@ -54,6 +56,13 @@ import type { DisplayValue } from './timeline-view';
           @let label = t(v.key);
           {{ label === v.key ? v.text : label }}
         }
+        @case ('hash') {
+          <!-- [title]: a property binding to the element's native title (tooltip) — the full fingerprint on hover. -->
+          <bdi class="hash" dir="ltr" data-value="hash" [title]="v.hex">{{ v.short }}…</bdi>
+        }
+        @case ('unnamed') {
+          <em class="empty" data-value="unnamed">{{ t('audit.unnamed') }}</em>
+        }
         @case ('text') {
           <bdi>{{ v.text }}</bdi>
         }
@@ -63,6 +72,7 @@ import type { DisplayValue } from './timeline-view';
   styles: `
     :host { display: contents; }
     .masked, .empty { color: var(--color-text-muted); }
+    .hash { font-family: var(--font-mono, ui-monospace, monospace); }
   `,
 })
 export class TimelineValue {

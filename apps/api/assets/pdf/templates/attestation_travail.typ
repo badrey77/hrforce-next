@@ -1,5 +1,5 @@
-// attestation_travail@1 — Attestation de travail / شهادة عمل (docs/contracts/documents.md › Wording).
-// Changing the wording means a new version: bump TEMPLATE_VERSIONS in apps/api/src/modules/documents/domain/templates.ts.
+// attestation_travail@2 — Attestation de travail / شهادة عمل (docs/contracts/documents.md › Wording).
+// Changing the wording means a new version: bump TEMPLATE_VERSIONS in apps/api/src/modules/documents/domain/types.ts.
 #import "letterhead.typ": *
 
 #let (d, r) = load()

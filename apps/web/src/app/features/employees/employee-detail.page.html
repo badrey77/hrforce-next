@@ -25,9 +25,11 @@
         <!--
           Rehire: once this employment has an end date, a user who may create employees can start a new employment
           for the same person. `[routerLink]` with an array builds /employees/<id>/rehire and encodes the id.
-          `canRehire()` only says "somewhere"; the API checks the new unit and the person's other employments.
+          `canRehire()` only says "somewhere"; the API checks the new unit. `person.hasOpenEmployment` (computed by the
+          API over ALL the person's employments, whatever our scope) hides the link once the person was rehired — or
+          while this employment's end date is still in the future (then the flag is true too: accepted, see the page).
         -->
-        @if (canRehire() && e.endDate) {
+        @if (canRehire() && e.endDate && !e.person.hasOpenEmployment) {
           <a class="btn secondary" data-action="rehire" [routerLink]="['/employees', e.id, 'rehire']">{{ t('employees.rehire.action') }}</a>
         }
       </div>

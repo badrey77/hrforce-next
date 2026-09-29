@@ -19,7 +19,7 @@ export const routes: Routes = [
     loadChildren: () => import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
   },
   { path: 'settings', canMatch: [authGuard], loadComponent: () => ..., data: { titleKey: 'nav.settings' } },
-  { path: '**', loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage) },
+  NOT_FOUND_ROUTE, // { path: '**', loadComponent: () => import('./not-found.page')… } — see "The not-found route"
 ];
 ```
 
@@ -184,7 +184,11 @@ fill the browser history. Chapter 14 §1 ("URL as state") walks through it with
 ## The not-found route
 
 ```ts
-{ path: '**', loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage) },
+// apps/web/src/app/shared/not-found/not-found.route.ts
+export const NOT_FOUND_ROUTE: Route = {
+  path: '**',
+  loadComponent: () => import('./not-found.page').then((m) => m.NotFoundPage),
+};
 ```
 
 `**` is the wildcard path — it matches anything not matched by an earlier entry, so it
@@ -193,6 +197,30 @@ must be **last** in the array (route matching is first-match-wins, top to bottom
 purely client-side "page not found" (the server always returns `index.html` for unknown
 paths in an SPA deployment — that's a hosting concern, not something this route
 controls).
+
+The entry is a shared constant (in `shared/`, because features may not import each
+other) since it is used in **three kinds of places**:
+
+1. **Last in `app.routes.ts`** — the classic catch-all.
+2. **Last in a feature's child table** whose landing page has its own permission
+   ([`features/leave/leave.routes.ts`](../../apps/web/src/app/features/leave/leave.routes.ts),
+   [`features/documents/documents.routes.ts`](../../apps/web/src/app/features/documents/documents.routes.ts)).
+   The router matches segment by segment. `/leave` is consumed entirely by the parent
+   `path: 'leave'`, so the children must match **zero** segments. When none does — the
+   `''` child's `canMatch` said no — the recogniser does **not** back out and try the
+   app's next routes: "no segments left" counts as a successful match, and the parent is
+   kept with an **empty outlet**. The user saw a blank page under the menu. A URL with
+   segments left over (`/leave/settings` refused) is different: the leftover makes the
+   parent fail, and the app-level `**` answers. A `**` child catches both inside the
+   feature.
+3. **With another `path`, right after a guarded static path**:
+   `{ ...NOT_FOUND_ROUTE, path: 'new' }` (an object spread: the same entry, one property
+   replaced). Without it, a refused `new` would fall through to `:id` and the detail page
+   would ask the API for a record called "new".
+
+[`app.routes.spec.ts`](../../apps/web/src/app/app.routes.spec.ts) loads the **real**
+route table and opens every guarded URL as users who lack the permission; each must show
+the `404` heading. It is the test to extend when you add a guarded route.
 
 ## Guards: who may use a route
 

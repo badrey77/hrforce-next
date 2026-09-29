@@ -50,7 +50,16 @@ XSRF check: every `POST`/`PUT`/`PATCH`/`DELETE` under `/api` needs header `X-XSR
 | `POST /auth/password/forgot` | `@Public` + XSRF | `{email}` → **202** always (no account enumeration); sends a reset link if the account is active; max 3 per email per hour |
 | `POST /auth/password/setup` | `@Public` + XSRF | `{token, password}` → 204; sets the hash, marks token used, `invited`→`active`, **revokes all the user's sessions**; errors **410** `token-invalid` (unknown/expired/used), **422** `errors[{field:'password', code:'too_short'\|'too_long'\|'contains_email'\|'common'}]` |
 
-Throttling (Postgres, from `auth.login_event`): **email**: 5 failures in 15 min → locked until 15 min after the 5th failure (423); **IP**: 30 failures in 15 min → 429. Unknown emails still run an argon2 verify against a fixed dummy hash (constant-ish timing). Old `login_event` rows: keep 180 days (cleanup job comes with the worker; note it in the README).
+Throttling (Postgres, from `auth.login_event`): **email**: 5 failures in 15 min → locked until 15 min after the 5th failure (423); **IP**: 30 failures in 15 min → 429. The rules are evaluated at the database clock but never before the newest failure returned (`throttleNow`, 2026-09-29): the DB wall clock can step back a few ms (NTP / VM time sync), which used to leave the 30th failure out of the count (login allowed) and could push `Retry-After` past 900. Unknown emails still run an argon2 verify against a fixed dummy hash (constant-ish timing). Old `login_event` rows: keep 180 days (cleanup job comes with the worker; note it in the README).
+
+Settled by the verification (cleanup, 2026-09-29): `throttleNow` is used for the login, the MFA verify step and the MFA
+self-service code checks (all read `IdentityRepository.loginFailures`). Failure timestamps come only from the
+database (`auth.login_event.at` defaults to `now()` inside the SECURITY DEFINER `auth.record_login_event`; `hrforce_app`
+cannot write the table), so a client cannot place a failure in the future to stretch or shorten a lock. The window
+stays bounded: e-mail lock end = a failure + 15 min ≤ newest failure + 15 min ≤ evaluation instant + 15 min, and the IP
+throttle ends 15 min after its oldest counted failure (≤ evaluation instant), so `Retry-After` ≤ 900 in both cases. A
+large backward step of the database clock only makes the real waiting time longer by that step, as it did before. Live
+check: 5 wrong passwords → the 6th and 7th attempts (the 7th with the right password) answer 423 `Retry-After: 900`.
 
 Passwords: 12–128 chars, must not contain the email's local part (case-insensitive), must not be in a small bundled common-password list (top 1 000 is enough). No composition rules (NIST 800-63B). argon2id `m=19456 KiB, t=2, p=1` (OWASP), via `@node-rs/argon2` (prebuilt binaries, no compiler).
 

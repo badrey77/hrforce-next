@@ -153,3 +153,37 @@ Fixes "an HR user who filed leave on someone's behalf gets `leave.approved` word
   congé (…) a été approuvée par <actor>.` Someone else: subject `HRForce — demande de congé de <Name> approuvée` /
   `refusée` / `transmise aux RH`, body `La demande de congé de <Name> (…) a été approuvée par <actor>.`
 
+## Arabic e-mail wording (cleanup, 2026-09-29)
+
+Arabic mails no longer use masculine forms for people whose sex the API does not know (the recipient and the actor
+are user accounts, which carry no sex): actors go through the passive « تم … من طرف <actor> », the recipient is
+addressed with verbal nouns (« يرجى اختيار … », « يمكنك … ») instead of masculine imperatives, and the employee is
+named through an idafa (« طلب عطلة <name> », « طلب <document type> من <name> ») instead of « … الخاص بـ <name> ».
+No sentence makes the employee a grammatical subject, so the employee's sex is not needed. Changed sentences
+(`modules/notifications/domain/mail-templates.ts`):
+- task.assigned (document): « طلب <type> من <name> في انتظار قرارك. » (was « طلب <type> الخاص بـ <name> … »)
+- task.assigned (leave): « طلب عطلة <name> (<type>، من … إلى …، <days>) في انتظار قرارك. »
+- leave.approved / leave.rejected (someone else): « تمت الموافقة على / تم رفض طلب عطلة <name> (…) من طرف <actor>. »
+- leave.cancelled: « تم إلغاء طلب عطلة <name> (…) من طرف <actor>. لم يعد الطلب في انتظار قرارك. » (was « ألغى <actor> … »)
+- leave.submitted_on_behalf: « تم تقديم طلب عطلة باسمك من طرف <actor>: … » (was « قدّم <actor> … »)
+- document.ready: « تمت الموافقة على طلبك من طرف <actor>: <type> رقم <number>. يمكنك تحميل الوثيقة من «وثائقي». »
+  (was « وافق <actor> على طلبك … يمكنك تحميلها … »)
+- Day counts agree with the number like the titre de congé (documents.md › Settled by the cleanup): « 1 يوم » →
+  « يوم واحد », « 2 يوم » → « يومان », « 5 يوم » → « 5 أيام », « 15 يوم » → « 15 يومًا ».
+
+Identity mails, same rule (`modules/identity/domain/mail-templates.ts`, `mfa-mail.ts`): « أنشئ كلمة المرور » →
+« إنشاء كلمة المرور »; « اختر كلمة المرور / كلمة مرور جديدة » → « يرجى اختيار … »; « إذا لم تكن صاحب هذا الطلب » →
+« إذا لم يصدر هذا الطلب عنك »; « أنشئ رموزًا جديدة » → « يمكنك إنشاء رموز جديدة »; « أعد إعداد تطبيق المصادقة » →
+« يجب إعادة إعداد تطبيق المصادقة »; « إذا لم تكن وراء هذا الإجراء، فأبلغ مسؤولك فورًا » → « إذا لم يصدر هذا الإجراء
+عنك، يرجى إبلاغ مسؤولك فورًا ». To confirm by a native reader.
+
+**Settled by the verification (cleanup, 2026-09-29).** Real mails in Mailpit (worker, SMTP) for recipients whose
+locale is `ar`: leave.approved (employee) « تمت الموافقة على طلب عطلتك (العطلة السنوية، من 22/11/2026 إلى 03/12/2026،
+12 يومًا) من طرف Karim Haddad. », leave.rejected (employee) « تم رفض طلب عطلتك (…) من طرف Mustapha Khelifi. التفاصيل
+متاحة في التطبيق. », task.assigned (unit head and regional HR) « طلب عطلة سارة فرحات (…، 12 يومًا) في انتظار قرارك. »,
+leave.submitted_on_behalf « تم تقديم طلب عطلة باسمك من طرف Amina Benali: … », document.ready « تمت الموافقة على طلبك من
+طرف Karim Haddad: شهادة عمل رقم ATT-2026-00005. يمكنك تحميل الوثيقة من «وثائقي». ». Day counts seen: « يوم واحد »,
+« يومان », « 5 أيام », « 12 يومًا ». Every HTML part is `dir="rtl"`. No masculine imperative or masculine pronoun about
+the recipient, actor or employee remains in these mails. The web UI (ar.json) still addresses the user with masculine
+imperatives in about sixty messages (« أعد المحاولة », « اختر », « أدخل », « أصدر بدلًا من ذلك … »): the round only
+neutralised third-person references to the employee; aligning the UI with the e-mail rule is an open product choice.

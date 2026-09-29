@@ -12,7 +12,7 @@
   @let c = form.controls;
   <form class="single" [formGroup]="form" (ngSubmit)="issue()" novalidate data-form="issue">
     @if (profileMissing(); as missing) {
-      <div class="form-error" role="alert" data-error="profile-incomplete">
+      <div class="form-error" role="alert" data-error="profile-incomplete" [appRevealAlert]="missing">
         <p>{{ t('documents.problems.profileIncomplete') }}</p>
         @if (missing.length) {
           <ul>
@@ -29,7 +29,7 @@
       </div>
     }
     @if (formError(); as error) {
-      <p class="form-error" role="alert" data-error="form">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
     }
 
     <div class="field">

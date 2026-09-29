@@ -16,10 +16,11 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { OrgApi } from '../../core/org/org-api';
 import type { CreateSite, Site } from '../../core/org/org.models';
 import { fieldErrorKey, type FormError, notBlank, ORG_CODE_PATTERN, ORG_NAME_MAX, orgWriteError } from './org-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-create-site-form',
-  imports: [ReactiveFormsModule, TranslocoDirective],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create-site-form.html',
 })

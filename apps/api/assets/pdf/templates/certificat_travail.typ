@@ -1,6 +1,6 @@
-// certificat_travail@1 — Certificat de travail / شهادة نهاية العمل (docs/contracts/documents.md › Wording).
+// certificat_travail@2 — Certificat de travail / شهادة نهاية العمل (docs/contracts/documents.md › Wording).
 // Ended employments only; the end reason is NOT printed. Positions: consecutive distinct job titles.
-// Changing the wording means a new version: bump TEMPLATE_VERSIONS in apps/api/src/modules/documents/domain/templates.ts.
+// Changing the wording means a new version: bump TEMPLATE_VERSIONS in apps/api/src/modules/documents/domain/types.ts.
 #import "letterhead.typ": *
 
 #let (d, r) = load()

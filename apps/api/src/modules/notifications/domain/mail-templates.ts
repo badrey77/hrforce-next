@@ -115,17 +115,17 @@ const WORDING: Record<MailLocale, Wording> = {
     bodies: {
       'task.assigned': (f) =>
         f.document
-          ? `طلب ${f.docType} الخاص بـ ${f.employee} في انتظار قرارك.`
-          : `طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
+          ? `طلب ${f.docType} من ${f.employee} في انتظار قرارك.`
+          : `طلب عطلة ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
       'task.escalated': (f) =>
         `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلبك' : `لطلب ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
       'leave.approved': (f) =>
-        `تمت الموافقة على ${f.own ? 'طلب عطلتك' : `طلب العطلة الخاص بـ ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) من طرف ${f.actor}.`,
+        `تمت الموافقة على ${f.own ? 'طلب عطلتك' : `طلب عطلة ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) من طرف ${f.actor}.`,
       'leave.rejected': (f) =>
-        `تم رفض ${f.own ? 'طلب عطلتك' : `طلب العطلة الخاص بـ ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
-      'leave.cancelled': (f) => `ألغى ${f.actor} طلب العطلة الخاص بـ ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}). لم يعد الطلب في انتظار قرارك.`,
-      'leave.submitted_on_behalf': (f) => `قدّم ${f.actor} طلب عطلة باسمك: ${f.type}، من ${f.start} إلى ${f.end} (${f.days}).`,
-      'document.ready': (f) => `وافق ${f.actor} على طلبك: ${f.docType} رقم ${f.number}. يمكنك تحميلها من «وثائقي».`,
+        `تم رفض ${f.own ? 'طلب عطلتك' : `طلب عطلة ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'leave.cancelled': (f) => `تم إلغاء طلب عطلة ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}) من طرف ${f.actor}. لم يعد الطلب في انتظار قرارك.`,
+      'leave.submitted_on_behalf': (f) => `تم تقديم طلب عطلة باسمك من طرف ${f.actor}: ${f.type}، من ${f.start} إلى ${f.end} (${f.days}).`,
+      'document.ready': (f) => `تمت الموافقة على طلبك من طرف ${f.actor}: ${f.docType} رقم ${f.number}. يمكنك تحميل الوثيقة من «وثائقي».`,
       'document.rejected': (f) => `تم رفض طلبك (${f.docType}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
     },
     action: {
@@ -141,7 +141,7 @@ const WORDING: Record<MailLocale, Wording> = {
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
     signature: 'فريق HRForce',
     someone: 'أحد المسيّرين',
-    daysUnit: (days) => `${days} يوم`,
+    daysUnit: arabicDays,
   },
   en: {
     greeting: (name) => `Hello ${name},`,
@@ -186,6 +186,23 @@ const WORDING: Record<MailLocale, Wording> = {
     daysUnit: (days) => `${days} day${days === '1' ? '' : 's'}`,
   },
 };
+
+/**
+ * A day count in Arabic with the counted noun agreeing with the number (nominative): 1 → يوم واحد, 2 → يومان,
+ * 3–10 → N أيام, 11–99 → N يومًا; from 100 on by the last two digits (00–02 → N يوم, 03–10 → N أيام, 11–99 → N يومًا).
+ * Half days: 0.5 → نصف يوم, otherwise N يوم (2.5 يوم). Same rule as the titre de congé (assets/pdf/templates/titre_conge.typ).
+ */
+export function arabicDays(days: string): string {
+  if (!/^\d+(\.\d+)?$/.test(days)) return `${days} يوم`.trim();
+  if (days.includes('.')) return days === '0.5' ? 'نصف يوم' : `${days} يوم`;
+  const n = Number(days);
+  const tail = n % 100;
+  if (n === 1) return 'يوم واحد';
+  if (n === 2) return 'يومان';
+  if (tail >= 3 && tail <= 10) return `${days} أيام`;
+  if (tail >= 11) return `${days} يومًا`;
+  return `${days} يوم`;
+}
 
 /** "de" + a French noun phrase, with elision: d’attestation de travail, de certificat de travail (label lower-cased). */
 function deFr(label: string): string {

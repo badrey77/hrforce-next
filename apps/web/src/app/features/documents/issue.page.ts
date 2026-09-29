@@ -47,12 +47,13 @@ import { DEFAULT_LEAVE_QUERY, type LeaveRequestSummary } from '../../core/leave/
 import { EmployeePicker } from '../../shared/employee-picker/employee-picker';
 import { pdfErrorKey } from '../../shared/documents/pdf-actions';
 import { ISSUE_SLUGS, missingProfileFields } from './document-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const TITRE_CONGE = 'titre_conge';
 
 @Component({
   selector: 'app-documents-issue-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, DatePipe, EmployeePicker],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, DatePipe, EmployeePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [BlobFiles],
   templateUrl: './issue.page.html',

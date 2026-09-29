@@ -5,9 +5,10 @@
  * Angular concepts (all met before — chapter 05):
  * - The list is imported statically (landing page of an already-lazy chunk); the create and detail pages are
  *   `loadComponent`s, fetched when first opened.
- * - **`new` before `:id`.** `new` has `canMatch: [permissionGuard('employee.create')]`. Without the permission it
- *   does not match and the router falls through to `:id`, which asks the API for employee "new" and shows "not
- *   found" — the same fall-through as `roles/new` in the Access feature.
+ * - **`new` before `:id`, then its refusal.** `new` has `canMatch: [permissionGuard('employee.create')]`. Without
+ *   the permission it does not match and the router tries the next entry, `{ ...NOT_FOUND_ROUTE, path: 'new' }` (the
+ *   shared 404 entry with another path, shared/not-found/not-found.route.ts): the app's 404 page, instead of `:id`
+ *   asking the API for employee "new". Same pattern as `roles/new` (Access) and `new`/`settings` (Documents).
  * - `:id` (the EMPLOYMENT id) and the list's query params reach the pages as signal inputs
  *   (`withComponentInputBinding()`).
  * - **`:id/rehire`** (a new employment for the person of an ended one) is a route of its own, not a tab of the
@@ -18,6 +19,7 @@
  */
 import type { Routes } from '@angular/router';
 import { permissionGuard } from '../../core/auth/permission.guard';
+import { NOT_FOUND_ROUTE } from '../../shared/not-found/not-found.route';
 import { EmployeesPage } from './employees.page';
 
 export const EMPLOYEES_ROUTES: Routes = [
@@ -27,6 +29,7 @@ export const EMPLOYEES_ROUTES: Routes = [
     canMatch: [permissionGuard('employee.create')],
     loadComponent: () => import('./employee-create.page').then((m) => m.EmployeeCreatePage),
   },
+  { ...NOT_FOUND_ROUTE, path: 'new' },
   {
     path: ':id/rehire',
     canMatch: [permissionGuard('employee.create')],

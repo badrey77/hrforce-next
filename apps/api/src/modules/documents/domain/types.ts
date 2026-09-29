@@ -17,9 +17,9 @@ export function isDocumentTypeCode(value: string): value is DocumentTypeCode {
  * stored with every document; changing a template's wording or layout bumps it.
  */
 export const TEMPLATE_VERSIONS: Readonly<Record<DocumentTypeCode, string>> = {
-  attestation_travail: 'attestation_travail@1',
-  certificat_travail: 'certificat_travail@1',
-  titre_conge: 'titre_conge@1',
+  attestation_travail: 'attestation_travail@2',
+  certificat_travail: 'certificat_travail@2',
+  titre_conge: 'titre_conge@2',
 };
 
 export const DOCUMENT_PERMISSIONS = {

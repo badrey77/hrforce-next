@@ -15,7 +15,7 @@
     <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="signatory-form-title" data-form="signatory">
       <h3 id="signatory-form-title">{{ id === 'new' ? t('documents.signatories.new') : t('documents.signatories.edit') }}</h3>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       <fieldset class="field">
         <legend>{{ t('documents.signatories.scope') }}</legend>

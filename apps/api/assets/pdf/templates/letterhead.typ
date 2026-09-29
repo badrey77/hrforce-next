@@ -1,4 +1,5 @@
 // Shared page layout of every generated HR document (ADR 008, docs/contracts/documents.md › Wording).
+// Changing this shared layout changes every document: bump all three TEMPLATE_VERSIONS (apps/api/src/modules/documents/domain/types.ts).
 //
 // Data reaches templates ONLY as JSON strings in `sys.inputs` (strings are content, never evaluated as markup):
 //   sys.inputs.data    the document snapshot (DocumentSnapshot, every value already formatted by the API)
@@ -9,6 +10,11 @@
 #let load() = (json(bytes(sys.inputs.data)), json(bytes(sys.inputs.render)))
 
 #let is-ar(d) = d.lang == "ar"
+
+// Long unbroken values (see document-page): a run of LONG-TOKEN or more non-space characters may break every
+// TOKEN-CHUNK characters.
+#let LONG-TOKEN = 40
+#let TOKEN-CHUNK = 8
 
 // Latin text inside Arabic paragraphs (numbers, matricules) keeps its own direction thanks to the Unicode bidi
 // algorithm; `ltr-box` forces it for a whole run (the document number).
@@ -102,6 +108,13 @@
     dir: if ar { rtl } else { ltr },
   )
   set par(justify: true, leading: 0.85em, spacing: 1.2em)
+  // A long unbroken value (a 200-character name, address or title typed without spaces) has no break opportunity
+  // and would run past the margin. In a run of LONG-TOKEN or more non-space characters, a 0.001pt space every
+  // TOKEN-CHUNK characters gives the line breaker a place to break (h(0pt) would be dropped; a zero-width space
+  // character would end up in the PDF text layer and garble copy/search of the glyph it is attached to).
+  // An Arabic run loses its joining only at those points. Ordinary words, numbers, e-mails and identifiers are
+  // shorter than LONG-TOKEN, so documents without such a value typeset exactly as before (same bytes).
+  show regex("\S{" + str(LONG-TOKEN) + ",}"): it => it.text.clusters().chunks(TOKEN-CHUNK).map(c => c.join()).join(h(0.001pt))
   letterhead(d, r)
   v(2.2em)
   align(center, text(size: 17pt, weight: "bold", tracking: if ar { 0pt } else { 0.06em }, title))

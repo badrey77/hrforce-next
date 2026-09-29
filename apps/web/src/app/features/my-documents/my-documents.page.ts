@@ -54,6 +54,7 @@ import { NotificationEvents } from '../../core/notifications/notification-events
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { PdfActions } from '../../shared/documents/pdf-actions';
 import { WorkflowStepper } from '../../shared/workflow-stepper/workflow-stepper';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const PURPOSE_MAX = 200;
 
@@ -67,7 +68,7 @@ export const REQUEST_SLUGS: SlugTable = {
 
 @Component({
   selector: 'app-my-documents-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe, DisplayNamePipe, PdfActions, WorkflowStepper],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DatePipe, DisplayNamePipe, PdfActions, WorkflowStepper],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './my-documents.page.html',
   styles: `

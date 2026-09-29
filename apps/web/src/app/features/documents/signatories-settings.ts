@@ -26,12 +26,13 @@ import { LanguageService } from '../../core/i18n/language.service';
 import { displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
 import { CONFIG_SLUGS } from './document-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const SIGNATORY_TEXT_MAX = 120;
 
 @Component({
   selector: 'app-document-signatories-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule, OrgUnitPicker],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, OrgUnitPicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './signatories-settings.html',
   styleUrl: './documents.css',

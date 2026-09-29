@@ -14,6 +14,15 @@ describe('password mails', () => {
     expect(mail.html).toContain(locale === 'ar' ? 'dir="rtl"' : 'dir="ltr"');
   });
 
+  it('Arabic wording is gender-neutral (the user’s sex is not known): no masculine imperative', () => {
+    for (const purpose of ['setup', 'reset'] as const) {
+      const mail = renderPasswordMail({ purpose, locale: 'ar', displayName: 'أمينة', link, validHours: 72 });
+      expect(`${mail.subject}\n${mail.text}`).not.toMatch(/أنشئ |اختر |لم تكن/);
+      expect(mail.text).toContain('يرجى اختيار');
+      expect(mail.text).toContain('إذا لم يصدر هذا الطلب عنك، يمكنك تجاهل هذه الرسالة.');
+    }
+  });
+
   it('setup and reset wordings differ', () => {
     const setup = renderPasswordMail({ purpose: 'setup', locale: 'fr', displayName: 'A', link, validHours: 72 });
     const reset = renderPasswordMail({ purpose: 'reset', locale: 'fr', displayName: 'A', link, validHours: 1 });

@@ -23,12 +23,13 @@ import { LeaveApi } from '../../core/leave/leave-api';
 import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import type { LeaveType, UpdateLeaveType } from '../../core/leave/leave.models';
 import { leaveErrorKey } from '../../shared/leave/leave-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const LABEL_MAX = 120;
 
 @Component({
   selector: 'app-leave-types-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule, DecimalPipe],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './leave-types-settings.html',
 })

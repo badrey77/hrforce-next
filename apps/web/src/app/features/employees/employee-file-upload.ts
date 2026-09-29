@@ -55,6 +55,7 @@ import { FileSizePipe } from '../../shared/file-size/file-size.pipe';
 import { acceptedFile, fileErrorKey, notBlank, uploadProblemToForm } from './employee-file-forms';
 import { isoDate, notBefore } from './employee-forms';
 import { FieldError } from './field-error';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 interface Progress {
   readonly loaded: number;
@@ -63,7 +64,7 @@ interface Progress {
 
 @Component({
   selector: 'app-employee-file-upload',
-  imports: [TranslocoDirective, ReactiveFormsModule, FieldError, FileSizePipe],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, FieldError, FileSizePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-file-upload.html',
   styleUrl: './employee-file.css',

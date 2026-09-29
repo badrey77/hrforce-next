@@ -57,6 +57,7 @@ import {
   notBlank,
 } from './employee-forms';
 import { FieldError } from './field-error';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** Blank → null (optional text fields). */
 function orNull(value: string): string | null {
@@ -65,7 +66,7 @@ function orNull(value: string): string | null {
 
 @Component({
   selector: 'app-employee-create-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-create.page.html',
   styleUrl: './employees.css',

@@ -33,6 +33,9 @@ describe('permissionGuard', () => {
       { path: 'access', canMatch: [authGuard, permissionGuard()], data: { permission: 'access.read' }, loadChildren },
       // …or from the factory's argument (closure).
       { path: 'roles/new', canMatch: [permissionGuard('access.manage_roles')], component: StubPage },
+      // Any of several codes (a feature whose children need different permissions); an empty list fails closed.
+      { path: 'leave', canMatch: [permissionGuard()], data: { permission: ['leave.read', 'leave.configure'] }, component: StubPage },
+      { path: 'nothing', canMatch: [permissionGuard([])], component: StubPage },
       // No code anywhere: fails closed.
       { path: 'broken', canMatch: [permissionGuard()], component: StubPage },
       { path: '**', component: MissingPage },
@@ -75,6 +78,21 @@ describe('permissionGuard', () => {
     await harness.navigateByUrl('/login');
     await harness.navigateByUrl('/roles/new');
     expect(harness.routeNativeElement?.textContent).toBe('stub');
+  });
+
+  it('an array means "any of": one code is enough, none → 404, an empty list denies', async () => {
+    TestBed.inject(Session).set(meWith(['leave.configure']));
+    const harness = await go('/leave');
+    expect(harness.routeNativeElement?.textContent).toBe('stub');
+
+    TestBed.inject(Session).set(meWith(['employee.read']));
+    await harness.navigateByUrl('/login');
+    await harness.navigateByUrl('/leave');
+    expect(harness.routeNativeElement?.textContent).toBe('not found');
+
+    TestBed.inject(Session).set(meWith(['leave.read', 'leave.configure']));
+    await harness.navigateByUrl('/nothing');
+    expect(harness.routeNativeElement?.textContent).toBe('not found');
   });
 
   it('denies when no permission code is configured', async () => {

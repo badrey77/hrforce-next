@@ -20,7 +20,7 @@
     <form class="panel single" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="category-form-title" data-form="category">
       <h3 id="category-form-title">{{ id === 'new' ? t('documents.fileCategories.new') : t('documents.fileCategories.edit') }}</h3>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       <div class="field">
         <label for="category-code">{{ t('documents.fileCategories.code') }}</label>

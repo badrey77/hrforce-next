@@ -37,6 +37,7 @@ import { CanDirective } from '../../shared/can/can.directive';
 import { BalanceCards } from '../../shared/leave/balance-cards';
 import { isoDate, leaveErrorKey, referenceYearLabel } from '../../shared/leave/leave-forms';
 import { LeaveRequestForm } from '../../shared/leave/leave-request-form';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** Non-zero, at most one decimal (numeric(5,1)). Empty → left to `required`. */
 export function adjustmentDays(control: AbstractControl): ValidationErrors | null {
@@ -50,7 +51,7 @@ type Panel = 'adjust' | 'request' | null;
 
 @Component({
   selector: 'app-employee-leave-tab',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe, DecimalPipe, CanDirective, BalanceCards, LeaveRequestForm],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DatePipe, DecimalPipe, CanDirective, BalanceCards, LeaveRequestForm],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-leave-tab.html',
 })

@@ -39,15 +39,15 @@ const WORDING: Record<Locale, Wording> = {
     signature: 'L’équipe HRForce',
   },
   ar: {
-    subject: { setup: 'HRForce — أنشئ كلمة المرور الخاصة بك', reset: 'HRForce — إعادة تعيين كلمة المرور' },
+    subject: { setup: 'HRForce — إنشاء كلمة المرور الخاصة بك', reset: 'HRForce — إعادة تعيين كلمة المرور' },
     greeting: (name) => `مرحبًا ${name}،`,
     intro: {
-      setup: 'تم إنشاء حساب HRForce لك. اختر كلمة المرور لتفعيله:',
-      reset: 'تم طلب إعادة تعيين كلمة مرور حسابك في HRForce. اختر كلمة مرور جديدة:',
+      setup: 'تم إنشاء حساب HRForce لك. يرجى اختيار كلمة المرور لتفعيله:',
+      reset: 'تم طلب إعادة تعيين كلمة مرور حسابك في HRForce. يرجى اختيار كلمة مرور جديدة:',
     },
     action: 'اختيار كلمة المرور',
     validity: (hours) => `هذا الرابط صالح لمدة ${hours} ساعة ولا يمكن استخدامه إلا مرة واحدة.`,
-    ignore: 'إذا لم تكن صاحب هذا الطلب، يمكنك تجاهل هذه الرسالة.',
+    ignore: 'إذا لم يصدر هذا الطلب عنك، يمكنك تجاهل هذه الرسالة.',
     signature: 'فريق HRForce',
   },
   en: {

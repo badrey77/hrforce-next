@@ -199,6 +199,37 @@ describe('Identity (e2e)', () => {
       expect((await other.login(ADMIN.email, DEMO_PASSWORD)).status).toBe(204);
     });
 
+    it('failures stamped a little "in the future" still count (the database clock stepped back): 429, Retry-After ≤ 900', async () => {
+      // Docker Desktop's VM clock steps back up to ~200 ms now and then: the failures just recorded then carry a
+      // timestamp later than the next request's now(). Stamp 30 of them 200 ms ahead to reproduce it deterministically.
+      const ip = randomIp();
+      await query(
+        db.superuserUrl,
+        `insert into auth.login_event (at, email, ip, outcome)
+           select now() + interval '200 milliseconds', 'ghost' || g || '@demo.dz', $1::inet, 'bad_credentials' from generate_series(1, 30) g`,
+        [ip],
+      );
+      const b = new Browser(app, undefined, { 'X-Forwarded-For': ip });
+      await b.get('/api/auth/csrf');
+      const res = await b.post('/api/auth/login', { email: ADMIN.email, password: DEMO_PASSWORD });
+      expect(res.status).toBe(429);
+      expect(Number(res.headers['retry-after'])).toBeLessThanOrEqual(900);
+
+      // the same for the e-mail lock: 5 failures 200 ms ahead → 423 with Retry-After ≤ 900
+      await query(
+        db.superuserUrl,
+        `insert into auth.login_event (at, email, ip, outcome)
+           select now() + interval '200 milliseconds', $1, $2::inet, 'bad_credentials' from generate_series(1, 5)`,
+        [EST.email, randomIp()],
+      );
+      const other = browser();
+      await other.get('/api/auth/csrf');
+      const locked = await other.post('/api/auth/login', { email: EST.email, password: DEMO_PASSWORD });
+      expect(locked.status).toBe(423);
+      expect(Number(locked.headers['retry-after'])).toBeLessThanOrEqual(900);
+      expect(Number(locked.headers['retry-after'])).toBeGreaterThan(890);
+    });
+
     it('disabled account → 403 only with the correct password', async () => {
       await migrator.transaction().execute((tx) =>
         seedIdentity(tx, DEMO_COMPANY_ID, [{ id: '0190a5d0-0000-7000-8000-0000000000d1', email: 'off@demo.dz', displayName: 'Off', locale: 'fr' }]),

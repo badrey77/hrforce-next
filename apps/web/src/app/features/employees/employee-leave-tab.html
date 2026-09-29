@@ -27,7 +27,7 @@
       <h3 id="adjust-title">{{ t('leave.employee.adjustTitle') }}</h3>
       <p class="field-hint">{{ t('leave.employee.adjustIntro') }}</p>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       <div class="grid">
         <div class="field">

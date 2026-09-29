@@ -756,8 +756,17 @@
           "permission": "holders of a permission",
           "none": "nobody"
         }
+      },
+      "employee_file": {
+        "scan_status": {
+          "not_scanned": "not scanned",
+          "clean": "no threat",
+          "infected": "threat found",
+          "failed": "scan failed"
+        }
       }
-    }
+    },
+    "unnamed": "name not available"
   },
   "employees": {
     "title": "Employees",
@@ -942,7 +951,8 @@
       "matriculeHint": "A new matricule (the previous employment keeps its own): letters, digits or \"-\", saved in capitals.",
       "hireDateHint": "After the previous employment ended ({{date}}).",
       "stillOpen": "This employment has not ended: end it before rehiring the person.",
-      "submit": "Create the new employment"
+      "submit": "Create the new employment",
+      "personEmployed": "This person already has a current employment, or one whose end date has not passed yet: a rehire is not possible for now."
     },
     "endReasons": {
       "resignation": "Resignation",

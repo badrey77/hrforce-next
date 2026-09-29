@@ -10,7 +10,7 @@
   <h3 id="create-unit-title">{{ t('org.create.title', { parent: parent().name }) }}</h3>
 
   @if (formError(); as error) {
-    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 
   <!--

@@ -60,11 +60,13 @@ src/
       leave/                   balance cards, the request form with live preview, the read-only request view, leave rules
       notifications/           <app-notification-text> + notificationMessage(): a notification as a translated sentence
       relative-time/           `relativeTime` pipe (Intl.RelativeTimeFormat, `now` as an argument)
+      not-found/               the 404 page + NOT_FOUND_ROUTE (app `**`, end of guarded feature route tables)
+      reveal-alert/            [appRevealAlert]: scroll a form's error banner into view and focus it
     features/<name>/           pages (access, auth: login, password setup/forgot; employees: list with URL state, create,
                                detail with tabs incl. Leave; home, organization (+ head of unit), my-leave (/me/leave),
                                tasks (/tasks), leave (/leave list, /leave/requests/:id, /leave/settings), notifications
                                (/notifications), settings (/settings), security (/me/security: two-step sign-in status,
-                               enrollment wizard, recovery codes); not-found, placeholder)
+                               enrollment wizard, recovery codes); placeholder)
     shell/                     shell widgets (language switcher, user menu with "Security" (+ dot when enrollment is
                                required) and "Sign out", notification bell)
   testing/                     test-only helpers (translocoTesting(), org/auth/access/employee fixtures, <dialog> polyfill,

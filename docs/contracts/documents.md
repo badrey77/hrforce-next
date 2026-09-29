@@ -131,7 +131,8 @@ side, number at the end side, title centered, body justified, "Fait à <city>, l
   est délivré pour servir et valoir ce que de droit. » / « نشهد بأن … عمل لدى مؤسستنا من <hire> إلى <end> بصفة:
   <positions>. وهو حر من كل التزام تجاه مؤسستنا. سلمت هذه الشهادة لاستعمالها في حدود ما يسمح به القانون. »
 - Titre de congé: title « Titre de congé » / « سند عطلة »; a two-column table: employee, matricule, unit, job, leave
-  type, from, to, days, resumption; a sentence « <civ> <name> est autorisé(e) à bénéficier de … » / « يرخص لـ … ».
+  type, from, to, days, resumption; a sentence « <civ> <name> est autorisé(e) à bénéficier de … » / « يرخص لـ … »
+  (both state the day count since `titre_conge@2`, see *Settled by the cleanup*).
 The builder may polish the wording within these facts; the verifier checks both languages in the browser PDF viewer.
 
 ### Permissions (catalogue additions, group `documents`, sort 610–660; labels fr/ar/en)
@@ -379,7 +380,7 @@ number; replay with `clientRequestId`.
   outside `document.issue` 403 `forbidden-scope`, `document-type-inactive`, language (422), `document-leave-not-approved`,
   `document-employment-ended` / `-not-ended`, `document-profile-incomplete` (`errors[]` = missing fields in the
   requested language), signatory (422 / 409 `document-no-signatory`).
-- Stored per document: `template_version` `<type>@1`, `renderer` `typst 0.14.2 / typst-ts 0.7.0`. The same snapshot
+- Stored per document: `template_version` `<type>@<n>` (`@2` since the cleanup of 2026-09-29), `renderer` `typst 0.14.2 / typst-ts 0.7.0`. The same snapshot
   renders byte-identical PDFs on Windows (win32-x64) and in the production image (linux-x64-musl) — verified
   (SHA-256 `06898e28…f723` for the same test snapshot on both).
 
@@ -470,8 +471,8 @@ number; replay with `clientRequestId`.
   every string of the snapshot (letterhead, names, titles, unit, job, leave labels); LRM/RLM are kept. The stored
   snapshot is therefore exactly what is printed. Reason: an unterminated RLO/LRO in any value (e.g. pasted into a name)
   mirrored the rest of the legal sentence in both languages. Other data (Typst markup, `#read(…)`, `#panic()`, quotes,
-  brackets, 200/300-character values) prints literally; a single unbroken 200-character token overflows the margin
-  (cosmetic, accepted).
+  brackets, 200/300-character values) prints literally. (A single unbroken 200-character token overflowed the margin;
+  fixed in the templates @2, see *Settled by the cleanup*.)
 - **PDF viewer under the production CSP.** Opening a PDF as a `blob:` URL in a new tab works in Chrome and Edge with
   `deploy/Caddyfile`'s CSP (`object-src 'none'` included; the `blob:` document inherits the CSP). No Caddy change.
   Logo previews use `data:` URLs (`img-src 'self' data:`), no violation.
@@ -487,8 +488,58 @@ number; replay with `clientRequestId`.
   (same as `/leave`: a lazy parent whose empty-path child is guarded).
 - **Known wording/label points for the owner** (not changed): the web i18n calls the certificat
   « شهادة نهاية العمل » (`documents.typeNames.certificat_travail`, error messages) while the database type name and the PDF title are
-  « شهادة العمل »; the Arabic titre sentence has no day count (the table has it); the timeline shows the signatory as
-  an id and `content_sha256` as `\x…` hex.
+  « شهادة العمل »; the Arabic titre sentence had no day count (added in `titre_conge@2`). The timeline's raw values
+  are now rendered by the web (cleanup, 2026-09-29): `content_sha256` as a 12-hex-digit fingerprint with the full value
+  in a tooltip, `scan_status` translated, signatory and file category ids resolved to names ("name not available"
+  when the viewer cannot resolve a signatory, i.e. without `document.read`). The API still returns the stored values.
+
+### Settled by the cleanup (2026-09-29) — templates @2
+
+Every template is now `@2` (`TEMPLATE_VERSIONS`, `apps/api/src/modules/documents/domain/types.ts`): the shared
+layout changed (all three) and the titre's Arabic wording changed. Documents issued before keep `@1` and their stored
+bytes.
+
+- **Long unbroken values break inside the text block** (`letterhead.typ`, `document-page`): in any run of **40 or
+  more** non-space characters, a 0.001 pt space every **8** characters gives the line breaker a break point, so a
+  200-character name, address, title, label, e-mail or footer stays inside the margins (body, letterhead column, table
+  cells, footer). Not a zero-width space character: it would enter the PDF text layer and garble copy/search of the
+  glyph it attaches to (checked); `h(0pt)` is dropped by Typst. An Arabic run of that length loses its letter joining
+  at those points only. Ordinary words, numbers, e-mails and identifiers are shorter than 40 characters: a document
+  without such a run is **byte-identical** to `@1` (checked for the attestation and the certificat, fr and ar). Test:
+  `apps/api/src/modules/documents/application/document-templates.spec.ts` renders the three types in both languages
+  with 200-character values and checks every text run against the 2.2 cm margins (pdf.js positions).
+- **Arabic titre de congé states the day count** (to confirm by a native reader). The sentence is now
+  « يرخص للسيد/للسيدة/للسيد(ة) <name> بالاستفادة من <type> من <start> إلى <end>، أي ما مجموعه <days>. »
+  with the counted noun agreeing with the number (nominative after « ما مجموعه »):
+  | days | printed |
+  |---|---|
+  | 1 | أي ما مجموعه يوم واحد |
+  | 2 | أي ما مجموعه يومان |
+  | 3–10 | أي ما مجموعه 5 أيام |
+  | 11–99 | أي ما مجموعه 15 يومًا |
+  | ≥ 100, by the last two digits | 00–02 → 100 يوم / 102 يوم; 03–10 → 103 أيام; 11–99 → 115 يومًا |
+  | 0.5 | أي ما مجموعه نصف يوم |
+  | other half days | أي ما مجموعه 2.5 يوم |
+  Western digits as elsewhere; tanwin written on the letter before the alef (« يومًا »), like the rest of the app. The
+  rest of the legal sentence is unchanged; the French keeps « soit N jour(s) ».
+
+### Settled by the verification (cleanup, 2026-09-29)
+
+- **Arabic titre sentence, as printed** (real app, annual leave of EMP-0030, PDFs rendered to PNG): « … من 3 نوفمبر
+  2026 إلى 3 نوفمبر 2026، أي ما مجموعه يوم واحد. », « …، أي ما مجموعه يومان. », « …، أي ما مجموعه 5 أيام. »,
+  « …، أي ما مجموعه 12 يومًا. »; the French ones « soit 1 jour. » / « soit 2 jours. » / … . Every new document is
+  `@2`. Annual leave counts calendar days (22 Nov → 7 Dec = 16 days), so a 12-day titre needs a 12-calendar-day request.
+- **200-character unbroken letterhead values** (legal name, address, footer fr/ar, a 68-character e-mail): attestation
+  and titre, fr and ar, stay on one page; every glyph lies inside the 62.4 pt margins except trailing line spaces and,
+  in French, a **hyphen** that Typst may add when it breaks inside an 8-character chunk (French hyphenation of justified
+  text): it hangs ≤ 2.3 pt into the right margin (Typst's hanging punctuation) and is a soft hyphen (U+00AD) in the
+  text layer. Accepted (only values of 40+ characters without a space are affected).
+- **Timeline**: fingerprints show 12 hex digits + `…` with the 64-digit value as the tooltip (fr and ar, `dir="ltr"`
+  inside the Arabic sentence), `scan_status` reads « non analysé » / « لم يُفحص », the signatory and the file category
+  are named for `rh.admin`; a viewer with `employee.read` + `audit.read` but no document permission sees « nom non
+  disponible » / « الاسم غير متاح » for the signatory. Still printed as raw UUIDs (not in the round's scope, product
+  choice pending): `leave_request_id` and `document_request_id` of an issued document, and `issued_document_id` of
+  a document request.
 
 ## Phase B — employee file (attachments)
 

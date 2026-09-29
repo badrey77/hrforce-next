@@ -70,6 +70,21 @@ Also: `org_unit_version.name_ar` (optional) — Arabic unit name, date-effective
   keys (e.g. a nested `person` object) are stripped and ignored. A person outside the caller's `employee.create`
   scope is a 422 `not_found` on `personId`; a person rehired since (another open employment) is a 409
   `employment-open`, shown above the form.
+- **`person.hasOpenEmployment` (cleanup, 2026-09-29).** `EmployeeDetail.person.hasOpenEmployment: boolean` (every
+  response that returns the detail: GET, POST, PATCH/PUT writes) — true when the same person has an employment that is
+  not over today (`end_date` null or ≥ today), this one included, **whatever the caller's scope**. The web offers
+  "Rehire" only when it is false. A boolean only: the other employment's id, matricule and unit are never exposed, and
+  it stays 404 outside scope. Disclosure accepted: `POST /employees` with `personId` already answers 409
+  `employment-open` for such a person (when the caller can read the latest employment). Note the rehire rule itself
+  still refuses only an employment with no end date; one ending in the future makes the flag true while a rehire
+  dated after that end would be accepted.
+- **Settled by the verification (cleanup, 2026-09-29).** Real app: EMP-0025 (Agence Constantine, Région Est, ended)
+  rehired by `rh.admin` into Agence Oran (Région Ouest). `rh.est` then reads the old employment with
+  `hasOpenEmployment: true` and nothing else new (no id, matricule, unit or job of the Oran employment anywhere in the
+  body; same keys as before); the new employment is 404 for `rh.est`, the old one 404 for `lecture.ouest`; the list
+  item carries no flag. Web (fr/ar, 1280/390 px): the "Rehire" action disappears from the old employment, stays on
+  EMP-0040 (ended, person not rehired), and `/employees/<old>/rehire` shows the "already employed" message without
+  the form. The Arabic message is impersonal (« توجد بالفعل علاقة عمل سارية، أو لم يحلّ تاريخ نهايتها بعد … »).
 
 ```ts
 interface NamePair { lastName: string; firstName: string; lastNameAr: string | null; firstNameAr: string | null }
@@ -80,7 +95,7 @@ interface EmployeeListItem {
   jobTitle: string; hireDate: string; endDate: string | null; status: 'active' | 'ended' | 'future';
 }
 interface EmployeeDetail extends EmployeeListItem {
-  person: EmployeeListItem['person'] & { birthDate: string | null; birthPlace: string | null; sex: 'M' | 'F' | null; nationality: string; nin: string | null };
+  person: EmployeeListItem['person'] & { birthDate: string | null; birthPlace: string | null; sex: 'M' | 'F' | null; nationality: string; nin: string | null; hasOpenEmployment: boolean };
   endReason: string | null;
   assignments: { id: string; unit: UnitRef & { path: { id: string; name: string }[] }; site: { id: string; code: string; name: string } | null; siteInherited: boolean; jobTitle: string; validFrom: string; validTo: string | null }[]; // newest first
   salary?: { current: { baseSalary: string; currency: 'DZD'; validFrom: string } | null; history: { baseSalary: string; validFrom: string; validTo: string | null }[] };

@@ -25,10 +25,11 @@ import { OrgApi } from '../../core/org/org-api';
 import type { ChangeOrgUnit, OrgUnitDetail, Site } from '../../core/org/org.models';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
 import { fieldErrorKey, type FormError, isoDate, notBlank, ORG_NAME_MAX, orgWriteError } from './org-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-change-unit-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, OrgUnitPicker],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, OrgUnitPicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './change-unit-form.html',
 })

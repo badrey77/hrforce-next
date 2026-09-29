@@ -61,6 +61,11 @@ export interface EmployeePerson extends NamePair {
   readonly nationality: string;
   /** 18 digits. */
   readonly nin: string | null;
+  /**
+   * The same person has an employment with no end date or an end date not yet passed (this one included), whatever
+   * the viewer's scope — a boolean only. The web offers "Rehire" only when it is false (employment contract).
+   */
+  readonly hasOpenEmployment: boolean;
 }
 
 export interface AssignmentUnit extends UnitRef {

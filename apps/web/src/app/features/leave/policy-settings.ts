@@ -22,6 +22,7 @@ import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
 import { LeaveApi } from '../../core/leave/leave-api';
 import { ISO_WEEKDAYS, type IsoWeekday, type LeavePolicy } from '../../core/leave/leave.models';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const MAX_WEEKEND_DAYS = 3;
 
@@ -37,7 +38,7 @@ function atMostWeekendDays(group: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-policy-settings',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section *transloco="let t" aria-labelledby="policy-title">
@@ -48,7 +49,7 @@ function atMostWeekendDays(group: AbstractControl): ValidationErrors | null {
         <p class="feedback" role="status">{{ t(key) }}</p>
       }
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       @if (policy.error()) {
         <div class="form-error" role="alert">

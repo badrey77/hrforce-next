@@ -5,7 +5,7 @@
 -->
 <form *transloco="let t" [formGroup]="form" (ngSubmit)="submit()" novalidate>
   @if (formError(); as error) {
-    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 
   @let employment = form.controls.employment.controls;

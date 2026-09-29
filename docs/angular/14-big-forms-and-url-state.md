@@ -422,8 +422,16 @@ exists (the person fields are refused). The web offers it as `/employees/:id/reh
   segment, so `:id/rehire` and `:id` never compete. It is a separate task, not a tab: it
   creates something else and has its own permission.
 - **The entry point** is a link on the detail header (`data-action="rehire"`), shown when
-  the employment has an end date and the session holds `employee.create`. Not an `_actions`
-  entry: the server cannot judge a unit that is not chosen yet; the POST decides.
+  the employment has an end date, the session holds `employee.create`, **and**
+  `person.hasOpenEmployment` is false. Not an `_actions` entry: the server cannot judge a
+  unit that is not chosen yet; the POST decides.
+- **A server-computed flag instead of an extra request.** Whether the person was rehired
+  since is a fact about *other* employments, possibly outside the viewer's scope: the web
+  could only guess with a search. The detail therefore carries `person.hasOpenEmployment`
+  (a boolean, nothing else leaks), and one `@if` chain on the rehire page picks the state:
+  no end date → "still open"; flag true → "already employed", no form; otherwise the form.
+  Known edge, accepted: the flag is also true while this employment's end date is still in
+  the future, although a rehire dated after that end would be valid — come back after it.
 - **The page reuses the detail resource** (`detailResource(this.id)`,
   [`employee-rehire.page.ts`](../../apps/web/src/app/features/employees/employee-rehire.page.ts))
   and shows the identity read-only.

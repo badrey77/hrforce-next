@@ -15,7 +15,7 @@
     <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate aria-labelledby="type-form-title" data-form="type">
       <h3 id="type-form-title">{{ catalog.labelOf(type.labels) }}</h3>
       @if (formError(); as error) {
-        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
       }
       <div class="field">
         <label for="type-format">{{ t('documents.types.numberFormat') }}</label>

@@ -8,6 +8,7 @@ import {
   byStart,
   employeeActions,
   EmploymentRuleViolation,
+  hasOpenEmployment,
   planAssignment,
   planEnd,
   planSalary,
@@ -392,11 +393,12 @@ export class EmployeesService {
   private async detail(loaded: Loaded, options: { skipRead?: boolean } = {}): Promise<EmployeeDetail> {
     const { companyId, employment, unitId } = loaded;
     const today = this.clock.today();
-    const [person, salaries, sensitive, versions] = await Promise.all([
+    const [person, salaries, sensitive, versions, employments] = await Promise.all([
       this.repo.findPerson(companyId, employment.personId),
       this.repo.listSalaries(companyId, employment.id),
       this.repo.findSensitive(companyId, employment.personId),
       this.repo.unitVersions(companyId),
+      this.repo.employmentsOf(companyId, employment.personId),
     ]);
     if (!person) throw notFound();
     const can = async (code: string) => this.scopes.inScope(code, unitId);
@@ -432,7 +434,7 @@ export class EmployeesService {
     const detail: EmployeeDetail = {
       id: employment.id,
       matricule: employment.matricule,
-      person: { ...personView(person) },
+      person: { ...personView(person), hasOpenEmployment: hasOpenEmployment(employments, today) },
       unit: shownView ? { id: shownView.unit.id, code: shownView.unit.code, name: shownView.unit.name, nameAr: shownView.unit.nameAr, kind: shownView.unit.kind } : unitRef(unitId, undefined),
       site: shownView?.site ?? null,
       jobTitle: shownView?.jobTitle ?? '',
@@ -463,7 +465,7 @@ function unitRef(id: string, unit: { code: string; name: string; nameAr?: string
   return { id, code: unit?.code ?? '', name: unit?.name ?? '', nameAr: unit?.nameAr ?? null, kind: unit?.kind ?? '' };
 }
 
-function personView(p: PersonRow): EmployeeDetail['person'] {
+function personView(p: PersonRow): Omit<EmployeeDetail['person'], 'hasOpenEmployment'> {
   return {
     id: p.id,
     lastName: p.lastName,

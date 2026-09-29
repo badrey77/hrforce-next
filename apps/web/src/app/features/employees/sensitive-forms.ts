@@ -34,6 +34,7 @@ import {
 } from './employee-forms';
 import { FieldError } from './field-error';
 import { nextDay } from './assignment-form';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 const ACTIONS = `
   <div class="form-actions">
@@ -46,13 +47,13 @@ const ACTIONS = `
 
 const FORM_ERROR = `
   @if (formError(); as error) {
-    <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
   }
 `;
 
 @Component({
   selector: 'app-salary-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, FieldError],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="salary-title" novalidate>
@@ -128,7 +129,7 @@ export class SalaryForm implements OnInit {
 
 @Component({
   selector: 'app-bank-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, FieldError],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="bank-title" novalidate>
@@ -199,7 +200,7 @@ export class BankForm implements OnInit {
 
 @Component({
   selector: 'app-nss-form',
-  imports: [ReactiveFormsModule, TranslocoDirective, FieldError],
+  imports: [RevealAlert, ReactiveFormsModule, TranslocoDirective, FieldError],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="nss-title" novalidate>

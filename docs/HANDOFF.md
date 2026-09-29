@@ -42,6 +42,8 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-28 | **ADR 008 accepted**: PDFs rendered with Typst embedded in the API (`@myriaddreamin/typst-ts-node-compiler`), stored PDF bytes, gap-free counters in Postgres (≈ +51 MB image, +50 MB RAM per API process). Documents assumptions 5–7 confirmed: regional HR issues in scope, only central HR voids, employees self-request an attestation via a one-step HR workflow, documents hand-signed (no scanned signature/stamp) |
 | 2026-09-29 | Certificat de travail in Arabic is **« شهادة نهاية العمل »** (was « شهادة العمل », too close to the attestation « شهادة عمل »). Documents Phase A committed; Phase B (employee file) starts |
 | 2026-09-29 | Documents Phase B committed. The Typst logo-memory crash risk is fixed next (pixel-size limit on logos). HR users seeing/uploading to their own employee file: **left as is for now** (product decision pending) |
+| 2026-09-29 | Staging server not ready yet. While waiting for the owner's answers (SSO/sister app, documents wording, leave assumptions), a **cleanup round** over the known small issues that need no product decision |
+| 2026-09-29 | Arabic wording rule: **gender-neutral everywhere** (UI, e-mails, documents where the sex is unknown): masdar/passive forms such as « يرجى إعادة المحاولة » instead of masculine imperatives |
 
 ## M2 progress
 
@@ -56,6 +58,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 - **Documents Phase A (generated documents + numbering + register): built and independently verified 2026-09-29** (contract `docs/contracts/documents.md`, ADR 008). Typst PDFs in fr/ar checked visually (shaping, bidi, gender agreement), gap-free numbering under concurrency, identical reprints, void keeps the number, self-service attestation via workflow `document.hr_only`, titre de congé from approved leave. Verifier fixes: bidi control characters stripped from printed data (an RTL override mirrored the legal sentence), `<bdi>` on the Arabic detail page, lower-case number formats. Chrome/Edge PDF viewer works under the production CSP. API image 344 → 422 MB.
 - **Documents Phase B (employee file): built and independently verified 2026-09-29.** Dossier tab (upload with XHR progress, drag-and-drop, download, delete with reason), file categories settings, content sniffing (PDF/JPEG/PNG), attachment downloads with sandbox CSP through Caddy, audited downloads, medical category hidden, monthly retention purge. Verifier fixes: UTF-8 upload filenames (multer read them as latin1), download name follows the real type, client expiry-date check, 413 message, medical note wording, and an 8 GB allocation in the Typst spec's own test template (the Windows 0xC0000409 crash).
+- **Cleanup round: built and independently verified 2026-09-29.** Refused routes show 404 (and don't load their code); top-of-form errors scrolled into view and focused (`RevealAlertDirective`); rehire link hidden when the person has an open employment (`person.hasOpenEmployment`); timeline fingerprints/names/scan status; PDF long tokens wrap (templates @2); Arabic titre day count with number agreement; neutral Arabic e-mails; login throttle fix for backward DB clock jumps (the cause of the Windows test flakes).
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -71,7 +74,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 2. **Staging server**: provide an Ubuntu 24.04 host with Docker, a DNS name, and the repository secrets `STAGING_HOST`, `STAGING_USER`, `STAGING_SSH_KEY`, `STAGING_DOMAIN` (see `deploy/README.md`).
 3. **App-role trust** (ADR 004 note): accept that a compromised `hrforce_app` DB role could mint sessions / forge audit events, or plan a separate credential service before go-live.
 4. Team size and target date (plan open question).
-5. **Documents** (`docs/contracts/documents.md`): confirm the remaining assumptions (1–4, 8–16); have an Algerian HR/legal reader check the fr/ar legal wording; retention periods per employee-file category; should a "Médecine du travail" role exist (medical files stay unused until then).
+5. **Documents** (`docs/contracts/documents.md`): confirm the remaining assumptions (1–4, 8–16); have an Algerian HR/legal reader check the fr/ar legal wording, including the new Arabic titre day-count sentence (`titre_conge@2`, contract "Settled by the cleanup") and the neutral Arabic e-mail wording (`notifications.md`); retention periods per employee-file category; should a "Médecine du travail" role exist (medical files stay unused until then).
 
 ## Operations notes
 
@@ -90,14 +93,11 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - MFA admin reset follows the `GET /access/users/:id` visibility rule: a regional `access.grant` holder can reset the factor of a user who has one grant in their region even if that user also holds company-wide rights (reset only weakens a factor; the password is still needed). Product decision pending, like the access-admin edge cases above.
 - Refresh/access tokens: the access token stays valid ≤ 15 min after logout/reset (stateless by contract).
 - A first visit with no stored language whose account locale is Arabic still starts in French (and may load one Latin font file) until sign-in applies the account language.
-- The rehire link shows on any ended employment; if the person was already rehired, the user learns it from the 409 after submitting.
-- Create/rehire forms show server errors at the top of the form: off-screen at 390 px after pressing the bottom button.
-- `apps/api/test/worker.e2e-spec.ts` ("drains the jobs") failed once in a full run on Windows and passed on rerun (suspected host/Docker clock skew).
-- `identity.e2e-spec` (429 after 30 failed logins) also failed once in a full run and passed on rerun (time-sensitive).
-- Documents: a signed-in user without `document.read` opening `/documents` gets an empty page instead of 404 (same as `/leave`); the timeline shows the signatory as a raw id and the SHA-256 as hex; a single unbroken 200-character token overflows the PDF margin.
-- Documents Arabic wording to fix once confirmed: the Arabic titre sentence lacks the day count; some Arabic messages are always masculine (see the contract's verification section).
+- Timeline still shows raw ids for `leave_request_id` / `document_request_id` on an issued document and `issued_document_id` on a document request.
+- **Arabic UI imperatives** (~60 strings in `ar.json`, e.g. « أعد المحاولة », « اختر », « أدخل ») address the user in the masculine; e-mails are now neutral. Owner decision 2026-09-29: **neutral everywhere** (to do next).
+- `hasOpenEmployment` is true for an employment ending in the future, so the rehire link stays hidden until that date although the API would accept a rehire dated after it.
 - **Typst runs in the API process** (ADR 008): an out-of-memory in the native renderer would abort the whole API, and `worker.terminate()` cannot stop a native render. The logo trigger is fixed (2026-09-29: logos limited to 4000 px per side and 16 MP, read from the PNG/JPEG header at upload and again at render; an oversized stored logo is left out; render input capped at 2 MB). A logo within the limits can still cost ~128 MB per render thread. The full fix for any other trigger is rendering in a child process (ADR 008 fallback option).
-- Employee file: HR users can see and upload to their own file when it is in their scope (e.g. rh.est linked to EMP-0022): product decision. The timeline shows the file category as an id, sha256 as hex and `scan_status` raw. The app role can set `purged_at` (trust question 3).
+- Employee file: HR users can see and upload to their own file when it is in their scope (e.g. rh.est linked to EMP-0022): product decision. The app role can set `purged_at` (trust question 3).
 
 ## Environment facts
 
@@ -106,6 +106,6 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 
 ## Next steps (proposed order)
 
-1. Push and get the first green GitHub Actions run on PG18.
+1. ~~Push and get the first green GitHub Actions run on PG18.~~ Done: CI green on PG18 (first on `cd7ccae`, 2026-09-27; again on `ee98d47`, 2026-09-29). The deploy workflow builds and pushes images and skips the deploy until `STAGING_HOST` is set.
 2. Staging deploy (needs the target — open question 2).
 3. M3 (ADR 003): documents and numbering, the outbox pattern, sister-app integration. SSO (ADR 007) once open question 1 is answered.

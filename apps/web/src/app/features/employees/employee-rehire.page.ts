@@ -14,8 +14,12 @@
  * - **Rendering the form only when its data exists** (`@if (detail(); as e)` → `<app-rehire-form [previous]="e" />`):
  *   the child can then take the employment as a REQUIRED input and prefill once in `ngOnInit`. Loading, 404 and
  *   "this employment is still open" are the page's states; the form never sees a half-loaded employee.
- * - **The server keeps the last word**: the page offers the form when THIS employment has an end date. If the
- *   person was rehired since, the API answers 409 `employment-open`, shown above the form.
+ * - **Three states from one detail, in a single `@if` / `@else if` chain**: no end date → "still open"; an end date
+ *   but `person.hasOpenEmployment` (the API's flag over ALL the person's employments, whatever the viewer's scope)
+ *   → "already employed", no form; otherwise the form. The flag is also true while THIS employment's end date is
+ *   still in the future, although the API would accept a rehire dated after it: accepted (come back after the end).
+ * - **The server keeps the last word**: if the person is rehired between loading and submitting, the API answers
+ *   409 `employment-open`, shown above the form.
  */
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -75,10 +79,12 @@ import { RehireForm } from './rehire-form';
           </dl>
         </section>
 
-        @if (e.endDate) {
-          <app-rehire-form [previous]="e" />
-        } @else {
+        @if (!e.endDate) {
           <p class="form-error" role="alert" data-state="open">{{ t('employees.rehire.stillOpen') }}</p>
+        } @else if (e.person.hasOpenEmployment) {
+          <p class="form-error" role="alert" data-state="person-employed">{{ t('employees.rehire.personEmployed') }}</p>
+        } @else {
+          <app-rehire-form [previous]="e" />
         }
       } @else if (employee.error()) {
         <p class="form-error" role="alert">{{ t(errorKey()) }}</p>

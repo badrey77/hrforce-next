@@ -274,6 +274,64 @@ client-side error" (`required` → `org.form.errors.required`, `pattern` →
 `org.form.errors.codePattern`, etc.) so every form's template calls the same helper
 instead of repeating the `@if` chain.
 
+### A form-level error the user can actually see: `[appRevealAlert]`
+
+Field errors sit next to their field. A **form-level** message (`formError()`: "fix the
+fields below", a 409 the API tied to no field, a network error) sits at the top of the
+form, in a `role="alert"` banner — and on a long form the submit button is at the bottom.
+At 390 px the user pressed "Create", the banner appeared a screen and a half above, and
+nothing seemed to happen. `role="alert"` makes a screen reader announce the text; sighted
+users need it scrolled into view, and keyboard users need focus there.
+
+One attribute directive does it for every form
+([`shared/reveal-alert/reveal-alert.directive.ts`](../../apps/web/src/app/shared/reveal-alert/reveal-alert.directive.ts)):
+
+```html
+<!-- employee-create.page.html (and rehire, issue, upload, settings forms…) -->
+@if (formError(); as error) {
+  <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+}
+```
+
+```ts
+@Directive({ selector: '[appRevealAlert]', host: { tabindex: '-1' } })
+export class RevealAlert {
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  readonly appRevealAlert = input<unknown>();
+
+  constructor() {
+    afterRenderEffect(() => {
+      const trigger = this.appRevealAlert();
+      if (trigger === null || trigger === undefined) return;
+      const element = this.element.nativeElement;
+      element.scrollIntoView?.({ block: 'center' });
+      element.focus({ preventScroll: true });
+    });
+  }
+}
+```
+
+- **An input with the selector's name.** `[appRevealAlert]="error"` attaches the directive
+  *and* gives it a value, like `[ngClass]`. The value is a trigger: `@if (formError(); as
+  error)` keeps its block when the condition stays truthy from one failure to the next
+  (Angular updates the view instead of re-creating it), so "run once on creation" would
+  miss the second failed submit. Each failure sets a **new** message object, the input
+  changes, the effect runs again.
+- **`host: { tabindex: '-1' }`** adds a static attribute to the host element: `focus()`
+  now works on a `<p>`, and the banner is not added to the Tab order.
+- **`afterRenderEffect()`** (chapter 16) runs after Angular wrote the DOM, so the text is
+  there and laid out before scrolling. An `effect()` could run before rendering.
+- **Why a directive, not code in each page.** Twenty-odd forms have the same banner; a
+  page-level `viewChild` + `afterNextRender` (chapter 17's wizard) would be repeated in
+  each. An attribute directive is the Angular unit of "behaviour attached to an element".
+- **Field errors are untouched.** Focus goes to the banner once per new message; from
+  there the next Tab enters the form, and each invalid field still has its
+  `aria-invalid` + `aria-describedby` message. Dialogs (end employment, void a document)
+  do not use it: a modal dialog is short and already holds the focus.
+- jsdom (unit tests) has no layout and no `scrollIntoView`, hence the optional call;
+  [`reveal-alert.directive.spec.ts`](../../apps/web/src/app/shared/reveal-alert/reveal-alert.directive.spec.ts)
+  stubs it to record the calls and checks `document.activeElement`.
+
 ## `applyServerErrors()` — mapping server validation onto controls
 
 ```ts

@@ -207,11 +207,13 @@ describe('Access › Roles', () => {
       expect(text('h2')).toBe('Auditeur');
     });
 
-    it('roles/new without access.manage_roles does not match: falls through to roles/:id → "not found"', async () => {
+    it('roles/new without access.manage_roles does not match: the 404 entry after it answers, not roles/:id', async () => {
       TestBed.inject(Session).set(meWith(['access.read']));
-      await open('/access/roles/new');
+      await harness.navigateByUrl('/access/roles/new');
+      await settle();
 
-      expect(text('[role="alert"]')).toBe('Rôle introuvable.');
+      expect(text('h1')).toBe('404');
+      http.expectNone('/api/access/roles/new');
     });
   });
 });

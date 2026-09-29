@@ -23,10 +23,11 @@ import { Session } from '../../core/auth/session';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { AccessNav } from './access-nav';
 import { PermissionChecklist } from './permission-checklist';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 @Component({
   selector: 'app-access-security-policy-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, AccessNav, PermissionChecklist],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, AccessNav, PermissionChecklist],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './access.css',
   template: `
@@ -43,7 +44,7 @@ import { PermissionChecklist } from './permission-checklist';
       } @else if (policy.hasValue()) {
         <form [formGroup]="form" (ngSubmit)="save()" novalidate>
           @if (formError(); as error) {
-            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+            <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
           }
           @if (saved()) {
             <p class="feedback" role="status">{{ t('access.security.saved') }}</p>

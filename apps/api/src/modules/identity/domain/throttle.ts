@@ -9,6 +9,16 @@
 export const EMAIL_LOCK = { failures: 5, windowMs: 15 * 60_000, lockMs: 15 * 60_000 } as const;
 export const IP_THROTTLE = { failures: 30, windowMs: 15 * 60_000 } as const;
 
+/**
+ * The instant the rules are evaluated at: the database clock, but never earlier than the newest failure it returned.
+ * The database wall clock may step back a little (NTP or VM time sync — seen with Docker Desktop): a failure recorded
+ * just before would then look a few milliseconds "in the future", be left out of the IP count (the 30th failure not
+ * counted, no 429) and push a Retry-After past the lock length. Failures are facts; the clock only moves forward here.
+ */
+export function throttleNow(dbNow: Date, ...failures: readonly (readonly Date[])[]): Date {
+  return new Date(Math.max(dbNow.getTime(), ...failures.flat().map((d) => d.getTime())));
+}
+
 /** When the e-mail lock ends, or null if the e-mail is not locked at `now`. */
 export function emailLockedUntil(failures: readonly Date[], now: Date): Date | null {
   const times = failures.map((d) => d.getTime()).toSorted((a, b) => a - b);

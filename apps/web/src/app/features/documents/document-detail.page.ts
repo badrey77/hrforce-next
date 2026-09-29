@@ -101,11 +101,12 @@ export class DocumentDetailPage {
     return pickLabel(labels, this.lang());
   }
 
-  /** Names for the History: the employee's unit and the people the document names. */
+  /** Names for the History: the employee's unit, the signatory and the people the document names. */
   protected readonly auditNames: AuditNameResolver = (kind, value) => {
     const d = this.detail();
     if (!d) return undefined;
     if (kind === 'unit' && d.employee.unit.id === value) return displayNameOf(d.employee.unit, this.lang());
+    if (kind === 'signatory' && d.signatory.id === value) return this.lang() === 'ar' ? d.signatory.names.ar : d.signatory.names.fr;
     if (kind === 'user') {
       if (d.issuedBy?.id === value) return d.issuedBy.displayName;
       if (d.void?.by?.id === value) return d.void.by.displayName;

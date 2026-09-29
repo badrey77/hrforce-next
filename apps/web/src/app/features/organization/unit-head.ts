@@ -26,6 +26,7 @@ import type { OrgUnitDetail } from '../../core/org/org.models';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { EmployeePicker } from '../../shared/employee-picker/employee-picker';
 import { isoDate } from '../../shared/leave/leave-forms';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const HEAD_SLUGS: SlugTable = {
   'head-date': { key: 'org.head.problems.date', field: 'validFrom' },
@@ -34,7 +35,7 @@ export const HEAD_SLUGS: SlugTable = {
 
 @Component({
   selector: 'app-unit-head',
-  imports: [TranslocoDirective, ReactiveFormsModule, DisplayNamePipe, EmployeePicker],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, DisplayNamePipe, EmployeePicker],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section *transloco="let t" class="head" aria-labelledby="unit-head-title" data-section="head">
@@ -60,7 +61,7 @@ export const HEAD_SLUGS: SlugTable = {
         @let c = form.controls;
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="head">
           @if (formError(); as error) {
-            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+            <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
           }
           <div class="field">
             <label for="head-employee">{{ t('org.head.employee') }}</label>

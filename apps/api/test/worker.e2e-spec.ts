@@ -164,6 +164,10 @@ describe('notifications.email', () => {
       `select count(*)::int as n from graphile_worker._private_jobs j join graphile_worker._private_tasks t on t.id = j.task_id where t.identifier = 'notifications.email'`,
     );
     expect(pending[0]?.n).toBeGreaterThan(0);
+    // The API enqueued them with run_at = its transaction's now(); Graphile only takes jobs with run_at <= now().
+    // The database clock can step back a few milliseconds (Docker Desktop's VM time sync), which left a just-enqueued
+    // job "not yet due" (n: 1, error null) about once in a few full runs. Make the pending jobs due explicitly.
+    await query(db.superuserUrl, `update graphile_worker._private_jobs set run_at = now() - interval '1 minute' where run_at > now() - interval '1 minute'`);
     mailer.sent.length = 0;
     await runOnce({ connectionString: db.workerUrl, taskList: buildTaskList(deps), logger: graphileLogger(pino({ level: 'silent' })), noHandleSignals: true });
     const left = await query<{ n: number; errors: string[] }>(

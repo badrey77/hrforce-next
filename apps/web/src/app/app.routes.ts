@@ -12,7 +12,11 @@
  *   (docs/contracts/authorization.md › Web): Organization needs `org_unit.read`, Access needs `access.read`, Employees
  *   needs `employee.read` (docs/contracts/employment.md › Web), My leave needs `leave.request_self`
  *   (docs/contracts/leave.md › Web), My documents needs `document.request_self` (docs/contracts/documents.md › Web). Without
- *   it the route does not match and the visitor lands on `**` (404) — see core/auth/permission.guard.ts.
+ *   it the route does not match and the visitor lands on `**` (404) — see core/auth/permission.guard.ts. Leave and
+ *   Documents need a different permission per child: their parent asks for ANY of them (`data: { permission: [...] }`)
+ *   and their child table ends with the same 404 entry, `NOT_FOUND_ROUTE` (shared/not-found/not-found.route.ts
+ *   explains why the app-level `**` alone left `/leave` blank). app.routes.spec.ts opens every guarded URL as users
+ *   who lack the permission and expects the 404 page.
  * - Two-step sign-in enforcement (docs/contracts/mfa.md › Web): every signed-in route uses `...signedIn`
  *   (`[authGuard, mfaEnrollmentGuard]`) instead of `authGuard` alone, EXCEPT `/me/security`, the page that fixes the
  *   problem (a guard on it would redirect to itself forever). Spreading one shared array keeps "a new page forgot the
@@ -25,6 +29,7 @@ import type { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guards';
 import { mfaEnrollmentGuard } from './core/auth/mfa-enrollment';
 import { permissionGuard } from './core/auth/permission.guard';
+import { NOT_FOUND_ROUTE } from './shared/not-found/not-found.route';
 
 /** Signed in AND not blocked by the two-step sign-in policy. */
 const signedIn = [authGuard, mfaEnrollmentGuard];
@@ -92,16 +97,20 @@ export const routes: Routes = [
     loadComponent: () => import('./features/tasks/tasks.page').then((m) => m.TasksPage),
   },
   {
-    // HR leave: list/detail need leave.read, settings leave.configure — checked per child (see leave.routes.ts).
+    // HR leave: list/detail need leave.read, settings leave.configure — checked per child (see leave.routes.ts). The
+    // parent asks for ANY of the two, so a user with neither never downloads the chunk.
     path: 'leave',
-    canMatch: signedIn,
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['leave.read', 'leave.configure'] },
     loadChildren: () => import('./features/leave/leave.routes').then((m) => m.LEAVE_ROUTES),
   },
   {
     // Documents (register, detail, issue, settings): read/issue/configure are checked per child (documents.routes.ts),
-    // like Leave. Its own lazy chunk, so the PDF and settings screens cost nothing to users who never open them.
+    // like Leave (the parent asks for ANY of the three). Its own lazy chunk, so the PDF and settings screens cost
+    // nothing to users who never open them.
     path: 'documents',
-    canMatch: signedIn,
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['document.read', 'document.issue', 'document.configure'] },
     loadChildren: () => import('./features/documents/documents.routes').then((m) => m.DOCUMENTS_ROUTES),
   },
   {
@@ -123,8 +132,5 @@ export const routes: Routes = [
     canMatch: signedIn,
     loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage),
   },
-  {
-    path: '**',
-    loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage),
-  },
+  NOT_FOUND_ROUTE,
 ];

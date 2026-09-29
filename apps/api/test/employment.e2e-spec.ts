@@ -451,6 +451,27 @@ describe('writes — field permissions, scope, date rules, 409 slugs', () => {
     expect(matricules(await all('admin', `q=${ended.nin}&status=all`)).toSorted()).toEqual(['EMP-0025', 'RH-5']);
   });
 
+  it('person.hasOpenEmployment: any employment of the person not over today, whatever the viewer’s scope — a boolean, no id', async () => {
+    // an open employment reports itself
+    expect((await client('admin').get(`/api/employees/${employeeA(33)}`).expect(200)).body.person.hasOpenEmployment).toBe(true);
+    // EMP-0040 ended 2026-03-31 in Agence Tlemcen (Région Ouest, lecture.ouest's scope)
+    const before = await client('ouest').get(`/api/employees/${employeeA(40)}`).expect(200);
+    expect(before.body.person.hasOpenEmployment).toBe(false);
+    // the person is rehired in Région Est, outside lecture.ouest's scope
+    const rehired = await client('admin').post('/api/employees').send({ personId: demoEmployee(40).personId, matricule: 'RH-6', hireDate: '2026-09-01', orgUnitId: unitA('AG-CNE'), jobTitle: 'Agent' });
+    expect(rehired.status, JSON.stringify(rehired.body)).toBe(201);
+    expect(rehired.body.person.hasOpenEmployment).toBe(true);
+    const after = await client('ouest').get(`/api/employees/${employeeA(40)}`).expect(200);
+    expect(after.body.person.hasOpenEmployment).toBe(true);
+    expect(after.body.status).toBe('ended');
+    // only the boolean: nothing of the other employment (id, matricule, unit) and it stays out of reach
+    const text = JSON.stringify(after.body);
+    for (const hidden of [rehired.body.id as string, 'RH-6', unitA('AG-CNE')]) expect(text).not.toContain(hidden);
+    expect((await client('ouest').get(`/api/employees/${rehired.body.id}`)).status).toBe(404);
+    // EMP-0025, rehired as RH-5 by rh.est above
+    expect((await client('est').get(`/api/employees/${employeeA(25)}`).expect(200)).body.person.hasOpenEmployment).toBe(true);
+  });
+
   it('PATCH person: names, clearing optional fields; nationality upper-cased', async () => {
     const res = await client('est').patch(`/api/employees/${employeeA(24)}/person`).send({ lastNameAr: '', birthPlace: null, nationality: 'fr', sex: 'F' });
     expect(res.status, JSON.stringify(res.body)).toBe(200);

@@ -27,7 +27,7 @@
         @let c = form.controls;
         <form [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="request">
           @if (formError(); as error) {
-            <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+            <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
           }
           <div class="field">
             <label for="request-type">{{ t('documents.fields.type') }}</label>

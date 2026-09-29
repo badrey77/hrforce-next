@@ -61,13 +61,31 @@ export const CONFIG_SLUGS: SlugTable = {
   'document-format-taken': { key: 'documents.problems.formatTaken', field: 'numberFormat' },
 };
 
-/** 422 `errors[{field: 'file', code}]` of the logo upload → a translated sentence. */
+/** What is wrong with the chosen logo file; shown under the file input (`documents.profile.logo*` keys). */
+export type LogoFieldError = 'type' | 'size' | 'dimensions';
+
+export const LOGO_FIELD_KEYS: Readonly<Record<LogoFieldError, string>> = {
+  type: 'documents.profile.logoType',
+  size: 'documents.profile.logoSize',
+  dimensions: 'documents.profile.logoDimensions',
+};
+
+/**
+ * The 422 `errors[{field: 'file', code}]` of the logo upload → the error to show on the file field, or null for any
+ * other failure (then {@link logoProblem} gives the sentence). `dimensions_too_large`: over 4 000 × 4 000 px / 16 MP,
+ * read by the API from the image header.
+ */
+export function logoFieldError(error: unknown): LogoFieldError | null {
+  if (!isApiProblemError(error) || error.status !== 422) return null;
+  const code = error.problem.errors?.find((e) => e.field === 'file')?.code;
+  if (code === 'unsupported_type') return 'type';
+  if (code === 'too_large') return 'size';
+  if (code === 'dimensions_too_large') return 'dimensions';
+  return null;
+}
+
+/** Any other failure of a logo upload or removal → a translated sentence above the logo. */
 export function logoProblem(error: unknown): FormMessage {
-  if (isApiProblemError(error)) {
-    const code = error.problem.errors?.find((e) => e.field === 'file')?.code;
-    if (code === 'unsupported_type') return { key: 'documents.profile.logoType' };
-    if (code === 'too_large') return { key: 'documents.profile.logoSize' };
-    if (error.status === 403) return { key: 'documents.problems.companyWide' };
-  }
+  if (isApiProblemError(error) && error.status === 403) return { key: 'documents.problems.companyWide' };
   return { key: 'errors.generic' };
 }

@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { ProblemException, ValidationProblemException } from '../../../platform/http/problem-details.js';
+import { IMAGE_MAX_PIXELS, IMAGE_MAX_SIDE, readImageHeader, withinImageLimits } from '../../../platform/pdf/image-header.js';
 import { isValidNumberFormat } from '../domain/numbering.js';
-import { LOGO_MAX_BYTES, sniffImage } from '../domain/rules.js';
+import { LOGO_MAX_BYTES } from '../domain/rules.js';
 import { missingProfileFields } from '../domain/snapshot.js';
 import { DOCUMENT_PERMISSIONS as P, type DocumentLanguage } from '../domain/types.js';
 import { DocumentsRepository, pgError, type LogoRow, type ProfileInput } from '../infra/documents.repository.js';
@@ -92,8 +93,16 @@ export class DocumentSettingsService {
     await this.assertCompanyWide();
     if (!file || file.buffer.length === 0) throw new ValidationProblemException([{ field: 'file', code: 'required', message: 'A PNG or JPEG file is required.' }]);
     if (file.buffer.length > LOGO_MAX_BYTES) throw new ValidationProblemException([{ field: 'file', code: 'too_large', message: 'At most 256 KB.' }]);
-    const mime = sniffImage(file.buffer);
-    if (!mime) throw new ValidationProblemException([{ field: 'file', code: 'unsupported_type', message: 'PNG or JPEG only.' }]);
+    // the type by the first bytes, the size by the header (never decoded here): Typst decodes the whole canvas at
+    // every render, and an out-of-memory there aborts the API (platform/pdf/image-header.ts)
+    const header = readImageHeader(file.buffer);
+    if (!header.ok) throw new ValidationProblemException([{ field: 'file', code: 'unsupported_type', message: 'PNG or JPEG only (a readable header is needed).' }]);
+    if (!withinImageLimits(header)) {
+      throw new ValidationProblemException([
+        { field: 'file', code: 'dimensions_too_large', message: `At most ${IMAGE_MAX_SIDE} × ${IMAGE_MAX_SIDE} px and ${IMAGE_MAX_PIXELS / 1_000_000} megapixels.` },
+      ]);
+    }
+    const mime = header.type;
     await this.repo.setLogo(companyId, { bytes: file.buffer, mime, sha256: createHash('sha256').update(file.buffer).digest() });
     return this.profile();
   }

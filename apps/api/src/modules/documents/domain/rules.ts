@@ -66,14 +66,7 @@ export function chooseSignatory<S extends SignatoryCandidate>(
   return chosen;
 }
 
-/** Image types accepted for the logo, by their first bytes (the declared type and the file name are ignored). */
-export function sniffImage(bytes: Uint8Array): 'image/png' | 'image/jpeg' | null {
-  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length >= 8 && png.every((b, i) => bytes[i] === b)) return 'image/png';
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-  return null;
-}
-
+/** The logo's file size cap; its type and pixel dimensions are read from the header (platform/pdf/image-header.ts). */
 export const LOGO_MAX_BYTES = 256 * 1024;
 
 /** A year's counter value → the next number's sequence (1 when the year has none yet). */

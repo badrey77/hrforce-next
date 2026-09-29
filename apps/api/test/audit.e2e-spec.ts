@@ -494,7 +494,8 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: '/api/documents/settings/profile', body: { legalNameFr: 'Entreprise Démo HRForce SPA', addressFr: '12 rue Didouche Mourad, Alger', cityFr: 'Alger', nif: '000016999999999' } }),
       tables: ['company_profile'],
     },
-    'PUT /api/documents/settings/profile/logo': { request: () => ({ path: '/api/documents/settings/profile/logo', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46]) }), tables: ['company_profile'] },
+    // a header-only JPEG (SOI, SOF0 1 × 1 grey, EOI): the upload reads the frame header, nothing renders it here
+    'PUT /api/documents/settings/profile/logo': { request: () => ({ path: '/api/documents/settings/profile/logo', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0, 0xff, 0xd9]) }), tables: ['company_profile'] },
     'DELETE /api/documents/settings/profile/logo': { request: () => ({ path: '/api/documents/settings/profile/logo', body: {} }), tables: ['company_profile'] },
     'POST /api/documents/settings/signatories': {
       request: () => ({ path: '/api/documents/settings/signatories', body: { orgUnitId: unitA('REG-OUEST'), names: { fr: 'Nadir Ouest', ar: 'نذير' }, titles: { fr: 'Directeur', ar: 'مدير' } } }),

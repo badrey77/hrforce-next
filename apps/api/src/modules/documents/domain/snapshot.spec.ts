@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseSignatory, checkEmploymentFor, coveringSignatories, sniffImage } from './rules.js';
+import { chooseSignatory, checkEmploymentFor, coveringSignatories } from './rules.js';
 import { buildSnapshot, dateText, daysText, missingProfileFields, positionsOf, type EmployeeFacts, type ProfileFacts } from './snapshot.js';
 import { DocumentRuleViolation } from './types.js';
 
@@ -197,12 +197,5 @@ describe('rules', () => {
     expect(() => chooseSignatory(signatories, ancestors, 'other-region', null)).toThrow(expect.objectContaining({ status: 422 }));
     expect(() => chooseSignatory(signatories, ancestors, 'old', null)).toThrow(expect.objectContaining({ status: 422 }));
     expect(() => chooseSignatory([], ancestors, undefined, null)).toThrow(expect.objectContaining({ slug: 'document-no-signatory' }));
-  });
-
-  it('sniffs PNG and JPEG by content only', () => {
-    expect(sniffImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe('image/png');
-    expect(sniffImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
-    expect(sniffImage(new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBeNull();
-    expect(sniffImage(new TextEncoder().encode('%PDF-1.7'))).toBeNull();
   });
 });

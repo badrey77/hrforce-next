@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
+import { readImageHeader, withinImageLimits } from './image-header.js';
 import { PdfRenderError, PdfRenderer, type RenderInput } from './pdf-renderer.js';
 import type { RenderJob, RenderReply, RenderWorkerData } from './render-worker.js';
 
@@ -16,6 +17,28 @@ function bindingVersion(): string {
   } catch {
     return 'unknown';
   }
+}
+
+/**
+ * Cap on what one render may carry (data + options JSON + assets). Documents carry a few KB of JSON and a logo of at
+ * most 256 KB; anything near this cap is a bug or an attack, and refusing it keeps the engine's memory bounded.
+ */
+export const RENDER_INPUT_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Why an input must not reach Typst, or null. A Typst allocation failure aborts the whole process (ADR 008), so an
+ * image asset is refused when its header is unreadable or declares more pixels than the limits (image-header.ts):
+ * the engine would decode all of them. Non-image assets pass (their size still counts).
+ */
+export function unsafeRenderInput(job: { data: string; options: string; assets: readonly { path: string; bytes: Uint8Array }[] }): string | null {
+  const size = job.data.length + job.options.length + job.assets.reduce((n, a) => n + a.bytes.byteLength, 0);
+  if (size > RENDER_INPUT_MAX_BYTES) return `render input too large (${size} bytes)`;
+  for (const asset of job.assets) {
+    const header = readImageHeader(asset.bytes);
+    if (!header.ok && header.reason === 'malformed') return `unreadable image header: ${asset.path}`;
+    if (header.ok && !withinImageLimits(header)) return `image too large: ${asset.path} (${header.width} × ${header.height} px)`;
+  }
+  return null;
 }
 
 /** apps/api (this file is src/platform/pdf/… or dist/platform/pdf/…: three levels below the package root). */
@@ -85,6 +108,9 @@ export class TypstPdfRenderer extends PdfRenderer {
       assets: (input.assets ?? []).map((a) => ({ path: a.path, bytes: a.bytes })),
       standard: input.standard === undefined ? 'a-2b' : input.standard,
     };
+    // never hand Typst an input that could exhaust memory: that would abort the process, not fail the render
+    const unsafe = unsafeRenderInput(job);
+    if (unsafe) return Promise.reject(new PdfRenderError('error', unsafe));
     return new Promise<Buffer>((resolve, reject) => {
       this.queue.push({ job, resolve, reject });
       this.pump();

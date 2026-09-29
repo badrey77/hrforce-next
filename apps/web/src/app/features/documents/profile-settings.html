@@ -93,7 +93,7 @@
         <input #logoInput id="profile-logo" type="file" accept="image/png,image/jpeg" aria-describedby="profile-logo-hint profile-logo-error" (change)="onFile($event)" />
         <p class="field-hint" id="profile-logo-hint">{{ t('documents.profile.logoHint') }}</p>
         @if (logoError(); as error) {
-          <p class="field-error" id="profile-logo-error" data-error="logo">{{ t(error === 'type' ? 'documents.profile.logoType' : 'documents.profile.logoSize') }}</p>
+          <p class="field-error" id="profile-logo-error" data-error="logo">{{ t(logoErrorKeys[error]) }}</p>
         }
       </div>
       <div class="form-actions">

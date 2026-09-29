@@ -207,8 +207,12 @@ return this.http.put<CompanyProfileView>(`${DOCUMENTS_API_BASE}/settings/profile
 
 `HttpClient` sees a `FormData` body and lets the browser write `Content-Type: multipart/form-data; boundary=…`. Never
 set that header yourself: without the generated boundary the server cannot split the parts. XSRF still applies (a PUT
-goes through the same interceptors). The server's 422 `errors[{field: 'file', code: 'unsupported_type' | 'too_large'}]`
-is translated by `logoProblem()` (`features/documents/document-forms.ts`). Phase B's employee file adds upload
+goes through the same interceptors). The server's 422 `errors[{field: 'file', code: 'unsupported_type' | 'too_large' |
+'dimensions_too_large'}]` becomes an error under the file input through `logoFieldError()`, other failures a sentence
+through `logoProblem()` (`features/documents/document-forms.ts`). The pixel limit (4 000 × 4 000 px) is checked by the
+server only (it reads the image header); the page does not measure the image, the server's answer lands on the same
+field as the local type and size checks.
+Phase B's employee file adds upload
 progress (`reportProgress: true`, `observe: 'events'`) through a second, XHR-backed client — see
 [chapter 19](./19-uploads-progress-and-the-employee-file.md).
 

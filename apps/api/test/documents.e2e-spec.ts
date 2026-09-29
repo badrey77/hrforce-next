@@ -78,6 +78,29 @@ async function pdfOf(actor: ActorName, path: string, status = 200): Promise<{ bo
   return { body: res.body as Buffer, headers: res.headers as Record<string, string> };
 }
 
+/** A PNG with only a header worth reading (IHDR with any declared size, a tiny IDAT, IEND): never decoded by a test. */
+function pngChunk(type: string, data: Buffer): Buffer {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  return Buffer.concat([length, Buffer.from(type, 'latin1'), data, Buffer.alloc(4)]);
+}
+
+function pngHeader(width: number, height: number, depth = 8, colour = 2): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.writeUInt8(depth, 8);
+  ihdr.writeUInt8(colour, 9);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk('IHDR', ihdr), pngChunk('IDAT', Buffer.alloc(8)), pngChunk('IEND', Buffer.alloc(0))]);
+}
+
+/** A JPEG whose baseline frame header (SOF0) declares this size, after an EXIF APP1 segment; no scan data. */
+function jpegHeader(width: number, height: number): Buffer {
+  const exif = Buffer.concat([Buffer.from([0xff, 0xe1, 0x00, 0x0a]), Buffer.from('Exif\0\0\0\0', 'latin1')]);
+  const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 8, height >> 8, height & 0xff, width >> 8, width & 0xff, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]);
+  return Buffer.concat([Buffer.from([0xff, 0xd8]), exif, sof, Buffer.from([0xff, 0xd9])]);
+}
+
 async function textOf(pdf: Buffer): Promise<string> {
   return (await extractText(await getDocumentProxy(new Uint8Array(pdf)), { mergePages: true })).text;
 }
@@ -403,6 +426,49 @@ describe('settings', () => {
     const agentTypes = (await client('agent').get('/api/documents/types').expect(200)).body.items as { numberFormat: string | null; nextNumber: string | null }[];
     expect(agentTypes.every((t) => t.numberFormat === null && t.nextNumber === null)).toBe(true);
     await client('admin').put(`/api/documents/types/${att}`).send({ defaultSignatoryId: null }).expect(200);
+  });
+
+  it('logo pixel dimensions: refused at upload (422 dimensions_too_large); a stored oversized logo is left out, preview and issue still work', async () => {
+    // headers only: the declared canvas is never backed by pixels, and Typst never sees these images
+    const huge = pngHeader(45_000, 45_000, 1, 0);
+    for (const [bytes, name] of [[huge, 'huge.png'], [pngHeader(4001, 10), 'wide.png'], [jpegHeader(100, 5000), 'tall.jpg']] as const) {
+      const res = await client('beta').put('/api/documents/settings/profile/logo').attach('file', bytes, name).expect(422);
+      expect(res.body.errors[0], name).toMatchObject({ field: 'file', code: 'dimensions_too_large' });
+    }
+    // unreadable headers: a PNG signature without IHDR, a JPEG without a frame header, an absurd bit depth
+    for (const [bytes, name] of [
+      [Buffer.concat([pngHeader(10, 10).subarray(0, 8), Buffer.alloc(40)]), 'no-ihdr.png'],
+      [Buffer.from([0xff, 0xd8, 0xff, 0xd9]), 'empty.jpg'],
+      [pngHeader(10, 10, 3, 2), 'depth.png'],
+    ] as const) {
+      const res = await client('beta').put('/api/documents/settings/profile/logo').attach('file', bytes, name).expect(422);
+      expect(res.body.errors[0], name).toMatchObject({ field: 'file', code: 'unsupported_type' });
+    }
+    await client('beta').get('/api/documents/settings/profile/logo').expect(404);
+
+    // a logo stored before the limits existed (written straight into the table): the documents go out without it
+    const [original] = await query<{ logo: Buffer; logo_mime: string; logo_sha256: Buffer }>(db.superuserUrl, `select logo, logo_mime, logo_sha256 from company_profile where company_id = $1`, [COMPANY_A]);
+    if (!original?.logo) throw new Error('the demo letterhead has a logo');
+    await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [COMPANY_A, huge]);
+    clock.value = '2035-05-06';
+    try {
+      const body = { typeCode: 'attestation_travail', employmentId: employeeA(27), language: 'fr' };
+      const preview = await client('admin').post('/api/documents/preview').send(body).buffer(true).parse(binary).expect(200);
+      expect(await textOf(preview.body as Buffer)).toContain('SPÉCIMEN');
+      const doc = await issue('admin', body);
+      expect(doc.number).toBe('ATT-2035-00001');
+      const detail = (await client('admin').get(`/api/documents/${doc.id}`).expect(200)).body as DocView;
+      expect(detail.snapshot?.['company']).toMatchObject({ hasLogo: false });
+      expect((await pdfOf('admin', `/api/documents/${doc.id}/pdf`)).body.toString('latin1').startsWith('%PDF-')).toBe(true);
+      // the API is still up
+      await client('admin').get('/api/documents/settings/profile').expect(200);
+    } finally {
+      clock.value = '2026-09-28';
+      await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = $3, logo_sha256 = $4 where company_id = $1`, [COMPANY_A, original.logo, original.logo_mime, original.logo_sha256]);
+    }
+    // the regular logo is back and renders
+    const preview = await client('admin').post('/api/documents/preview').send({ typeCode: 'attestation_travail', employmentId: employeeA(27), language: 'fr' }).expect(200);
+    expect(preview.headers['content-type']).toBe('application/pdf');
   });
 });
 

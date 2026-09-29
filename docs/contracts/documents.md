@@ -167,7 +167,7 @@ document permission is `sensitive`). The catalogue unit test (`PERMISSION_CODES`
 | `PUT /documents/types/:id` | `document.configure` (company) | `{numberFormat?, languages?, selfService?, defaultSignatoryId?: string \| null, active?}` → 200 `DocumentTypeView`; `selfService` only for `attestation_travail` (422 elsewhere) |
 | `GET /documents/settings/profile` | `document.configure` | `CompanyProfileView` (404-free: all nulls when no row) |
 | `PUT /documents/settings/profile` | `document.configure` (company) | profile fields (camelCase, no logo) → 200 |
-| `PUT /documents/settings/profile/logo` | `document.configure` (company) | `multipart/form-data` field `file` (PNG/JPEG ≤ 256 KB, sniffed) → 200 profile; 422 `errors[{field:'file', code:'unsupported_type' \| 'too_large'}]` |
+| `PUT /documents/settings/profile/logo` | `document.configure` (company) | `multipart/form-data` field `file` (PNG/JPEG ≤ 256 KB, sniffed, ≤ 4 000 × 4 000 px and ≤ 16 MP read from the header) → 200 profile; 422 `errors[{field:'file', code:'unsupported_type' \| 'too_large' \| 'dimensions_too_large'}]` |
 | `DELETE /documents/settings/profile/logo` | `document.configure` (company) | 204 |
 | `GET /documents/settings/profile/logo` | `document.configure` | the image (`Cache-Control: no-store`), 404 when none |
 | `GET /documents/settings/signatories` | `document.configure` | `{items: SignatoryView[]}` incl. inactive |
@@ -398,7 +398,15 @@ number; replay with `clientRequestId`.
 - PDF downloads: `Content-Disposition: <disposition>; filename="<number>.pdf"`, plus `Content-Length`. The logo:
   `GET …/logo` answers with its sniffed type, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`.
 - Logo upload: multipart field `file`; no file / empty → 422 `{field: 'file', code: 'required'}`; over 256 KB → 422
-  `too_large` (never 413); not PNG/JPEG by content → 422 `unsupported_type`. `DELETE` is 204 also when there is no logo.
+  `too_large` (never 413); not PNG/JPEG by content, or a header that cannot be read (PNG: no valid `IHDR` right after
+  the signature, or a bit depth / colour type pair the PNG spec does not allow; JPEG: no frame header `SOFn` before
+  the scan, a segment running past the end, a zero width or height) → 422 `unsupported_type`; wider or taller than
+  4 000 px, or more than 16 000 000 pixels → 422 `dimensions_too_large`. The image is never decoded by the API.
+  `DELETE` is 204 also when there is no logo.
+- Logo at render time: preview and issue read the stored logo's header again; a logo over the limits or unreadable
+  (stored before the limits existed, or written around the API) is left out of the document — the snapshot says
+  `company.hasLogo: false` — and the API logs a warning; the document is still issued. The renderer itself refuses
+  (`document-render-failed`) any image asset over the limits and any render input over 2 MB, so Typst never gets one.
 - `PUT /documents/types/:id`: `defaultSignatoryId` must be an active signatory (422 `not_found`); `selfService: true`
   on another type → 422 `{field: 'selfService', code: 'not_allowed'}`. `GET /documents/types`: `numberFormat`,
   `nextNumber` (current Algiers year) and `defaultSignatoryId` are non-null for holders of `document.issue` or
@@ -761,3 +769,17 @@ interface EmployeeFileView { id: string; employmentId: string; category: { id: s
   limit) took ~2 GB of memory in a direct Typst render (measured outside the API). Suggested hardening: refuse logos
   over e.g. 4 000 × 4 000 px at upload (PNG `IHDR` / JPEG `SOF` dimensions). The test crash itself came from the
   spec's own runaway template (`range(400000000)` builds an 8 GiB array); the spec now uses a bounded loop.
+
+**Settled after the verification (logo pixel limits, 2026-09-29)**
+- **Logo pixel limits** (the PDF-engine point above): the upload reads the dimensions from the header without decoding
+  (`platform/pdf/image-header.ts`: PNG `IHDR`, JPEG markers up to the first `SOFn`, EXIF/APPn skipped by length) and
+  refuses more than 4 000 px a side or 16 MP with 422 `dimensions_too_large` on `file` (web: « Image trop grande :
+  4 000 × 4 000 pixels au plus. » under the file input). Why 16 MP: a decoder expands up to 8 bytes a pixel (16-bit
+  RGBA), so ≤ 128 MB per decoded copy, against ~2 GB (and a process abort) for the 45 000 × 45 000 px PNG. Unreadable
+  headers and bit depth / colour type pairs outside the PNG spec → `unsupported_type`. Preview and issue re-check a
+  stored logo and leave an oversized one out (warning logged, `company.hasLogo: false` in the snapshot), and the Typst
+  adapter refuses such an image asset and any input over 2 MB before the render thread sees it (defence in depth).
+  E2E: a 45 000 × 45 000 px PNG header, a 4 001 px PNG, a 5 000 px-tall JPEG → 422; the same PNG written into
+  `company_profile` → preview 200 and issue 201 without the logo, API still up. The web does not pre-check pixel sizes
+  (the server is authoritative). Residual: a logo within the limits still costs up to ~128 MB per render
+  thread while it is decoded; `worker.terminate()` still cannot stop a native render.

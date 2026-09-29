@@ -16,8 +16,11 @@
  *   (a writable resource) re-runs the effect with the server's normalised values.
  * - **A file input without a ControlValueAccessor.** `<input type="file">` has no Forms value accessor worth using
  *   (the browser owns its value, only `files` matters), so `(change)` reads `input.files[0]` into a signal. The file is
- *   checked (type, 256 KB) as a courtesy — the API sniffs the bytes and decides — and previewed as a `data:` URL
- *   (`blobToDataUrl`, core/browser/download.ts): the production CSP allows `img-src 'self' data:` but not `blob:`.
+ *   checked (type, 256 KB) as a courtesy — the API sniffs the bytes, reads the pixel size from the header (at most
+ *   4 000 × 4 000 px) and decides; its 422 codes land on the same field (`logoFieldError()`, document-forms.ts) —
+ *   and previewed as a `data:` URL (`blobToDataUrl`, core/browser/download.ts): the production CSP allows
+ *   `img-src 'self' data:` but not `blob:`. The pixel size is not pre-checked here (the server reads it from the
+ *   header, and its answer lands on the same field).
  * - **`FormData` upload**: `DocumentsApi.uploadLogo()`; no progress bar for 256 KB (Phase B's attachments will need
  *   `reportProgress`).
  */
@@ -28,7 +31,7 @@ import { blobToDataUrl } from '../../core/browser/download';
 import { DocumentsApi } from '../../core/documents/documents-api';
 import { type CompanyProfileFields, type CompanyProfileView, DOCUMENT_LANGUAGES } from '../../core/documents/documents.models';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
-import { CONFIG_SLUGS, logoProblem, PROFILE_FIELDS, type ProfileField } from './document-forms';
+import { CONFIG_SLUGS, LOGO_FIELD_KEYS, type LogoFieldError, logoFieldError, logoProblem, PROFILE_FIELDS, type ProfileField } from './document-forms';
 
 export const LOGO_MAX_BYTES = 256 * 1024;
 export const LOGO_TYPES: readonly string[] = ['image/png', 'image/jpeg'];
@@ -49,7 +52,7 @@ export const PAIRS: readonly Pair[] = [
 ];
 export const SINGLES: readonly ('nif' | 'nis' | 'rc' | 'ai' | 'phone' | 'email')[] = ['nif', 'nis', 'rc', 'ai', 'phone', 'email'];
 
-type LogoError = 'type' | 'size' | null;
+type LogoError = LogoFieldError | null;
 
 @Component({
   selector: 'app-document-profile-settings',
@@ -153,6 +156,7 @@ export class ProfileSettings {
   protected readonly pendingFile = signal<File | null>(null);
   protected readonly pendingUrl = signal<string | null>(null);
   protected readonly logoError = signal<LogoError>(null);
+  protected readonly logoErrorKeys = LOGO_FIELD_KEYS;
   protected readonly logoMessage = signal<FormMessage | null>(null);
   protected readonly logoBusy = signal(false);
 
@@ -198,7 +202,17 @@ export class ProfileSettings {
       },
       error: (error: unknown) => {
         this.logoBusy.set(false);
-        this.logoMessage.set(logoProblem(error));
+        // a refusal of the file itself (type, size, pixel dimensions) goes under the file input, like the local
+        // checks; the file is dropped so it cannot be sent again as is
+        const fieldError = logoFieldError(error);
+        if (fieldError) {
+          this.logoError.set(fieldError);
+          this.pendingFile.set(null);
+          this.pendingUrl.set(null);
+          input.value = '';
+        } else {
+          this.logoMessage.set(logoProblem(error));
+        }
       },
     });
   }

@@ -1,14 +1,15 @@
 import { createHash } from 'node:crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ProblemException } from '../../../platform/http/problem-details.js';
+import { readImageHeader, withinImageLimits } from '../../../platform/pdf/image-header.js';
 import { PdfRenderError, PdfRenderer } from '../../../platform/pdf/pdf-renderer.js';
 import { LeaveFacts, type LeaveRequestFacts } from '../../leave/index.js';
 import { formatNumber, specimenNumber } from '../domain/numbering.js';
 import { checkEmploymentFor, checkLanguage, chooseSignatory } from '../domain/rules.js';
 import { buildSnapshot, missingProfileFields, type DocumentSnapshot } from '../domain/snapshot.js';
 import { DocumentRuleViolation, TEMPLATE_VERSIONS, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
-import { DocumentsRepository, pgError, type EmployeeRow, type SignatoryRow, type TypeRow } from '../infra/documents.repository.js';
+import { DocumentsRepository, pgError, type EmployeeRow, type LogoRow, type SignatoryRow, type TypeRow } from '../infra/documents.repository.js';
 
 /** What to issue, after the caller's access was checked. */
 export interface IssueSpec {
@@ -73,6 +74,8 @@ export async function documentProblems<T>(run: () => Promise<T>): Promise<T> {
  */
 @Injectable()
 export class DocumentIssuer {
+  private readonly logger = new Logger('DocumentIssuer');
+
   constructor(
     private readonly repo: DocumentsRepository,
     private readonly renderer: PdfRenderer,
@@ -112,8 +115,7 @@ export class DocumentIssuer {
       spec.signatoryId,
       type.defaultSignatoryId,
     );
-    const logoRow = profile.hasLogo ? await this.repo.logo(companyId) : undefined;
-    const logo = logoRow ? { path: `/__assets/logo-${logoRow.sha256.toString('hex')}.${logoRow.mime === 'image/png' ? 'png' : 'jpg'}`, bytes: logoRow.bytes } : null;
+    const logo = this.renderableLogo(companyId, profile.hasLogo ? await this.repo.logo(companyId) : undefined);
     const snapshot = buildSnapshot({
       type: spec.typeCode,
       lang: spec.language,
@@ -137,6 +139,23 @@ export class DocumentIssuer {
         : {}),
     });
     return { type, employee, signatory, leave, snapshot, logo };
+  }
+
+  /**
+   * The stored logo as a render asset, or null. Its header is checked again before Typst sees it (upload checks it
+   * too): a logo stored before the pixel limits existed, or written around the API, could make Typst allocate
+   * gigabytes, and an out-of-memory there aborts the whole API. Such a logo is left out of the document (the snapshot
+   * then says `hasLogo: false`, which is what was printed) and a warning is logged; the document is still issued.
+   */
+  private renderableLogo(companyId: string, row: LogoRow | undefined): { path: string; bytes: Buffer } | null {
+    if (!row) return null;
+    const header = readImageHeader(row.bytes);
+    if (!header.ok || !withinImageLimits(header)) {
+      const why = header.ok ? `${header.width} × ${header.height} px, over the limits` : `unreadable header (${header.reason})`;
+      this.logger.warn(`company ${companyId}: letterhead logo left out of the document: ${why}; upload a smaller logo in the document settings`);
+      return null;
+    }
+    return { path: `/__assets/logo-${row.sha256.toString('hex')}.${header.type === 'image/png' ? 'png' : 'jpg'}`, bytes: row.bytes };
   }
 
   private render(prepared: PreparedDocument, snapshot: DocumentSnapshot, specimen: boolean): Promise<Buffer> {

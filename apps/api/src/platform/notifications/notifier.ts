@@ -15,10 +15,12 @@ export const NOTIFICATION_TYPES = [
   'leave.submitted_on_behalf',
   'document.ready',
   'document.rejected',
+  'attendance.correction_approved',
+  'attendance.correction_rejected',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document';
+export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction';
 
 /**
  * Who the recipient is to the subject — decides the link: `approver` (a task candidate: /tasks…), `employee` (the

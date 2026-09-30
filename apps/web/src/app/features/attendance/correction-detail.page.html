@@ -1,0 +1,76 @@
+<!-- correction-detail.page.ts: the request, the day before/after, the steps, the history. -->
+<ng-container *transloco="let t">
+  <p><a routerLink="/attendance/corrections">{{ t('attendance.corrections.back') }}</a></p>
+  @if (correction.hasValue()) {
+    @let c = correction.value();
+    <header class="page-header">
+      <h1>{{ t('attendance.corrections.detailTitle') }}</h1>
+      <a *appCan="'employee.read'" class="btn secondary" [routerLink]="['/employees', c.employee.id]"
+        [queryParams]="{ tab: 'attendance', date: c.date }" data-action="employee">{{ t('attendance.corrections.employeeLink') }}</a>
+    </header>
+
+    <dl class="facts" data-panel="correction">
+      <dt>{{ t('attendance.columns.employee') }}</dt>
+      <dd data-field="employee"><bdi>{{ c.employee.person | displayName: lang() }}</bdi> <span class="code">({{ c.employee.matricule }})</span></dd>
+      <dt>{{ t('attendance.columns.unit') }}</dt>
+      <dd><bdi>{{ c.employee.unit | displayName: lang() }}</bdi></dd>
+      <dt>{{ t('attendance.corrections.day') }}</dt>
+      <dd data-field="date">{{ c.date | date: 'fullDate' : undefined : locale() }}</dd>
+      <dt>{{ t('attendance.corrections.statusLabel') }}</dt>
+      <dd><span class="badge" [attr.data-status]="c.status">{{ t('attendance.corrections.status.' + c.status) }}</span></dd>
+      <dt>{{ t('attendance.corrections.requestedAt') }}</dt>
+      <dd>
+        {{ c.requestedAt | date: 'medium' : undefined : locale() }}
+        @if (c.requestedBy; as by) {
+          — <bdi>{{ by.displayName }}</bdi>
+        }
+      </dd>
+      <dt>{{ t('attendance.corrections.changes') }}</dt>
+      <dd><app-correction-changes [changes]="c.changes" /></dd>
+      <dt>{{ t('attendance.reason.label') }}</dt>
+      <dd data-field="reason"><bdi>{{ c.reason }}</bdi></dd>
+      @if (c.rejectionComment) {
+        <dt>{{ t('attendance.corrections.rejectionComment') }}</dt>
+        <dd><bdi>{{ c.rejectionComment }}</bdi></dd>
+      }
+      <dt>{{ t('attendance.corrections.computedNow') }}</dt>
+      <dd data-field="day">
+        <app-day-status [status]="c.day.status" />
+        <span dir="ltr"> {{ c.day.arrival?.localTime ?? '—' }} – {{ c.day.departure?.localTime ?? '—' }}</span>
+      </dd>
+    </dl>
+
+    @if (c.status === 'pending') {
+      <app-correction-preview [punches]="punches()" [changes]="c.changes" idPrefix="detail-correction" />
+    }
+
+    <section class="panel" aria-labelledby="correction-steps-title">
+      <h2 id="correction-steps-title">{{ t('attendance.corrections.steps') }}</h2>
+      @if (c.workflow; as workflow) {
+        <app-workflow-stepper [progress]="workflow" [history]="c.history" />
+      }
+    </section>
+
+    <section class="panel" aria-labelledby="correction-history-title" data-section="history">
+      <h2 id="correction-history-title">{{ t('leave.detail.history') }}</h2>
+      @defer (on viewport; prefetch on idle) {
+        <app-timeline [subject]="'attendance_correction:' + c.id" [resolver]="auditNames" />
+      } @placeholder {
+        <p class="muted" data-defer="placeholder">{{ t('audit.loading') }}</p>
+      } @loading (after 100ms; minimum 300ms) {
+        <p class="muted">{{ t('audit.loading') }}</p>
+      } @error {
+        <p class="form-error" role="alert">{{ t('audit.chunkError') }}</p>
+      }
+    </section>
+  } @else if (correction.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'attendance.corrections.notFound' : 'attendance.corrections.loadError') }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="correction.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

@@ -26,6 +26,32 @@ corrections (B).
 > `data: {source, direction?}` only (no time, no employment); day-range 422s use field `from` for `invalid` (from after
 > to) and `range_too_long`, field `to` for `future`; the team view's too-old date is 422 `date` code `too_old`.
 
+> **Phase B API built (2026-09-30) — what the web must know** (details in *Settled by the build (Phase B API)* at the
+> end of Phase B): every Phase B shape is implemented as written, plus:
+> - **Scan receipt = 2 minutes** (`hrf_scan` `Max-Age=120`, `ScanView.receiptExpiresAt` = `scannedAt` + 120 s).
+> - **New route for the /punch one-tap confirmation: `GET /me/attendance/receipt`** (`attendance.punch_self`, reads the
+>   `hrf_scan` cookie, writes nothing, keeps the receipt, `Cache-Control: no-store`) → `ReceiptView {kiosk: {labels: {fr, ar},
+>   site: {code, name}}, scannedAt, localTime, workDate, receiptExpiresAt, direction: 'in' | 'out', duplicate: boolean}`;
+>   same errors as the punch (409 `attendance-not-linked` → 409 `attendance-no-scan` → 422 `attendance-qr-invalid` → 409
+>   `attendance-not-employed`). Flow: scan → (sign in) → `GET /me/attendance/receipt` → « Enregistrer mon arrivée à … ? »
+>   → `POST /me/attendance/punches`. `duplicate: true` = redeeming returns the existing punch (« Déjà enregistré »); `localTime` is then that punch's time
+>   (settled by the verification).
+> - `MyDaysView` / `EmployeeDaysView` gain `correctionWindow: {from, to} | null` (the days a correction may be asked for
+>   today; employees cannot read the policy). `PolicyView` gains `correctionMaxAgeDays`, `correctionWorkflowCode`.
+> - `GET /attendance/corrections` also accepts `employmentId=` (the employee Présence tab's list).
+> - `CorrectionView.workflow` is `WorkflowProgressView | null` (null never happens through the API); `requestedBy` is always set.
+> - `CorrectionDetailView` = `CorrectionView` + `history: TaskHistoryView[]` + `day: AttendanceDayView` (with `punches`, their
+>   `_actions` always `[]`).
+> - New 422 codes on `POST /me/attendance/corrections`: `changes.<i>.time` `exists` (a live punch at that minute that the
+>   request does not void) and `duplicate` (two adds at one minute); `attendance-correction-date` carries
+>   `errors[{field: 'date', code: 'out_of_window'}]`.
+> - `task.escalated` can be about a correction: `notification.subject.type = 'attendance_correction'`, link
+>   `/me/attendance?correction=<id>`, `data` = the correction data + `stepKey`, `escalationReason`.
+> - Timeline subject `attendance_correction:<id>` (visible like the detail, no `audit.read`): correction events only
+>   (`attendance.correction_requested`, `attendance.correction_item_added {position, action, direction}`,
+>   `attendance.correction_approved|rejected|cancelled`), workflow rows and `workflow.*` events, and the punch events of
+>   the punches it added / voided — **no `change` entries for the correction tables** (see *Audit*).
+
 ## ⚠ Assumptions to confirm with the owner
 
 | # | Assumption | Default in this contract | Where it lives |
@@ -61,7 +87,7 @@ them until an audit retention policy exists.
 | nav (HR) | Présence | الحضور |
 | nav (heads) | Mon équipe | فريق العمل |
 | arrival / departure | Arrivée / Départ | دخول / خروج |
-| punch recorded | Arrivée enregistrée à 07:58 / Départ enregistré à 16:34 | تم تسجيل الدخول على الساعة 07:58 / تم تسجيل الخروج على الساعة 16:34 |
+| punch recorded | Arrivée enregistrée à 07:58 / Départ enregistré à 16:34 | تم تسجيل الوصول على الساعة 07:58 / تم تسجيل المغادرة على الساعة 16:34 |
 | statuses | Présent, En retard, Absent, Incomplet, Attendu, En congé, Jour férié, Repos | حضور، تأخر، غياب، تسجيل ناقص، وصول منتظر، عطلة، عطلة رسمية، يوم راحة |
 | kiosk instruction | Scannez ce code avec l'appareil photo de votre téléphone | يرجى مسح هذا الرمز بكاميرا الهاتف |
 | kiosk offline | Pointage indisponible — connexion perdue. Adressez-vous au service RH. | تسجيل الحضور غير متاح حاليا — انقطاع الاتصال. يرجى التوجه إلى مصلحة الموارد البشرية. |
@@ -134,7 +160,7 @@ A day is a **rest day** when that entry is `rest`.
 **Secret.** Env `ATTENDANCE_KEY`: base64 of exactly 32 bytes, required in production (validated at boot like
 `AUTH_MFA_KEY`; a public development default is refused in production; `deploy/init-env.sh` generates it). Subkeys:
 `K_qr = HMAC(ATTENDANCE_KEY, "qr")`, `K_scan = HMAC(…, "scan")`, `K_dev = HMAC(…, "device")`. Rotating the key only
-invalidates live codes (≤ 2 min) and receipts (≤ 5 min) and changes device refs from then on.
+invalidates live codes (≤ 2 min) and receipts (≤ 2 min, Phase B) and changes device refs from then on.
 
 **Pairing.** A pairing code is 8 characters of Crockford base32 (`0-9 A-H J K M N P-T V-Z`), displayed `XXXX-XXXX`;
 input is case-insensitive, hyphens/spaces ignored, `O→0`, `I/L→1`. Stored as SHA-256 of the 8 normalised characters,
@@ -168,14 +194,15 @@ signature is **not bound to a session** (new platform decorator `@XsrfUnbound()`
 to a dead session id; the route creates no server state and its only effect is a cookie for the caller's own browser.
 On success the API sets:
 - `hrf_scan` = `base64url(0x01 ‖ companyId ‖ deviceId ‖ window(uint32) ‖ scannedAtMs(uint64 BE) ‖ HMAC(K_scan, …)[0..16])`;
-  `HttpOnly; Secure; SameSite=Strict; Path=/api/me/attendance; Max-Age=300`. `scannedAt` = the server's clock at the
+  `HttpOnly; Secure; SameSite=Strict; Path=/api/me/attendance; Max-Age=120` (**2 minutes** since Phase B, owner decision
+  2026-09-30; was 300). `scannedAt` = the server's clock at the
   scan.
 - `hrf_dev` if absent: 16 random bytes base64url; `HttpOnly; Secure; SameSite=Strict; Path=/api/me/attendance;
   Max-Age=34560000`.
 
 **Punch** (`POST /api/me/attendance/punches`, no body, `attendance.punch_self`). In the request transaction:
 1. the caller's linked employment (`user_employment`), else 409 `attendance-not-linked`;
-2. `hrf_scan` present, MAC valid, same company as the session, `scannedAt` ≤ 5 min ago — else 409 `attendance-no-scan`;
+2. `hrf_scan` present, MAC valid, same company as the session, `scannedAt` ≤ 2 min ago (was 5) — else 409 `attendance-no-scan`;
    the device is still `active` — else 422 `attendance-qr-invalid`;
 3. the employment is active on `work_date(scannedAt)` (hire ≤ D, end null or ≥ D) — else 409 `attendance-not-employed`;
 4. `pg_advisory_xact_lock` on (company, employment) (double taps are serialised);
@@ -571,7 +598,7 @@ punch, `other` = BETA's). `✓` = the route's success status.
 Plus e2e (not matrix): the full phone flow (scan → punch 201 → second scan within 2 min → 200 `duplicate` → scan after
 the gap → `out`); a token of window w−2 → 410; a token of window w+1 → 410; a forged MAC → 422; a revoked kiosk's token
 → 422; the same token by two employees → both 201; the same employee twice on one window → one punch; a receipt older
-than 5 min → 409; `hrf_scan` of company A redeemed by a BETA user → 409 `attendance-no-scan`; `allowed_networks`
+than 2 min (5 in Phase A) → 409; `hrf_scan` of company A redeemed by a BETA user → 409 `attendance-no-scan`; `allowed_networks`
 refusing another address → 403; a pairing code used twice → 410; re-pairing kills the old credential; manual punch on
 one's own employment → 409; the punch immutability trigger (UPDATE of `occurred_at` refused, a second void refused, DELETE
 refused for the app role); the retention job (worker role, pinned `today`) deletes old punches without audit delete
@@ -606,7 +633,7 @@ the purge). `attendance_device` rows are audited normally (credential and pairin
   receipt give one 201 and 200 `duplicate` for the rest (tested with 6 parallel calls); the unique index is the backstop.
 - A receipt dated more than 5 s in the future (clock skew between API processes) is refused like an expired one
   (`attendance-no-scan`). The punch check order is 409 `attendance-not-linked` → 409 `attendance-no-scan` (missing,
-  bad MAC, other company, > 5 min) → 422 `attendance-qr-invalid` (kiosk no longer active) → 409
+  bad MAC, other company, > 2 min — 5 min before Phase B) → 422 `attendance-qr-invalid` (kiosk no longer active) → 409
   `attendance-not-employed`.
 - `@XsrfUnbound()` routes must be `@Public()` (the guard answers 403 otherwise). Platform change: an anonymous caller
   of a non-public route whose XSRF header equals the cookie is passed to the PermissionGuard (401) instead of failing
@@ -805,17 +832,161 @@ true}` when the subject was deleted by the retention job.
 | Route | Rows |
 |---|---|
 | `POST /me/attendance/corrections`, `GET /me/attendance/corrections` | agent 201/200, est 201/200, chef 201/200; admin 409, beta 409; ouest 403, acces 403 |
-| `POST /me/attendance/corrections/:id/cancel` | agent (own) 200; est on agent's 404; ouest 403 |
+| `POST /me/attendance/corrections/:id/cancel` | agent (own) 200; est on agent's 404; ouest 403; admin 409 (`attendance-not-linked`, added by the build) |
 | `GET /attendance/corrections` | admin 200, est 200 (Est only — asserted), ouest 200 (Ouest only), acces 403, beta 200, agent 403 |
 | `GET /attendance/corrections/:id` | admin est/ouest 200, other 404; est est 200, est ouest 404; ouest ouest 200; acces 404; beta est 404, beta other 200; agent own 200, agent on EMP-0027's 404; chef on agent's pending correction (manager candidate) 200 |
 | `GET /attendance/reports/monthly`, `…/monthly.csv` | admin 200, est 200, ouest 200, acces 403, beta 200, agent 403 |
+| `GET /me/attendance/receipt` (added by the build; fixture receipt cookie per row) | agent 200, est 200, chef 200; admin 409, beta 409 (`attendance-not-linked`); ouest 403, acces 403 |
 
 Plus e2e: chain manager → HR (chef approves agent's correction, then rh.est), approval inserts/voids punches and the
 day recomputes; rejection changes nothing; the requester cannot approve; `hr_only` switch; stale target → 409 and
 rollback; escalation when the head has no linked user (AG-CNE).
+
+### Settled by the build (Phase B API)
+
+Migration **0017_attendance_corrections.sql**. No new permission (`attendance.manage` already names the HR approval of
+corrections), no seed change beyond the per-company workflow definitions; `seed:dev` adds no demo correction.
+
+**Audit of corrections — events without personal payload (same owner rule as punches).** A correction is the
+attendance record itself (the employee, the day, the requested instants, a free-text reason), so both tables keep the
+standard trigger name `audit_capture_tg` (guard:db audit-per-write passes without exemption) but execute
+`audit.capture_correction_event()` (SECURITY DEFINER): **no `audit.change_log` row**, one `audit.event`, subject
+`attendance_correction:<id>`, actor = `app.user_id`:
+- correction insert → `attendance.correction_requested {}`; status change → `attendance.correction_<status> {}`; the
+  `workflow_instance_id` link → nothing;
+- item insert → `attendance.correction_item_added {position, action, direction}`; item update (`result_punch_id`) →
+  nothing (the punch it creates has its `attendance.punch_recorded {source: 'correction', direction}` event);
+- delete by `hrforce_worker` (retention) → nothing; by anyone else → `attendance.correction_deleted {}` /
+  `attendance.correction_item_deleted {position}`.
+No employment, day, instant or reason reaches the audit log. The contract's `audit.retention_purgeable` rows are not
+built (Phase A settled that mechanism away). Workflow rows keep their normal row audit (no personal data).
+
+**Retention.** The purge deletes, per company, items of corrections older than the cutoff, then punches, then
+corrections (foreign-key order: items → punches, punches → corrections); `attendance.purged` is now `{punches,
+corrections, before}` (written when either count > 0). Workflow instances, tasks and notifications of a purged
+correction stay; "My tasks" summarises such a subject as `{type: 'attendance_correction', purged: true}`.
+
+**Data.** `attendance_punch`: `source='correction'` ⇔ `correction_id` set, and then device, window, device ref and
+reason are null (the reason lives on the correction); `void_correction_id` only on a void punch; the punch guard also
+freezes `correction_id`. `attendance_correction`: guard — only `status` (once out of `pending`) and
+`workflow_instance_id` (once) change. `attendance_correction_item`: guard — only `result_punch_id`, once; `void` items
+have no direction/instant/result. No DELETE for the app role on either table; DELETE for the worker.
+
+**Request rules as built** (after the zod shape: `date` YYYY-MM-DD, `reason` 3–500 trimmed, `changes` ≤ 20 entries of
+`{action:'add', direction, time:'HH:MM'}` | `{action:'void', punchId: uuid}`): 409 `attendance-not-linked` → 409
+`attendance-correction-date` (`date` > today, < today − `correctionMaxAgeDays`, or outside the employment; today and
+exactly N days back are allowed) → 422 `changes` `min_items` / `max_items` → 422 per change (`changes.<i>.time`
+`future` / `exists` / `duplicate`; `changes.<i>.punchId` `not_found` — a void punch, another day's or another person's —
+/ `duplicate`) → 409 `attendance-correction-pending` (also the backstop of the partial unique index). The request's
+`org_unit_id` (HR step scope) = the employee's scope unit today. The chain = the policy's `correctionWorkflowCode` at
+request time.
+
+**Approval as built.** In the final approver's transaction, under the employment's advisory lock, items in `position`
+order: `add` → punch `source='correction'`, `created_by` = approver, `site_id` = the employee's effective site that
+day, `result_punch_id` set; `void` → the target locked; not live (or not the employee's) → 409
+`attendance-correction-stale` and **everything rolls back** (the task stays open: reject it); else voided with
+`voided_by` = approver, `void_reason` = the correction's reason, `void_correction_id`. Then status `approved` and the
+notification. The engine's separation of duties applies (the employee can never approve; 409 `workflow-self-approval`).
+The day flag `corrected` = a live `correction` punch or a punch with `void_correction_id` (a plain HR void is not).
+`PunchView.correctionId` / `void.correctionId` are filled; a correction punch has `reason: null`, `kiosk: null`,
+`createdBy` = the approver.
+
+**Views as built.** `CorrectionView.employee` is the EmployeeRef on the correction's date; `changes[].time` /
+`punch.localTime` are Algiers "HH:MM"; `_actions: ['cancel']` only on `/me` routes, for the requester, while pending.
+List and summaries are newest first (`requested_at desc`). The detail's `day` shows `shared_device` only to a caller
+holding `attendance.manage` over the employee who is not the employee. "My tasks" `subject` for a correction: `{type:
+'attendance_correction', id, employee, date, reason, changes, day: {status, arrival, departure}}`.
+Detail / timeline visibility: the employee's linked user, **or** `attendance.read` over the employee's scope unit today,
+**or** a current candidate of its open task (so the unit head sees it only while the manager task is open).
+
+**Monthly report as built.** `month` defaults to the current month; malformed → 422 `month` `invalid`, after the current
+month → 422 `month` `future`. `days` = 1st → min(month end, today). An employee's days are counted from max(1st, hire)
+to min(end, employment end); `expected` and `not_employed` days are not counted. Sort: name (Latin, or Arabic with
+`lang=ar`) then matricule; `lang` also accepted by the JSON route. `unitId`/`includeSubUnits` use the tree on the period
+end, `siteId` the effective site on the employee's reference day. More than 5 000 employees → 422 `unitId` `too_many`.
+**CSV**: `;` separator (settled: Excel in a French locale splits on `;`, and the absence dates use `,`), UTF-8 **with
+BOM**, CRLF (also after the last row), `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment;
+filename="presence-YYYY-MM.csv"`, `Cache-Control: no-store`; `lang=ar` → Arabic header and Arabic names / unit names when
+present (else Latin), anything else → French. 14 columns in the contract's order; hours as `h:mm` (e.g. `40:10`).
+**Formula injection**: a text cell starting with `=`, `+`, `-`, `@`, TAB or CR gets a leading `'`; then a cell containing
+`;`, `"`, CR or LF is quoted with `"` doubled. Audit event `attendance.report_exported {month, unitId, rows}` (actor =
+caller, subject null).
+
+**Notifications as built.** `attendance.correction_approved` (e-mail default off) and `attendance.correction_rejected`
+(on) to the employee's linked user, audience `employee`, subject `attendance_correction:<id>`; `data` =
+`{correctionId, employeeName, employeeNameAr, date, changes, actorName}`; `task.assigned` data adds `subjectType`,
+`stepKey`, `taskId`. Mails (fr/ar/en) name the day only — never the reason, times or comment; Arabic is gender-neutral
+(« تم قبول / رفض طلب تصحيح تسجيل الحضور ليوم … من طرف … »). A cancelled correction notifies nobody.
+
+**Receipt and confirmation.** `RECEIPT_TTL_SECONDS = 120` (exactly 120 s old is still accepted, 121 s is not).
+`GET /me/attendance/receipt` as in the summary at the top; it computes the direction exactly as the punch would (the
+duplicate lookup first, then the latest live punch of that day before the scan) but without the advisory lock, so a
+concurrent punch can still turn the real result into a duplicate — the punch response remains the truth.
+
+### Settled by the verification (Phase B, 2026-09-30)
+
+Full gate green from clean (PG18, `npm test` twice without a failure). Browser checks in fr/ar at 1280 px and 390 px
+against the dev stack (kiosk paired with `DEMK-2026`, QR decoded from the canvas), Mailpit, security probes through the
+API, audit inspection as superuser before and after a retention run (`payload.today` pinned).
+
+**One-tap confirmation.** Signed out: scan → login (« Connectez-vous pour enregistrer votre pointage ») → question
+« Enregistrer mon départ à Siège — Entrée principale ? » / « تسجيل الخروج عند المقر — المدخل الرئيسي؟ » with the
+button focused; nothing is recorded before the tap (checked through the API); the punch keeps the scan time (scan
+11:14:58, sign-in 20 s later, punch 11:14). A link opened while signed in only shows the question. No tap for 125 s →
+« Code expiré » / « انتهت صلاحية الرمز » without a button, nothing recorded. A second scan within the gap →
+« Déjà enregistré » / « مسجَّل مسبقا » without a button. The receipt route writes nothing (audit.event, change_log and
+punch counts unchanged over three reads, no `Set-Cookie`), sends `Cache-Control: no-store`, and a receipt handed to
+another employee answers with **that** employee's own direction (the receipt stays a bearer value, as Phase A said).
+
+**Fixed by the verification.**
+- `ReceiptView.localTime` with `duplicate: true` is now the Algiers time of the punch **already recorded** (the one
+  « Déjà enregistré » is about), not the time of the new scan: the page showed « Départ 11:15 — Déjà enregistré » for a
+  departure recorded at 11:14. `scannedAt` stays the new scan's instant (e2e assertion added).
+- Timeline: `attendance.correction_item_added` / `…_deleted` read « Changement n° 1 » for the first change (the event
+  keeps the 0-based `position`; the web adds `number` = position + 1).
+
+**Checked behaviour.** Request rules and codes as built (31 days back / tomorrow → 409 `attendance-correction-date`
+`date` `out_of_window`, exactly 30 days back accepted; 5 changes `max_items`; `exists`, `duplicate` (time and target),
+`future`, another employee's / another day's / a void punch → `punchId` `not_found`); the dialog maps them to the field
+(two adds at one minute showed « Deux pointages à ajouter à la même minute. » on the second row); a pending day loses its
+"Demander une correction" button and shows the pending chip; a shorter window (5 days) hides the button on older days
+and the API refuses them. Chain manager → HR (chef.annaba, then rh.est in Arabic), `hr_only` switch from the Politique
+tab (the chef gets no task), rejection with a required comment, cancel (dialog, then « Annulée », remaining steps
+cancelled), stale approval (target voided by HR first → the panel shows the stale message, nothing added, reject
+still possible), approval of voids (`void.correctionId`, `void_reason` = the correction's reason, `voided_by` = the HR
+approver) and adds (`source='correction'`, `correctionId`), flag `corrected` only for correction punches/voids. HR list
+(pending by default, `?status=all|approved|…` in the URL) and detail with history; employee Présence tab lists the
+month's corrections; purged subject in My tasks → « Correction effacée », approve 404, reject 200.
+Notifications and mails: `task.assigned` mails « correction de pointage à traiter : Sarah Ferhat (29/09/2026) » /
+« طلب تصحيح تسجيل الحضور للمعالجة: سارة فرحات (29/09/2026) »; rejection mail « تم رفض طلب تصحيح تسجيل الحضور ليوم
+20/09/2026 من طرف Amina Benali. التفاصيل متاحة في التطبيق. »; approved → bell only (« تم قبول طلب تصحيح تسجيل الحضور ليوم
+29/09/2026. »); the link opens `/me/attendance?correction=<id>` with that request focused and highlighted. No mail
+carries a reason, a time or the comment.
+Scope: regional HR list/report only Est units, a filter on an Ouest unit gives 0 rows; `lecture` reads its region, 404 on
+another region's correction, cannot approve (404) nor request (403); the unit head sees a correction only while its
+manager task is open, approving another unit's task → 404, no HR list/report (403); employees: another person's detail
+or cancel → 404, HR routes 403; self-approval by an HR requester → 409 `workflow-self-approval` (the requester is not
+listed as a candidate). CSV (fr and ar): BOM `EF BB BF`, `;`, CRLF on every line including the last, no bare LF,
+Arabic header `الرقم;اللقب;الاسم;…` with Arabic names, `'=HYPERLINK(""…"")` quoted, `'+Touati`, `"'-Leïla;x"`, `'@Khelifi`,
+`'=عمر`; each export is one `attendance.report_exported {month, unitId, rows}` with the caller as actor.
+Audit after corrections and a purge: correction events carry `{}` or `{position, action, direction}` only, no
+`change_log` rows for the two tables, `attendance.purged {punches: 348, corrections: 9, before}`; no reason, day, time
+or employment of a correction is left.
+
+**Remaining (not defects of this slice, for the owner).**
+- A **rejection comment** is free text written about the day (« Aucune trace de présence après 16:03 ») and lives in the
+  workflow audit (`workflow.reject` event data and the `workflow_task` change row), which the attendance purge does not
+  reach — the audit-retention question (b) above covers it. `workflow_instance` rows also keep the requester's user id
+  and request instant (opaque subject id).
+- Notifications of a purged correction keep the employee's name and the day until the notifications cleanup removes
+  them (read rows only).
+- Arabic « تسجيل الخروج » means both *sign out* (the header button) and *record the departure* (the /punch question and
+  the direction word « خروج »): on the phone both appear on one screen. A wording choice for the owner/Arabic reader.
 
 ## Out of scope (later)
 
 Badge terminals (ADR 009 §6), in-app camera scanning, single-use QR codes, site-network rule for phones, night shifts
 and rosters, overtime and payroll export, month locking, reminders ("no departure recorded" at 20:00), kiosk-offline
 alerts to HR, HR corrections on behalf of an employee through the workflow (HR records manual punches instead).
+
+- **Arabic arrival/departure wording (2026-09-30, lead):** « تسجيل الدخول / تسجيل الخروج » also mean "sign in / sign out" and appeared on the same phone screen as the header's sign-out button. Attendance strings now use **« الوصول » (arrival)** and **« المغادرة » (departure)**: « تسجيل الوصول عند {{entrance}}؟ », « تم تسجيل المغادرة على الساعة {{time}} », labels « الوصول / المغادرة ». Sign-in/sign-out strings are unchanged.

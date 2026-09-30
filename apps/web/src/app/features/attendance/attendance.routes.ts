@@ -9,6 +9,10 @@
  * - **`NOT_FOUND_ROUTE` last**: a configure-only user opening `/attendance` would otherwise get the parent with an
  *   empty outlet (a blank page); `{ ...NOT_FOUND_ROUTE, path: 'settings' }` answers a read-only user's `/settings`.
  * - Both pages are `loadComponent`s: a `lecture` user never downloads the settings' schedule editors.
+ * - Phase B adds `corrections` (list), `corrections/:id` (detail, `:id` bound to the page's `id` input by
+ *   `withComponentInputBinding()`) and `reports` (the monthly report), all `attendance.read`. Static `corrections`
+ *   is listed before `corrections/:id` for readability; the router matches segment counts, so the order is not
+ *   what makes it work here.
  */
 import type { Routes } from '@angular/router';
 import { permissionGuard } from '../../core/auth/permission.guard';
@@ -24,6 +28,21 @@ export const ATTENDANCE_ROUTES: Routes = [
     path: 'settings',
     canMatch: [permissionGuard('attendance.configure')],
     loadComponent: () => import('./settings.page').then((m) => m.AttendanceSettingsPage),
+  },
+  {
+    path: 'corrections',
+    canMatch: [permissionGuard('attendance.read')],
+    loadComponent: () => import('./corrections.page').then((m) => m.CorrectionsPage),
+  },
+  {
+    path: 'corrections/:id',
+    canMatch: [permissionGuard('attendance.read')],
+    loadComponent: () => import('./correction-detail.page').then((m) => m.CorrectionDetailPage),
+  },
+  {
+    path: 'reports',
+    canMatch: [permissionGuard('attendance.read')],
+    loadComponent: () => import('./monthly-report.page').then((m) => m.MonthlyReportPage),
   },
   { ...NOT_FOUND_ROUTE, path: 'settings' },
   NOT_FOUND_ROUTE,

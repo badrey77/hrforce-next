@@ -87,6 +87,8 @@ export class PolicyDto extends createZodDto(
   z.object({
     retentionMonths: z.number().int().min(12, { message: 'Between 12 and 120' }).max(120, { message: 'Between 12 and 120' }).optional(),
     minPunchGapSeconds: z.number().int().min(0, { message: 'Between 0 and 600' }).max(600, { message: 'Between 0 and 600' }).optional(),
+    correctionMaxAgeDays: z.number().int().min(1, { message: 'Between 1 and 90' }).max(90, { message: 'Between 1 and 90' }).optional(),
+    correctionWorkflowCode: z.enum(['attendance.manager_then_hr', 'attendance.hr_only']).optional(),
   }),
 ) {}
 
@@ -153,3 +155,59 @@ export class UpdateKioskDto extends createZodDto(
 ) {}
 
 export class RevokeKioskDto extends createZodDto(z.object({ reason: text(3, 500) })) {}
+
+// ── Phase B: corrections and the monthly report ──────────────────────────────────────────────────────────────────
+
+const CORRECTION_STATUS = ['pending', 'approved', 'rejected', 'cancelled'] as const;
+
+/**
+ * `changes` accepts up to 20 entries here so the domain can answer the contract's codes (`min_items` / `max_items`
+ * for anything outside 1–4); each change is `add` (direction + "HH:MM") or `void` (a punch id).
+ */
+export class CorrectionRequestDto extends createZodDto(
+  z.object({
+    date: isoDate,
+    reason: text(3, 500),
+    changes: z
+      .array(
+        z.discriminatedUnion('action', [
+          z.object({
+            action: z.literal('add'),
+            direction: z.enum(['in', 'out']),
+            time: z.string().refine((v) => parseHhMm(v) !== null, { message: 'HH:MM, 00:00–23:59' }),
+          }),
+          z.object({ action: z.literal('void'), punchId: uuid }),
+        ]),
+      )
+      .max(20, { message: 'At most 4 changes' }),
+  }),
+) {}
+
+export class CorrectionStatusQueryDto extends createZodDto(z.object({ status: z.enum(CORRECTION_STATUS).optional() })) {}
+
+export class CorrectionListQueryDto extends createZodDto(
+  z.object({
+    status: z.enum(CORRECTION_STATUS).optional(),
+    unitId: uuid.optional(),
+    includeSubUnits: boolQuery,
+    employmentId: uuid.optional(),
+    from: isoDate.optional(),
+    to: isoDate.optional(),
+    q: z.string().trim().max(100).optional().transform((v) => (v ? v : undefined)),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  }),
+) {}
+
+export class MonthlyReportQueryDto extends createZodDto(
+  z.object({
+    month: z.string().max(7).optional(),
+    unitId: uuid.optional(),
+    includeSubUnits: boolQuery,
+    siteId: uuid.optional(),
+    q: z.string().trim().max(100).optional().transform((v) => (v ? v : undefined)),
+    lang: z.enum(['fr', 'ar', 'en']).default('fr'),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  }),
+) {}

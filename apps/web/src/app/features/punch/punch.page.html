@@ -1,6 +1,7 @@
 <!--
-  punch.page.ts. One `@switch` on the state; the success screen fills the phone: the direction in big type, the time,
-  the entrance, a colour AND an icon AND words (never colour alone).
+  punch.page.ts. One `@switch` on the state: working → the one-tap question → done (or a problem). The success
+  screen fills the phone: the direction in big type, the time, the entrance, a colour AND an icon AND words (never
+  colour alone).
 -->
 <ng-container *transloco="let t">
   @switch (state().kind) {
@@ -17,6 +18,46 @@
           <p class="muted">{{ t('attendance.punch.entrance') }} <bdi>{{ name }}</bdi></p>
         }
       </section>
+    }
+
+    @case ('confirm') {
+      <!--
+        The one-tap confirmation (2026-09-30). The question is the heading, so a screen reader reads it when the
+        focus lands on the button below (`aria-describedby` repeats the time rule). The entrance name sits INSIDE a
+        translated sentence, where a `<bdi>` element cannot go, so the page wraps it in the Unicode isolates FSI/PDI
+        (`isolatedEntrance`): an Arabic label in a French sentence (or the reverse) keeps its own direction and does
+        not drag the question mark along — what `<bdi>` does for markup.
+      -->
+      @if (state(); as s) {
+        @if (s.kind === 'confirm') {
+          @let r = s.receipt;
+          @if (r.duplicate) {
+            <!-- The receipt was already redeemed (a second scan within the gap): nothing to confirm, no button. -->
+            <section class="punch done" [attr.data-direction]="r.direction" data-state="already" role="status">
+              <h1 class="direction">{{ t('attendance.direction.' + r.direction) }}</h1>
+              <p class="time"><time dir="ltr">{{ r.localTime }}</time></p>
+              <p class="badge duplicate" data-state="duplicate">{{ t('attendance.punch.duplicate') }}</p>
+              @if (entrance(); as name) {
+                <p class="muted">{{ t('attendance.punch.entrance') }} <bdi>{{ name }}</bdi></p>
+              }
+              <a class="btn" routerLink="/me/attendance" data-action="my-attendance">{{ t('attendance.punch.seeMine') }}</a>
+            </section>
+          } @else {
+            <section class="punch confirm" data-state="confirm" [attr.data-direction]="r.direction" aria-labelledby="punch-question">
+              <h1 id="punch-question" class="question">
+                {{ t('attendance.punch.confirm.question.' + r.direction, { entrance: isolatedEntrance() }) }}
+              </h1>
+              <p class="muted" id="punch-rule">{{ t('attendance.punch.confirm.scannedAt', { time: r.localTime }) }}</p>
+              <!-- `#confirmButton` is what `viewChild('confirmButton')` finds; the page focuses it once it exists. -->
+              <button #confirmButton class="btn big" type="button" data-action="confirm-punch" aria-describedby="punch-rule" (click)="confirm()">
+                {{ t('attendance.punch.confirm.button') }}
+              </button>
+              <p class="field-hint">{{ t('attendance.punch.confirm.expiresHint') }}</p>
+              <p><a routerLink="/" data-action="dont-record">{{ t('attendance.punch.confirm.dontRecord') }}</a></p>
+            </section>
+          }
+        }
+      }
     }
 
     @case ('done') {

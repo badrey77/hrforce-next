@@ -3,7 +3,9 @@ export { AttendanceModule } from './attendance.module.js';
 export { AttendanceClock, AttendanceKeys } from './application/attendance-clock.js';
 export { ATTENDANCE_PERMISSIONS } from './application/presence.service.js';
 export { runAttendanceRetention, type AttendanceRetentionResult } from './application/attendance-retention.js';
-export { algiersDate, algiersInstant, retentionCutoff } from './domain/time.js';
+export { addDays as attendanceAddDays, algiersDate, algiersInstant, retentionCutoff } from './domain/time.js';
+export { RECEIPT_TTL_SECONDS } from './domain/tokens.js';
+export { toCsv } from './domain/csv.js';
 export {
   deriveKeys,
   encodeKioskCookie,
@@ -16,6 +18,7 @@ export {
 } from './domain/tokens.js';
 export {
   AGENCY_WEEK,
+  ATTENDANCE_DEFINITIONS,
   DEMO_KIOSKS,
   DEMO_PAIRING_CODE,
   DEMO_SCHEDULES,

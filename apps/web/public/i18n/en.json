@@ -489,7 +489,9 @@
       "attendance_schedule_version": "Schedule version",
       "attendance_schedule_override": "Exceptional hours",
       "attendance_schedule_assignment": "Schedule assignment",
-      "attendance_punch": "Punch"
+      "attendance_punch": "Punch",
+      "attendance_correction": "Attendance correction",
+      "attendance_correction_item": "Requested change"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -733,7 +735,9 @@
         "status": "Status",
         "voided_at": "Voided at",
         "voided_by": "Voided by",
-        "void_reason": "Void reason"
+        "void_reason": "Void reason",
+        "correction_id": "Correction",
+        "void_correction_id": "Voided by correction"
       },
       "attendance_device": {
         "kind": "Kind",
@@ -751,6 +755,24 @@
         "revoked_at": "Revoked at",
         "revoked_by": "Revoked by",
         "revoke_reason": "Revocation reason"
+      },
+      "attendance_correction": {
+        "work_date": "Day",
+        "reason": "Reason",
+        "status": "Status",
+        "requested_by": "Requested by",
+        "requested_at": "Requested on",
+        "org_unit_id": "Unit"
+      },
+      "attendance_correction_item": {
+        "position": "Order",
+        "action": "Action",
+        "direction": "Direction",
+        "occurred_at": "Requested time"
+      },
+      "attendance_policy": {
+        "correction_max_age_days": "Correction window (days)",
+        "correction_workflow_code": "Correction chain"
       }
     },
     "events": {
@@ -802,7 +824,15 @@
           "qr": "Kiosk punch deleted",
           "manual": "Manual punch deleted",
           "correction": "Correction punch deleted"
-        }
+        },
+        "report_exported": "Monthly report {{month}} exported ({{rows}} rows)",
+        "correction_requested": "Attendance correction requested",
+        "correction_item_added": "Change no. {{number}} requested",
+        "correction_approved": "Attendance correction approved",
+        "correction_rejected": "Attendance correction rejected",
+        "correction_cancelled": "Attendance correction cancelled",
+        "correction_deleted": "Attendance correction deleted",
+        "correction_item_deleted": "Change no. {{number}} deleted"
       }
     },
     "values": {
@@ -1310,7 +1340,8 @@
       "documentEmploymentEnded": "Cannot issue {{name}}'s attestation: the employment has ended.",
       "documentNoSignatory": "Cannot issue {{name}}'s document: no signatory covers their unit.",
       "documentTypeInactive": "Cannot issue {{name}}'s document: this document type is disabled.",
-      "documentRetry": "{{name}}'s document could not be generated right now. Try again in a moment."
+      "documentRetry": "{{name}}'s document could not be generated right now. Try again in a moment.",
+      "correctionStale": "A punch to remove in {{name}}’s request was voided meanwhile: the correction can no longer be approved as is. Please reject it and explain why."
     },
     "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you."
   },
@@ -1369,7 +1400,9 @@
       "task": {
         "assigned": "“{{leaveType}}” request from {{employeeName}}, {{startDate}} to {{endDate}} ({{days}} d): waiting for you.",
         "escalated": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available).",
-        "assigned_document": "“{{documentType}}” request to handle: {{employeeName}}."
+        "assigned_document": "“{{documentType}}” request to handle: {{employeeName}}.",
+        "assigned_attendance": "Attendance correction to handle: {{employeeName}} ({{date}}).",
+        "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available)."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1381,11 +1414,16 @@
       "document": {
         "ready": "Your “{{documentType}}” is ready: you can download it.",
         "rejected": "Your “{{documentType}}” request was rejected."
+      },
+      "attendance": {
+        "correction_approved": "Your attendance correction for {{date}} was approved.",
+        "correction_rejected": "Your attendance correction for {{date}} was rejected."
       }
     },
     "typesNamed": {
       "task": {
-        "escalated": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available)."
+        "escalated": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available).",
+        "escalated_attendance": "{{employeeName}}’s attendance correction for {{date}} goes straight to the HR step (no manager available)."
       },
       "leave": {
         "approved": "{{employeeName}}’s “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1406,6 +1444,10 @@
       "document": {
         "ready": "My requested document is ready",
         "rejected": "My document request is rejected"
+      },
+      "attendance": {
+        "correction_approved": "My attendance correction is approved",
+        "correction_rejected": "My attendance correction is rejected"
       }
     }
   },
@@ -2059,7 +2101,8 @@
       "working": {
         "scan": "Reading the code…",
         "punch": "Recording your punch…",
-        "signin": "Sign-in required…"
+        "signin": "Sign-in required…",
+        "receipt": "Checking the scan…"
       },
       "entrance": "Entrance:",
       "recorded": {
@@ -2079,14 +2122,24 @@
         "generic": "Punch not recorded"
       },
       "problem": {
-        "expired": "This code has expired. Please scan the code at the entrance again.",
+        "expired": "Code expired. Please scan the code shown at the entrance again.",
         "invalid": "This code is not valid. Please scan the code at the entrance again.",
         "noScan": "Please scan the code at the entrance again.",
         "notLinked": "Your account is not linked to an employee record. Please contact HR.",
         "forbidden": "Your account cannot check in. Please contact HR.",
         "notEmployed": "You are not employed on this date. Please contact HR.",
-        "network": "The server cannot be reached. The scan stays valid for 5 minutes: try again.",
+        "network": "The server cannot be reached. The scan stays valid for 2 minutes: try again.",
         "generic": "Something went wrong. Please scan the code at the entrance again."
+      },
+      "confirm": {
+        "question": {
+          "in": "Record my arrival at {{entrance}}?",
+          "out": "Record my departure at {{entrance}}?"
+        },
+        "scannedAt": "Code scanned at {{time}}: that is the time that will be recorded.",
+        "button": "Record",
+        "expiresHint": "The code stays valid for 2 minutes after the scan.",
+        "dontRecord": "Don’t record"
       }
     },
     "mine": {
@@ -2314,7 +2367,123 @@
       "retentionHint": "Between {{min}} and {{max}} months after the end of the month.",
       "gap": "Duplicate window (seconds)",
       "gapHint": "A second scan within this window returns the first punch ({{min}} to {{max}} s).",
-      "saved": "Policy saved."
+      "saved": "Policy saved.",
+      "correctionAge": "Correction window (days)",
+      "correctionAgeHint": "An employee may request a correction of a day up to this many days back ({{min}} to {{max}}).",
+      "correctionWorkflow": "Correction approval chain",
+      "correctionWorkflowHint": "Applies to new requests.",
+      "workflows": {
+        "manager_then_hr": "Manager, then HR",
+        "hr_only": "HR only"
+      }
+    },
+    "corrections": {
+      "before": "Before",
+      "after": "After",
+      "removed": "to remove",
+      "added": "added",
+      "purgedShort": "Correction deleted (retention period)",
+      "purgedTitle": "Correction deleted",
+      "purged": "This correction request was deleted at the end of its retention period. It can no longer be approved: please reject it to close the task.",
+      "taskTitle": "Attendance correction for {{date}}",
+      "changeCount": "Changes: {{count}}",
+      "day": "Day",
+      "computedNow": "The day today",
+      "summaryOnly": "Punch details unavailable: only the day’s arrival and departure are shown.",
+      "approveHint": "Approving records the added punches and voids those to remove; existing punches are never edited.",
+      "pendingChip": "Correction pending",
+      "request": "Request a correction",
+      "requestNamed": "Request a correction for {{date}}",
+      "formTitle": "Correction for {{date}}",
+      "rules": "A correction can be requested up to {{days}} days back, with 1 to {{max}} changes, and one pending request per day. It is approved by the manager, then by HR.",
+      "recorded": "Recorded punches (tick those to remove)",
+      "removeLabel": "Remove: {{direction}} at {{time}}",
+      "toAdd": "Punches to add",
+      "addRow": "Add a punch",
+      "removeRow": "Remove",
+      "removeRowNamed": "Remove punch to add no. {{n}}",
+      "errors": {
+        "noChange": "Please give at least one change (a punch to remove or to add).",
+        "tooMany": "At most {{max}} changes per request."
+      },
+      "reasonHint": "For example: phone forgotten, kiosk out of order. 3 to 500 characters.",
+      "previewTitle": "Preview",
+      "submit": "Send the request",
+      "problems": {
+        "date": "This day can no longer be corrected (too old or outside the employment).",
+        "pending": "A correction request is already pending for this day.",
+        "punchGone": "This punch no longer exists or was already voided.",
+        "duplicate": "This punch is requested twice.",
+        "future": "This time has not come yet.",
+        "notCancellable": "This request is no longer pending: it can no longer be cancelled.",
+        "exists": "A punch already exists at this minute.",
+        "duplicateTime": "Two punches to add at the same minute."
+      },
+      "addChange": "Add: {{direction}}",
+      "voidChange": "Remove: {{direction}}",
+      "action": {
+        "add": "Add",
+        "void": "Remove"
+      },
+      "mine": "My correction requests",
+      "linkedMissing": "The request in the link is not in your list.",
+      "loadError": "Could not load the correction requests.",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "cancel": "Cancel the request",
+      "cancelTitle": "Cancel this correction request?",
+      "confirmCancel": "Cancel the request",
+      "keep": "Keep the request",
+      "rejectionComment": "Reason for rejection:",
+      "emptyMine": "No correction requests.",
+      "feedback": {
+        "requested": "Correction request sent.",
+        "cancelled": "Correction request cancelled."
+      },
+      "windowHint": "A missing or wrong punch? Open the day (up to {{days}} days back) and request a correction.",
+      "hrTitle": "Attendance corrections",
+      "statusLabel": "Status",
+      "allStatuses": "All statuses",
+      "from": "From",
+      "to": "To",
+      "total": "Requests: {{count}}",
+      "changes": "Changes",
+      "noMatch": "No request matches the filters.",
+      "empty": "No correction requests.",
+      "back": "Back to corrections",
+      "detailTitle": "Attendance correction request",
+      "employeeLink": "See the employee’s attendance",
+      "requestedAt": "Requested on",
+      "steps": "Approval",
+      "notFound": "Correction request not found.",
+      "ofMonth": "Correction requests of the month",
+      "noWindow": "No correction can be requested at the moment."
+    },
+    "reports": {
+      "title": "Monthly report",
+      "export": "Export CSV",
+      "exporting": "Exporting…",
+      "exportHint": "The CSV export has every row of the month for the chosen unit and site (without the search), with headers in the interface language.",
+      "monthLabel": "Report month",
+      "month": "Month",
+      "summary": "Employees: {{count}} — days counted: {{days}}",
+      "present": "Present",
+      "late": "Late",
+      "lateMinutes": "Total lateness",
+      "absent": "Absent",
+      "incomplete": "Incomplete",
+      "onLeave": "Leave",
+      "holiday": "Holidays",
+      "worked": "Worked / scheduled",
+      "absentDates": "Absence dates",
+      "empty": "No employee for this month.",
+      "loadError": "Could not load the report.",
+      "exportError": "The export could not be downloaded. Please try again.",
+      "tooMany": "Too many employees for this report (over 5,000): please choose a unit or a site."
     }
   }
 }

@@ -12,7 +12,7 @@ function caller(): { companyId: string; userId: string } {
   return { companyId, userId };
 }
 
-const SUBJECT_TYPES: readonly NotificationSubjectType[] = ['workflow_task', 'leave_request', 'document_request', 'issued_document'];
+const SUBJECT_TYPES: readonly NotificationSubjectType[] = ['workflow_task', 'leave_request', 'document_request', 'issued_document', 'attendance_correction'];
 
 function subjectTypeOf(value: string): NotificationSubjectType {
   return (SUBJECT_TYPES as readonly string[]).includes(value) ? (value as NotificationSubjectType) : 'leave_request';

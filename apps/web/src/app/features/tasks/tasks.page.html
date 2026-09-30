@@ -30,9 +30,18 @@
           @for (task of store.items(); track task.id) {
             <li>
               <button type="button" class="task" [attr.data-task]="task.id" [attr.aria-pressed]="task.id === selectedId()" (click)="select(task)">
-                <span class="who">{{ task.subject.employee.person | displayName: lang() }}</span>
+                <span class="who">{{ personOf(task) | displayName: lang() }}</span>
                 <!-- The union narrows inside @if: leaveTypeId/startDate exist only on a leave subject. -->
-                @if (task.subject.type === 'leave_request') {
+                @if (task.subject.type === 'attendance_correction') {
+                  <span class="what" data-subject="attendance_correction">
+                    @if (task.subject.purged) {
+                      {{ t('attendance.corrections.purgedShort') }}
+                    } @else {
+                      {{ t('attendance.corrections.taskTitle', { date: (task.subject.date | date: 'fullDate' : undefined : locale()) }) }}
+                      · {{ t('attendance.corrections.changeCount', { count: task.subject.changes.length }) }}
+                    }
+                  </span>
+                } @else if (task.subject.type === 'leave_request') {
                   <span class="what">
                     {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
                     {{ t('leave.fields.range', { from: (task.subject.startDate | date: 'mediumDate' : undefined : locale()), to: (task.subject.endDate | date: 'mediumDate' : undefined : locale()) }) }}
@@ -62,8 +71,41 @@
 
     <section class="panel detail" aria-labelledby="task-panel-title">
       @if (selected(); as task) {
-        <h2 id="task-panel-title" #panelHeading tabindex="-1">{{ task.subject.employee.person | displayName: lang() }}</h2>
-        @if (task.subject.type === 'document_request') {
+        <h2 id="task-panel-title" #panelHeading tabindex="-1">
+          @if (personOf(task); as person) {
+            {{ person | displayName: lang() }}
+          } @else {
+            {{ t('attendance.corrections.purgedTitle') }}
+          }
+        </h2>
+        @if (task.subject.type === 'attendance_correction') {
+          @if (task.subject.purged) {
+            <p class="warning" data-state="purged">{{ t('attendance.corrections.purged') }}</p>
+          } @else {
+            <dl class="facts" data-panel="attendance-correction">
+              <dt>{{ t('documents.fields.employee') }}</dt>
+              <dd data-field="employee"><bdi>{{ task.subject.employee.person | displayName: lang() }}</bdi> <span class="code">({{ task.subject.employee.matricule }})</span></dd>
+              @if (task.subject.employee.unit; as unit) {
+                <dt>{{ t('documents.fields.unit') }}</dt>
+                <dd><bdi>{{ unit | displayName: lang() }}</bdi></dd>
+              }
+              <dt>{{ t('attendance.corrections.day') }}</dt>
+              <dd data-field="date">{{ task.subject.date | date: 'fullDate' : undefined : locale() }}</dd>
+              <dt>{{ t('attendance.corrections.computedNow') }}</dt>
+              <dd data-field="day">
+                <app-day-status [status]="task.subject.day.status" />
+                <span dir="ltr"> {{ task.subject.day.arrival?.localTime ?? '—' }} – {{ task.subject.day.departure?.localTime ?? '—' }}</span>
+              </dd>
+              <dt>{{ t('attendance.reason.label') }}</dt>
+              <dd data-field="reason"><bdi>{{ task.subject.reason }}</bdi></dd>
+            </dl>
+            <app-correction-preview [punches]="correctionPunches()" [changes]="task.subject.changes" idPrefix="task-correction" />
+            @if (correction.error()) {
+              <p class="field-hint" data-state="summary-only">{{ t('attendance.corrections.summaryOnly') }}</p>
+            }
+            <p class="field-hint">{{ t('attendance.corrections.approveHint') }}</p>
+          }
+        } @else if (task.subject.type === 'document_request') {
           <dl class="facts" data-panel="document-request">
             <dt>{{ t('documents.fields.employee') }}</dt>
             <dd data-field="employee">{{ task.subject.employee.person | displayName: lang() }} <span class="code">({{ task.subject.employee.matricule }})</span></dd>
@@ -93,8 +135,16 @@
         } @else {
           <p class="muted">{{ t('common.loading') }}</p>
         }
+        @if (panelError(); as error) {
+          @if (error.taskId === task.id) {
+            <p class="form-error" role="alert" data-error="panel">{{ t(error.key) }}</p>
+          }
+        }
         <div class="form-actions decide">
-          <button class="btn" type="button" data-action="approve" [disabled]="acting()" (click)="approve(task)">{{ t('tasks.approve') }}</button>
+          <!-- A purged correction has nothing left to apply: only a rejection closes its task. -->
+          @if (!(task.subject.type === 'attendance_correction' && task.subject.purged)) {
+            <button class="btn" type="button" data-action="approve" [disabled]="acting()" (click)="approve(task)">{{ t('tasks.approve') }}</button>
+          }
           <button class="btn secondary" type="button" data-action="reject" [disabled]="acting()" (click)="openReject(task)">{{ t('tasks.reject') }}</button>
         </div>
       } @else {
@@ -108,7 +158,14 @@
     @if (rejecting(); as task) {
       <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" novalidate>
         <h2 id="reject-title">{{ t('tasks.rejectTitle') }}</h2>
-        <p>{{ task.subject.employee.person | displayName: lang() }} — {{ subjectLabel(task) }}</p>
+        <p>
+          {{ personOf(task) | displayName: lang() }} —
+          @if (task.subject.type === 'attendance_correction') {
+            {{ t('attendance.corrections.taskTitle', { date: task.subject.purged ? '' : (task.subject.date | date: 'mediumDate' : undefined : locale()) }) }}
+          } @else {
+            {{ subjectLabel(task) }}
+          }
+        </p>
         @let comment = rejectForm.controls.comment;
         <div class="field">
           <label for="reject-comment">{{ t('tasks.comment') }}</label>

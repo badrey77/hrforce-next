@@ -17,6 +17,9 @@
             @if (day.flags.length) {
               <app-day-flags [flags]="day.flags" />
             }
+            @if (pendingDates().has(day.date)) {
+              <span class="badge" data-state="correction-pending">{{ t('attendance.corrections.pendingChip') }}</span>
+            }
           </summary>
 
           <div class="detail">
@@ -79,6 +82,13 @@
                 <li class="muted" data-state="no-punch">{{ t('attendance.day.noPunch') }}</li>
               }
             </ol>
+            @if (correctableDates().has(day.date)) {
+              <button class="btn secondary small" type="button" data-action="request-correction"
+                [attr.aria-label]="t('attendance.corrections.requestNamed', { date: (day.date | date: 'fullDate' : undefined : locale()) })"
+                (click)="requestCorrection.emit(day)">
+                {{ t('attendance.corrections.request') }}
+              </button>
+            }
           </div>
         </details>
       </li>

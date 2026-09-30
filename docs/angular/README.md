@@ -94,6 +94,13 @@ the files it discusses, so you can jump straight to the source.
     screen, reading and clearing the URL fragment, a flow that survives a sign-in redirect, the web app manifest,
     testing time.
 
+21. [21-corrections-reports-and-a-one-tap-confirmation.md](./21-corrections-reports-and-a-one-tap-confirmation.md) —
+    Attendance Phase B: a one-tap confirmation (a new state fed by a read-only receipt endpoint, focus with `viewChild`
+    + `afterRenderEffect`, an expiry timer, Unicode isolates in a translated sentence), a form of two
+    `FormArray`s with a group validator and a validator reading a signal, calling a child component's method through
+    `viewChild(Class)`, a before/after view with `<del>`/`<ins>`, a union variant without an employee in My tasks, a
+    CSV download driven by the page's query.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen.
 
 ## Concept → chapter → file index
@@ -337,3 +344,13 @@ teaches what the code actually uses, and grows as the code does (see `CLAUDE.md`
 | Countdown signal fed by `setInterval` (one-time pairing code) | 20 | `src/app/features/attendance/kiosks-settings.ts` |
 | Web app manifest, icons, no service worker | 20 | `public/manifest.webmanifest`, `src/index.html` |
 | Fake timers + an `InjectionToken` spy for `location.reload()` | 20, 09 | `src/app/features/kiosk/kiosk.page.spec.ts` |
+| One-tap confirmation state; focus a button that appears with `viewChild` + `afterRenderEffect`; expiry `setTimeout` + `DestroyRef` | 21, 20 | `src/app/features/punch/punch.page.ts` |
+| Read before you write: a read-only endpoint (`GET /me/attendance/receipt`) feeds a confirmation step | 21, 20 | `src/app/features/punch/punch.page.ts`, `src/app/core/attendance/attendance-api.ts` |
+| Unicode isolates (U+2068/U+2069) for a name inside a translated sentence | 21, 08 | `src/app/features/punch/punch.page.ts` (`isolatedEntrance`) |
+| Two `FormArray`s (checkboxes by index, rows pushed/removed, `track` on the group object); group validator across arrays | 21, 07 | `src/app/features/my-attendance/correction-form.ts` / `.html` |
+| Validator factory reading a signal; server errors on array rows (`changes.<i>` → `additions.<j>`) | 21, 07 | `src/app/features/my-attendance/correction-form.ts` |
+| Calling a child component's method through `viewChild(Class)` | 21, 02 | `src/app/features/my-attendance/my-attendance.page.ts` |
+| Before/after view: pure function + `<del>`/`<ins>`; grid columns that stack without a media query | 21 | `src/app/shared/attendance/correction-preview.ts`, `src/app/core/attendance/attendance.models.ts` |
+| Union variant without the common field (`purged`), narrowed twice in a template | 21, 18 | `src/app/core/tasks/tasks.models.ts`, `src/app/features/tasks/tasks.page.html` |
+| CSV as a Blob from the page's own query, `BlobFiles.save()` | 21, 18 | `src/app/features/attendance/monthly-report.page.ts` |
+| A default filter that is not "everything" (`?status=all`) | 21, 14 | `src/app/features/attendance/hr-list-state.ts` |

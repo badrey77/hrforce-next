@@ -11,6 +11,7 @@ export const LEAVE_READ = 'leave.read';
 export const DOCUMENT_READ = 'document.read';
 export const MEDICAL_READ = 'employee.medical.read';
 export const ATTENDANCE_CONFIGURE = 'attendance.configure';
+export const ATTENDANCE_READ = 'attendance.read';
 
 function subjectNotFound(): NotFoundException {
   return new NotFoundException('Subject not found');
@@ -31,6 +32,10 @@ function subjectNotFound(): NotFoundException {
  * employee.medical.read over the employee's unit (a file title can be medical data) — and its attendance punch events
  * except QR arrivals/departures (manual punches, voids, deletions; docs/contracts/attendance.md › Audit and timeline).
  * An attendance kiosk (its device rows and events) is visible with attendance.configure held anywhere (no audit.read).
+ * A punch correction (its events, its workflow rows and workflow.* events, the events of the punches it added or voided)
+ * is visible like GET /attendance/corrections/:id: the employee's linked user, a current candidate of its open task,
+ * or attendance.read over the employee's scope unit (no audit.read needed). The employee timeline lists its corrections'
+ * events too.
  * Anything else — unknown, other company, out of scope — is 404.
  */
 @Injectable()
@@ -95,6 +100,18 @@ export class TimelineService {
         const employmentId = await this.repo.issuedDocumentEmployment(companyId, subject.id);
         const unitId = employmentId ? await this.repo.employeeScopeUnit(companyId, employmentId) : undefined;
         if (!unitId || !(await this.scopes.inScope(DOCUMENT_READ, unitId))) throw subjectNotFound();
+        return plain;
+      }
+      case 'attendance_correction': {
+        const access = await this.repo.correctionAccess(companyId, subject.id);
+        if (!access) throw subjectNotFound();
+        const { userId } = requireContext();
+        const unitId = await this.repo.employeeScopeUnit(companyId, access.employmentId);
+        const visible =
+          (access.linkedUserId !== null && access.linkedUserId === userId) ||
+          (unitId !== undefined && (await this.scopes.inScope(ATTENDANCE_READ, unitId))) ||
+          (access.workflowInstanceId !== null && (await this.workflow.isCandidate(access.workflowInstanceId)));
+        if (!visible) throw subjectNotFound();
         return plain;
       }
       case 'attendance_device': {

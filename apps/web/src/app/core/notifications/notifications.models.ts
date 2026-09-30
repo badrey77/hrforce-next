@@ -14,6 +14,9 @@ export const NOTIFICATION_TYPES = [
   // Documents (docs/contracts/documents.md › Notifications): a self-service request was approved (document issued) or rejected.
   'document.ready',
   'document.rejected',
+  // Attendance (docs/contracts/attendance.md › Phase B › Notifications): the outcome of a punch correction request.
+  'attendance.correction_approved',
+  'attendance.correction_rejected',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -30,10 +33,12 @@ export interface NotificationView {
   readonly type: string;
   readonly createdAt: string;
   readonly readAt: string | null;
-  readonly subject: { readonly type: 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document'; readonly id: string };
+  readonly subject: { readonly type: 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction'; readonly id: string };
   /**
    * Names/dates needed to render, e.g. `{employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}`;
-   * documents add `subjectType` (`leave_request` | `document_request`, on `task.assigned`) and `documentType` (code).
+   * documents add `subjectType` (`leave_request` | `document_request`, on `task.assigned`) and `documentType` (code);
+   * attendance corrections `{correctionId, employeeName, employeeNameAr, date, changes (count), actorName}` and
+   * `subjectType: 'attendance_correction'` on `task.assigned`.
    */
   readonly data: Readonly<Record<string, string | number | null>>;
   /** Per recipient: picks "your request" (`employee`) or a sentence naming the employee (anything else). */

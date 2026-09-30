@@ -11,7 +11,7 @@ export interface PunchRow {
   direction: 'in' | 'out';
   occurredAt: Date;
   workDate: string;
-  source: 'qr' | 'manual';
+  source: 'qr' | 'manual' | 'correction';
   deviceId: string | null;
   qrWindow: number | null;
   siteId: string | null;
@@ -22,19 +22,24 @@ export interface PunchRow {
   voidedAt: Date | null;
   voidedBy: string | null;
   voidReason: string | null;
+  /** Phase B: the correction that added this punch (source `correction`) */
+  correctionId: string | null;
+  /** Phase B: the correction whose approval voided this punch */
+  voidCorrectionId: string | null;
 }
 
 export interface NewPunch {
   employmentId: string;
   direction: 'in' | 'out';
   occurredAt: Date;
-  source: 'qr' | 'manual';
+  source: 'qr' | 'manual' | 'correction';
   deviceId: string | null;
   qrWindow: number | null;
   siteId: string | null;
   deviceRef: string | null;
   reason: string | null;
   createdBy: string | null;
+  correctionId?: string | null;
 }
 
 /** An employment with its person (names) and every assignment. */
@@ -73,7 +78,8 @@ export interface SiteRow {
 const PUNCH_COLUMNS = sql`
   p.id, p.employment_id as "employmentId", p.direction, p.occurred_at as "occurredAt", p.work_date::text as "workDate", p.source,
   p.device_id as "deviceId", p.qr_window::int8 as "qrWindow", p.site_id as "siteId", p.device_ref as "deviceRef", p.reason,
-  p.created_by as "createdBy", p.status, p.voided_at as "voidedAt", p.voided_by as "voidedBy", p.void_reason as "voidReason"`;
+  p.created_by as "createdBy", p.status, p.voided_at as "voidedAt", p.voided_by as "voidedBy", p.void_reason as "voidReason",
+  p.correction_id as "correctionId", p.void_correction_id as "voidCorrectionId"`;
 
 function toPunch(r: PunchRow): PunchRow {
   return { ...r, qrWindow: r.qrWindow === null ? null : Number(r.qrWindow) };
@@ -108,19 +114,27 @@ export class AttendanceRepository {
     return row ? toPunch(row) : undefined;
   }
 
+  /** Punches by id (any employment of the company). */
+  async punchesByIds(companyId: string, list: readonly string[]): Promise<PunchRow[]> {
+    if (list.length === 0) return [];
+    const { rows } = await sql<PunchRow>`
+      select ${PUNCH_COLUMNS} from attendance_punch p where p.company_id = ${companyId}::uuid and p.id in (${ids(list)})`.execute(currentTx());
+    return rows.map(toPunch);
+  }
+
   async insertPunch(companyId: string, p: NewPunch): Promise<string> {
     const { rows } = await sql<{ id: string }>`
-      insert into attendance_punch (company_id, employment_id, direction, occurred_at, source, device_id, qr_window, site_id, device_ref, reason, created_by)
+      insert into attendance_punch (company_id, employment_id, direction, occurred_at, source, device_id, qr_window, site_id, device_ref, reason, created_by, correction_id)
       values (${companyId}::uuid, ${p.employmentId}::uuid, ${p.direction}, ${p.occurredAt}, ${p.source}, ${p.deviceId}::uuid, ${p.qrWindow},
-              ${p.siteId}::uuid, ${p.deviceRef}, ${p.reason}, ${p.createdBy}::uuid)
+              ${p.siteId}::uuid, ${p.deviceRef}, ${p.reason}, ${p.createdBy}::uuid, ${p.correctionId ?? null}::uuid)
       returning id`.execute(currentTx());
     const id = rows[0]?.id;
     if (!id) throw new Error('attendance_punch insert returned no id');
     return id;
   }
 
-  async voidPunch(companyId: string, id: string, by: string, reason: string): Promise<void> {
-    await sql`update attendance_punch set status = 'void', voided_at = now(), voided_by = ${by}::uuid, void_reason = ${reason}
+  async voidPunch(companyId: string, id: string, by: string, reason: string, correctionId: string | null = null): Promise<void> {
+    await sql`update attendance_punch set status = 'void', voided_at = now(), voided_by = ${by}::uuid, void_reason = ${reason}, void_correction_id = ${correctionId}::uuid
                where company_id = ${companyId}::uuid and id = ${id}::uuid`.execute(currentTx());
   }
 
@@ -315,14 +329,27 @@ function likeContains(q: string): string {
 
 // ── retention (worker) ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Deletes the punches of work days before `cutoff` (worker role, company transaction) → the count. */
-export async function purgePunches(tx: Transaction<DB>, companyId: string, cutoff: string): Promise<number> {
-  const { rows } = await sql<{ n: number }>`
+/**
+ * Deletes the attendance records of work days before `cutoff` (worker role, company transaction), in foreign-key
+ * order: correction items (they reference punches), punches (they reference corrections), corrections. A correction's
+ * punches and items always share its work day, so nothing newer references what is deleted. → the counts.
+ */
+export async function purgeAttendance(tx: Transaction<DB>, companyId: string, cutoff: string): Promise<{ punches: number; corrections: number }> {
+  await sql`
+    delete from attendance_correction_item i
+     using attendance_correction c
+     where i.company_id = ${companyId}::uuid and c.company_id = i.company_id and c.id = i.correction_id and c.work_date < ${cutoff}::date`.execute(tx);
+  const punches = await sql<{ n: number }>`
     with gone as (
       delete from attendance_punch where company_id = ${companyId}::uuid and work_date < ${cutoff}::date returning 1
     )
     select count(*)::int as n from gone`.execute(tx);
-  return rows[0]?.n ?? 0;
+  const corrections = await sql<{ n: number }>`
+    with gone as (
+      delete from attendance_correction where company_id = ${companyId}::uuid and work_date < ${cutoff}::date returning 1
+    )
+    select count(*)::int as n from gone`.execute(tx);
+  return { punches: punches.rows[0]?.n ?? 0, corrections: corrections.rows[0]?.n ?? 0 };
 }
 
 export async function retentionMonthsOf(tx: Transaction<DB>, companyId: string): Promise<number> {

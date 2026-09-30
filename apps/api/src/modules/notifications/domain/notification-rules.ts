@@ -16,6 +16,8 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'leave.submitted_on_behalf': true,
   'document.ready': true,
   'document.rejected': true,
+  'attendance.correction_approved': false,
+  'attendance.correction_rejected': true,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -41,6 +43,7 @@ export interface LinkSource {
  *                              (the requester who filed it on someone's behalf)
  *   document.ready           → /me/documents?document=<issued document id>
  *   document.rejected        → /me/documents?request=<document request id>
+ *   attendance_correction    → /me/attendance?correction=<id> (approved / rejected / escalated: the employee's own)
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
@@ -49,6 +52,7 @@ export function linkOf(n: LinkSource): string {
   if (n.subjectType === 'leave_request') return n.data['audience'] === 'employee' ? `/me/leave?request=${id}` : `/leave/requests/${id}`;
   if (n.subjectType === 'issued_document') return `/me/documents?document=${id}`;
   if (n.subjectType === 'document_request') return `/me/documents?request=${id}`;
+  if (n.subjectType === 'attendance_correction') return `/me/attendance?correction=${id}`;
   return '/notifications';
 }
 

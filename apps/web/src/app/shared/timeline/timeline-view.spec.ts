@@ -98,6 +98,12 @@ describe('buildTimeline (pure view model)', () => {
     expect(eventSentenceKey('attendance.purged', { punches: 3 })).toBe('audit.events.attendance.purged');
   });
 
+  it('correction item events number the changes from 1 (the event carries the 0-based position)', () => {
+    const entry = { ...GRANTED, event: { type: 'attendance.correction_item_added', data: { position: 0, action: 'add', direction: 'out' } } };
+    const event = buildTimeline([entry], NO_NAMES, NOW)[0]?.entries[0] as EventView;
+    expect(event).toMatchObject({ sentenceKey: 'audit.events.attendance.correction_item_added', params: { position: '0', number: '1' } });
+  });
+
   it('event dates go through the day formatter; unknown people fall back to the actors of the entries', () => {
     const event = buildTimeline([GRANTED], names, NOW, (day) => `<${day}>`)[0]?.entries[0] as EventView;
     expect(event.params['validFrom']).toBe('<2026-10-01>');

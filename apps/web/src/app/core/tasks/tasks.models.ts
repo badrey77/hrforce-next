@@ -7,7 +7,14 @@
  * (docs/contracts/documents.md › Endpoints: summary `{type: 'document_request', employee, documentType, language,
  * purpose, requestedAt}`). `TaskSubject` is a DISCRIMINATED UNION on `type`: code (and templates) check
  * `subject.type` first, and TypeScript then knows which fields exist.
+ *
+ * Attendance Phase B adds `attendance_correction` (docs/contracts/attendance.md › Audit and timeline (Phase B): summary
+ * `{type, employee, date, reason, changes, day: {status, arrival, departure}}`, or `{type, purged: true}` when the
+ * retention job deleted the request). The web reads `id` on it too (the correction id, as on the other two kinds).
+ * The purged form has no employee: `subjectPerson()` below is what list rows use to name anyone.
  */
+import type { CorrectionChange, DayStatus, PunchTime } from '../attendance/attendance.models';
+import type { NamePair } from '../employees/employees.models';
 import type { DocumentLanguage } from '../documents/documents.models';
 import type { Labels, LeaveEmployee } from '../leave/leave.models';
 
@@ -23,7 +30,32 @@ export interface DocumentTaskSubject {
   readonly requestedAt: string;
 }
 
-export type TaskSubject = LeaveTaskSubject | DocumentTaskSubject;
+export interface CorrectionTaskSubject {
+  readonly type: 'attendance_correction';
+  readonly purged?: false;
+  /** The correction id (`GET /attendance/corrections/:id` for the before/after panel). */
+  readonly id: string;
+  readonly employee: LeaveEmployee;
+  readonly date: string;
+  readonly reason: string;
+  readonly changes: readonly CorrectionChange[];
+  /** The day as computed now (before the change). */
+  readonly day: { readonly status: DayStatus; readonly arrival: PunchTime | null; readonly departure: PunchTime | null };
+}
+
+/** The retention job deleted the correction while its task was still open. */
+export interface PurgedCorrectionTaskSubject {
+  readonly type: 'attendance_correction';
+  readonly purged: true;
+  readonly id?: string;
+}
+
+export type TaskSubject = LeaveTaskSubject | DocumentTaskSubject | CorrectionTaskSubject | PurgedCorrectionTaskSubject;
+
+/** The person a task is about, or `null` for a purged subject (the only kind without one). */
+export function subjectPerson(subject: TaskSubject): NamePair | null {
+  return 'employee' in subject ? subject.employee.person : null;
+}
 
 export interface LeaveTaskSubject {
   readonly type: 'leave_request';

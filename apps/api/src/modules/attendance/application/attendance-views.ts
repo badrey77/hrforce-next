@@ -5,6 +5,7 @@
 import type { DayFlag, DayStatus } from '../domain/day.js';
 import type { ScheduleSource, TargetKind } from '../domain/schedules.js';
 import type { WeekDay } from '../domain/week.js';
+import type { TaskHistoryView, WorkflowProgressView } from '../../workflow/index.js';
 
 export type Labels = { fr: string; ar: string; en: string };
 export type LabelPair = { fr: string; ar: string };
@@ -135,6 +136,11 @@ export interface MyDaysView {
   items: AttendanceDayView[];
   totals: DayTotals;
   retentionMonths: number;
+  /**
+   * Phase B: the days a correction may be asked for today — [max(today − correctionMaxAgeDays, hire date),
+   * min(today, employment end)]; null when that range is empty (the employment ended before it)
+   */
+  correctionWindow: { from: string; to: string } | null;
 }
 
 export interface EmployeeDaysView extends MyDaysView {
@@ -155,6 +161,8 @@ export interface ScheduleSegmentsView {
 export interface PolicyView {
   retentionMonths: number;
   minPunchGapSeconds: number;
+  correctionMaxAgeDays: number;
+  correctionWorkflowCode: 'attendance.manager_then_hr' | 'attendance.hr_only';
 }
 
 export interface ScheduleView {
@@ -233,4 +241,84 @@ export interface PunchResultView {
   punch: PunchView;
   duplicate: boolean;
   day: AttendanceDayView;
+}
+
+// ── Phase B: corrections, monthly report; the scan receipt shown before the one-tap confirmation ─────────────────────
+
+export type CorrectionStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface CorrectionChangeView {
+  position: number;
+  action: 'add' | 'void';
+  /** add: the requested direction; void: null */
+  direction: 'in' | 'out' | null;
+  /** add: the requested time "HH:MM" (Algiers); void: null */
+  time: string | null;
+  /** void: the targeted punch */
+  punch: { id: string; direction: 'in' | 'out'; localTime: string } | null;
+  /** add, once approved: the punch it created */
+  resultPunchId: string | null;
+}
+
+export interface CorrectionView {
+  id: string;
+  date: string;
+  reason: string;
+  status: CorrectionStatus;
+  requestedAt: string;
+  requestedBy: UserRef | null;
+  employee: EmployeeRef;
+  changes: CorrectionChangeView[];
+  /** null only for a correction without a workflow instance (never through the API) */
+  workflow: WorkflowProgressView | null;
+  rejectionComment: string | null;
+  _actions: 'cancel'[];
+}
+
+export interface CorrectionDetailView extends CorrectionView {
+  history: TaskHistoryView[];
+  /** the day as computed now, with its punches (void included, their _actions always []) */
+  day: AttendanceDayView;
+}
+
+export interface CorrectionPage {
+  items: CorrectionView[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface MonthlyReportItem {
+  employee: EmployeeRef;
+  counts: { present: number; late: number; absent: number; incomplete: number; onLeave: number; holiday: number; restDay: number };
+  lateMinutes: number;
+  earlyDepartureMinutes: number;
+  workedMinutes: number;
+  scheduledMinutes: number;
+  absentDates: string[];
+  incompleteDates: string[];
+}
+
+export interface MonthlyReportView {
+  month: string;
+  /** calendar days counted: the 1st to min(month end, today) */
+  days: number;
+  items: MonthlyReportItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** GET /me/attendance/receipt: what redeeming the scan receipt would record (the /punch one-tap confirmation). */
+export interface ReceiptView {
+  kiosk: { labels: LabelPair; site: { code: string; name: string } };
+  scannedAt: string;
+  /** Algiers "HH:MM" of the scan; for a duplicate, of the punch already recorded */
+  localTime: string;
+  workDate: string;
+  receiptExpiresAt: string;
+  /** the direction the punch would get (for a duplicate: the existing punch's) */
+  direction: 'in' | 'out';
+  /** redeeming returns an existing punch (second scan within the gap, same kiosk window) and records nothing */
+  duplicate: boolean;
 }

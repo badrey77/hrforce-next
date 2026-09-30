@@ -114,6 +114,14 @@ describe('computeDay — working days', () => {
     expect(r.flags).toEqual(['leave_pending', 'other_site', 'manual_punch', 'shared_device']);
     expect(day(punches, { sharedRefs: new Set(['ref1']), showSharedDevice: false }).flags).not.toContain('shared_device');
   });
+
+  it('corrected (Phase B): a live correction punch, or a punch voided by a correction — not a plain HR void', () => {
+    const added = day([punch('in', '08:00', { source: 'correction', siteId: null }), punch('out', '16:30')]);
+    expect(added).toMatchObject({ status: 'present', flags: ['corrected'] });
+    const voided = day([punch('in', '07:00', { status: 'void', voidedByCorrection: true }), punch('in', '08:05'), punch('out', '16:30')]);
+    expect(voided).toMatchObject({ status: 'present', flags: ['corrected'] });
+    expect(day([punch('in', '07:00', { status: 'void' }), punch('in', '08:05'), punch('out', '16:30')]).flags).toEqual([]);
+  });
 });
 
 describe('computeDay — non-working days and precedence', () => {

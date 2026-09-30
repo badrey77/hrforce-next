@@ -72,3 +72,22 @@
 .problem h1 {
   font-size: 1.5rem;
 }
+
+/* The one-tap confirmation: the question large, ONE big button (a thumb-sized target: at least 3.5rem high). */
+.question {
+  margin: 0;
+  font-size: 1.625rem;
+  line-height: 1.3;
+}
+
+.btn.big {
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.confirm[data-direction='in'] .btn.big {
+  background: #116329;
+  border-color: #116329;
+}

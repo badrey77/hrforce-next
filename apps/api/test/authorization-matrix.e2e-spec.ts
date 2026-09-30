@@ -26,7 +26,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { as, BETA_SIGNATORY, COMPANY_B, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { DEMO_SIGNATORIES, demoLogoPng, demoPdf, DocumentsClock } from '../src/modules/documents/index.js';
 import { LeaveClock } from '../src/modules/leave/index.js';
-import { DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf, windowOf } from '../src/modules/attendance/index.js';
+import { algiersDate, attendanceAddDays, DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf, windowOf } from '../src/modules/attendance/index.js';
 import { BETA_KIOSK, kioskCookie, qrToken, scanReceipt } from './support/attendance-fixture.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
@@ -202,6 +202,11 @@ const ATT_SELF_ROWS = (ok: number): readonly Row[] => [
   ['ouest', '-', 403], ['acces', '-', 403],
 ];
 const scheduleOf = (t: Target) => (t === 'other' ? ATT.betaSchedule : DEMO_SCHEDULES.agence);
+/** Phase B corrections (filled in beforeAll): one per target (est EMP-0027, ouest EMP-0036, other BETA's), and two of agent.annaba's. */
+const CORR = { est: '', ouest: '', other: '', agentDetail: '', agentCancel: '' };
+const corrOf = (t: Target) => (t === 'est' ? CORR.est : t === 'ouest' ? CORR.ouest : t === 'other' ? CORR.other : CORR.agentDetail);
+/** A correction request body for the day `back` days before today (Algiers). */
+const corrBody = (back: number) => ({ date: attendanceAddDays(algiersDate(Date.now()), -back), reason: 'Oubli de pointage', changes: [{ action: 'add', direction: 'in', time: '08:00' }] });
 const kioskOf = (t: Target) => (t === 'other' ? BETA_KIOSK : DEMO_KIOSKS.cne.id);
 
 const READERS: readonly Row[] = [
@@ -786,7 +791,43 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [['chef', '-', 200], ['est', '-', 200], ['agent', '-', 200], ['admin', '-', 200], ['ouest', '-', 200], ['acces', '-', 200], ['beta', '-', 200]],
   },
 
+  'GET /api/me/attendance/receipt': {
+    access: 'attendance.punch_self',
+    request: () => ({ path: '/api/me/attendance/receipt', cookie: scanReceipt(DEMO_KIOSKS.cne.id, Date.now()) }),
+    rows: ATT_SELF_ROWS(200),
+  },
+  // ── attendance, Phase B: corrections (self-service) ──────────────────────────────────────────────────────
+  'POST /api/me/attendance/corrections': { access: 'attendance.punch_self', request: () => ({ path: '/api/me/attendance/corrections', body: corrBody(3) }), rows: ATT_SELF_ROWS(201) },
+  'GET /api/me/attendance/corrections': { access: 'attendance.punch_self', request: () => ({ path: '/api/me/attendance/corrections' }), rows: ATT_SELF_ROWS(200) },
+  'POST /api/me/attendance/corrections/:id/cancel': {
+    access: 'attendance.punch_self',
+    request: () => ({ path: `/api/me/attendance/corrections/${CORR.agentCancel}/cancel` }),
+    // est (linked to EMP-0022) on agent's → 404; admin holds punch_self but is not linked → 409; the owner last (consumes it)
+    rows: [['est', '-', 404], ['ouest', '-', 403], ['admin', '-', 409], ['agent', '-', 200]],
+  },
+
   // ── attendance: HR ─────────────────────────────────────────────────────────────────────────────────────
+  'GET /api/attendance/corrections': {
+    access: 'attendance.read',
+    request: () => ({ path: '/api/attendance/corrections' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 200], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'GET /api/attendance/corrections/:id': {
+    // the employee's linked user, a current candidate (chef: manager step of agent's), or attendance.read over the employee
+    access: 'authenticated',
+    request: (t) => ({ path: `/api/attendance/corrections/${corrOf(t)}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['est', 'est', 200], ['est', 'ouest', 404],
+      ['ouest', 'ouest', 200], ['ouest', 'est', 404],
+      ['acces', 'est', 404],
+      ['beta', 'est', 404], ['beta', 'other', 200],
+      ['agent', '-', 200], ['agent', 'est', 404],
+      ['chef', '-', 200],
+    ],
+  },
+  'GET /api/attendance/reports/monthly': { access: 'attendance.read', request: () => ({ path: '/api/attendance/reports/monthly?pageSize=5' }), rows: ATT_SETTINGS_READ },
+  'GET /api/attendance/reports/monthly.csv': { access: 'attendance.read', request: () => ({ path: '/api/attendance/reports/monthly.csv?lang=ar' }), rows: ATT_SETTINGS_READ },
   'GET /api/attendance/presence': {
     access: 'attendance.read',
     request: () => ({ path: '/api/attendance/presence?pageSize=5' }),
@@ -1058,6 +1099,24 @@ describe('Authorization matrix (e2e, real grants)', () => {
       ATT.kiosks.other.push(await kiosk(COMPANY_B, BETA_SITE, k));
     }
     expect([ATT.betaSchedule, ATT.betaOverride, ATT.betaAssignment].every((v) => v !== ''), JSON.stringify(ATT)).toBe(true);
+    // Phase B: agent.annaba's two corrections through the API (manager task → chef.annaba); one per target by SQL
+    const agentCorrection = async (back: number) =>
+      ((await as(app, 'agent', xsrf).post('/api/me/attendance/corrections').send(corrBody(back)).expect(201)).body as { id: string }).id;
+    CORR.agentDetail = await agentCorrection(5);
+    CORR.agentCancel = await agentCorrection(6);
+    const sqlCorrection = async (company: string, employmentId: string, unit: string) =>
+      (
+        await query<{ id: string }>(
+          db.superuserUrl,
+          `insert into attendance_correction (company_id, employment_id, org_unit_id, work_date, reason, requested_by)
+           values ($1, $2, $3, current_date - 4, 'Matrice', $4) returning id`,
+          [company, employmentId, unit, USERS.admin.id],
+        )
+      )[0]?.id ?? '';
+    CORR.est = await sqlCorrection(unitCompany, employeeA(27), unitA('AG-CNE'));
+    CORR.ouest = await sqlCorrection(unitCompany, employeeA(36), unitA('AG-ORAN'));
+    CORR.other = await sqlCorrection(COMPANY_B, EMPLOYEE_B.employmentId, unitB('BETA-RH'));
+    expect(Object.values(CORR).every((v) => v !== ''), JSON.stringify(CORR)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();

@@ -123,6 +123,16 @@ export class AuditRepository {
     return row !== undefined;
   }
 
+  /** What decides who may see a punch correction's history (like GET /attendance/corrections/:id). undefined = unknown. */
+  async correctionAccess(companyId: string, id: string): Promise<{ employmentId: string; linkedUserId: string | null; workflowInstanceId: string | null } | undefined> {
+    const { rows } = await sql<{ employmentId: string; linkedUserId: string | null; workflowInstanceId: string | null }>`
+      select c.employment_id as "employmentId", ue.user_id as "linkedUserId", c.workflow_instance_id as "workflowInstanceId"
+        from attendance_correction c
+        left join user_employment ue on ue.company_id = c.company_id and ue.employment_id = c.employment_id
+       where c.company_id = ${companyId}::uuid and c.id = ${id}::uuid`.execute(currentTx());
+    return rows[0];
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -208,6 +218,12 @@ export class AuditRepository {
    */
   private eventSubject(companyId: string, subject: TimelineSubject, medicalFiles: boolean): RawBuilder<boolean> {
     const own = sql<boolean>`(e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid)`;
+    if (subject.type === 'attendance_correction') {
+      // its own events (correction and item events, workflow.*) + the events of the punches it added or voided
+      return sql<boolean>`(${own} or (e.subject_type = 'attendance_punch' and e.subject_id in (
+        select p.id from attendance_punch p where p.company_id = ${companyId}::uuid
+           and (p.correction_id = ${subject.id}::uuid or p.void_correction_id = ${subject.id}::uuid))))`;
+    }
     if (subject.type !== 'employee') return own;
     return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
       select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${subject.id}::uuid))
@@ -217,7 +233,9 @@ export class AuditRepository {
       select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid))
       or (e.subject_type = 'employee_file' and e.subject_id in (${this.employeeFileIds(companyId, subject.id, medicalFiles)}))
       or (e.subject_type = 'attendance_punch' and not (e.type = 'attendance.punch_recorded' and e.data ->> 'source' = 'qr') and e.subject_id in (
-      select p.id from attendance_punch p where p.company_id = ${companyId}::uuid and p.employment_id = ${subject.id}::uuid)))`;
+      select p.id from attendance_punch p where p.company_id = ${companyId}::uuid and p.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'attendance_correction' and e.subject_id in (
+      select c.id from attendance_correction c where c.company_id = ${companyId}::uuid and c.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -281,6 +299,15 @@ export class AuditRepository {
       case 'issued_document':
         // the register row (its PDF bytes are not audited: issued_document_file is exempt, the hash is on this row)
         return sql<boolean>`c.table_name = 'issued_document' and c.row_id = ${id}::uuid`;
+      case 'attendance_correction':
+        // the correction's workflow instance and tasks (the correction and its items are audited as events only)
+        return sql<boolean>`(c.table_name = 'workflow_instance' and c.row_id in (
+                select i.id from workflow_instance i
+                 where i.company_id = ${companyId}::uuid and i.subject_type = 'attendance_correction' and i.subject_id = ${id}::uuid))
+          or (c.table_name = 'workflow_task' and c.row_id in (
+                select t.id from workflow_task t
+                  join workflow_instance i on i.company_id = t.company_id and i.id = t.instance_id
+                 where t.company_id = ${companyId}::uuid and i.subject_type = 'attendance_correction' and i.subject_id = ${id}::uuid))`;
       case 'attendance_device':
         // the kiosk's rows (the heartbeat is audit-exempt; the credential and pairing-code hashes are masked)
         return sql<boolean>`c.table_name = 'attendance_device' and c.row_id = ${id}::uuid`;

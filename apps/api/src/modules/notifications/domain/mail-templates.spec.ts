@@ -117,6 +117,27 @@ describe('notification mails', () => {
     expect(mail.text).toContain('من 12/10/2026 إلى 14/10/2026، 3 أيام)');
   });
 
+  it('punch corrections (attendance.md › Phase B): task, escalation, outcomes — the day, never the reason or times; neutral Arabic', () => {
+    const c = { correctionId: 'x', employeeName: 'Walid Mansouri', employeeNameAr: 'وليد منصوري', date: '2026-09-28', changes: 2, actorName: 'Karim Haddad', reason: 'MUST NOT LEAK', time: '08:05' };
+    const task = (locale: MailLocale) => renderNotificationMail({ type: 'task.assigned', locale, recipientName: 'N', data: { ...c, subjectType: 'attendance_correction' }, leaveTypeLabel: null, link });
+    expect(task('fr').subject).toBe('HRForce — correction de pointage à traiter : Walid Mansouri (28/09/2026)');
+    expect(task('ar').subject).toBe('HRForce — طلب تصحيح تسجيل الحضور للمعالجة: وليد منصوري (28/09/2026)');
+    expect(task('en').subject).toBe('HRForce — attendance correction awaiting your decision: Walid Mansouri (2026-09-28)');
+    const outcome = (type: 'attendance.correction_approved' | 'attendance.correction_rejected', locale: MailLocale) =>
+      renderNotificationMail({ type, locale, recipientName: 'N', data: { ...c, audience: 'employee' }, leaveTypeLabel: null, subjectType: 'attendance_correction', link });
+    expect(outcome('attendance.correction_approved', 'fr').subject).toBe('HRForce — votre correction de pointage du 28/09/2026 a été acceptée');
+    expect(outcome('attendance.correction_rejected', 'ar').subject).toBe('HRForce — تم رفض طلب تصحيح تسجيل الحضور ليوم 28/09/2026');
+    expect(outcome('attendance.correction_approved', 'ar').text).toContain('تم قبول طلب تصحيح تسجيل الحضور ليوم 28/09/2026 من طرف Karim Haddad.');
+    const escalated = renderNotificationMail({ type: 'task.escalated', locale: 'fr', recipientName: 'N', data: { ...c, audience: 'employee' }, leaveTypeLabel: null, subjectType: 'attendance_correction', link });
+    expect(escalated.subject).toBe('HRForce — votre correction de pointage est transmise aux RH');
+    expect(escalated.text).toContain('votre correction de pointage du 28/09/2026');
+    for (const locale of ['fr', 'ar', 'en'] as MailLocale[]) {
+      for (const mail of [task(locale), outcome('attendance.correction_approved', locale), outcome('attendance.correction_rejected', locale)]) {
+        expect(`${mail.subject}${mail.text}`).not.toMatch(/MUST NOT LEAK|08:05|congé|عطلة|leave/i);
+      }
+    }
+  });
+
   it('escapes HTML in names', () => {
     const mail = renderNotificationMail({ type: 'task.assigned', locale: 'fr', recipientName: '<b>x</b>', data: { ...data, employeeName: '<script>' }, leaveTypeLabel: null, link });
     expect(mail.html).not.toContain('<script>');

@@ -91,7 +91,7 @@ export async function sendNotificationEmail(tx: Transaction<DB>, deps: EmailJobD
     if (type) documentTypeLabel = lang === 'ar' ? type.name_ar : lang === 'en' ? type.name_en : type.name_fr;
   }
   const link = `${deps.webBaseUrl}${linkOf({ type: n.type, subjectType: n.subject_type, subjectId: n.subject_id, data })}`;
-  const mail = renderNotificationMail({ type: n.type, locale: lang, recipientName: recipient.display_name, data, leaveTypeLabel, documentTypeLabel, link });
+  const mail = renderNotificationMail({ type: n.type, locale: lang, recipientName: recipient.display_name, data, leaveTypeLabel, documentTypeLabel, subjectType: n.subject_type, link });
   await deps.mail.send({ to: recipient.email, ...mail });
   return 'sent';
 }

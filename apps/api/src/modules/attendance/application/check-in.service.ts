@@ -43,7 +43,7 @@ import { AttendanceRepository, type PunchRow } from '../infra/attendance.reposit
 import { KiosksRepository, type DeviceRow } from '../infra/kiosks.repository.js';
 import { SchedulesRepository } from '../infra/schedules.repository.js';
 import { AttendanceClock, AttendanceKeys } from './attendance-clock.js';
-import type { KioskQrView, KioskSessionView, PunchResultView, ScanView } from './attendance-views.js';
+import type { KioskQrView, KioskSessionView, PunchResultView, ReceiptView, ScanView } from './attendance-views.js';
 import { isEmployedOn, PresenceEngine } from './presence-engine.js';
 import { notLinked } from './presence.service.js';
 
@@ -201,7 +201,7 @@ export class CheckInService {
 
   /**
    * `POST /attendance/scan {token}` (public, XSRF not bound to a session): verifies the code and hands the browser a
-   * signed receipt of the scan instant (`hrf_scan`, 5 minutes) — and a random `hrf_dev` if it has none. Writes nothing.
+   * signed receipt of the scan instant (`hrf_scan`, 2 minutes) — and a random `hrf_dev` if it has none. Writes nothing.
    * Wrong length / version / MAC, unknown or non-active kiosk → 422 `attendance-qr-invalid`; a window other than the
    * current or the previous one → 410 `attendance-qr-expired`.
    */
@@ -240,7 +240,12 @@ export class CheckInService {
    * the SCAN instant (docs/contracts/attendance.md › Punch, steps 1–7). 201 with the new punch; 200 `duplicate: true`
    * with the existing one for a second scan within the gap or the same (kiosk, window). Both clear the receipt.
    */
-  async punch(req: Request, res: Response): Promise<{ status: 200 | 201; view: PunchResultView }> {
+  /**
+   * The checks shared by the punch and its preview, in the contract's order: 409 attendance-not-linked → 409
+   * attendance-no-scan (missing, bad MAC, other company, older than 2 minutes or > 5 s in the future) → 422
+   * attendance-qr-invalid (kiosk no longer active) → 409 attendance-not-employed.
+   */
+  private async redeemable(req: Request) {
     const { companyId, userId } = requireContext();
     if (!companyId || !userId) throw notLinked();
     const employmentId = await this.repo.linkedEmployment(companyId, userId);
@@ -258,6 +263,34 @@ export class CheckInService {
     if (!employment || !isEmployedOn(employment, workDate)) {
       throw new ProblemException(409, 'attendance-not-employed', 'You are not employed on this date.');
     }
+    return { companyId, userId, employmentId, receipt, device, workDate };
+  }
+
+  /**
+   * `GET /me/attendance/receipt` (attendance.punch_self): what redeeming the scan receipt WOULD record — the kiosk, the
+   * scan time and the inferred direction — for the one-tap confirmation on /punch (owner decision 2026-09-30: a link
+   * never punches silently). Writes nothing and keeps the receipt; same errors as the punch.
+   */
+  async receiptPreview(req: Request): Promise<ReceiptView> {
+    const { companyId, employmentId, receipt, device, workDate } = await this.redeemable(req);
+    const policy = await this.schedules.policy(companyId);
+    const at = new Date(receipt.scannedAtMs);
+    const existing = await this.repo.duplicateOf(companyId, employmentId, at, policy.minPunchGapSeconds, device.id, receipt.window);
+    const last = existing ? undefined : await this.repo.lastLiveBefore(companyId, employmentId, workDate, at);
+    return {
+      kiosk: { labels: { fr: device.nameFr, ar: device.nameAr }, site: { code: device.siteCode, name: device.siteName } },
+      scannedAt: at.toISOString(),
+      // duplicate: the time of the punch already recorded (the one the person sees « Déjà enregistré » for), not the new scan's
+      localTime: algiersTime(existing ? existing.occurredAt.getTime() : receipt.scannedAtMs),
+      workDate,
+      receiptExpiresAt: new Date(receipt.scannedAtMs + RECEIPT_TTL_SECONDS * 1000).toISOString(),
+      direction: existing ? existing.direction : last?.direction === 'in' ? 'out' : 'in',
+      duplicate: existing !== undefined,
+    };
+  }
+
+  async punch(req: Request, res: Response): Promise<{ status: 200 | 201; view: PunchResultView }> {
+    const { companyId, userId, employmentId, receipt, device, workDate } = await this.redeemable(req);
     await this.repo.lockEmployment(companyId, employmentId);
     const policy = await this.schedules.policy(companyId);
     const at = new Date(receipt.scannedAtMs);

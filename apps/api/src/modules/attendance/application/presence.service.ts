@@ -85,6 +85,17 @@ function totalsOf(results: readonly DayResult[]): DayTotals {
   return t;
 }
 
+/**
+ * The days a correction may be asked for today (Phase B): [max(today − maxAgeDays, hire), min(today, end)], or null
+ * when empty.
+ */
+export function correctionWindowOf(today: string, maxAgeDays: number, e: { hireDate: string; endDate: string | null }): { from: string; to: string } | null {
+  const earliest = addDays(today, -maxAgeDays);
+  const from = e.hireDate > earliest ? e.hireDate : earliest;
+  const to = e.endDate !== null && e.endDate < today ? e.endDate : today;
+  return from <= to ? { from, to } : null;
+}
+
 const fr = new Intl.Collator('fr', { sensitivity: 'base' });
 const ar = new Intl.Collator('ar', { sensitivity: 'base' });
 
@@ -178,6 +189,7 @@ export class PresenceService {
       items: days.map((d) => d.view),
       totals: totalsOf(days.map((d) => d.result)),
       retentionMonths: policy.retentionMonths,
+      correctionWindow: correctionWindowOf(this.clock.today(), policy.correctionMaxAgeDays, e),
     };
   }
 

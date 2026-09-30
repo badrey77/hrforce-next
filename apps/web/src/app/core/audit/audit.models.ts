@@ -18,7 +18,9 @@ export type AuditSubjectType =
   | 'employee'
   | 'leave_request'
   | 'issued_document'
-  | 'attendance_device';
+  | 'attendance_device'
+  /** Attendance Phase B: a correction request's rows, items, workflow tasks and `workflow.*` events. */
+  | 'attendance_correction';
 
 /**
  * `"<type>:<uuid>"`, e.g. `org_unit:0190…` (type one of `AuditSubjectType`). A plain `string`, not the template

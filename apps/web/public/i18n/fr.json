@@ -489,7 +489,9 @@
       "attendance_schedule_version": "Version d’horaire",
       "attendance_schedule_override": "Horaire exceptionnel",
       "attendance_schedule_assignment": "Affectation d’horaire",
-      "attendance_punch": "Pointage"
+      "attendance_punch": "Pointage",
+      "attendance_correction": "Correction de pointage",
+      "attendance_correction_item": "Changement demandé"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -733,7 +735,9 @@
         "status": "État",
         "voided_at": "Annulé le",
         "voided_by": "Annulé par",
-        "void_reason": "Motif d’annulation"
+        "void_reason": "Motif d’annulation",
+        "correction_id": "Correction",
+        "void_correction_id": "Annulé par la correction"
       },
       "attendance_device": {
         "kind": "Type",
@@ -751,6 +755,24 @@
         "revoked_at": "Révoquée le",
         "revoked_by": "Révoquée par",
         "revoke_reason": "Motif de révocation"
+      },
+      "attendance_correction": {
+        "work_date": "Jour",
+        "reason": "Motif",
+        "status": "Statut",
+        "requested_by": "Demandée par",
+        "requested_at": "Demandée le",
+        "org_unit_id": "Unité"
+      },
+      "attendance_correction_item": {
+        "position": "Ordre",
+        "action": "Action",
+        "direction": "Sens",
+        "occurred_at": "Heure demandée"
+      },
+      "attendance_policy": {
+        "correction_max_age_days": "Délai de correction (jours)",
+        "correction_workflow_code": "Circuit des corrections"
       }
     },
     "events": {
@@ -802,7 +824,15 @@
           "qr": "Pointage à une borne supprimé",
           "manual": "Pointage manuel supprimé",
           "correction": "Pointage de correction supprimé"
-        }
+        },
+        "report_exported": "Rapport mensuel {{month}} exporté ({{rows}} lignes)",
+        "correction_requested": "Correction de pointage demandée",
+        "correction_item_added": "Changement n° {{number}} demandé",
+        "correction_approved": "Correction de pointage acceptée",
+        "correction_rejected": "Correction de pointage refusée",
+        "correction_cancelled": "Correction de pointage annulée",
+        "correction_deleted": "Correction de pointage supprimée",
+        "correction_item_deleted": "Changement n° {{number}} supprimé"
       }
     },
     "values": {
@@ -1310,7 +1340,8 @@
       "documentEmploymentEnded": "Impossible d’émettre l’attestation de {{name}} : son emploi a pris fin.",
       "documentNoSignatory": "Impossible d’émettre le document de {{name}} : aucun signataire ne couvre son unité.",
       "documentTypeInactive": "Impossible d’émettre le document de {{name}} : ce type de document est désactivé.",
-      "documentRetry": "Le document de {{name}} n’a pas pu être généré pour l’instant. Réessayez dans un moment."
+      "documentRetry": "Le document de {{name}} n’a pas pu être généré pour l’instant. Réessayez dans un moment.",
+      "correctionStale": "Un pointage à retirer de la demande de {{name}} a déjà été annulé entre-temps : la correction ne peut plus être acceptée telle quelle. Veuillez la refuser en l’expliquant."
     },
     "notOpen": "La tâche du lien n’est plus ouverte : elle a déjà été traitée ou ne vous est plus attribuée."
   },
@@ -1369,7 +1400,9 @@
       "task": {
         "assigned": "Demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} ({{days}} j) : à vous de la traiter.",
         "escalated": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible).",
-        "assigned_document": "Demande « {{documentType}} » à traiter : {{employeeName}}."
+        "assigned_document": "Demande « {{documentType}} » à traiter : {{employeeName}}.",
+        "assigned_attendance": "Correction de pointage à traiter : {{employeeName}} ({{date}}).",
+        "escalated_attendance": "Votre correction de pointage du {{date}} passe directement à l’étape RH (aucun responsable disponible)."
       },
       "leave": {
         "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1381,11 +1414,16 @@
       "document": {
         "ready": "Votre document « {{documentType}} » est prêt : vous pouvez le télécharger.",
         "rejected": "Votre demande « {{documentType}} » a été refusée."
+      },
+      "attendance": {
+        "correction_approved": "Votre correction de pointage du {{date}} a été acceptée.",
+        "correction_rejected": "Votre correction de pointage du {{date}} a été refusée."
       }
     },
     "typesNamed": {
       "task": {
-        "escalated": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible)."
+        "escalated": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible).",
+        "escalated_attendance": "La correction de pointage de {{employeeName}} du {{date}} passe directement à l’étape RH (aucun responsable disponible)."
       },
       "leave": {
         "approved": "La demande « {{leaveType}} » de {{employeeName}} du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1406,6 +1444,10 @@
       "document": {
         "ready": "Mon document demandé est prêt",
         "rejected": "Ma demande de document est refusée"
+      },
+      "attendance": {
+        "correction_approved": "Ma correction de pointage est acceptée",
+        "correction_rejected": "Ma correction de pointage est refusée"
       }
     }
   },
@@ -2059,7 +2101,8 @@
       "working": {
         "scan": "Lecture du code…",
         "punch": "Enregistrement du pointage…",
-        "signin": "Connexion requise…"
+        "signin": "Connexion requise…",
+        "receipt": "Vérification du scan…"
       },
       "entrance": "Entrée :",
       "recorded": {
@@ -2079,14 +2122,24 @@
         "generic": "Pointage non enregistré"
       },
       "problem": {
-        "expired": "Ce code a expiré. Veuillez scanner à nouveau le code affiché à l’entrée.",
+        "expired": "Code expiré. Veuillez scanner à nouveau le code affiché à l’entrée.",
         "invalid": "Ce code n’est pas valide. Veuillez scanner à nouveau le code affiché à l’entrée.",
         "noScan": "Veuillez scanner à nouveau le code à l’entrée.",
         "notLinked": "Votre compte n’est lié à aucun dossier employé. Adressez-vous au service RH.",
         "forbidden": "Votre compte ne permet pas de pointer. Adressez-vous au service RH.",
         "notEmployed": "Vous n’êtes pas en poste à cette date. Adressez-vous au service RH.",
-        "network": "Le serveur est injoignable. Le scan reste valable 5 minutes : réessayez.",
+        "network": "Le serveur est injoignable. Le scan reste valable 2 minutes : réessayez.",
         "generic": "Une erreur inattendue s’est produite. Veuillez scanner à nouveau le code à l’entrée."
+      },
+      "confirm": {
+        "question": {
+          "in": "Enregistrer mon arrivée à {{entrance}} ?",
+          "out": "Enregistrer mon départ à {{entrance}} ?"
+        },
+        "scannedAt": "Code scanné à {{time}} : c’est l’heure qui sera enregistrée.",
+        "button": "Enregistrer",
+        "expiresHint": "Le code reste valable 2 minutes après le scan.",
+        "dontRecord": "Ne pas enregistrer"
       }
     },
     "mine": {
@@ -2314,7 +2367,123 @@
       "retentionHint": "Entre {{min}} et {{max}} mois après la fin du mois concerné.",
       "gap": "Délai anti-doublon (secondes)",
       "gapHint": "Un second scan dans ce délai renvoie le premier pointage ({{min}} à {{max}} s).",
-      "saved": "Politique enregistrée."
+      "saved": "Politique enregistrée.",
+      "correctionAge": "Délai de correction (jours)",
+      "correctionAgeHint": "Un employé peut demander la correction d’un jour jusqu’à ce nombre de jours en arrière ({{min}} à {{max}}).",
+      "correctionWorkflow": "Circuit de validation des corrections",
+      "correctionWorkflowHint": "S’applique aux nouvelles demandes.",
+      "workflows": {
+        "manager_then_hr": "Responsable puis RH",
+        "hr_only": "RH uniquement"
+      }
+    },
+    "corrections": {
+      "before": "Avant",
+      "after": "Après",
+      "removed": "à retirer",
+      "added": "ajouté",
+      "purgedShort": "Correction effacée (durée de conservation)",
+      "purgedTitle": "Correction effacée",
+      "purged": "Cette demande de correction a été effacée à la fin de sa durée de conservation. Elle ne peut plus être acceptée : veuillez la refuser pour clore la tâche.",
+      "taskTitle": "Correction de pointage du {{date}}",
+      "changeCount": "Changements : {{count}}",
+      "day": "Jour",
+      "computedNow": "Le jour aujourd’hui",
+      "summaryOnly": "Détail des pointages indisponible : seuls l’arrivée et le départ du jour sont affichés.",
+      "approveHint": "Accepter enregistre les pointages ajoutés et annule ceux à retirer ; les pointages existants ne sont jamais modifiés.",
+      "pendingChip": "Correction en attente",
+      "request": "Demander une correction",
+      "requestNamed": "Demander une correction pour le {{date}}",
+      "formTitle": "Correction du {{date}}",
+      "rules": "Une correction peut être demandée jusqu’à {{days}} jours en arrière, avec 1 à {{max}} changements, et une seule demande en attente par jour. Elle est validée par le responsable puis par les RH.",
+      "recorded": "Pointages enregistrés (cocher ceux à retirer)",
+      "removeLabel": "Retirer : {{direction}} à {{time}}",
+      "toAdd": "Pointages à ajouter",
+      "addRow": "Ajouter un pointage",
+      "removeRow": "Supprimer",
+      "removeRowNamed": "Supprimer le pointage à ajouter n° {{n}}",
+      "errors": {
+        "noChange": "Veuillez indiquer au moins un changement (un pointage à retirer ou à ajouter).",
+        "tooMany": "Au plus {{max}} changements par demande."
+      },
+      "reasonHint": "Par exemple : téléphone oublié, borne en panne. Entre 3 et 500 caractères.",
+      "previewTitle": "Aperçu",
+      "submit": "Envoyer la demande",
+      "problems": {
+        "date": "Ce jour ne peut plus être corrigé (hors délai ou hors période d’emploi).",
+        "pending": "Une demande de correction est déjà en attente pour ce jour.",
+        "punchGone": "Ce pointage n’existe plus ou a déjà été annulé.",
+        "duplicate": "Ce pointage est demandé deux fois.",
+        "future": "Cette heure n’est pas encore passée.",
+        "notCancellable": "Cette demande n’est plus en attente : elle ne peut plus être annulée.",
+        "exists": "Un pointage existe déjà à cette minute.",
+        "duplicateTime": "Deux pointages à ajouter à la même minute."
+      },
+      "addChange": "Ajouter : {{direction}}",
+      "voidChange": "Retirer : {{direction}}",
+      "action": {
+        "add": "Ajout",
+        "void": "Retrait"
+      },
+      "mine": "Mes demandes de correction",
+      "linkedMissing": "La demande indiquée par le lien n’apparaît pas dans votre liste.",
+      "loadError": "Impossible de charger les demandes de correction.",
+      "status": {
+        "pending": "En attente",
+        "approved": "Acceptée",
+        "rejected": "Refusée",
+        "cancelled": "Annulée"
+      },
+      "cancel": "Annuler la demande",
+      "cancelTitle": "Annuler cette demande de correction ?",
+      "confirmCancel": "Annuler la demande",
+      "keep": "Garder la demande",
+      "rejectionComment": "Motif du refus :",
+      "emptyMine": "Aucune demande de correction.",
+      "feedback": {
+        "requested": "Demande de correction envoyée.",
+        "cancelled": "Demande de correction annulée."
+      },
+      "windowHint": "Un pointage manquant ou erroné ? Ouvrez le jour concerné (jusqu’à {{days}} jours en arrière) et demandez une correction.",
+      "hrTitle": "Corrections de pointage",
+      "statusLabel": "Statut",
+      "allStatuses": "Tous les statuts",
+      "from": "Du",
+      "to": "Au",
+      "total": "Demandes : {{count}}",
+      "changes": "Changements",
+      "noMatch": "Aucune demande ne correspond aux filtres.",
+      "empty": "Aucune demande de correction.",
+      "back": "Retour aux corrections",
+      "detailTitle": "Demande de correction de pointage",
+      "employeeLink": "Voir la présence de l’employé",
+      "requestedAt": "Demandée le",
+      "steps": "Validation",
+      "notFound": "Demande de correction introuvable.",
+      "ofMonth": "Demandes de correction du mois",
+      "noWindow": "Aucune correction ne peut être demandée pour le moment."
+    },
+    "reports": {
+      "title": "Rapport mensuel",
+      "export": "Exporter CSV",
+      "exporting": "Export en cours…",
+      "exportHint": "L’export CSV contient toutes les lignes du mois pour l’unité et le site choisis (sans la recherche), avec les en-têtes dans la langue de l’interface.",
+      "monthLabel": "Mois du rapport",
+      "month": "Mois",
+      "summary": "Employés : {{count}} — jours comptés : {{days}}",
+      "present": "Présents",
+      "late": "Retards",
+      "lateMinutes": "Retard cumulé",
+      "absent": "Absences",
+      "incomplete": "Incomplets",
+      "onLeave": "Congés",
+      "holiday": "Fériés",
+      "worked": "Travaillé / prévu",
+      "absentDates": "Dates d’absence",
+      "empty": "Aucun employé pour ce mois.",
+      "loadError": "Impossible de charger le rapport.",
+      "exportError": "L’export n’a pas pu être téléchargé. Veuillez réessayer.",
+      "tooMany": "Trop d’employés pour ce rapport (plus de 5 000) : veuillez choisir une unité ou un site."
     }
   }
 }

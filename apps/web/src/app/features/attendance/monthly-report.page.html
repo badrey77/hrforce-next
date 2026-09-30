@@ -1,0 +1,140 @@
+<!-- monthly-report.page.ts: month navigator, filters (all in the URL), CSV export, totals per employee. -->
+<ng-container *transloco="let t">
+  <p><a routerLink="/attendance">{{ t('attendance.board.title') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('attendance.reports.title') }}</h1>
+    <button class="btn" type="button" data-action="export-csv" [disabled]="exporting()" [attr.aria-busy]="exporting()" (click)="exportCsv()">
+      {{ exporting() ? t('attendance.reports.exporting') : t('attendance.reports.export') }}
+    </button>
+  </header>
+  @if (exportError(); as key) {
+    <p class="form-error" role="alert" data-error="export">{{ t(key) }}</p>
+  }
+
+  @let current = query();
+  <div class="day-nav" role="group" [attr.aria-label]="t('attendance.reports.monthLabel')">
+    <button class="btn secondary" type="button" data-action="prev-month" [attr.aria-label]="t('attendance.mine.previousMonth')" (click)="shiftMonth(-1)">‹</button>
+    <label class="visually-hidden" for="report-month">{{ t('attendance.reports.month') }}</label>
+    <input id="report-month" type="month" [value]="shownMonth()" [max]="currentMonth" (change)="onMonth($event)" />
+    <button class="btn secondary" type="button" data-action="next-month" [attr.aria-label]="t('attendance.mine.nextMonth')"
+      [disabled]="shownMonth() >= currentMonth" (click)="shiftMonth(1)">›</button>
+    <strong aria-live="polite" data-field="month">{{ shownMonth() + '-01' | date: 'LLLL y' : undefined : locale() }}</strong>
+  </div>
+
+  <form class="filters" role="search" [attr.aria-label]="t('attendance.board.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="report-q">{{ t('attendance.board.search') }}</label>
+      <input id="report-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('attendance.board.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="report-unit">{{ t('attendance.columns.unit') }}</label>
+        <app-org-unit-picker inputId="report-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="report-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="report-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    @if (canSites()) {
+      <div class="field">
+        <label for="report-site">{{ t('attendance.board.site') }}</label>
+        <select id="report-site" (change)="onSelect('siteId', $event)">
+          <option value="" [selected]="!current.siteId">{{ t('attendance.board.allSites') }}</option>
+          @for (site of siteItems(); track site.id) {
+            <option [value]="site.id" [selected]="site.id === current.siteId">{{ site.code }} — {{ site.name }}</option>
+          }
+        </select>
+      </div>
+    }
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+  <p class="field-hint">{{ t('attendance.reports.exportHint') }}</p>
+
+  <section [attr.aria-busy]="report.isLoading()">
+    @if (report.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="report.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (report.hasValue()) {
+      @let view = report.value();
+      <p class="muted" role="status">{{ t('attendance.reports.summary', { count: view.total, days: view.days }) }}</p>
+      @if (view.items.length) {
+        <div class="table-scroll">
+          <table class="data cards" role="table" data-table="monthly-report">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">{{ t('attendance.columns.employee') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.columns.unit') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.present') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.late') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.lateMinutes') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.absent') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.incomplete') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.onLeave') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.holiday') }}</th>
+                <th scope="col" role="columnheader" class="num">{{ t('attendance.reports.worked') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.reports.absentDates') }}</th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup">
+              @for (item of view.items; track item.employee.id) {
+                <tr role="row" [attr.data-employee]="item.employee.id">
+                  <td role="cell" class="who" [attr.data-label]="t('attendance.columns.employee')">
+                    <a [routerLink]="['/employees', item.employee.id]" [queryParams]="{ tab: 'attendance', date: view.month + '-01' }">
+                      <bdi>{{ item.employee.person | displayName: lang() }}</bdi>
+                    </a>
+                    <span class="code muted"> {{ item.employee.matricule }}</span>
+                  </td>
+                  <td role="cell" [attr.data-label]="t('attendance.columns.unit')"><bdi>{{ item.employee.unit | displayName: lang() }}</bdi></td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.present')">{{ item.counts.present }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.late')">{{ item.counts.late }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.lateMinutes')">{{ item.lateMinutes | minutes: lang() }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.absent')">{{ item.counts.absent }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.incomplete')">{{ item.counts.incomplete }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.onLeave')">{{ item.counts.onLeave }}</td>
+                  <td role="cell" class="num" [attr.data-label]="t('attendance.reports.holiday')">{{ item.counts.holiday }}</td>
+                  <td role="cell" class="num nowrap" [attr.data-label]="t('attendance.reports.worked')">
+                    {{ item.workedMinutes | minutes: lang() }} / {{ item.scheduledMinutes | minutes: lang() }}
+                  </td>
+                  <td role="cell" [attr.data-label]="t('attendance.reports.absentDates')">
+                    @for (d of item.absentDates; track d; let last = $last) {
+                      <span class="nowrap">{{ d | date: 'd MMM' : undefined : locale() }}</span>{{ last ? '' : ', ' }}
+                    } @empty {
+                      —
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="report-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="report-page-size" (change)="onSelect('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('attendance.board.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('attendance.reports.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

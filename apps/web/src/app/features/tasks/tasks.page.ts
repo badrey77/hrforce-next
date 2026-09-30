@@ -33,6 +33,17 @@
  *   there and not in the `@else`. A document task needs no extra request: its summary (employee, type, language,
  *   purpose) is all HR must see to decide. Approving it issues the document; an issuing refusal (letterhead
  *   incomplete…) comes back as the approval's error and is explained here.
+ * - **A third kind: attendance corrections** (docs/contracts/attendance.md › Web (Phase B) › My tasks). The summary
+ *   already names the employee, the date, the reason and the day's arrival/departure/status; the panel also asks
+ *   `GET /attendance/corrections/:id` — the approver is a CANDIDATE, which that route accepts without any attendance
+ *   permission (a unit head) — for every punch of the day, so `<app-correction-preview>` can show the day BEFORE and
+ *   AFTER the change. Until that answer arrives (or if it fails), the preview is built from the summary's
+ *   arrival/departure: the approver is never left without the essentials. A second resource keyed on a second
+ *   `computed()` id, exactly like the leave detail: each fires only for its own kind of task.
+ *   The purged form of the union (`{type: 'attendance_correction', purged: true}`, the retention job deleted the
+ *   request) has no employee: rows name people through `subjectPerson()` and the panel explains instead of offering
+ *   Approve/Reject. `attendance-correction-stale` (a punch to remove was voided meanwhile, the approval rolls back) is
+ *   shown IN the task panel, next to the buttons, because it asks the approver to reject instead.
  * - **Focus management after removal**: when the acted-on row disappears, focus would fall to `<body>`. The page moves
  *   it to the panel heading of the next task (or the list heading) with `afterNextRender`, which runs once the DOM
  *   reflects the new state.
@@ -54,6 +65,7 @@ import {
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import type { Observable } from 'rxjs';
+import { AttendanceApi } from '../../core/attendance/attendance-api';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { problemSlug } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
@@ -62,7 +74,9 @@ import { LeaveApi } from '../../core/leave/leave-api';
 import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import { TasksApi } from '../../core/tasks/tasks-api';
 import { TasksBadge } from '../../core/tasks/tasks-badge';
-import type { OpenTask } from '../../core/tasks/tasks.models';
+import { type OpenTask, subjectPerson } from '../../core/tasks/tasks.models';
+import { CorrectionPreviewView, punchesOfSummary, type PreviewSourcePunch } from '../../shared/attendance/correction-preview';
+import { DayStatusBadge } from '../../shared/attendance/day-badges';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { BalanceCards } from '../../shared/leave/balance-cards';
 import { LeaveRequestView } from '../../shared/leave/leave-request-view';
@@ -97,6 +111,8 @@ export function decisionErrorKey(error: unknown): string {
   const documentKey = slug === undefined ? undefined : DOCUMENT_APPROVAL_KEYS[slug];
   if (documentKey) return documentKey;
   switch (slug) {
+    case 'attendance-correction-stale':
+      return 'tasks.problems.correctionStale';
     case 'workflow-task-closed':
       return 'tasks.problems.closed';
     case 'workflow-self-approval':
@@ -110,7 +126,17 @@ export function decisionErrorKey(error: unknown): string {
 
 @Component({
   selector: 'app-tasks-page',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe, DecimalPipe, DisplayNamePipe, LeaveRequestView, BalanceCards],
+  imports: [
+    TranslocoDirective,
+    ReactiveFormsModule,
+    DatePipe,
+    DecimalPipe,
+    DisplayNamePipe,
+    LeaveRequestView,
+    BalanceCards,
+    CorrectionPreviewView,
+    DayStatusBadge,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tasks.page.html',
   styleUrl: './tasks.page.css',
@@ -150,6 +176,22 @@ export class TasksPage {
     return subject?.type === 'leave_request' ? subject.id : undefined;
   });
   protected readonly detail = inject(LeaveApi).requestResource(this.selectedRequestId);
+  /** Same equality gate for a correction task: the correction id, or `undefined` for any other kind. */
+  private readonly selectedCorrectionId = computed(() => {
+    const subject = this.selected()?.subject;
+    return subject?.type === 'attendance_correction' && !subject.purged ? subject.id : undefined;
+  });
+  protected readonly correction = inject(AttendanceApi).correctionResource(this.selectedCorrectionId);
+  /** The day's punches for the before/after view: the detail's when it has them, else the summary's arrival/departure. */
+  protected readonly correctionPunches = computed<readonly PreviewSourcePunch[]>(() => {
+    const subject = this.selected()?.subject;
+    if (subject?.type !== 'attendance_correction' || subject.purged) return [];
+    const detail = this.correction.hasValue() ? this.correction.value() : undefined;
+    return detail?.id === subject.id && detail.day.punches ? detail.day.punches : punchesOfSummary(subject.day);
+  });
+  /** A decision error shown inside the panel of the task it is about (the stale correction). */
+  protected readonly panelError = signal<{ readonly taskId: string; readonly key: string } | null>(null);
+
   protected readonly detailBalances = computed(() => {
     const request = this.detail.hasValue() ? this.detail.value() : undefined;
     return (request?.balances ?? []).filter((b) => b.leaveTypeId === request?.leaveTypeId);
@@ -164,8 +206,13 @@ export class TasksPage {
   /** What the task is about, in one line (leave type, or document type): list rows and the reject dialog. */
   protected subjectLabel(task: OpenTask): string {
     const subject = task.subject;
-    return subject.type === 'leave_request' ? this.catalog.nameOf(subject.leaveTypeId) : this.catalog.labelOf(subject.documentType.labels);
+    if (subject.type === 'leave_request') return this.catalog.nameOf(subject.leaveTypeId);
+    if (subject.type === 'document_request') return this.catalog.labelOf(subject.documentType.labels);
+    return '';
   }
+
+  /** The person a task is about (`null` for a purged correction). */
+  protected readonly personOf = (task: OpenTask) => subjectPerson(task.subject);
 
   protected select(task: OpenTask): void {
     this.selectedId.set(task.id);
@@ -215,6 +262,7 @@ export class TasksPage {
     const name = this.employeeName(task);
     const next = this.nextAfter(task);
     this.feedback.set(null);
+    this.panelError.set(null);
     this.acting.set(true);
     this.store.hide(task.id); // optimistic: gone from the list and the badge, now
     this.selectedId.set(next?.id ?? null);
@@ -230,7 +278,9 @@ export class TasksPage {
         this.acting.set(false);
         this.store.show(task.id); // rollback: the row is back where it was
         this.selectedId.set(task.id);
-        this.feedback.set({ key: decisionErrorKey(error), name, kind: 'error' });
+        const key = decisionErrorKey(error);
+        this.feedback.set({ key, name, kind: 'error' });
+        if (key === 'tasks.problems.correctionStale') this.panelError.set({ taskId: task.id, key });
         if (isApiProblemError(error) && problemSlug(error.problem.type) === 'workflow-task-closed') this.store.refresh();
       },
     });
@@ -243,7 +293,8 @@ export class TasksPage {
   }
 
   private employeeName(task: OpenTask): string {
-    const p = task.subject.employee.person;
+    const p = subjectPerson(task.subject);
+    if (!p) return '';
     return this.lang() === 'ar' && p.lastNameAr && p.firstNameAr ? `${p.lastNameAr} ${p.firstNameAr}` : `${p.lastName} ${p.firstName}`;
   }
 

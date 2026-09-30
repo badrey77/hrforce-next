@@ -2,7 +2,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { attendanceProblem, day, employeeDays, punch } from '../../../testing/attendance-fixtures';
+import { attendanceProblem, correctionView, day, EMPLOYEE_REF, employeeDays, punch } from '../../../testing/attendance-fixtures';
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { detail } from '../../../testing/employee-fixtures';
@@ -83,6 +83,18 @@ describe('EmployeeAttendanceTab', () => {
       ],
     });
     if (canManage) http.match((r) => r.url === '/api/org/sites').forEach((r) => r.flush({ items: [] }));
+    // Phase B: the month's correction requests of THIS employment (every status).
+    const corrections = http.expectOne((r) => r.url === '/api/attendance/corrections');
+    expect(corrections.request.params.get('employmentId')).toBe('e-30');
+    expect(corrections.request.params.has('q')).toBe(false);
+    expect(corrections.request.params.get('from')).toBe('2026-08-01');
+    expect(corrections.request.params.has('status')).toBe(false);
+    corrections.flush({
+      items: [correctionView({ id: 'c-mine', date: '2026-08-12', employee: { ...EMPLOYEE_REF, id: 'e-30' } })],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
     await settle();
   }
 
@@ -95,6 +107,11 @@ describe('EmployeeAttendanceTab', () => {
     expect(voided?.classList).toContain('void');
     expect(voided?.textContent).toContain('Erreur de saisie');
     expect(voided?.querySelector('[data-action="void-punch"]')).toBeNull();
+    const corrections = [...el().querySelectorAll('[data-panel="employee-corrections"] [data-correction]')];
+    expect(corrections.map((c) => c.getAttribute('data-correction'))).toEqual(['c-mine']);
+    expect(corrections[0]?.querySelector('a')?.getAttribute('href')).toBe('/attendance/corrections/c-mine');
+    // The Présence tab never offers the employee's own correction button.
+    expect(el().querySelector('[data-action="request-correction"]')).toBeNull();
   });
 
   it('adds a manual punch with a reason, and maps a same-minute conflict to the time field', async () => {

@@ -38,6 +38,31 @@ export interface Assignment {
   valid: string;
 }
 
+export interface AttendanceCorrection {
+  company_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  org_unit_id: string;
+  reason: string;
+  requested_at: Generated<Timestamp>;
+  requested_by: string;
+  status: Generated<string>;
+  work_date: Timestamp;
+  workflow_instance_id: string | null;
+}
+
+export interface AttendanceCorrectionItem {
+  action: string;
+  company_id: string;
+  correction_id: string;
+  direction: string | null;
+  id: Generated<string>;
+  occurred_at: Timestamp | null;
+  position: number;
+  punch_id: string | null;
+  result_punch_id: string | null;
+}
+
 export interface AttendanceDevice {
   allowed_networks: Generated<string[]>;
   company_id: string;
@@ -68,6 +93,8 @@ export interface AttendanceDeviceHeartbeat {
 
 export interface AttendancePolicy {
   company_id: string;
+  correction_max_age_days: Generated<number>;
+  correction_workflow_code: Generated<string>;
   min_punch_gap_seconds: Generated<number>;
   retention_months: Generated<number>;
   updated_at: Generated<Timestamp>;
@@ -75,6 +102,7 @@ export interface AttendancePolicy {
 
 export interface AttendancePunch {
   company_id: string;
+  correction_id: string | null;
   created_by: string | null;
   device_id: string | null;
   device_ref: string | null;
@@ -88,6 +116,7 @@ export interface AttendancePunch {
   site_id: string | null;
   source: string;
   status: Generated<string>;
+  void_correction_id: string | null;
   void_reason: string | null;
   voided_at: Timestamp | null;
   voided_by: string | null;
@@ -636,6 +665,8 @@ export interface WorkflowTask {
 
 export interface DB {
   assignment: Assignment;
+  attendance_correction: AttendanceCorrection;
+  attendance_correction_item: AttendanceCorrectionItem;
   attendance_device: AttendanceDevice;
   attendance_device_heartbeat: AttendanceDeviceHeartbeat;
   attendance_policy: AttendancePolicy;

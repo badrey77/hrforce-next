@@ -49,22 +49,32 @@ export const WORDED_BY_AUDIENCE: ReadonlySet<string> = new Set(['leave.approved'
  * Translation key of a notification's sentence: "your request" for its employee, "X's request" for anyone else.
  * `task.assigned` about a document request (`data.subjectType`, documents contract › Notifications) has its own
  * sentence (`…task.assigned_document`): "Attestation request to handle: <Name>", not the leave wording with dates.
+ * Attendance corrections (attendance contract › Phase B › Notifications) likewise: `task.assigned` with
+ * `data.subjectType: 'attendance_correction'` → `…task.assigned_attendance`, and `task.escalated` whose SUBJECT is a
+ * correction (its subject is the request itself, not a task) → `…task.escalated_attendance`.
  */
 export function notificationKey(
-  notification: Pick<NotificationView, 'type'> & Partial<Pick<NotificationView, 'audience' | 'data'>>,
+  notification: Pick<NotificationView, 'type'> & Partial<Pick<NotificationView, 'audience' | 'data' | 'subject'>>,
 ): string {
   const aboutSomeoneElse = WORDED_BY_AUDIENCE.has(notification.type) && notification.audience !== 'employee';
-  const documentTask = notification.type === 'task.assigned' && notification.data?.['subjectType'] === 'document_request';
-  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}${documentTask ? '_document' : ''}`;
+  let suffix = '';
+  if (notification.type === 'task.assigned') {
+    const subjectType = notification.data?.['subjectType'];
+    if (subjectType === 'document_request') suffix = '_document';
+    else if (subjectType === 'attendance_correction') suffix = '_attendance';
+  } else if (notification.type === 'task.escalated' && notification.subject?.type === 'attendance_correction') {
+    suffix = '_attendance';
+  }
+  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}${suffix}`;
 }
 
 /** Every placeholder a sentence may use; missing data shows as an ellipsis rather than a raw `{{placeholder}}`. */
-const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number'] as const;
+const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number', 'date', 'changes'] as const;
 const MISSING = '…';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function notificationMessage(
-  notification: Pick<NotificationView, 'type' | 'data'> & Partial<Pick<NotificationView, 'audience'>>,
+  notification: Pick<NotificationView, 'type' | 'data'> & Partial<Pick<NotificationView, 'audience' | 'subject'>>,
   format: MessageFormatters,
 ): NotificationMessage {
   const params: Record<string, string> = {};

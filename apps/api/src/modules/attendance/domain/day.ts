@@ -37,10 +37,12 @@ export interface PunchFact {
   id: string;
   direction: 'in' | 'out';
   occurredAtMs: number;
-  source: 'qr' | 'manual';
+  source: 'qr' | 'manual' | 'correction';
   status: 'live' | 'void';
   siteId: string | null;
   deviceRef: string | null;
+  /** voided by an approved correction (Phase B: the `corrected` flag) */
+  voidedByCorrection?: boolean;
 }
 
 export interface DayInput {
@@ -171,6 +173,8 @@ export function computeDay(input: DayInput): DayResult {
   if (input.leavePending) flags.add('leave_pending');
   if (live.some((p) => p.source === 'qr' && p.siteId !== null && p.siteId !== input.siteId)) flags.add('other_site');
   if (live.some((p) => p.source === 'manual')) flags.add('manual_punch');
+  // Phase B: a live punch added by a correction, or a punch a correction voided
+  if (input.punches.some((p) => (p.status === 'live' && p.source === 'correction') || (p.status === 'void' && p.voidedByCorrection === true))) flags.add('corrected');
   if (input.showSharedDevice && live.some((p) => p.source === 'qr' && p.deviceRef !== null && input.sharedRefs.has(p.deviceRef))) {
     flags.add('shared_device');
   }

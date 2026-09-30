@@ -49,6 +49,9 @@ describe('app routes: refused URLs show the 404 page', () => {
     '/employees/e-1/rehire',
     '/attendance',
     '/attendance/settings',
+    '/attendance/corrections',
+    '/attendance/corrections/c-1',
+    '/attendance/reports',
     '/me/attendance',
   ])('%s without its permission', async (url) => {
     const harness = await open(ME_LECTURE, url);
@@ -67,6 +70,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/documents/a/b', ['document.read']],
     ['/attendance', ['attendance.configure']],
     ['/attendance/settings', ['attendance.read']],
+    ['/attendance/corrections', ['attendance.configure']],
+    ['/attendance/reports', ['attendance.configure']],
   ])('%s with only %j', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
@@ -79,6 +84,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/leave/settings', ['leave.configure']],
     ['/attendance', ['attendance.read']],
     ['/attendance/settings', ['attendance.configure']],
+    ['/attendance/corrections', ['attendance.read']],
+    ['/attendance/reports', ['attendance.read']],
     ['/me/team', []],
   ])('%s with %j opens the page', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);

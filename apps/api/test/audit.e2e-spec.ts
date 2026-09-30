@@ -379,6 +379,9 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/employees/:id/attendance/punches': 'attendance.punch_recorded',
     'POST /api/attendance/punches/:id/void': 'attendance.punch_voided',
     'POST /api/kiosk/pair': 'attendance.device_paired',
+    // Phase B (migration 0017): corrections are audited as events without the personal payload too
+    'POST /api/me/attendance/corrections': 'attendance.correction_requested',
+    'POST /api/me/attendance/corrections/:id/cancel': 'attendance.correction_cancelled',
   };
   const WEEK = weekOf('08:00', '16:30', '12:00', '12:30');
   const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '', overrideToDelete: '', assignmentToDelete: '', kioskToRevoke: '' };
@@ -668,6 +671,27 @@ describe('exit criterion: every write through the API produces an audit row with
     expect(rows.map((r) => [r.table_name, r.op, r.actor_user_id])).toEqual([['attendance_device', 'update', null]]);
     expect(rows[0]?.after?.['credential_hash']).toBe('***');
     expect((await events('request_id = $1', [pair.requestId])).map((e) => e.type)).toEqual([ATTENDANCE_EVENT_WRITES['POST /api/kiosk/pair']]);
+  });
+
+  it('punch corrections (Phase B): correction and item events without reason, day or times; only the workflow rows as changes', async () => {
+    const date = new Date(Date.now() - 2 * 86_400_000 + 3_600_000).toISOString().slice(0, 10);
+    const asked = await runWrite('POST /api/me/attendance/corrections', (id) =>
+      client('admin').post('/api/me/attendance/corrections').set('X-Request-Id', id).send({ date, reason: 'Réunion extérieure', changes: [{ action: 'add', direction: 'in', time: '08:00' }] }),
+    );
+    const cancelled = await runWrite('POST /api/me/attendance/corrections/:id/cancel', (id) =>
+      client('admin').post(`/api/me/attendance/corrections/${asked.res.body.id}/cancel`).set('X-Request-Id', id).send({}),
+    );
+    const askedEvents = await events('request_id = $1', [asked.requestId]);
+    expect(askedEvents.map((e) => e.type).slice(0, 3)).toEqual([ATTENDANCE_EVENT_WRITES['POST /api/me/attendance/corrections'], 'attendance.correction_item_added', 'workflow.start']);
+    expect(askedEvents[0]).toMatchObject({ company_id: COMPANY_A, actor_user_id: USERS.admin.id, subject_type: 'attendance_correction', subject_id: asked.res.body.id, data: {} });
+    expect(askedEvents[1]?.data).toEqual({ position: 0, action: 'add', direction: 'in' });
+    const cancelEvents = await events('request_id = $1', [cancelled.requestId]);
+    expect(cancelEvents.map((e) => e.type)).toEqual(['workflow.cancel', ATTENDANCE_EVENT_WRITES['POST /api/me/attendance/corrections/:id/cancel']]);
+    for (const r of [asked, cancelled]) {
+      const tables = new Set((await changes('request_id = $1', [r.requestId])).map((c) => c.table_name));
+      expect([...tables].every((t) => t === 'workflow_instance' || t === 'workflow_task' || t === 'notification'), [...tables].join()).toBe(true);
+      expect(JSON.stringify(await events('request_id = $1', [r.requestId]))).not.toMatch(/Réunion|08:00/);
+    }
   });
 
   it('two-step sign-in writes (auth schema only) each record their application event in the request transaction', async () => {

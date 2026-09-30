@@ -59,6 +59,22 @@
     }
   </section>
 
+  <!-- The employee's correction requests of the month (Phase B) ---------------------------------------------- -->
+  @if (corrections().length) {
+    <section aria-labelledby="emp-corrections-title" data-panel="employee-corrections">
+      <h3 id="emp-corrections-title">{{ t('attendance.corrections.ofMonth') }}</h3>
+      <ul class="segments">
+        @for (c of corrections(); track c.id) {
+          <li [attr.data-correction]="c.id">
+            <a [routerLink]="['/attendance/corrections', c.id]">{{ c.date | date: 'mediumDate' : undefined : locale() }}</a>
+            — <span class="badge" [attr.data-status]="c.status">{{ t('attendance.corrections.status.' + c.status) }}</span>
+            <app-correction-changes [changes]="c.changes" />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   <!-- Manual punch ------------------------------------------------------------------------------------------------ -->
   <dialog #addDialog class="modal" aria-labelledby="add-punch-title" (close)="onAddClosed()">
     <form [formGroup]="addForm" (ngSubmit)="submitAdd()" novalidate data-form="manual-punch">

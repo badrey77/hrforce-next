@@ -1,0 +1,112 @@
+<!-- corrections.page.ts: filters from the URL, the table (cards on a phone), the pager. -->
+<ng-container *transloco="let t">
+  <p><a routerLink="/attendance">{{ t('attendance.board.title') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('attendance.corrections.hrTitle') }}</h1>
+  </header>
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('attendance.board.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="corr-q">{{ t('attendance.board.search') }}</label>
+      <input id="corr-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('attendance.board.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="corr-status">{{ t('attendance.corrections.statusLabel') }}</label>
+      <select id="corr-status" (change)="onField('status', $event)">
+        <option [value]="all" [selected]="current.status === null">{{ t('attendance.corrections.allStatuses') }}</option>
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('attendance.corrections.status.' + status) }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="corr-unit">{{ t('attendance.columns.unit') }}</label>
+        <app-org-unit-picker inputId="corr-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="corr-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="corr-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    <div class="field">
+      <label for="corr-from">{{ t('attendance.corrections.from') }}</label>
+      <input id="corr-from" type="date" [value]="current.from ?? ''" (change)="onField('from', $event)" />
+    </div>
+    <div class="field">
+      <label for="corr-to">{{ t('attendance.corrections.to') }}</label>
+      <input id="corr-to" type="date" [value]="current.to ?? ''" (change)="onField('to', $event)" />
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('attendance.corrections.total', { count: list.value().total }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data cards" role="table" data-table="corrections">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">{{ t('attendance.columns.employee') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.columns.unit') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.corrections.day') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.corrections.changes') }}</th>
+                <th scope="col" role="columnheader">{{ t('attendance.corrections.statusLabel') }}</th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup">
+              @for (item of items(); track item.id) {
+                <tr role="row" [attr.data-correction]="item.id">
+                  <td role="cell" class="who" [attr.data-label]="t('attendance.columns.employee')">
+                    <a [routerLink]="['/attendance/corrections', item.id]"><bdi>{{ item.employee.person | displayName: lang() }}</bdi></a>
+                    <span class="code muted"> {{ item.employee.matricule }}</span>
+                  </td>
+                  <td role="cell" [attr.data-label]="t('attendance.columns.unit')"><bdi>{{ item.employee.unit | displayName: lang() }}</bdi></td>
+                  <td role="cell" class="nowrap" [attr.data-label]="t('attendance.corrections.day')">{{ item.date | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td role="cell" [attr.data-label]="t('attendance.corrections.changes')"><app-correction-changes [changes]="item.changes" /></td>
+                  <td role="cell" [attr.data-label]="t('attendance.corrections.statusLabel')">
+                    <span class="badge" [attr.data-status]="item.status">{{ t('attendance.corrections.status.' + item.status) }}</span>
+                    @if (currentStep(item); as step) {
+                      <span class="muted"> {{ step }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="corr-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="corr-page-size" (change)="onField('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('attendance.corrections.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('attendance.corrections.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

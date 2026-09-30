@@ -18,43 +18,59 @@
  *   a punch row) and must run exactly once, in order, at a moment the page chooses — resources re-run whenever a
  *   signal they read changes, which is right for reads and wrong for writes.
  * - `…Resource()` methods call `inject()` inside `httpResource`: call them from a field initializer.
+ * - **Phase B — a CSV as a Blob.** `monthlyReportCsv()` asks for `responseType: 'blob'` (chapter 18): the bytes go
+ *   straight to `BlobFiles.save()` / `<a download>`, never through `JSON.parse`. A 422 (more than 5 000 rows) still
+ *   arrives as an `ApiProblemError`: the problem interceptor reads the error Blob as JSON first.
  */
 import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
 import { employeeUrl } from '../employees/employees-api';
 import type { AppLanguage } from '../i18n/languages';
-import type {
-  AssignmentList,
-  AssignmentTargetKind,
-  AssignmentView,
-  CreatedKiosk,
-  EmployeeDaysView,
-  KioskList,
-  KioskView,
-  ManualPunchInput,
-  MyDaysView,
-  NewAssignment,
-  NewKiosk,
-  NewSchedule,
-  NewScheduleVersion,
-  OverrideInput,
-  OverrideList,
-  OverrideView,
-  PairingCodeView,
-  PolicyInput,
-  PolicyView,
-  PresenceBoardView,
-  PresenceQuery,
-  PunchResultView,
-  PunchView,
-  ScanView,
-  ScheduleList,
-  ScheduleSegmentsView,
-  ScheduleView,
-  TeamPresenceView,
-  UpdateKiosk,
-  UpdateSchedule,
+import {
+  type AssignmentList,
+  type AssignmentTargetKind,
+  type AssignmentView,
+  type CorrectionDetail,
+  type CorrectionInput,
+  type CorrectionList,
+  type CorrectionPage,
+  type CorrectionQuery,
+  type CorrectionStatus,
+  type CorrectionView,
+  correctionParams,
+  type CreatedKiosk,
+  type EmployeeDaysView,
+  type KioskList,
+  type KioskView,
+  type ManualPunchInput,
+  type MonthlyReportView,
+  type MyDaysView,
+  type NewAssignment,
+  type NewKiosk,
+  type NewSchedule,
+  type NewScheduleVersion,
+  type OverrideInput,
+  type OverrideList,
+  type OverrideView,
+  type PairingCodeView,
+  type PolicyInput,
+  type PolicyView,
+  type PresenceBoardView,
+  type PresenceQuery,
+  type PunchResultView,
+  type PunchView,
+  type ReceiptView,
+  type ReportQuery,
+  reportCsvParams,
+  reportParams,
+  type ScanView,
+  type ScheduleList,
+  type ScheduleSegmentsView,
+  type ScheduleView,
+  type TeamPresenceView,
+  type UpdateKiosk,
+  type UpdateSchedule,
 } from './attendance.models';
 
 export const ATTENDANCE_API_BASE = '/api/attendance';
@@ -121,9 +137,17 @@ export class AttendanceApi {
 
   // --- Phone (ADR 009 §3) -------------------------------------------------------------------------------------------
 
-  /** `POST /attendance/scan {token}` (public) → the entrance + the `hrf_scan` receipt cookie (5 min). */
+  /** `POST /attendance/scan {token}` (public) → the entrance + the `hrf_scan` receipt cookie (2 min since 2026-09-30). */
   scan(token: string): Observable<ScanView> {
     return this.http.post<ScanView>(`${ATTENDANCE_API_BASE}/scan`, { token });
+  }
+
+  /**
+   * `GET /me/attendance/receipt` — what the one-tap confirmation shows: entrance, time, direction, duplicate. Reads
+   * the `hrf_scan` cookie and writes nothing (the receipt stays for the POST); same errors as the punch.
+   */
+  receipt(): Observable<ReceiptView> {
+    return this.http.get<ReceiptView>(`${ME_ATTENDANCE_BASE}/receipt`);
   }
 
   /** `POST /me/attendance/punches` (no body) → 201 new punch, 200 `duplicate: true`. Redeems the receipt cookie. */
@@ -194,6 +218,64 @@ export class AttendanceApi {
 
   voidPunch(punchId: string, reason: string): Observable<PunchView> {
     return this.http.post<PunchView>(`${ATTENDANCE_API_BASE}/punches/${enc(punchId)}/void`, { reason });
+  }
+
+  // --- Corrections (Phase B) ----------------------------------------------------------------------------------------
+
+  /** `POST /me/attendance/corrections` → 201 `CorrectionView` (the workflow starts). */
+  requestCorrection(body: CorrectionInput): Observable<CorrectionView> {
+    return this.http.post<CorrectionView>(`${ME_ATTENDANCE_BASE}/corrections`, body);
+  }
+
+  /** `GET /me/attendance/corrections?status=` — newest first. `enabled()` false → no request. */
+  myCorrectionsResource(enabled: () => boolean, status: () => CorrectionStatus | null = () => null): HttpResourceRef<CorrectionList | undefined> {
+    return httpResource<CorrectionList>(() => {
+      if (!enabled()) return undefined;
+      const value = status();
+      const params: Record<string, string> = value ? { status: value } : {};
+      return { url: `${ME_ATTENDANCE_BASE}/corrections`, params };
+    });
+  }
+
+  /** `POST /me/attendance/corrections/:id/cancel` — the requester, `pending` only. */
+  cancelMyCorrection(id: string): Observable<CorrectionView> {
+    return this.http.post<CorrectionView>(`${ME_ATTENDANCE_BASE}/corrections/${enc(id)}/cancel`, null);
+  }
+
+  /** `GET /attendance/corrections` — HR's scoped list. */
+  correctionsResource(query: () => CorrectionQuery | undefined): HttpResourceRef<CorrectionPage | undefined> {
+    return httpResource<CorrectionPage>(() => {
+      const value = query();
+      return value ? { url: `${ATTENDANCE_API_BASE}/corrections`, params: correctionParams(value) } : undefined;
+    });
+  }
+
+  /**
+   * `GET /attendance/corrections/:id` (`@Authenticated`: the employee, a current candidate — a unit head with no
+   * permission — or `attendance.read` over the employee; else 404).
+   */
+  correctionResource(id: () => string | undefined): HttpResourceRef<CorrectionDetail | undefined> {
+    return httpResource<CorrectionDetail>(() => {
+      const value = id();
+      return value ? `${ATTENDANCE_API_BASE}/corrections/${enc(value)}` : undefined;
+    });
+  }
+
+  // --- Monthly report (Phase B) -------------------------------------------------------------------------------------
+
+  monthlyReportResource(query: () => ReportQuery | undefined, currentMonth: string): HttpResourceRef<MonthlyReportView | undefined> {
+    return httpResource<MonthlyReportView>(() => {
+      const value = query();
+      return value ? { url: `${ATTENDANCE_API_BASE}/reports/monthly`, params: reportParams(value, currentMonth) } : undefined;
+    });
+  }
+
+  /** `GET /attendance/reports/monthly.csv` — the bytes (UTF-8 with BOM, `;`, CRLF), header row in `lang`. */
+  monthlyReportCsv(query: ReportQuery, currentMonth: string, lang: AppLanguage): Observable<Blob> {
+    return this.http.get(`${ATTENDANCE_API_BASE}/reports/monthly.csv`, {
+      params: reportCsvParams(query, currentMonth, lang),
+      responseType: 'blob',
+    });
   }
 
   // --- Configuration ------------------------------------------------------------------------------------------------

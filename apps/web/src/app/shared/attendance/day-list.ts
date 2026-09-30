@@ -13,6 +13,10 @@
  *   owns the dialog and the request.
  * - **`DatePipe` with a pattern** (`'EEE d MMM'`) and the locale of the UI language: "lun. 28 sept." /
  *   "الإثنين 28 سبتمبر" — day and month names from Angular's locale data, not from translation files (chapter 13).
+ * - **Optional features as inputs with defaults** (Phase B): `[correctableDates]` (a `ReadonlySet` of dates computed
+ *   by the page) shows "Demander une correction" in those days, `[pendingDates]` a "correction en cours" chip. The
+ *   employee's Présence tab passes neither and gets the Phase A list unchanged. A Set input compares by reference:
+ *   the page builds it in a `computed()`, so it is a new object only when its inputs changed.
  * - `reversed` is a `computed()` of the input: the API sends days oldest first, a person reads the latest first.
  */
 import { DatePipe } from '@angular/common';
@@ -40,6 +44,11 @@ export class DayList {
   /** Open this day's row at first (`YYYY-MM-DD`, e.g. the date a board row linked to). */
   readonly openDate = input<string | null>(null);
   readonly voidPunch = output<PunchView>();
+  /** Days that may get a correction request (Pointage only). */
+  readonly correctableDates = input<ReadonlySet<string>>(new Set());
+  /** Days with a pending correction request. */
+  readonly pendingDates = input<ReadonlySet<string>>(new Set());
+  readonly requestCorrection = output<AttendanceDayView>();
 
   protected readonly reversed = computed(() => this.days().toReversed());
 

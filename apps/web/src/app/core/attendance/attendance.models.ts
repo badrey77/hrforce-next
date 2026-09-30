@@ -1,7 +1,7 @@
 /**
  * Attendance (pointage) API types and pure helpers — from the binding contract `docs/contracts/attendance.md`
- * (Phase A: kiosks, punches, schedules, daily presence). Keep names exactly as written there: the API builds against
- * the same text. Plain TypeScript, no Angular: the types vanish at runtime and only let `strictTemplates` check our
+ * (Phase A: kiosks, punches, schedules, daily presence; Phase B: corrections through the workflow engine and the
+ * monthly report). Keep names exactly as written there: the API builds against the same text. Plain TypeScript, no Angular: the types vanish at runtime and only let `strictTemplates` check our
  * usage; the helpers are unit-tested without TestBed.
  *
  * Lives in core/ because five features read it (kiosk, punch landing, Pointage, the HR board and settings, the
@@ -13,7 +13,7 @@
  */
 import type { AppLanguage } from '../i18n/languages';
 import type { EmployeeSiteRef, NamePair, UnitRef } from '../employees/employees.models';
-import type { Labels } from '../leave/leave.models';
+import type { Labels, WorkflowProgress, WorkflowTaskHistory } from '../leave/leave.models';
 
 export type { Labels } from '../leave/leave.models';
 
@@ -202,6 +202,12 @@ export interface MyDaysView {
   readonly totals: DayTotals;
   /** The company policy (for the Law 18-07 notice: employees cannot read `GET /attendance/policy`). */
   readonly retentionMonths: number;
+  /**
+   * Phase B: the days a correction may be asked for TODAY (`today − correctionMaxAgeDays` … today, cut to the
+   * employment), sent with the days because employees cannot read the policy; `null` = none. The API stays the judge
+   * (409 `attendance-correction-date`, field `date` `out_of_window`).
+   */
+  readonly correctionWindow: { readonly from: string; readonly to: string } | null;
 }
 
 export interface EmployeeDaysView extends MyDaysView {
@@ -235,9 +241,16 @@ export interface ManualPunchInput {
 
 // --- Configuration ------------------------------------------------------------------------------------------------
 
+export type CorrectionWorkflowCode = 'attendance.manager_then_hr' | 'attendance.hr_only';
+export const CORRECTION_WORKFLOW_CODES: readonly CorrectionWorkflowCode[] = ['attendance.manager_then_hr', 'attendance.hr_only'];
+
 export interface PolicyView {
   readonly retentionMonths: number;
   readonly minPunchGapSeconds: number;
+  /** Phase B: 1–90, default 30 (assumption 7). */
+  readonly correctionMaxAgeDays: number;
+  /** Phase B: the approval chain of NEW correction requests (assumption 6). */
+  readonly correctionWorkflowCode: CorrectionWorkflowCode;
 }
 
 export type PolicyInput = Partial<PolicyView>;
@@ -250,6 +263,8 @@ export const TOLERANCE_MAX = 60;
 export const REASON_MIN = 3;
 export const REASON_MAX = 500;
 export const OVERRIDE_MAX_DAYS = 60;
+export const CORRECTION_AGE_MIN = 1;
+export const CORRECTION_AGE_MAX = 90;
 
 /** ISO weekday: 1 = Monday … 5 = Friday, 6 = Saturday, 7 = Sunday. */
 export type WeekdayNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -439,7 +454,23 @@ export interface ScanView {
   readonly kiosk: { readonly labels: KioskLabels; readonly site: { readonly code: string; readonly name: string } };
   readonly scannedAt: string;
   readonly localTime: string;
+  /** The receipt's end: `scannedAt` + 2 minutes since the 2026-09-30 mitigation. */
   readonly receiptExpiresAt: string;
+}
+
+/**
+ * `GET /me/attendance/receipt` (added by the Phase B build for the one-tap confirmation): what redeeming the receipt
+ * WOULD record — read-only, the receipt is kept. `duplicate: true` = redeeming would return an existing punch.
+ */
+export interface ReceiptView {
+  readonly kiosk: { readonly labels: KioskLabels; readonly site: { readonly code: string; readonly name: string } };
+  readonly scannedAt: string;
+  /** "HH:MM", Algiers — the time the punch will carry (with `duplicate`, the time of the punch already recorded). */
+  readonly localTime: string;
+  readonly workDate: string;
+  readonly receiptExpiresAt: string;
+  readonly direction: PunchDirection;
+  readonly duplicate: boolean;
 }
 
 export interface PunchResultView {
@@ -642,4 +673,283 @@ export function statusTone(status: DayStatus): 'ok' | 'warn' | 'bad' | 'info' | 
     default:
       return 'off';
   }
+}
+
+// --- Phase B: corrections ------------------------------------------------------------------------------------------
+
+export type CorrectionStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export const CORRECTION_STATUSES: readonly CorrectionStatus[] = ['pending', 'approved', 'rejected', 'cancelled'];
+
+/** 1–4 changes per request (contract › Phase B › Rules). */
+export const CORRECTION_MAX_CHANGES = 4;
+/** Assumption 7: the policy's default (the settings form's initial value). */
+export const CORRECTION_MAX_AGE_DEFAULT = 30;
+
+/** One requested change as the API returns it. `time` for an `add`; `punch` (the target) for a `void`. */
+export interface CorrectionChange {
+  readonly position: number;
+  readonly action: 'add' | 'void';
+  readonly direction: PunchDirection | null;
+  /** "HH:MM", Algiers. */
+  readonly time: string | null;
+  readonly punch: { readonly id: string; readonly direction: PunchDirection; readonly localTime: string } | null;
+  /** Set on approval for an `add`. */
+  readonly resultPunchId: string | null;
+}
+
+export interface CorrectionView {
+  readonly id: string;
+  readonly date: string;
+  readonly reason: string;
+  readonly status: CorrectionStatus;
+  readonly requestedAt: string;
+  readonly requestedBy: UserRef | null;
+  readonly employee: EmployeeRef;
+  /** In `position` order. */
+  readonly changes: readonly CorrectionChange[];
+  /** Typed nullable by the API (never null in practice). */
+  readonly workflow: WorkflowProgress | null;
+  readonly rejectionComment: string | null;
+  readonly _actions: readonly 'cancel'[];
+}
+
+/** `GET /attendance/corrections/:id`: the view + the step history (as the leave detail) + the day as computed today. */
+export interface CorrectionDetail extends CorrectionView {
+  /** Oldest first. */
+  readonly history: readonly WorkflowTaskHistory[];
+  readonly day: AttendanceDayView;
+}
+
+export interface CorrectionList {
+  readonly items: readonly CorrectionView[];
+}
+
+export interface CorrectionPage {
+  readonly items: readonly CorrectionView[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+export type CorrectionChangeInput =
+  | { readonly action: 'add'; readonly direction: PunchDirection; readonly time: string }
+  | { readonly action: 'void'; readonly punchId: string };
+
+/** `POST /me/attendance/corrections`. */
+export interface CorrectionInput {
+  readonly date: string;
+  readonly reason: string;
+  readonly changes: readonly CorrectionChangeInput[];
+}
+
+/** The HR list's filters (URL state). `status: null` = every status. `employmentId`: one employee (Présence tab). */
+export interface CorrectionQuery {
+  readonly employmentId?: string;
+  readonly status: CorrectionStatus | null;
+  readonly unitId: string | null;
+  readonly includeSubUnits: boolean;
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly q: string;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+export const CORRECTION_PAGE_SIZES: readonly number[] = [25, 50, 100];
+
+/** Pending first: the list is where HR finds what is waiting. `status: null` in the URL = `?status=all`. */
+export const DEFAULT_CORRECTION_QUERY: CorrectionQuery = {
+  status: 'pending',
+  unitId: null,
+  includeSubUnits: true,
+  from: null,
+  to: null,
+  q: '',
+  page: 1,
+  pageSize: 25,
+};
+
+// --- Phase B: monthly report ---------------------------------------------------------------------------------------
+
+export interface MonthlyCounts {
+  readonly present: number;
+  readonly late: number;
+  readonly absent: number;
+  readonly incomplete: number;
+  readonly onLeave: number;
+  readonly holiday: number;
+  readonly restDay: number;
+}
+
+export interface MonthlyReportItem {
+  /** As of min(month end, employment end, today). */
+  readonly employee: EmployeeRef;
+  readonly counts: MonthlyCounts;
+  readonly lateMinutes: number;
+  readonly earlyDepartureMinutes: number;
+  readonly workedMinutes: number;
+  readonly scheduledMinutes: number;
+  readonly absentDates: readonly string[];
+  readonly incompleteDates: readonly string[];
+}
+
+export interface MonthlyReportView {
+  readonly month: string;
+  /** Days counted (the month cut at today). */
+  readonly days: number;
+  readonly items: readonly MonthlyReportItem[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+/** The report's filters (URL state). `month: null` = the current month. */
+export interface ReportQuery {
+  readonly month: string | null;
+  readonly unitId: string | null;
+  readonly includeSubUnits: boolean;
+  readonly siteId: string | null;
+  readonly q: string;
+  readonly page: number;
+  readonly pageSize: number;
+}
+
+export const REPORT_PAGE_SIZES: readonly number[] = [25, 50, 100];
+
+export const DEFAULT_REPORT_QUERY: ReportQuery = {
+  month: null,
+  unitId: null,
+  includeSubUnits: true,
+  siteId: null,
+  q: '',
+  page: 1,
+  pageSize: 50,
+};
+
+// --- Phase B helpers -----------------------------------------------------------------------------------------------
+
+/** The Algiers wall-clock time "HH:MM" (UTC+1, no daylight saving), whatever the device's time zone. */
+export function algiersTime(now: number = Date.now()): string {
+  return new Date(now + 3_600_000).toISOString().slice(11, 16);
+}
+
+/** Whole days from `from` to `to` (the window's length for the rules sentence). */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * The days of a list that may get a "Demander une correction" button: inside the API's `correctionWindow`, not
+ * `not_employed`, and without a pending request (one pending request per day). The API re-checks everything.
+ */
+export function correctableDates(
+  days: readonly AttendanceDayView[],
+  window: MyDaysView['correctionWindow'],
+  pendingDates: ReadonlySet<string>,
+): ReadonlySet<string> {
+  if (!window) return new Set();
+  return new Set(
+    days
+      .filter((d) => d.date >= window.from && d.date <= window.to && d.status !== 'not_employed' && !pendingDates.has(d.date))
+      .map((d) => d.date),
+  );
+}
+
+/** One line of the before/after view of a correction. */
+export interface PreviewPunch {
+  /** A punch id, or `add-<position>` for a requested punch. */
+  readonly key: string;
+  readonly direction: PunchDirection;
+  readonly localTime: string;
+  /** `kept`: live and untouched; `removed`: the request voids it; `added`: the request adds it. */
+  readonly change: 'kept' | 'removed' | 'added';
+}
+
+export interface CorrectionPreview {
+  /** The live punches as recorded today, by time. */
+  readonly before: readonly PreviewPunch[];
+  /** What the day would hold once approved, by time (removed ones kept, marked, so the eye can compare). */
+  readonly after: readonly PreviewPunch[];
+}
+
+/**
+ * The before/after view an approver reads (docs/contracts/attendance.md › Web (Phase B) › My tasks). `punches` are
+ * the day's punches when known (void ones are left out: they already count for nothing); when the caller only has
+ * the day's arrival and departure (a task summary), pass those as punches. Pure, unit-tested.
+ */
+export function correctionPreview(
+  punches: readonly Pick<PunchView, 'id' | 'direction' | 'localTime' | 'status'>[],
+  changes: readonly Pick<CorrectionChange, 'position' | 'action' | 'direction' | 'time' | 'punch'>[],
+): CorrectionPreview {
+  const removed = new Set(changes.flatMap((c) => (c.action === 'void' && c.punch ? [c.punch.id] : [])));
+  const live = punches.filter((p) => p.status === 'live');
+  const byTime = (a: PreviewPunch, b: PreviewPunch): number => a.localTime.localeCompare(b.localTime) || a.key.localeCompare(b.key);
+  const before: PreviewPunch[] = live.map((p) => ({ key: p.id, direction: p.direction, localTime: p.localTime, change: 'kept' }));
+  // A void target the day list does not show (e.g. a summary with arrival/departure only) is still listed.
+  for (const c of changes) {
+    const target = c.action === 'void' ? c.punch : null;
+    if (target && !before.some((p) => p.key === target.id)) {
+      before.push({ key: target.id, direction: target.direction, localTime: target.localTime, change: 'kept' });
+    }
+  }
+  const after: PreviewPunch[] = before.map((p) => (removed.has(p.key) ? { ...p, change: 'removed' } : p));
+  for (const c of changes) {
+    if (c.action === 'add' && c.direction && c.time) {
+      after.push({ key: `add-${c.position}`, direction: c.direction, localTime: c.time, change: 'added' });
+    }
+  }
+  return { before: before.toSorted(byTime), after: after.toSorted(byTime) };
+}
+
+/** Query params of `GET /attendance/corrections`: defaults left out, paging always sent. */
+export function correctionParams(query: CorrectionQuery): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (query.employmentId) params['employmentId'] = query.employmentId;
+  if (query.status) params['status'] = query.status;
+  if (query.unitId) {
+    params['unitId'] = query.unitId;
+    params['includeSubUnits'] = String(query.includeSubUnits);
+  }
+  if (query.from) params['from'] = query.from;
+  if (query.to) params['to'] = query.to;
+  const q = query.q.trim();
+  if (q) params['q'] = q;
+  params['page'] = String(query.page);
+  params['pageSize'] = String(query.pageSize);
+  return params;
+}
+
+/** Filters shared by the report page and its CSV. */
+function reportFilterParams(query: ReportQuery, month: string): Record<string, string> {
+  const params: Record<string, string> = { month };
+  if (query.unitId) {
+    params['unitId'] = query.unitId;
+    params['includeSubUnits'] = String(query.includeSubUnits);
+  }
+  if (query.siteId) params['siteId'] = query.siteId;
+  return params;
+}
+
+/** Query params of `GET /attendance/reports/monthly` (`month` always sent: the page knows which month it shows). */
+export function reportParams(query: ReportQuery, currentMonth: string): Record<string, string> {
+  const params = reportFilterParams(query, query.month ?? currentMonth);
+  const q = query.q.trim();
+  if (q) params['q'] = q;
+  params['page'] = String(query.page);
+  params['pageSize'] = String(query.pageSize);
+  return params;
+}
+
+/**
+ * Query params of `GET /attendance/reports/monthly.csv`: the same filters, no paging (the export has every row, the
+ * contract lists no `q` for it), and `lang` = the UI language for the header row — `fr` or `ar` only (the contract's
+ * two values; English → `fr`).
+ */
+export function reportCsvParams(query: ReportQuery, currentMonth: string, lang: AppLanguage): Record<string, string> {
+  return { ...reportFilterParams(query, query.month ?? currentMonth), lang: lang === 'ar' ? 'ar' : 'fr' };
+}
+
+/** The file name the API announces (`presence-<month>.csv`), used by the `<a download>`. */
+export function reportFileName(month: string): string {
+  return `presence-${month}.csv`;
 }

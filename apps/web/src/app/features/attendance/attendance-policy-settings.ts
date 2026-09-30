@@ -1,7 +1,8 @@
 /**
  * Settings › Politique (docs/contracts/attendance.md › Data › attendance_policy): how long punches are kept (12–120
  * months, default 60 — assumption 5) and the gap under which a second scan returns the first punch instead of a
- * departure (0–600 s, default 120 — assumption 9).
+ * departure (0–600 s, default 120 — assumption 9). Phase B: the correction window (1–90 days, default 30 —
+ * assumption 7) and the approval chain of new correction requests (assumption 6: unit head then HR, or HR only).
  *
  * Angular concepts: the /leave/settings policy pattern (features/leave/policy-settings.ts) — an `effect()` fills
  * the form when the resource answers (and again after a save's `reload()`); `Validators.min/max` mirror the API's
@@ -12,7 +13,17 @@ import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@ang
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AttendanceApi } from '../../core/attendance/attendance-api';
-import { GAP_MAX, GAP_MIN, RETENTION_MAX, RETENTION_MIN } from '../../core/attendance/attendance.models';
+import {
+  CORRECTION_AGE_MAX,
+  CORRECTION_AGE_MIN,
+  CORRECTION_MAX_AGE_DEFAULT,
+  CORRECTION_WORKFLOW_CODES,
+  type CorrectionWorkflowCode,
+  GAP_MAX,
+  GAP_MIN,
+  RETENTION_MAX,
+  RETENTION_MIN,
+} from '../../core/attendance/attendance.models';
 import type { FormMessage } from '../../core/http/problem-form';
 import { attendanceProblemToForm } from '../../shared/attendance/attendance-forms';
 import { ControlError } from '../../shared/attendance/control-error';
@@ -56,6 +67,22 @@ import { POLICY_SLUGS } from './settings-problems';
             <p class="field-hint" id="att-gap-hint">{{ t('attendance.policy.gapHint', { min: bounds.gapMin, max: bounds.gapMax }) }}</p>
             <app-control-error [control]="c.minPunchGapSeconds" errorId="att-gap-error" />
           </div>
+          <div class="field">
+            <label for="att-correction-age">{{ t('attendance.policy.correctionAge') }}</label>
+            <input id="att-correction-age" type="number" [min]="bounds.ageMin" [max]="bounds.ageMax" formControlName="correctionMaxAgeDays"
+              aria-describedby="att-correction-age-hint att-correction-age-error" />
+            <p class="field-hint" id="att-correction-age-hint">{{ t('attendance.policy.correctionAgeHint', { min: bounds.ageMin, max: bounds.ageMax }) }}</p>
+            <app-control-error [control]="c.correctionMaxAgeDays" errorId="att-correction-age-error" />
+          </div>
+          <div class="field">
+            <label for="att-correction-flow">{{ t('attendance.policy.correctionWorkflow') }}</label>
+            <select id="att-correction-flow" formControlName="correctionWorkflowCode" aria-describedby="att-correction-flow-hint">
+              @for (code of workflowCodes; track code) {
+                <option [value]="code">{{ t('attendance.policy.workflows.' + code.replace('attendance.', '')) }}</option>
+              }
+            </select>
+            <p class="field-hint" id="att-correction-flow-hint">{{ t('attendance.policy.correctionWorkflowHint') }}</p>
+          </div>
           <div class="form-actions">
             <button class="btn" type="submit" data-action="save-policy" [disabled]="saving()">{{ t('common.save') }}</button>
           </div>
@@ -69,7 +96,15 @@ import { POLICY_SLUGS } from './settings-problems';
 export class AttendancePolicySettings {
   private readonly api = inject(AttendanceApi);
   private readonly fb = inject(NonNullableFormBuilder);
-  protected readonly bounds = { retentionMin: RETENTION_MIN, retentionMax: RETENTION_MAX, gapMin: GAP_MIN, gapMax: GAP_MAX };
+  protected readonly bounds = {
+    retentionMin: RETENTION_MIN,
+    retentionMax: RETENTION_MAX,
+    gapMin: GAP_MIN,
+    gapMax: GAP_MAX,
+    ageMin: CORRECTION_AGE_MIN,
+    ageMax: CORRECTION_AGE_MAX,
+  };
+  protected readonly workflowCodes = CORRECTION_WORKFLOW_CODES;
   protected readonly policy = this.api.policyResource();
   protected readonly saving = signal(false);
   protected readonly feedback = signal<string | null>(null);
@@ -78,11 +113,20 @@ export class AttendancePolicySettings {
   protected readonly form = this.fb.group({
     retentionMonths: [60, [Validators.required, Validators.min(RETENTION_MIN), Validators.max(RETENTION_MAX)]],
     minPunchGapSeconds: [120, [Validators.required, Validators.min(GAP_MIN), Validators.max(GAP_MAX)]],
+    correctionMaxAgeDays: [CORRECTION_MAX_AGE_DEFAULT, [Validators.required, Validators.min(CORRECTION_AGE_MIN), Validators.max(CORRECTION_AGE_MAX)]],
+    correctionWorkflowCode: this.fb.control<CorrectionWorkflowCode>('attendance.manager_then_hr'),
   });
 
   constructor() {
     effect(() => {
-      if (this.policy.hasValue()) this.form.reset(this.policy.value());
+      if (!this.policy.hasValue()) return;
+      const p = this.policy.value();
+      this.form.reset({
+        retentionMonths: p.retentionMonths,
+        minPunchGapSeconds: p.minPunchGapSeconds,
+        correctionMaxAgeDays: p.correctionMaxAgeDays,
+        correctionWorkflowCode: p.correctionWorkflowCode,
+      });
     });
   }
 
@@ -95,7 +139,13 @@ export class AttendancePolicySettings {
     }
     const v = this.form.getRawValue();
     this.saving.set(true);
-    this.api.updatePolicy({ retentionMonths: Number(v.retentionMonths), minPunchGapSeconds: Number(v.minPunchGapSeconds) }).subscribe({
+    const body = {
+      retentionMonths: Number(v.retentionMonths),
+      minPunchGapSeconds: Number(v.minPunchGapSeconds),
+      correctionMaxAgeDays: Number(v.correctionMaxAgeDays),
+      correctionWorkflowCode: v.correctionWorkflowCode,
+    };
+    this.api.updatePolicy(body).subscribe({
       next: () => {
         this.saving.set(false);
         this.feedback.set('attendance.policy.saved');

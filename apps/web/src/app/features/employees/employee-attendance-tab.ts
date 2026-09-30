@@ -16,6 +16,9 @@
  *   `attendance.manage` somewhere says nothing about THIS employee (chapter 12).
  * - **Native `<dialog>`s with typed reactive forms** (the file tab's pattern, chapter 19) and problem slugs mapped to
  *   fields or to the banner (`attendanceProblemToForm`, shared/attendance/attendance-forms.ts).
+ * - **Phase B: the employee's correction requests of the month**, from HR's list endpoint
+ *   (`GET /attendance/corrections?employmentId=…&from=…&to=…`, every status): a third resource on the same `range`
+ *   key; each row links to the request's detail page.
  */
 import { DatePipe } from '@angular/common';
 import {
@@ -30,6 +33,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AttendanceApi } from '../../core/attendance/attendance-api';
 import {
@@ -51,6 +55,7 @@ import { pickLabel } from '../../core/leave/leave-catalog';
 import { OrgApi } from '../../core/org/org-api';
 import { attendanceProblemToForm, reasonErrorKey, reasonValidator } from '../../shared/attendance/attendance-forms';
 import { ControlError } from '../../shared/attendance/control-error';
+import { CorrectionChanges } from '../../shared/attendance/correction-changes';
 import { DayList } from '../../shared/attendance/day-list';
 import { MinutesPipe } from '../../shared/attendance/minutes.pipe';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
@@ -79,7 +84,7 @@ export const VOID_SLUGS = {
 
 @Component({
   selector: 'app-employee-attendance-tab',
-  imports: [TranslocoDirective, ReactiveFormsModule, DatePipe, MinutesPipe, DayList, ControlError, RevealAlert],
+  imports: [TranslocoDirective, ReactiveFormsModule, RouterLink, DatePipe, MinutesPipe, DayList, ControlError, RevealAlert, CorrectionChanges],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-attendance-tab.html',
   styles: `
@@ -109,6 +114,16 @@ export class EmployeeAttendanceTab {
 
   protected readonly days = this.api.employeeDaysResource(() => this.employee().id, this.range);
   protected readonly segments = this.api.employeeScheduleResource(() => this.employee().id, this.range);
+  private readonly correctionQuery = computed(() => {
+    const range = this.range();
+    return range
+      ? { employmentId: this.employee().id, status: null, unitId: null, includeSubUnits: true, from: range.from, to: range.to, q: '', page: 1, pageSize: 100 }
+      : undefined;
+  });
+  private readonly correctionPage = this.api.correctionsResource(this.correctionQuery);
+  protected readonly corrections = computed(() =>
+    this.correctionPage.hasValue() ? this.correctionPage.value().items : [],
+  );
   protected readonly canManage = computed(() => this.days.hasValue() && this.days.value().canManage);
   protected readonly openDate = computed(() => {
     const date = this.date();

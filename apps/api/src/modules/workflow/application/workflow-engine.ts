@@ -9,8 +9,17 @@ import { WorkflowRepository, type InstanceRow, type TaskRow } from '../infra/wor
 import { WorkflowSubjects } from './workflow-subjects.js';
 import type { AssigneeView, OpenTaskView, TaskActionView, TaskHistoryView, UserRef, WorkflowProgressView } from './workflow-views.js';
 
-/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011 and 0014). */
-export type WorkflowSubjectType = 'leave_request' | 'document_request';
+/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011, 0014 and 0017). */
+export type WorkflowSubjectType = 'leave_request' | 'document_request' | 'attendance_correction';
+
+const SUBJECT_TYPES: readonly WorkflowSubjectType[] = ['leave_request', 'document_request', 'attendance_correction'];
+
+/** The 409 slug of a cancellation refused because the instance is already finished, per subject type. */
+const NOT_CANCELLABLE: Record<WorkflowSubjectType, string> = {
+  leave_request: 'leave-not-cancellable',
+  document_request: 'document-request-not-cancellable',
+  attendance_correction: 'attendance-correction-not-cancellable',
+};
 
 export interface StartInput {
   definitionId: string;
@@ -42,7 +51,7 @@ function taskNotFound(): NotFoundException {
 
 /** The subject of an instance, as the subject of its audit events and notifications. */
 function subjectOf(instance: Pick<InstanceRow, 'subjectType' | 'subjectId'>): { type: AuditSubjectType & WorkflowSubjectType; id: string } {
-  const type: WorkflowSubjectType = instance.subjectType === 'document_request' ? 'document_request' : 'leave_request';
+  const type: WorkflowSubjectType = (SUBJECT_TYPES as readonly string[]).includes(instance.subjectType) ? (instance.subjectType as WorkflowSubjectType) : 'leave_request';
   return { type, id: instance.subjectId };
 }
 
@@ -230,7 +239,7 @@ export class WorkflowEngine {
     const instance = await this.repo.instance(companyId, instanceId, { lock: true });
     if (!instance) throw new NotFoundException();
     if (instance.status !== 'pending' && instance.status !== 'approved') {
-      const slug = instance.subjectType === 'document_request' ? 'document-request-not-cancellable' : 'leave-not-cancellable';
+      const slug = NOT_CANCELLABLE[subjectOf(instance).type];
       throw new ProblemException(409, slug, 'This request can no longer be cancelled.');
     }
     const openTaskCandidates: string[] = [];

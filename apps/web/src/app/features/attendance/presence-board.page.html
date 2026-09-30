@@ -2,7 +2,11 @@
 <ng-container *transloco="let t">
   <header class="page-header">
     <h1>{{ t('attendance.board.title') }}</h1>
-    <a *appCan="'attendance.configure'" class="btn secondary" routerLink="/attendance/settings" data-action="settings">{{ t('attendance.settings.title') }}</a>
+    <div class="page-actions">
+      <a class="btn secondary" routerLink="/attendance/corrections" data-action="corrections">{{ t('attendance.corrections.hrTitle') }}</a>
+      <a class="btn secondary" routerLink="/attendance/reports" data-action="reports">{{ t('attendance.reports.title') }}</a>
+      <a *appCan="'attendance.configure'" class="btn secondary" routerLink="/attendance/settings" data-action="settings">{{ t('attendance.settings.title') }}</a>
+    </div>
   </header>
 
   @let current = query();

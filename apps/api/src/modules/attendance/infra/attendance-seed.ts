@@ -11,6 +11,7 @@ import { demoEmployees } from '../../employment/index.js';
 import { DEMO_USERS } from '../../identity/index.js';
 import { LEAVE_DEMO } from '../../leave/index.js';
 import { DEMO_ORGANIZATION } from '../../organization/index.js';
+import { seedWorkflowDefinitions, type SeedDefinition } from '../../workflow/index.js';
 import { normalizePairingCode, pairingCodeHash } from '../domain/pairing.js';
 import { addDays, algiersDate, algiersInstant, isoWeekday } from '../domain/time.js';
 import { sha256, windowOf } from '../domain/tokens.js';
@@ -45,11 +46,25 @@ function unitId(code: string): string {
 
 // ── defaults (every company) ────────────────────────────────────────────────────────────────────────────────────
 
+const HR_STEP = { key: 'hr', kind: 'permission' as const, permission: 'attendance.manage', labels: { fr: 'RH', ar: 'الموارد البشرية', en: 'HR' } };
+
+/** The correction chains (Phase B; migration 0017 did existing companies): unit head then HR, or HR alone. */
+export const ATTENDANCE_DEFINITIONS: readonly SeedDefinition[] = [
+  {
+    code: 'attendance.manager_then_hr',
+    names: { fr: 'Responsable puis RH', ar: 'المسؤول المباشر ثم الموارد البشرية', en: 'Manager then HR' },
+    steps: [{ key: 'manager', kind: 'manager', labels: { fr: 'Responsable', ar: 'المسؤول المباشر', en: 'Manager' } }, HR_STEP],
+  },
+  { code: 'attendance.hr_only', names: { fr: 'RH uniquement', ar: 'الموارد البشرية فقط', en: 'HR only' }, steps: [HR_STEP] },
+];
+
 /**
  * The policy row, schedule `standard` (assumption 1) with one open version from 2000-01-01 and its `company`
- * assignment from 2000-01-01 (the same defaults migration 0016 gave existing companies). Returns the schedule id.
+ * assignment from 2000-01-01 (the same defaults migration 0016 gave existing companies), and the two correction
+ * workflow definitions (migration 0017). Returns the schedule id.
  */
 export async function seedAttendanceDefaults(db: Executor, companyId: string): Promise<string> {
+  await seedWorkflowDefinitions(db, companyId, ATTENDANCE_DEFINITIONS);
   await sql`insert into attendance_policy (company_id) values (${companyId}::uuid) on conflict do nothing`.execute(db);
   await sql`
     insert into attendance_schedule (company_id, code, name_fr, name_ar, name_en)

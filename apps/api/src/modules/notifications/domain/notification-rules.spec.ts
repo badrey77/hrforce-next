@@ -6,7 +6,7 @@ const ID = '0190a5d0-0000-7000-8000-000000000abc';
 describe('notification rules', () => {
   it('has an e-mail default for every type (contract table)', () => {
     expect(Object.keys(EMAIL_DEFAULTS).toSorted()).toEqual([...NOTIFICATION_TYPES].toSorted());
-    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'task.assigned']);
+    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['attendance.correction_rejected', 'document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'task.assigned']);
     expect(emailDefault('unknown.type')).toBe(false);
   });
 
@@ -18,6 +18,9 @@ describe('notification rules', () => {
     expect(linkOf({ type: 'task.escalated', subjectType: 'leave_request', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/leave?request=${ID}`);
     expect(linkOf({ type: 'document.ready', subjectType: 'issued_document', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/documents?document=${ID}`);
     expect(linkOf({ type: 'document.rejected', subjectType: 'document_request', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/documents?request=${ID}`);
+    for (const type of ['attendance.correction_approved', 'attendance.correction_rejected', 'task.escalated']) {
+      expect(linkOf({ type, subjectType: 'attendance_correction', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/attendance?correction=${ID}`);
+    }
   });
 
   it('publicData drops the audience and non-scalar values', () => {

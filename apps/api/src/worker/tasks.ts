@@ -126,7 +126,7 @@ export async function attendanceRetentionTask(deps: WorkerDeps, payload: unknown
   const today = typeof given === 'string' ? given : algiersDate(Date.now());
   const audit = new PgAuditEvents(deps.db);
   const results = await forEachCompany(deps.db, requestIdOf(TASKS.attendanceRetention, job), (tx, companyId) => runAttendanceRetention(tx, companyId, today, audit));
-  return { today, companies: results.length, punches: results.reduce((n, r) => n + (r.result?.punches ?? 0), 0) };
+  return { today, companies: results.length, punches: results.reduce((n, r) => n + (r.result?.punches ?? 0), 0), corrections: results.reduce((n, r) => n + (r.result?.corrections ?? 0), 0) };
 }
 
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;

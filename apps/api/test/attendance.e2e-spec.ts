@@ -110,8 +110,9 @@ describe('scan: tokens and windows', () => {
     assertNoSecrets(res.body);
     expect(res.body).toMatchObject({ kiosk: { labels: { fr: 'Constantine — Entrée' }, site: { code: 'CNE' } } });
     expect(res.body.localTime).toMatch(/^\d{2}:\d{2}$/);
-    expect(Date.parse(res.body.receiptExpiresAt) - Date.parse(res.body.scannedAt)).toBe(300_000);
-    expect(cookieLine(res, 'hrf_scan')).toMatch(/Max-Age=300; Path=\/api\/me\/attendance; HttpOnly; SameSite=Strict$/);
+    // owner decision 2026-09-30: the receipt lives 2 minutes (was 5)
+    expect(Date.parse(res.body.receiptExpiresAt) - Date.parse(res.body.scannedAt)).toBe(120_000);
+    expect(cookieLine(res, 'hrf_scan')).toMatch(/Max-Age=120; Path=\/api\/me\/attendance; HttpOnly; SameSite=Strict$/);
     expect(cookieLine(res, 'hrf_dev')).toMatch(/Max-Age=34560000; Path=\/api\/me\/attendance; HttpOnly; SameSite=Strict$/);
   });
 
@@ -154,7 +155,7 @@ describe('the phone flow: scan → sign in → punch at the scan instant', () =>
     // no session yet: 401 (the web's refresh interceptor sends the employee to the login page)
     expect((await phone.post('/api/me/attendance/punches')).status).toBe(401);
     expect((await phone.login('agent.annaba@demo.dz', DEMO_PASSWORD)).status).toBe(204);
-    clock.pinned = t1 + 150_000; // signing in took 2.5 minutes
+    clock.pinned = t1 + 100_000; // signing in took 1 min 40 s (the receipt lives 2 minutes)
     const res = await phone.post('/api/me/attendance/punches');
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     assertNoSecrets(res.body);
@@ -186,14 +187,17 @@ describe('the phone flow: scan → sign in → punch at the scan instant', () =>
     expect(back.body.punch.direction).toBe('in');
   });
 
-  it('a receipt older than 5 minutes, tampered, or of a revoked kiosk is refused', async () => {
+  it('a receipt older than 2 minutes, tampered, or of a revoked kiosk is refused', async () => {
     const t = Date.parse('2026-09-28T12:00:00Z');
-    clock.pinned = t + 301_000;
+    clock.pinned = t + 120_000;
+    // exactly 2 minutes old is still accepted (preview only: nothing is written)
+    expect((await call('chef', 'get', '/api/me/attendance/receipt', { cookie: scanReceipt(ANNABA, t) }).expect(200)).body).toMatchObject({ direction: 'in', duplicate: false });
+    clock.pinned = t + 121_000;
     expect((await punchAs('chef', scanReceipt(ANNABA, t)).expect(409)).body.type).toBe(PROBLEM('attendance-no-scan'));
     expect((await punchAs('chef', 'hrf_scan=AAAA').expect(409)).body.type).toBe(PROBLEM('attendance-no-scan'));
     expect((await punchAs('chef', '').expect(409)).body.type).toBe(PROBLEM('attendance-no-scan'));
-    expect((await punchAs('chef', scanReceipt(DEMO_KIOSKS.oran.id, t + 300_000)).expect(422)).body.type).toBe(PROBLEM('attendance-qr-invalid'));
-    expect((await punchAs('admin', scanReceipt(ANNABA, t + 300_000)).expect(409)).body.type).toBe(PROBLEM('attendance-not-linked'));
+    expect((await punchAs('chef', scanReceipt(DEMO_KIOSKS.oran.id, t + 120_000)).expect(422)).body.type).toBe(PROBLEM('attendance-qr-invalid'));
+    expect((await punchAs('admin', scanReceipt(ANNABA, t + 120_000)).expect(409)).body.type).toBe(PROBLEM('attendance-not-linked'));
   });
 
   it('the same token by two employees → both 201; one employee scanning in parallel → one punch (unique index)', async () => {
@@ -498,7 +502,7 @@ describe('schedules and their resolution', () => {
     // policy
     await call('est', 'put', '/api/attendance/policy', { body: { retentionMonths: 24 } }).expect(403);
     await call('admin', 'put', '/api/attendance/policy', { body: { retentionMonths: 9 } }).expect(422);
-    expect((await call('admin', 'put', '/api/attendance/policy', { body: { minPunchGapSeconds: 90 } }).expect(200)).body).toEqual({ retentionMonths: 60, minPunchGapSeconds: 90 });
+    expect((await call('admin', 'put', '/api/attendance/policy', { body: { minPunchGapSeconds: 90 } }).expect(200)).body).toEqual({ retentionMonths: 60, minPunchGapSeconds: 90, correctionMaxAgeDays: 30, correctionWorkflowCode: 'attendance.manager_then_hr' });
     await call('admin', 'put', '/api/attendance/policy', { body: { minPunchGapSeconds: 120 } }).expect(200);
   });
 });
@@ -665,7 +669,7 @@ describe('retention and the punch audit', () => {
     expect(await query(db.superuserUrl, `select 1 from audit.change_log where table_name = 'attendance_punch'`)).toEqual([]);
     expect(await query(db.superuserUrl, `select 1 from audit.event where type = 'attendance.punch_deleted'`)).toEqual([]);
     const purged = await query<{ data: Record<string, unknown>; actor: string | null; company_id: string }>(db.superuserUrl, `select data, actor_user_id as actor, company_id from audit.event where type = 'attendance.purged'`);
-    expect(purged).toEqual([{ data: { punches: 2, before: '2021-09-01' }, actor: null, company_id: COMPANY_A }]);
+    expect(purged).toEqual([{ data: { punches: 2, corrections: 0, before: '2021-09-01' }, actor: null, company_id: COMPANY_A }]);
     // what the audit log still holds about the erased punches: their ids and source only (nothing personal)
     const left = await query<{ actor: string | null; data: Record<string, unknown>; subject_id: string }>(db.superuserUrl, `select actor_user_id as actor, data, subject_id from audit.event where subject_id = any($1)`, [old]);
     expect(left).toHaveLength(2);

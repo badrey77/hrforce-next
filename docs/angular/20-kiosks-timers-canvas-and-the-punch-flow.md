@@ -213,19 +213,24 @@ the current value at once and then every change; the `null` it emits after the t
 
 The phone's session has usually expired overnight. The flow is:
 
-1. `POST /api/attendance/scan {token}` — public; the server answers with the entrance's name and sets a 5-minute
-   **scan receipt** cookie (`httpOnly`: the page never sees it);
+1. `POST /api/attendance/scan {token}` — public; the server answers with the entrance's name and sets a **scan
+   receipt** cookie (`httpOnly`: the page never sees it), valid 2 minutes since the 2026-09-30 mitigation (5 before);
 2. no session? `router.navigate(['/login'], { queryParams: { returnUrl: '/punch' } })` — the login page says why
    (`auth.login.forPunch`) and, after the password and the TOTP code, navigates to the validated `returnUrl`;
-3. back on `/punch`, **without a token**: `POST /api/me/attendance/punches` redeems the receipt; the punch's time is
-   the scan's time.
+3. back on `/punch`, **without a token**: `GET /api/me/attendance/receipt` tells what redeeming would record
+   (entrance, time, arrival or departure, already recorded?) without redeeming it, and the page ASKS « Enregistrer mon
+   arrivée à <entrée> ? » with one large button (see
+   [chapter 21 §1](./21-corrections-reports-and-a-one-tap-confirmation.md#1-a-one-tap-confirmation));
+4. only that tap sends `POST /api/me/attendance/punches`, which redeems the receipt; the punch's time is the scan's
+   time.
 
-Nothing is held in the browser between 1 and 3: the server holds the state (the receipt), the URL holds the way back.
-A component signal or a root service would not survive a full page load (a password manager, an iPhone switching
-apps); a cookie and a query parameter do. The route has **no guard** — a guard would send the phone to `/login` before
+Nothing is held in the browser between 1 and 3: the server holds the state (the receipt), the URL holds the way back,
+and the receipt route gives the page everything the question needs after the round trip. A component signal or a
+root service would not survive a full page load (a password manager, an iPhone switching apps); a cookie, a query
+parameter and a read-only endpoint do. The route has **no guard** — a guard would send the phone to `/login` before
 step 1 and lose the scan time. The steps depend on each other, so the page uses `async`/`await` with
-`firstValueFrom()` and publishes one `state` signal (a discriminated union: working / done / problem) that the
-template `@switch`es on (chapter 17).
+`firstValueFrom()` and publishes one `state` signal (a discriminated union: working / confirm / done / problem) that the
+template `@switch`es on (chapter 17): working → confirm → working → done, or problem.
 
 ## 9. The rest of the module
 
@@ -267,5 +272,7 @@ not.
 - **jsdom has no 2D canvas**: the page spec stubs `getContext` to `null`, and the drawing is tested on a recording
   context in `qr-canvas.spec.ts` (white square, whole-pixel modules, quiet zone, version 7 for a 112-character URL).
 - **The fragment flow** runs through `RouterTestingHarness`: `navigateByUrl('/punch#tok')`, then
-  `expect(router.url).toBe('/punch')` before the scan request is answered
-  ([`punch.page.spec.ts`](../../apps/web/src/app/features/punch/punch.page.spec.ts)).
+  `expect(router.url).toBe('/punch')` before the scan request is answered, then `http.expectNone(…/punches)` — the
+  link alone records nothing — and a click on the confirmation button before `expectOne(…/punches)`
+  ([`punch.page.spec.ts`](../../apps/web/src/app/features/punch/punch.page.spec.ts)). The verifier's "new fragment
+  while `/punch` is open" test now expects a second question (focused) and a second tap.

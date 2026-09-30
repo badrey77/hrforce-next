@@ -13,12 +13,20 @@ export interface ScheduleRow {
   active: boolean;
 }
 
+/** Correction chains (workflow definition codes, attendance_policy_correction_workflow_ck). */
+export const CORRECTION_WORKFLOW_CODES = ['attendance.manager_then_hr', 'attendance.hr_only'] as const;
+export type CorrectionWorkflowCode = (typeof CORRECTION_WORKFLOW_CODES)[number];
+
 export interface PolicyRow {
   retentionMonths: number;
   minPunchGapSeconds: number;
+  /** Phase B: how many days back a correction may be requested (1–90) */
+  correctionMaxAgeDays: number;
+  /** Phase B: the chain of new correction requests */
+  correctionWorkflowCode: CorrectionWorkflowCode;
 }
 
-export const DEFAULT_ATTENDANCE_POLICY: PolicyRow = { retentionMonths: 60, minPunchGapSeconds: 120 };
+export const DEFAULT_ATTENDANCE_POLICY: PolicyRow = { retentionMonths: 60, minPunchGapSeconds: 120, correctionMaxAgeDays: 30, correctionWorkflowCode: 'attendance.manager_then_hr' };
 
 export interface OverrideInput {
   scheduleId: string | null;
@@ -48,20 +56,30 @@ export class SchedulesRepository {
   async policy(companyId: string): Promise<PolicyRow> {
     const row = await currentTx()
       .selectFrom('attendance_policy')
-      .select(['retention_months', 'min_punch_gap_seconds'])
+      .select(['retention_months', 'min_punch_gap_seconds', 'correction_max_age_days', 'correction_workflow_code'])
       .where('company_id', '=', companyId)
       .executeTakeFirst();
-    return row ? { retentionMonths: row.retention_months, minPunchGapSeconds: row.min_punch_gap_seconds } : { ...DEFAULT_ATTENDANCE_POLICY };
+    return row
+      ? {
+          retentionMonths: row.retention_months,
+          minPunchGapSeconds: row.min_punch_gap_seconds,
+          correctionMaxAgeDays: row.correction_max_age_days,
+          correctionWorkflowCode: row.correction_workflow_code === 'attendance.hr_only' ? 'attendance.hr_only' : 'attendance.manager_then_hr',
+        }
+      : { ...DEFAULT_ATTENDANCE_POLICY };
   }
 
   async savePolicy(companyId: string, policy: PolicyRow): Promise<void> {
     await sql`
-      insert into attendance_policy (company_id, retention_months, min_punch_gap_seconds, updated_at)
-      values (${companyId}::uuid, ${policy.retentionMonths}, ${policy.minPunchGapSeconds}, now())
+      insert into attendance_policy (company_id, retention_months, min_punch_gap_seconds, correction_max_age_days, correction_workflow_code, updated_at)
+      values (${companyId}::uuid, ${policy.retentionMonths}, ${policy.minPunchGapSeconds}, ${policy.correctionMaxAgeDays}, ${policy.correctionWorkflowCode}, now())
       on conflict (company_id) do update
-         set retention_months = excluded.retention_months, min_punch_gap_seconds = excluded.min_punch_gap_seconds, updated_at = now()
+         set retention_months = excluded.retention_months, min_punch_gap_seconds = excluded.min_punch_gap_seconds,
+             correction_max_age_days = excluded.correction_max_age_days, correction_workflow_code = excluded.correction_workflow_code, updated_at = now()
        where attendance_policy.retention_months is distinct from excluded.retention_months
-          or attendance_policy.min_punch_gap_seconds is distinct from excluded.min_punch_gap_seconds`.execute(currentTx());
+          or attendance_policy.min_punch_gap_seconds is distinct from excluded.min_punch_gap_seconds
+          or attendance_policy.correction_max_age_days is distinct from excluded.correction_max_age_days
+          or attendance_policy.correction_workflow_code is distinct from excluded.correction_workflow_code`.execute(currentTx());
   }
 
   // ── schedules and versions ────────────────────────────────────────────────────────────────────────────────────

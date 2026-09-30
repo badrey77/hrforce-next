@@ -13,8 +13,11 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 export const WINDOW_SECONDS = 30;
 /** Windows served to a kiosk: the current one and the next three (2 minutes of cover). */
 export const KIOSK_WINDOWS = 4;
-/** A scan receipt is redeemable for 5 minutes (the sign-in in between). */
-export const RECEIPT_TTL_SECONDS = 300;
+/**
+ * A scan receipt is redeemable for 2 minutes (the sign-in in between). Owner decision 2026-09-30: shortened from 5 to
+ * narrow the bearer-receipt relay window (docs/contracts/attendance.md › Settled by the verification).
+ */
+export const RECEIPT_TTL_SECONDS = 120;
 
 const VERSION = 0x01;
 const QR_LABEL = Buffer.from('hrforce.attendance.qr.v1\0', 'utf8');

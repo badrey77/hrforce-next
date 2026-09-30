@@ -1,0 +1,88 @@
+<!--
+  correction-form.ts. A native <dialog>, closed until `open(day)` calls showModal(). Two lists (punches to remove,
+  punches to add), a reason, the rules, and a live before/after preview.
+-->
+<dialog #dialog class="modal" aria-labelledby="correction-title">
+  <form *transloco="let t" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="correction">
+    <h2 id="correction-title">
+      {{ t('attendance.corrections.formTitle', { date: date() ? (date() | date: 'fullDate' : undefined : locale()) : '' }) }}
+    </h2>
+    <p class="field-hint" data-field="rules">{{ t('attendance.corrections.rules', { days: windowDays(), max: max }) }}</p>
+
+    @if (formError(); as error) {
+      <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    <!-- Punches recorded that day: one checkbox each, bound by index into the `removals` FormArray. -->
+    <fieldset class="field" formArrayName="removals">
+      <legend>{{ t('attendance.corrections.recorded') }}</legend>
+      @if (punches().length) {
+        <ul class="plain">
+          @for (punch of punches(); track punch.id; let i = $index) {
+            <li class="punch-toggle" [attr.data-punch]="punch.id">
+              <input type="checkbox" [id]="'remove-' + punch.id" [formControlName]="i" [attr.aria-describedby]="'remove-' + punch.id + '-error'" />
+              <label [for]="'remove-' + punch.id">
+                {{ t('attendance.corrections.removeLabel', { direction: t('attendance.direction.' + punch.direction), time: punch.localTime }) }}
+              </label>
+              <app-control-error [control]="removals.at(i)" [errorId]="'remove-' + punch.id + '-error'" />
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted" data-state="no-punch">{{ t('attendance.day.noPunch') }}</p>
+      }
+    </fieldset>
+
+    <!-- Punches to add: rows the person adds and removes (FormArray of FormGroups). -->
+    <fieldset class="field" formArrayName="additions">
+      <legend>{{ t('attendance.corrections.toAdd') }}</legend>
+      @for (row of additions.controls; track row; let j = $index) {
+        <div class="add-row" [formGroupName]="j" [attr.data-add-row]="j">
+          <div class="field">
+            <label [for]="'add-direction-' + j">{{ t('attendance.manual.direction') }}</label>
+            <select [id]="'add-direction-' + j" formControlName="direction">
+              <option value="in">{{ t('attendance.direction.in') }}</option>
+              <option value="out">{{ t('attendance.direction.out') }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label [for]="'add-time-' + j">{{ t('attendance.manual.time') }}</label>
+            <input type="time" dir="ltr" [id]="'add-time-' + j" formControlName="time" [attr.aria-describedby]="'add-time-' + j + '-error'" />
+            <app-control-error [control]="row.controls.time" [errorId]="'add-time-' + j + '-error'"
+              [keys]="{ required: 'attendance.settings.required', pattern: 'attendance.manual.timeFormat', future: 'attendance.corrections.problems.future' }" />
+          </div>
+          <button class="btn secondary small" type="button" data-action="remove-add-row"
+            [attr.aria-label]="t('attendance.corrections.removeRowNamed', { n: j + 1 })" (click)="removeRow(j)">
+            {{ t('attendance.corrections.removeRow') }}
+          </button>
+        </div>
+      }
+      <button class="btn secondary" type="button" data-action="add-row" (click)="addRow()">{{ t('attendance.corrections.addRow') }}</button>
+    </fieldset>
+
+    @if (form.touched && form.errors; as errors) {
+      <p class="field-error" data-error="changes" role="alert">
+        {{ errors['noChange'] ? t('attendance.corrections.errors.noChange') : t('attendance.corrections.errors.tooMany', { max: max }) }}
+      </p>
+    }
+
+    @let reason = form.controls.reason;
+    <div class="field">
+      <label for="correction-reason">{{ t('attendance.reason.label') }}</label>
+      <textarea id="correction-reason" formControlName="reason" rows="3" dir="auto" required
+        [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="correction-reason-hint correction-reason-error"></textarea>
+      <p class="field-hint" id="correction-reason-hint">{{ t('attendance.corrections.reasonHint') }}</p>
+      @if (reason.invalid && reason.touched) {
+        <p class="field-error" id="correction-reason-error">{{ t(reasonErrorKey(reason)) }}</p>
+      }
+    </div>
+
+    <h3>{{ t('attendance.corrections.previewTitle') }}</h3>
+    <app-correction-preview [punches]="punches()" [changes]="previewChanges()" idPrefix="my-correction" />
+
+    <div class="form-actions">
+      <button class="btn" type="submit" data-action="submit-correction" [disabled]="submitting()">{{ t('attendance.corrections.submit') }}</button>
+      <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+    </div>
+  </form>
+</dialog>

@@ -98,3 +98,12 @@ export function datesBetween(from: string, to: string): string[] {
 export function retentionCutoff(today: string, retentionMonths: number): string {
   return monthStart(today, -retentionMonths);
 }
+
+/** The earlier / later of two ISO dates (reducers). */
+export function minDate(a: string, b: string): string {
+  return a < b ? a : b;
+}
+
+export function maxDate(a: string, b: string): string {
+  return a > b ? a : b;
+}

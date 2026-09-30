@@ -41,3 +41,63 @@
 [role='tab']:hover {
   background: var(--color-hover);
 }
+
+/*
+ * Phase B tables (corrections, monthly report): under 640 px each row becomes a card, the column name coming from the
+ * cell's `data-label` (the presence table's pattern, shared/attendance/presence-table.css). The explicit ARIA roles
+ * on the table keep it announced as a table although `display: block` would otherwise drop its semantics.
+ */
+@media (max-width: 640px) {
+  table.cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.cards,
+  table.cards tbody,
+  table.cards tr,
+  table.cards td {
+    display: block;
+  }
+
+  table.cards tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.cards td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: space-between;
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.cards td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.data.cards td.who {
+    display: block;
+    font-size: 1.0625rem;
+  }
+
+  table.cards td.who::before {
+    content: none;
+  }
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

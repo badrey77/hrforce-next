@@ -96,4 +96,20 @@ describe('relativeTime', () => {
     expect(relativeTime('2026-09-27T11:55:00Z', 'ar', now)).toMatch(/5/);
     expect(relativeTime('not a date', 'fr', now)).toBe('');
   });
+
+  it('attendance: correction task, escalation and outcomes have their own sentences with the date', () => {
+    const task = notificationMessage({ type: 'task.assigned', data: { subjectType: 'attendance_correction', employeeName: 'SAIDI Nadia', date: '2026-09-28', changes: 2 } }, FORMAT);
+    expect(task.key).toBe('notifications.types.task.assigned_attendance');
+    expect(task.params['date']).not.toBe('…');
+    const escalated = notificationKey({ type: 'task.escalated', audience: 'employee', subject: { type: 'attendance_correction', id: 'c-1' } });
+    expect(escalated).toBe('notifications.types.task.escalated_attendance');
+    expect(notificationKey({ type: 'task.escalated', audience: 'approver', subject: { type: 'attendance_correction', id: 'c-1' } })).toBe(
+      'notifications.typesNamed.task.escalated_attendance',
+    );
+    const keys = [task.key, escalated, 'notifications.typesNamed.task.escalated_attendance', 'notifications.types.attendance.correction_approved', 'notifications.types.attendance.correction_rejected'];
+    for (const file of [fr, ar, en]) {
+      for (const key of keys) expect(at(file, key)).toContain('{{date}}');
+      expect(typeof at(file, 'notifications.typeLabels.attendance.correction_approved')).toBe('string');
+    }
+  });
 });

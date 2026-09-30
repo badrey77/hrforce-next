@@ -96,6 +96,25 @@ export function assignmentOn(e: EmploymentFacts, date: string): EmploymentFacts[
   return before ?? e.assignments.toSorted((a, b) => (a.from < b.from ? -1 : 1))[0];
 }
 
+/** Where an employment is on `date` (unit, today's ancestor chain, effective site), from the organisation book. */
+export function placementOn(org: OrgBook, e: EmploymentFacts, date: string): Placement | null {
+  const a = assignmentOn(e, date);
+  if (!a) return null;
+  return { employmentId: e.id, unitId: a.orgUnitId, unitChain: org.chain(a.orgUnitId), siteId: a.siteId ?? org.effectiveSiteOf(a.orgUnitId, date) };
+}
+
+/** The employee as of `date` (unit and site that day) — attendance's EmployeeRef. */
+export function employeeRefOn(org: OrgBook, e: EmploymentFacts, date: string): EmployeeRef {
+  const p = placementOn(org, e, date);
+  return {
+    id: e.id,
+    matricule: e.matricule,
+    person: { lastName: e.lastName, firstName: e.firstName, lastNameAr: e.lastNameAr, firstNameAr: e.firstNameAr },
+    unit: p ? org.unitRef(p.unitId, date) : { id: '', code: '', name: '', nameAr: null, kind: '' },
+    site: p ? org.siteRef(p.siteId) : null,
+  };
+}
+
 export function isEmployedOn(e: EmploymentFacts, date: string): boolean {
   return e.hireDate <= date && (e.endDate === null || e.endDate >= date);
 }
@@ -144,20 +163,11 @@ export class PresenceData {
   }
 
   placement(e: EmploymentFacts, date: string): Placement | null {
-    const a = assignmentOn(e, date);
-    if (!a) return null;
-    return { employmentId: e.id, unitId: a.orgUnitId, unitChain: this.org.chain(a.orgUnitId), siteId: a.siteId ?? this.org.effectiveSiteOf(a.orgUnitId, date) };
+    return placementOn(this.org, e, date);
   }
 
   employeeRef(e: EmploymentFacts, date: string): EmployeeRef {
-    const p = this.placement(e, date);
-    return {
-      id: e.id,
-      matricule: e.matricule,
-      person: { lastName: e.lastName, firstName: e.firstName, lastNameAr: e.lastNameAr, firstNameAr: e.firstNameAr },
-      unit: p ? this.org.unitRef(p.unitId, date) : { id: '', code: '', name: '', nameAr: null, kind: '' },
-      site: p ? this.org.siteRef(p.siteId) : null,
-    };
+    return employeeRefOn(this.org, e, date);
   }
 
   resolve(e: EmploymentFacts, date: string): Resolved | null {
@@ -183,9 +193,9 @@ export class PresenceData {
       reason: p.reason,
       // a QR punch is created by the employee themselves
       createdBy: p.source === 'qr' ? null : this.user(p.createdBy),
-      correctionId: null,
+      correctionId: p.correctionId,
       status: p.status,
-      void: p.status === 'void' && p.voidedAt ? { at: p.voidedAt.toISOString(), by: this.user(p.voidedBy), reason: p.voidReason ?? '', correctionId: null } : null,
+      void: p.status === 'void' && p.voidedAt ? { at: p.voidedAt.toISOString(), by: this.user(p.voidedBy), reason: p.voidReason ?? '', correctionId: p.voidCorrectionId } : null,
       _actions: canVoid && p.status === 'live' ? ['void'] : [],
     };
   }
@@ -217,6 +227,7 @@ export class PresenceData {
       status: p.status,
       siteId: p.siteId,
       deviceRef: p.deviceRef,
+      voidedByCorrection: p.voidCorrectionId !== null,
     }));
     const result = computeDay({
       date,

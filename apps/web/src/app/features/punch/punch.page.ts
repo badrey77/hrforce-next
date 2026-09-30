@@ -3,12 +3,22 @@
  * Punch landing, ADR 009 §3). The code is a link `https://<domain>/punch#<token>`; this page turns it into a punch:
  *
  *   1. read the token from the URL FRAGMENT, then drop it from the address bar;
- *   2. `POST /api/attendance/scan {token}` (public) → the entrance's name + a 5-minute scan RECEIPT, an `httpOnly`
+ *   2. `POST /api/attendance/scan {token}` (public) → the entrance's name + a 2-minute scan RECEIPT, an `httpOnly`
  *      cookie the page never sees;
  *   3. signed out? → `/login?returnUrl=/punch`. After sign-in (and the TOTP code, if any) the login page navigates
- *      back here WITHOUT a token, and…
- *   4. `POST /api/me/attendance/punches` (no body) redeems the receipt: the punch's time is the SCAN's time, so the
- *      minute spent typing a password does not make anyone late. No second scan.
+ *      back here WITHOUT a token;
+ *   4. `GET /api/me/attendance/receipt` — what redeeming the receipt WOULD record (entrance, time, arrival or
+ *      departure, already recorded?), read-only;
+ *   5. **one-tap confirmation** (owner decision 2026-09-30): « Enregistrer mon arrivée à <entrée> ? » with ONE large
+ *      button. Only that tap sends `POST /api/me/attendance/punches` (no body), which redeems the receipt: the punch's
+ *      time is the SCAN's time, so the minute spent typing a password does not make anyone late. When the receipt
+ *      says `duplicate`, the page shows « Déjà enregistré » and no button.
+ *
+ * Why the tap: before it, opening a live `/punch#<token>` link (sent in a message by someone standing at the door)
+ * punched the signed-in reader silently. Now a link can at most SHOW a question; nothing is recorded without a
+ * deliberate tap on this screen. The receipt was also shortened to 2 minutes: a late tap gets the explicit « Code
+ * expiré, veuillez scanner à nouveau » state (on a timer from the receipt's end, or from the API's 409
+ * `attendance-no-scan`).
  *
  * Angular concepts:
  * - **Reading the fragment with the router.** The router parses the whole URL, fragment included:
@@ -22,31 +32,56 @@
  *   `router.url`, which would put a used token back into the address bar after sign-in. Same route, same component:
  *   the router reuses this instance, the constructor does not run again.
  * - **A flow that survives a sign-in redirect.** Nothing is kept in the browser between steps 2 and 4: the server
- *   holds the state (the receipt cookie, 5 minutes), and the URL holds the way back (`returnUrl=/punch`, validated by
- *   `safeReturnUrl()` on the login page). A reload or a fresh tab after sign-in still works — a component signal or
- *   a root service would not survive the full page load a password manager or an iPhone may cause.
+ *   holds the state (the receipt cookie), the URL holds the way back (`returnUrl=/punch`, validated by
+ *   `safeReturnUrl()` on the login page), and the receipt route tells the page, after the round trip, everything the
+ *   question needs. A reload or a fresh tab after sign-in still works.
  * - **Ordered async steps with `firstValueFrom()`** — each call depends on the previous one's outcome, so `async`/
- *   `await` reads top to bottom; the result is ONE signal, `state`, a discriminated union the template `@switch`es on.
+ *   `await` reads top to bottom; the result is ONE signal, `state`, a discriminated union the template `@switch`es on
+ *   (working → confirm → working → done, or problem).
+ * - **Focus on the one button**: `viewChild('confirmButton')` is a signal that holds the button only while the
+ *   `confirm` state renders it; an `afterRenderEffect()` reads it and calls `focus()` once the DOM exists — a screen
+ *   reader announces the question, a keyboard user presses Enter. (`autofocus` works only on a page's first load, not
+ *   on an element an SPA adds later.)
+ * - **A timer owned by the page**: the expiry `setTimeout` is cleared when the state leaves `confirm` and, through
+ *   `DestroyRef.onDestroy`, when the page goes away (chapter 20 §2).
  * - The route has NO guard (app.routes.ts): a signed-out phone must reach step 2 before being asked to sign in.
  */
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  type ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { firstValueFrom } from 'rxjs';
 import { AttendanceApi } from '../../core/attendance/attendance-api';
-import { kioskLabel, type PunchResultView, type ScanView } from '../../core/attendance/attendance.models';
+import { kioskLabel, type PunchResultView, type ReceiptView, type ScanView } from '../../core/attendance/attendance.models';
 import { Session } from '../../core/auth/session';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { problemSlug } from '../../core/http/problem-form';
 import { LanguageService } from '../../core/i18n/language.service';
 
 export const PUNCH_RETURN_URL = '/punch';
+/** The receipt's lifetime (contract › Phase B: `hrf_scan` Max-Age=120). */
+export const RECEIPT_LIFETIME_MS = 120_000;
+
+/** Unicode FIRST STRONG ISOLATE / POP DIRECTIONAL ISOLATE (U+2068 / U+2069): `<bdi>` for text inside a sentence. */
+const FSI = String.fromCodePoint(0x2068);
+const PDI = String.fromCodePoint(0x2069);
 
 export type PunchProblem = 'expired' | 'invalid' | 'noScan' | 'notLinked' | 'forbidden' | 'notEmployed' | 'network' | 'generic';
 
 export type PunchState =
-  | { readonly kind: 'working'; readonly step: 'scan' | 'punch' | 'signin' }
+  | { readonly kind: 'working'; readonly step: 'scan' | 'receipt' | 'punch' | 'signin' }
+  /** Waiting for the one tap (or, when `receipt.duplicate`, saying it is already recorded). */
+  | { readonly kind: 'confirm'; readonly receipt: ReceiptView }
   | { readonly kind: 'done'; readonly result: PunchResultView }
   | { readonly kind: 'problem'; readonly problem: PunchProblem };
 
@@ -59,15 +94,19 @@ export function scanProblem(error: unknown): PunchProblem {
   return 'generic';
 }
 
-/** A failed punch → what to tell the person (`null`: the refresh interceptor is already taking them to /login). */
-export function punchProblem(error: unknown): PunchProblem | null {
+/**
+ * A failed receipt read or punch → what to tell the person (`null`: the refresh interceptor is already taking them
+ * to /login). `knewScan`: the page saw a scan, so a missing receipt means it EXPIRED (« Code expiré ») rather than
+ * "no scan in progress".
+ */
+export function punchProblem(error: unknown, knewScan = false): PunchProblem | null {
   if (!isApiProblemError(error)) return 'generic';
   if (error.problem.type === PROBLEM_TYPE_NETWORK) return 'network';
   if (error.status === 401) return null;
   if (error.status === 403) return 'forbidden';
   switch (problemSlug(error.problem.type)) {
     case 'attendance-no-scan':
-      return 'noScan';
+      return knewScan ? 'expired' : 'noScan';
     case 'attendance-not-linked':
       return 'notLinked';
     case 'attendance-not-employed':
@@ -77,6 +116,20 @@ export function punchProblem(error: unknown): PunchProblem | null {
     default:
       return 'generic';
   }
+}
+
+/**
+ * How long the confirmation may wait, in this device's clock. With a scan answered on this page, the receipt's own
+ * lifetime counted from when the answer arrived (no clock skew); otherwise (back from sign-in) its end against the
+ * device clock, capped at the lifetime. `null`: unknown — let the API decide on the tap.
+ */
+export function receiptTimeLeft(receipt: ReceiptView, scan: { readonly view: ScanView; readonly at: number } | null, now = Date.now()): number | null {
+  const end = Date.parse(receipt.receiptExpiresAt);
+  if (scan && scan.view.scannedAt === receipt.scannedAt) {
+    return scan.at + (end - Date.parse(receipt.scannedAt)) - now;
+  }
+  const left = end - now;
+  return Number.isFinite(left) && left > 0 ? Math.min(left, RECEIPT_LIFETIME_MS) : null;
 }
 
 @Component({
@@ -94,15 +147,28 @@ export class PunchPage {
   protected readonly lang = inject(LanguageService).current;
 
   protected readonly state = signal<PunchState>({ kind: 'working', step: 'scan' });
-  /** The entrance the scan named (shown while the punch is being recorded). */
-  protected readonly scan = signal<ScanView | null>(null);
+  /** The scan answered on THIS page (and when it arrived), if any. */
+  private readonly scan = signal<{ readonly view: ScanView; readonly at: number } | null>(null);
 
   protected readonly entrance = computed(() => {
     const state = this.state();
-    const kiosk = state.kind === 'done' ? state.result.punch.kiosk : null;
-    const labels = kiosk?.labels ?? this.scan()?.kiosk.labels;
+    const labels =
+      state.kind === 'done'
+        ? (state.result.punch.kiosk?.labels ?? this.scan()?.view.kiosk.labels)
+        : state.kind === 'confirm'
+          ? state.receipt.kiosk.labels
+          : this.scan()?.view.kiosk.labels;
     return labels ? kioskLabel(labels, this.lang()) : null;
   });
+
+  /** The entrance between FIRST STRONG ISOLATE and POP DIRECTIONAL ISOLATE (see the template's comment). */
+  protected readonly isolatedEntrance = computed(() => {
+    const name = this.entrance();
+    return name ? FSI + name + PDI : '';
+  });
+
+  private readonly confirmButton = viewChild<ElementRef<HTMLButtonElement>>('confirmButton');
+  private expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
     // `route.fragment` is an Observable that emits the current fragment at once, then every later one. The page must
@@ -117,15 +183,32 @@ export class PunchPage {
       if (landing || fragment) void this.start(fragment);
       landing = false;
     });
+
+    // Focus the confirmation button when it appears (and only then: a new element each time the state enters
+    // `confirm`, so a second scan while the page is open focuses the new question too).
+    let focused: HTMLButtonElement | null = null;
+    afterRenderEffect(() => {
+      const button = this.confirmButton()?.nativeElement ?? null;
+      if (button && button !== focused) button.focus();
+      focused = button;
+    });
+
+    inject(DestroyRef).onDestroy(() => this.clearExpiry());
   }
 
-  /** "Réessayer" after a network failure: the receipt (5 min) is still there, so only the punch is repeated. */
+  /** The one tap: redeem the receipt. */
+  protected confirm(): void {
+    void this.punch();
+  }
+
+  /** "Réessayer" after a network failure: the receipt (2 min) may still be there, so only the punch is repeated. */
   protected retry(): void {
     void this.punch();
   }
 
   private async start(fragment: string | null): Promise<void> {
     const token = fragment?.trim() ?? '';
+    this.clearExpiry();
     this.state.set({ kind: 'working', step: 'scan' });
     this.scan.set(null);
     if (fragment !== null) {
@@ -134,7 +217,8 @@ export class PunchPage {
     }
     if (token) {
       try {
-        this.scan.set(await firstValueFrom(this.api.scan(token)));
+        const view = await firstValueFrom(this.api.scan(token));
+        this.scan.set({ view, at: Date.now() });
       } catch (error: unknown) {
         this.state.set({ kind: 'problem', problem: scanProblem(error) });
         return;
@@ -145,16 +229,47 @@ export class PunchPage {
       await this.router.navigate(['/login'], { queryParams: { returnUrl: PUNCH_RETURN_URL }, replaceUrl: true });
       return;
     }
-    await this.punch();
+    await this.ask();
+  }
+
+  /** Read the receipt, then show the question (or "already recorded"); switch to "expired" when the receipt ends. */
+  private async ask(): Promise<void> {
+    this.state.set({ kind: 'working', step: 'receipt' });
+    let receipt: ReceiptView;
+    try {
+      receipt = await firstValueFrom(this.api.receipt());
+    } catch (error: unknown) {
+      const problem = punchProblem(error, this.scan() !== null);
+      this.state.set(problem ? { kind: 'problem', problem } : { kind: 'working', step: 'signin' });
+      return;
+    }
+    this.state.set({ kind: 'confirm', receipt });
+    if (receipt.duplicate) return;
+    const left = receiptTimeLeft(receipt, this.scan());
+    if (left === null) return;
+    if (left <= 0) {
+      this.state.set({ kind: 'problem', problem: 'expired' });
+      return;
+    }
+    this.expiryTimer = setTimeout(() => {
+      if (this.state().kind === 'confirm') this.state.set({ kind: 'problem', problem: 'expired' });
+    }, left);
+  }
+
+  private clearExpiry(): void {
+    if (this.expiryTimer !== undefined) clearTimeout(this.expiryTimer);
+    this.expiryTimer = undefined;
   }
 
   private async punch(): Promise<void> {
+    this.clearExpiry();
     this.state.set({ kind: 'working', step: 'punch' });
     try {
       const result = await firstValueFrom(this.api.punchSelf());
       this.state.set({ kind: 'done', result });
     } catch (error: unknown) {
-      const problem = punchProblem(error);
+      // The page read a receipt before the tap: a missing one now means it expired.
+      const problem = punchProblem(error, true);
       this.state.set(problem ? { kind: 'problem', problem } : { kind: 'working', step: 'signin' });
     }
   }

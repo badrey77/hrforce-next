@@ -8,6 +8,9 @@
   </header>
 
   @if (linked()) {
+    @if (feedback(); as key) {
+      <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+    }
     @if (me.employment(); as employment) {
       <p class="muted" data-field="me">
         <bdi>{{ employment.person | displayName: lang() }}</bdi> · <span class="code">{{ employment.matricule }}</span>
@@ -84,11 +87,79 @@
           <li>{{ t('attendance.totals.absentDays', { count: totals.absentDays }) }}</li>
           <li>{{ t('attendance.totals.incompleteDays', { count: totals.incompleteDays }) }}</li>
         </ul>
-        <app-day-list [days]="monthDays.value().items" />
+        <!-- Phase B: the list shows "Demander une correction" on the days of `correctable()` and emits the day. -->
+        <app-day-list [days]="monthDays.value().items" [correctableDates]="correctable()" [pendingDates]="pendingDates()"
+          (requestCorrection)="openCorrection($event)" />
+        <p class="field-hint" data-field="correction-window">
+          {{ correctionWindow() ? t('attendance.corrections.windowHint', { days: windowDays() }) : t('attendance.corrections.noWindow') }}
+        </p>
       } @else {
         <p class="muted">{{ t('common.loading') }}</p>
       }
     </section>
+
+    <!-- My correction requests (Phase B) --------------------------------------------------------------------- -->
+    <section aria-labelledby="corrections-title" [attr.aria-busy]="corrections.isLoading()" data-panel="corrections">
+      <h2 id="corrections-title">{{ t('attendance.corrections.mine') }}</h2>
+      @if (linkedCorrectionMissing()) {
+        <p class="warning" role="status" data-state="correction-missing">{{ t('attendance.corrections.linkedMissing') }}</p>
+      }
+      @if (corrections.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('attendance.corrections.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="corrections.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (corrections.hasValue()) {
+        <ul class="requests">
+          @for (c of correctionItems(); track c.id) {
+            <li [attr.data-correction]="c.id" [class.highlight]="c.id === highlighted()"
+              [attr.aria-current]="c.id === highlighted() ? 'true' : null" [attr.tabindex]="c.id === highlighted() ? -1 : null">
+              <div class="head">
+                <p><strong>{{ c.date | date: 'fullDate' : undefined : locale() }}</strong></p>
+                <p>
+                  <span class="badge" [attr.data-status]="c.status">{{ t('attendance.corrections.status.' + c.status) }}</span>
+                  @if (c._actions.includes('cancel')) {
+                    &ngsp;<button class="btn secondary small" type="button" data-action="cancel-correction" (click)="openCancel(c)">
+                      {{ t('attendance.corrections.cancel') }}
+                    </button>
+                  }
+                </p>
+              </div>
+              <app-correction-changes [changes]="c.changes" />
+              <p class="field-hint"><bdi>{{ c.reason }}</bdi></p>
+              @if (c.rejectionComment) {
+                <p class="field-hint" data-field="rejection">{{ t('attendance.corrections.rejectionComment') }} <bdi>{{ c.rejectionComment }}</bdi></p>
+              }
+              @if (c.workflow; as workflow) {
+                <app-workflow-stepper [progress]="workflow" />
+              }
+            </li>
+          } @empty {
+            <li class="muted" data-state="empty">{{ t('attendance.corrections.emptyMine') }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <app-correction-form [windowDays]="windowDays()" (saved)="onCorrectionSaved()" (notLinked)="onNotLinked()" />
+
+    <dialog #cancelDialog class="modal" aria-labelledby="cancel-correction-title" (close)="onCancelClosed()">
+      @if (cancelling(); as c) {
+        <h2 id="cancel-correction-title">{{ t('attendance.corrections.cancelTitle') }}</h2>
+        <p>{{ c.date | date: 'fullDate' : undefined : locale() }}</p>
+        @if (cancelError(); as key) {
+          <p class="form-error" role="alert">{{ t(key) }}</p>
+        }
+        <div class="form-actions">
+          <button class="btn" type="button" data-action="confirm-cancel-correction" [disabled]="cancelSubmitting()" (click)="confirmCancel()">
+            {{ t('attendance.corrections.confirmCancel') }}
+          </button>
+          <button class="btn secondary" type="button" (click)="closeCancel()">{{ t('attendance.corrections.keep') }}</button>
+        </div>
+      }
+    </dialog>
 
     <!-- Law 18-07 information notice ---------------------------------------------------------------------- -->
     @if (retention(); as r) {

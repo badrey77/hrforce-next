@@ -1,5 +1,9 @@
+import type { WorkflowProgress } from '../app/core/leave/leave.models';
 import type {
   AttendanceDayView,
+  CorrectionDetail,
+  CorrectionView,
+  MonthlyReportView,
   Counts,
   EmployeeDaysView,
   KioskQrView,
@@ -10,7 +14,7 @@ import type {
   PunchView,
   ScheduleView,
 } from '../app/core/attendance/attendance.models';
-import { standardWeek } from '../app/core/attendance/attendance.models';
+import { addDays, algiersToday, standardWeek } from '../app/core/attendance/attendance.models';
 
 export const EMPLOYEE_REF = {
   id: 'e-30',
@@ -87,7 +91,7 @@ export const TOTALS = {
 };
 
 export function myDays(items: readonly AttendanceDayView[] = [day()], extra: Partial<MyDaysView> = {}): MyDaysView {
-  return { from: items[0]?.date ?? '2026-09-29', to: items.at(-1)?.date ?? '2026-09-29', employee: EMPLOYEE_REF, items, totals: TOTALS, retentionMonths: 60, ...extra };
+  return { from: items[0]?.date ?? '2026-09-29', to: items.at(-1)?.date ?? '2026-09-29', employee: EMPLOYEE_REF, items, totals: TOTALS, retentionMonths: 60, correctionWindow: { from: addDays(algiersToday(), -30), to: algiersToday() }, ...extra };
 }
 
 export function employeeDays(items: readonly AttendanceDayView[], canManage = true): EmployeeDaysView {
@@ -164,5 +168,68 @@ export function attendanceProblem(status: number, slug: string | null, errors?: 
   return {
     body: { type: slug ? `urn:hrforce:problem:${slug}` : 'about:blank', title: 'Problem', status, ...(errors ? { errors } : {}) },
     options: { status, statusText: 'Problem' },
+  };
+}
+
+// --- Phase B ----------------------------------------------------------------------------------------------------------
+
+export const MANAGER_THEN_HR_PROGRESS: WorkflowProgress = {
+  status: 'pending',
+  currentStep: 0,
+  steps: [
+    { key: 'manager', kind: 'manager', labels: { fr: 'Responsable', ar: 'المسؤول المباشر', en: 'Manager' }, state: 'current' },
+    { key: 'hr', kind: 'permission', permission: 'attendance.manage', labels: { fr: 'RH', ar: 'الموارد البشرية', en: 'HR' }, state: 'pending' },
+  ],
+};
+
+export function correctionView(extra: Partial<CorrectionView> = {}): CorrectionView {
+  return {
+    id: 'c-1',
+    date: '2026-09-28',
+    reason: 'Téléphone oublié',
+    status: 'pending',
+    requestedAt: '2026-09-29T08:00:00Z',
+    requestedBy: { id: 'u-nadia', displayName: 'Nadia Saidi' },
+    employee: EMPLOYEE_REF,
+    changes: [
+      { position: 0, action: 'add', direction: 'out', time: '16:05', punch: null, resultPunchId: null },
+      { position: 1, action: 'void', direction: null, time: null, punch: { id: 'p-0', direction: 'in', localTime: '07:52' }, resultPunchId: null },
+    ],
+    workflow: MANAGER_THEN_HR_PROGRESS,
+    rejectionComment: null,
+    _actions: ['cancel'],
+    ...extra,
+  };
+}
+
+export function correctionDetail(extra: Partial<CorrectionDetail> = {}): CorrectionDetail {
+  return {
+    ...correctionView(),
+    history: [],
+    day: day({ date: '2026-09-28', final: true, punches: [punch({ id: 'p-0', workDate: '2026-09-28' }), punch({ id: 'p-9', direction: 'in', localTime: '08:01', workDate: '2026-09-28' })] }),
+    ...extra,
+  };
+}
+
+export function monthlyReport(extra: Partial<MonthlyReportView> = {}): MonthlyReportView {
+  return {
+    month: '2026-09',
+    days: 30,
+    items: [
+      {
+        employee: EMPLOYEE_REF,
+        counts: { present: 18, late: 2, absent: 1, incomplete: 0, onLeave: 0, holiday: 0, restDay: 8 },
+        lateMinutes: 34,
+        earlyDepartureMinutes: 0,
+        workedMinutes: 9000,
+        scheduledMinutes: 9600,
+        absentDates: ['2026-09-14'],
+        incompleteDates: [],
+      },
+    ],
+    total: 1,
+    page: 1,
+    pageSize: 50,
+    ...extra,
   };
 }

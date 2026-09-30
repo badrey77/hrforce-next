@@ -3,13 +3,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { correctionDetail, correctionView } from '../../../testing/attendance-fixtures';
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { conflict, flushLeaveTypes, leaveDetail, openTask } from '../../../testing/leave-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
-import type { DocumentTaskSubject, OpenTask } from '../../core/tasks/tasks.models';
+import type { CorrectionTaskSubject, DocumentTaskSubject, LeaveTaskSubject, OpenTask } from '../../core/tasks/tasks.models';
 import { TasksBadge } from '../../core/tasks/tasks-badge';
 import { TasksPage } from './tasks.page';
 
@@ -25,13 +26,29 @@ function documentTask(id: string): OpenTask {
   const subject: DocumentTaskSubject = {
     type: 'document_request',
     id: `dr-${id}`,
-    employee: leave.subject.employee,
+    employee: (leave.subject as LeaveTaskSubject).employee,
     documentType: { code: 'attestation_travail', labels: { fr: 'Attestation de travail', ar: 'شهادة عمل', en: 'Employment attestation' } },
     language: 'ar',
     purpose: 'Dossier de prêt',
     requestedAt: '2026-09-27T08:00:00Z',
   };
   return { ...leave, stepKey: 'hr', subject };
+}
+
+/** A task about an attendance correction (attendance contract › Audit and timeline (Phase B): task summaries). */
+function correctionTask(id: string): OpenTask {
+  const leave = openTask(id);
+  const view = correctionView();
+  const subject: CorrectionTaskSubject = {
+    type: 'attendance_correction',
+    id: view.id,
+    employee: { id: view.employee.id, matricule: view.employee.matricule, person: view.employee.person, unit: view.employee.unit },
+    date: view.date,
+    reason: view.reason,
+    changes: view.changes,
+    day: { status: 'present', arrival: { id: 'p-0', occurredAt: '2026-09-28T06:52:00Z', localTime: '07:52' }, departure: null },
+  };
+  return { ...leave, stepKey: 'manager', stepIndex: 0, subject };
 }
 
 describe('TasksPage', () => {
@@ -232,5 +249,39 @@ describe('TasksPage', () => {
       expect(el().querySelector('[data-feedback]')?.textContent).toContain('l’en-tête de l’entreprise est incomplet');
       expect(rows()).toEqual(['k-9']);
     });
+  });
+
+  it('a correction task: employee, day, reason and a before/after view from the detail; stale approval explained in the panel', async () => {
+    await open([correctionTask('k-c')]);
+    expect(el().querySelector('[data-task="k-c"] [data-subject="attendance_correction"]')?.textContent).toContain('Correction de pointage');
+    click('[data-task="k-c"]');
+    await settle();
+    // Before the detail answers, the summary's arrival already feeds the preview.
+    expect(el().querySelector('[data-panel="correction-preview"]')?.textContent).toContain('07:52');
+    http.expectOne('/api/attendance/corrections/c-1').flush(correctionDetail());
+    await settle();
+    const panel = el().querySelector('[data-panel="attendance-correction"]') as HTMLElement;
+    expect(panel.querySelector('[data-field="reason"]')?.textContent).toContain('Téléphone oublié');
+    const after = [...el().querySelectorAll('[data-panel="correction-preview"] [data-change]')].map((li) => li.getAttribute('data-change'));
+    expect(after).toEqual(['removed', 'kept', 'added']);
+
+    click('[data-action="approve"]');
+    await settle();
+    http.expectOne('/api/tasks/k-c/approve').flush(...conflict('attendance-correction-stale'));
+    await settle();
+    for (const req of http.match('/api/attendance/corrections/c-1')) req.flush(correctionDetail());
+    await settle();
+    expect(el().querySelector('[data-error="panel"]')?.textContent).toContain('déjà été annulé');
+  });
+
+  it('a purged correction: no employee, an explanation, and only Reject', async () => {
+    const purged: OpenTask = { ...openTask('k-p'), subject: { type: 'attendance_correction', purged: true } };
+    await open([purged]);
+    click('[data-task="k-p"]');
+    await settle();
+    expect(el().querySelector('[data-state="purged"]')).not.toBeNull();
+    expect(el().querySelector('[data-action="approve"]')).toBeNull();
+    expect(el().querySelector('[data-action="reject"]')).not.toBeNull();
+    http.expectNone('/api/attendance/corrections/c-1');
   });
 });

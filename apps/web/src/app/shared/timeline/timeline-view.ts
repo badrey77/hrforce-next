@@ -110,6 +110,10 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'attendance_punch.source': 'attendance.source.',
   'attendance_punch.status': 'attendance.punchStatus.',
   'attendance_device.status': 'attendance.kiosks.statusName.',
+  // Attendance Phase B: corrections.
+  'attendance_correction.status': 'attendance.corrections.status.',
+  'attendance_correction_item.action': 'attendance.corrections.action.',
+  'attendance_correction_item.direction': 'attendance.direction.',
 };
 
 /**
@@ -136,7 +140,10 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Employee file: the employment repeats the subject.
   employee_file: ['employment_id'],
   // Attendance: the employment repeats the subject; `work_date` is generated from `occurred_at`.
-  attendance_punch: ['employment_id', 'work_date'],
+  attendance_punch: ['employment_id', 'work_date', 'correction_id', 'void_correction_id'],
+  // Attendance Phase B: the links repeat the subject; punch ids mean nothing to a reader (the item shows the time).
+  attendance_correction: ['employment_id', 'workflow_instance_id'],
+  attendance_correction_item: ['correction_id', 'punch_id', 'result_punch_id'],
 };
 
 export type DisplayValue =
@@ -279,6 +286,8 @@ function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditName
   if (params['roleCode']) params['role'] = resolve('roleCode', params['roleCode']) || params['roleCode'];
   // workflow.* events carry the step KEY; the host page may know its label (the request's workflow definition).
   if (params['step']) params['step'] = resolve('step', params['step']) || params['step'];
+  // attendance.correction_item_* events carry the item's 0-based `position`; a reader counts changes from 1.
+  if (typeof data['position'] === 'number') params['number'] = String(data['position'] + 1);
   return params;
 }
 

@@ -71,6 +71,9 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   signatory_id: 'signatory',
   default_signatory_id: 'signatory',
   category_id: 'fileCategory',
+  // Attendance (attendance contract › Audit): who recorded a manual punch, who revoked a kiosk.
+  created_by: 'user',
+  revoked_by: 'user',
 };
 
 /**
@@ -102,6 +105,11 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'employee_file_category.access_class': 'documents.fileCategories.class.',
   // Reserved for a future antivirus (documents contract › Phase B): today always `not_scanned`.
   'employee_file.scan_status': 'audit.values.employee_file.scan_status.',
+  // Attendance: the same words as the attendance screens.
+  'attendance_punch.direction': 'attendance.direction.',
+  'attendance_punch.source': 'attendance.source.',
+  'attendance_punch.status': 'attendance.punchStatus.',
+  'attendance_device.status': 'attendance.kiosks.statusName.',
 };
 
 /**
@@ -127,6 +135,8 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   document_request: ['employment_id', 'document_type_id', 'workflow_instance_id'],
   // Employee file: the employment repeats the subject.
   employee_file: ['employment_id'],
+  // Attendance: the employment repeats the subject; `work_date` is generated from `occurred_at`.
+  attendance_punch: ['employment_id', 'work_date'],
 };
 
 export type DisplayValue =
@@ -232,6 +242,11 @@ function displayValue(value: unknown, masked: boolean, field: FieldKind, resolve
     return { kind: 'text', text: value };
   }
   if (typeof value === 'number') return { kind: 'text', text: String(value) };
+  // Lists (e.g. a kiosk's allowed networks): "(empty)" for none, else the items separated by commas — not raw JSON.
+  if (Array.isArray(value)) {
+    if (value.length === 0) return { kind: 'empty' };
+    if (value.every((item) => typeof item === 'string' || typeof item === 'number')) return { kind: 'text', text: value.join(', ') };
+  }
   return { kind: 'text', text: JSON.stringify(value) };
 }
 
@@ -267,6 +282,22 @@ function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditName
   return params;
 }
 
+/**
+ * Punch events (attendance contract › Settled by the build) carry only `{source, direction?}` — no time, no employee,
+ * by design (the retention purge must leave nothing personal in the audit log). The sentence is therefore picked by
+ * those codes — `audit.events.attendance.punch_recorded.manual_in`, `….punch_voided.qr` — so it reads naturally in
+ * every language instead of showing raw `in` / `qr` placeholders. Other events: `audit.events.<type>`.
+ */
+const VARIANT_EVENTS: ReadonlySet<string> = new Set(['attendance.punch_recorded', 'attendance.punch_voided', 'attendance.punch_deleted']);
+
+export function eventSentenceKey(type: string, data: Readonly<Record<string, unknown>>): string {
+  const base = `audit.events.${type}`;
+  if (!VARIANT_EVENTS.has(type)) return base;
+  const source = typeof data['source'] === 'string' ? data['source'] : 'unknown';
+  const direction = typeof data['direction'] === 'string' ? `_${data['direction']}` : '';
+  return `${base}.${source}${direction}`;
+}
+
 export function toEntryView(entry: TimelineEntry, resolve: AuditNameResolver, formatDay: DayFormatter = RAW_DAY): EntryView {
   const base = { id: entry.id, at: entry.at, actor: entry.actor?.displayName ?? null };
   if (entry.kind === 'event' && entry.event) {
@@ -274,7 +305,7 @@ export function toEntryView(entry: TimelineEntry, resolve: AuditNameResolver, fo
       ...base,
       kind: 'event',
       type: entry.event.type,
-      sentenceKey: `audit.events.${entry.event.type}`,
+      sentenceKey: eventSentenceKey(entry.event.type, entry.event.data),
       params: eventParams(entry.event.data, resolve, formatDay),
     };
   }

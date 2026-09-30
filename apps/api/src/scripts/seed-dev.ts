@@ -5,7 +5,9 @@
  * employees (docs/contracts/employment.md › Seed — TEST DATA) and the leave demo (docs/contracts/leave.md › Seed additions:
  * defaults, agent.annaba / chef.annaba, links, unit heads, accruals Jul 2025 – Sep 2026, requests in each status), and
  * the DEMO security policy with two-step sign-in enforcement OFF (docs/contracts/mfa.md), and the documents demo
- * (docs/contracts/documents.md › Seed: letterhead, signatories, issued documents rendered with Typst, a pending request).
+ * (docs/contracts/documents.md › Seed: letterhead, signatories, issued documents rendered with Typst, a pending request),
+ * and the attendance demo (docs/contracts/attendance.md › Seed: schedules with the Ramadan override, kiosks in every
+ * state — the pending one pairs with the dev code DEMK-2026 at /kiosk — and ~15 days of punches).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -16,6 +18,7 @@ import { parseEnv } from '../platform/config/load-env.js';
 import { createDatabase } from '../platform/db/database.js';
 import { TypstPdfRenderer } from '../platform/pdf/typst-renderer.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
+import { seedDemoAttendance } from '../modules/attendance/index.js';
 import { algiersToday, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
@@ -43,8 +46,13 @@ async function main(): Promise<void> {
       const leave = await seedDemoLeave(tx, { requests: true });
       const documents = await seedDemoDocuments(tx, renderer, algiersToday());
       const employeeFiles = await seedDemoEmployeeFiles(tx);
-      return { employees, leave, documents: { ...documents, employeeFiles } };
-    }).then(({ employees, leave, documents }) => {
+      const attendance = await seedDemoAttendance(tx, Date.now());
+      return { employees, leave, documents: { ...documents, employeeFiles }, attendance };
+    }).then(({ employees, leave, documents, attendance }) => {
+      logger.info(
+        attendance,
+        `attendance demo seeded (schedules, kiosks, punches); pair a kiosk at /kiosk with the development code ${attendance.pairingCode} (valid 30 days)`,
+      );
       logger.info(documents, 'documents demo seeded (letterhead, signatories, issued documents, a pending request, employee files)');
       logger.info({ employees }, 'demo employees seeded (fictitious test data)');
       logger.info(

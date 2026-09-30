@@ -21,8 +21,9 @@ export class AuditController {
    * Access: `audit.read` for every subject type (403 when not held anywhere, before any validation) EXCEPT
    * `leave_request`, whose history follows the request's own visibility (docs/contracts/notifications.md › Audit gap:
    * leave.read in scope, the requester / the employee's user, or a current candidate), and `issued_document`, visible
-   * like GET /documents/:id (document.read over the employee's scope unit, docs/contracts/documents.md › Audit) — hence
-   * @Authenticated here.
+   * like GET /documents/:id (document.read over the employee's scope unit, docs/contracts/documents.md › Audit), and
+   * `attendance_device`, visible with attendance.configure anywhere (docs/contracts/attendance.md › Audit and timeline)
+   * — hence @Authenticated here.
    * 422 for an unknown subject type or a malformed cursor; 404 for an unknown, other-company or out-of-scope subject
    * (a malformed id cannot exist either).
    */

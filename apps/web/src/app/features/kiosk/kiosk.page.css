@@ -1,0 +1,128 @@
+/*
+ * Full-screen entrance display. The app chrome is off on this route (route data `chrome: false`), so the page owns
+ * the viewport. Black on white for the code whatever the theme (qr-canvas.ts); large type readable from a metre away.
+ * Logical properties only: the pairing screen mirrors in Arabic; the bilingual blocks set their own `dir`.
+ */
+:host {
+  display: block;
+  min-block-size: 100dvh;
+  background: var(--color-surface);
+}
+
+.kiosk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-block-size: 100dvh;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.status-line {
+  font-size: 1.25rem;
+  color: var(--color-text-muted);
+}
+
+.pair {
+  inline-size: min(28rem, 100%);
+  text-align: start;
+}
+
+.code-input {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.code-input::placeholder {
+  letter-spacing: 0.1em;
+}
+
+.entrance {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.entrance-name {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-6);
+  font-size: clamp(1.25rem, 3vmin, 2.25rem);
+  font-weight: 600;
+}
+
+.entrance-name p,
+.company,
+.bilingual p {
+  margin: 0;
+}
+
+.company {
+  color: var(--color-text-muted);
+}
+
+.clock {
+  font-size: clamp(2.5rem, 9vmin, 6rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.code-area {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+/* About 60 % of the shorter screen side (contract). */
+.qr {
+  inline-size: 60vmin;
+  max-inline-size: 100%;
+}
+
+.countdown {
+  inline-size: 60vmin;
+  max-inline-size: 100%;
+  block-size: 4px;
+  background: var(--color-border);
+}
+
+.countdown span {
+  display: block;
+  block-size: 100%;
+  background: var(--color-primary);
+}
+
+.bilingual {
+  display: grid;
+  gap: var(--space-2);
+  font-size: clamp(1.125rem, 3vmin, 1.75rem);
+}
+
+/* Each block uses its own script's font, whatever the UI language. */
+.bilingual [lang='ar'],
+.entrance-name [lang='ar'] {
+  font-family: var(--font-arabic);
+}
+
+.bilingual [lang='fr'],
+.entrance-name [lang='fr'] {
+  font-family: var(--font-latin);
+}
+
+.offline {
+  max-inline-size: 40rem;
+  padding: var(--space-4);
+  border: 2px solid var(--color-danger);
+  border-radius: var(--radius);
+}
+
+.fullscreen {
+  position: fixed;
+  inset-block-end: var(--space-4);
+  inset-inline-end: var(--space-4);
+}

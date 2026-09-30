@@ -9,7 +9,16 @@
 /** Subject types the timeline endpoint accepts (`?subject=<type>:<id>`). */
 /** `leave_request` (notifications contract › Audit gap): its rows, its workflow tasks and `workflow.*` events. */
 /** `issued_document` (documents contract › Audit): its row and its `document.*` events. */
-export type AuditSubjectType = 'org_unit' | 'site' | 'role' | 'user' | 'employee' | 'leave_request' | 'issued_document';
+/** `attendance_device` (attendance contract › Audit and timeline): a kiosk's rows and its `attendance.device_paired` events. */
+export type AuditSubjectType =
+  | 'org_unit'
+  | 'site'
+  | 'role'
+  | 'user'
+  | 'employee'
+  | 'leave_request'
+  | 'issued_document'
+  | 'attendance_device';
 
 /**
  * `"<type>:<uuid>"`, e.g. `org_unit:0190…` (type one of `AuditSubjectType`). A plain `string`, not the template

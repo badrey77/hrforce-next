@@ -140,6 +140,23 @@ export class StaffingRepository {
     return rows.map((r) => ({ unitId: r.unit_id, depth: r.depth, headEmploymentId: r.head, headUserId: r.user_id }));
   }
 
+  /** Units headed on `date` by the employment, with their version valid on that date (code order). */
+  async unitsHeadedBy(companyId: string, employmentId: string, date: string): Promise<{ id: string; code: string; name: string; nameAr: string | null; kind: string }[]> {
+    const { rows } = await sql<{ id: string; code: string; name: string; nameAr: string | null; kind: string }>`
+      select u.id, u.code, coalesce(v.name, '') as name, v.name_ar as "nameAr", u.kind
+        from org_unit_head h
+        join org_unit u on u.company_id = h.company_id and u.id = h.org_unit_id
+        left join lateral (
+          select vv.name, vv.name_ar from org_unit_version vv
+           where vv.company_id = u.company_id and vv.org_unit_id = u.id
+           order by (vv.valid @> ${date}::date) desc, lower(vv.valid) desc
+           limit 1
+        ) v on true
+       where h.company_id = ${companyId}::uuid and h.employment_id = ${employmentId}::uuid and h.valid @> ${date}::date
+       order by u.code`.execute(currentTx());
+    return rows;
+  }
+
   async unitExists(companyId: string, unitId: string): Promise<boolean> {
     const row = await currentTx().selectFrom('org_unit').select('id').where('company_id', '=', companyId).where('id', '=', unitId).executeTakeFirst();
     return row !== undefined;

@@ -1,0 +1,73 @@
+/* One row per day (day-list.ts); logical properties only, so the rows mirror in Arabic. */
+.days {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.days > li {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.date {
+  min-inline-size: 7rem;
+  font-weight: 600;
+}
+
+.times {
+  font-variant-numeric: tabular-nums;
+}
+
+.late {
+  color: #7d4e00;
+}
+
+.detail {
+  padding-block: 0 var(--space-3);
+  padding-inline: var(--space-3);
+  border-block-start: 1px solid var(--color-border);
+}
+
+.punches {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.punches > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+
+.punch-main {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.void .punch-main {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.btn.small {
+  padding-block: 0;
+  padding-inline: var(--space-2);
+  font-size: 0.8125rem;
+}

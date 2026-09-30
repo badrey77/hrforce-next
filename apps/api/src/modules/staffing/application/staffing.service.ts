@@ -18,9 +18,19 @@ export interface EmployeeCard {
   endDate: string | null;
 }
 
+export interface UnitRef {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  kind: string;
+}
+
 export interface MyEmploymentView extends EmployeeCard {
   /** today's manager (nearest head up the tree who is not me), or null */
   manager: EmployeeCard | null;
+  /** the units I head today (docs/contracts/attendance.md › Module boundaries: the web's "Mon équipe" entry), [] when none */
+  headOf: UnitRef[];
 }
 
 export interface UserEmploymentView {
@@ -101,6 +111,12 @@ export class StaffingService {
     return new Map(rows.map((r) => [r.id, toCard(r)]));
   }
 
+  /** Units whose head on `date` is `employmentId` (docs/contracts/attendance.md › Team view). */
+  async unitsHeadedBy(employmentId: string, date: string): Promise<string[]> {
+    const { companyId } = tenant();
+    return (await this.repo.unitsHeadedBy(companyId, employmentId, date)).map((u) => u.id);
+  }
+
   /** The manager of an employment on `date` (contract rule; see domain/manager.ts). */
   async managerOf(employmentId: string, date: string): Promise<ManagerResolution> {
     const { companyId } = tenant();
@@ -121,7 +137,8 @@ export class StaffingService {
     const manager = pickManager(await this.repo.chain(companyId, row.unitId, today), employmentId);
     const managerId = manager.kind === 'user' || manager.reason === 'manager-not-linked' ? manager.employmentId : null;
     const [managerRow] = managerId ? await this.repo.cards(companyId, [managerId], today) : [];
-    return { ...toCard(row), manager: managerRow ? toCard(managerRow) : null };
+    const headOf = await this.repo.unitsHeadedBy(companyId, employmentId, today);
+    return { ...toCard(row), manager: managerRow ? toCard(managerRow) : null, headOf };
   }
 
   // ── PUT /access/users/:id/employment ───────────────────────────────────────────────────────────────────────────

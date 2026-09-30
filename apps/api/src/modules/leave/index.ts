@@ -2,7 +2,7 @@
 export { LeaveModule } from './leave.module.js';
 export { LeaveClock } from './application/leave-clock.js';
 export { LEAVE_PERMISSIONS } from './application/leave.service.js';
-export { LeaveFacts, type LeaveRequestFacts } from './infra/leave-facts.js';
+export { LeaveFacts, type AttendanceLeaveInputs, type LeaveRequestFacts } from './infra/leave-facts.js';
 export { resumptionOf, type Resumption } from './domain/resumption.js';
 export { runAccruals, type AccrualRunResult } from './infra/accrual-run.js';
 export { DEFAULT_HOLIDAYS, DEFAULT_LEAVE_TYPES, seedLeaveDefaults } from './infra/leave-defaults.js';

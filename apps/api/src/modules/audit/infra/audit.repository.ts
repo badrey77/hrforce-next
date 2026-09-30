@@ -117,6 +117,12 @@ export class AuditRepository {
     return row?.employment_id;
   }
 
+  /** The kiosk exists (devices are never deleted by the app). */
+  async attendanceDeviceKnown(companyId: string, id: string): Promise<boolean> {
+    const row = await currentTx().selectFrom('attendance_device').select('id').where('company_id', '=', companyId).where('id', '=', id).executeTakeFirst();
+    return row !== undefined;
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -209,7 +215,9 @@ export class AuditRepository {
       select d.id from issued_document d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid))
       or (e.subject_type = 'document_request' and e.subject_id in (
       select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid))
-      or (e.subject_type = 'employee_file' and e.subject_id in (${this.employeeFileIds(companyId, subject.id, medicalFiles)})))`;
+      or (e.subject_type = 'employee_file' and e.subject_id in (${this.employeeFileIds(companyId, subject.id, medicalFiles)}))
+      or (e.subject_type = 'attendance_punch' and not (e.type = 'attendance.punch_recorded' and e.data ->> 'source' = 'qr') and e.subject_id in (
+      select p.id from attendance_punch p where p.company_id = ${companyId}::uuid and p.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -273,6 +281,9 @@ export class AuditRepository {
       case 'issued_document':
         // the register row (its PDF bytes are not audited: issued_document_file is exempt, the hash is on this row)
         return sql<boolean>`c.table_name = 'issued_document' and c.row_id = ${id}::uuid`;
+      case 'attendance_device':
+        // the kiosk's rows (the heartbeat is audit-exempt; the credential and pairing-code hashes are masked)
+        return sql<boolean>`c.table_name = 'attendance_device' and c.row_id = ${id}::uuid`;
       case 'user':
         // the user's grants whose unit is in the caller's audit.read scope (grants are never deleted by the app; an
         // insert row also identifies one removed by hand)

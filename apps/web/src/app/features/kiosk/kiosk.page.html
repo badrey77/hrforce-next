@@ -1,0 +1,99 @@
+<!--
+  The kiosk (kiosk.page.ts). One `@switch` over the state's `kind` renders exactly one screen.
+  First use in the app: `*transloco="let fr; lang: 'fr'"` — a translate function bound to ONE language, whatever
+  the UI language, for the bilingual blocks at the entrance (each block also carries `lang` and `dir`).
+-->
+<ng-container *transloco="let t">
+  <div class="kiosk" [attr.data-state]="state().kind">
+    @switch (state().kind) {
+      @case ('checking') {
+        <p class="status-line" role="status">{{ t('attendance.kiosk.checking') }}</p>
+      }
+
+      @case ('unpaired') {
+        <section class="pair" aria-labelledby="kiosk-pair-title">
+          <h1 id="kiosk-pair-title">{{ t('attendance.kiosk.pairTitle') }}</h1>
+          @if (state(); as s) {
+            @if (s.kind === 'unpaired' && s.notice === 'revoked') {
+              <p class="warning" role="alert" data-state="revoked">{{ t('attendance.kiosk.revoked') }}</p>
+            }
+          }
+          <p class="muted">{{ t('attendance.kiosk.pairIntro') }}</p>
+          <form [formGroup]="pairForm" (ngSubmit)="pair()" novalidate>
+            @if (pairError(); as error) {
+              <p class="form-error" role="alert" [appRevealAlert]="error">{{ t(error.key) }}</p>
+            }
+            <div class="field">
+              <label for="kiosk-code">{{ t('attendance.kiosk.codeLabel') }}</label>
+              <!--
+                `autocapitalize="characters"`: the tablet keyboard types capitals; `spellcheck="false"` and
+                `autocomplete="off"`: no suggestions for a one-time code; `dir="ltr"`: the code never mirrors in Arabic.
+              -->
+              <input id="kiosk-code" class="code-input" type="text" [formControl]="code" autocomplete="off"
+                autocapitalize="characters" spellcheck="false" dir="ltr" maxlength="12" placeholder="XXXX-XXXX"
+                [attr.aria-invalid]="code.invalid && code.touched" aria-describedby="kiosk-code-hint kiosk-code-error"
+                (blur)="onCodeBlur()" />
+              <p class="field-hint" id="kiosk-code-hint">{{ t('attendance.kiosk.codeHint') }}</p>
+              @if (code.invalid && code.touched) {
+                <p class="field-error" id="kiosk-code-error">{{ t('attendance.kiosk.codeInvalid') }}</p>
+              }
+            </div>
+            <button class="btn" type="submit" data-action="pair" [disabled]="pairing()">
+              {{ pairing() ? t('attendance.kiosk.pairing') : t('attendance.kiosk.pair') }}
+            </button>
+          </form>
+        </section>
+      }
+
+      @case ('refused') {
+        <p class="warning" role="alert" data-state="refused">{{ t('attendance.kiosk.refused') }}</p>
+      }
+
+      @case ('unreachable') {
+        <ng-container *ngTemplateOutlet="offline" />
+      }
+
+      @case ('running') {
+        @if (session(); as s) {
+          <header class="entrance">
+            <div class="entrance-name">
+              <p lang="fr" dir="ltr" data-field="label-fr">{{ s.kiosk.labels.fr }}</p>
+              <p lang="ar" dir="rtl" data-field="label-ar">{{ s.kiosk.labels.ar }}</p>
+            </div>
+            <p class="company" dir="auto">{{ s.company.name }}</p>
+            <!-- A live clock must not be announced every second: no aria-live here. -->
+            <time class="clock" dir="ltr" data-field="clock">{{ clock() }}</time>
+          </header>
+
+          @if (current(); as window) {
+            <div class="code-area">
+              <app-qr-canvas class="qr" [text]="window.qr" [label]="t('attendance.kiosk.qrLabel')" [attr.data-window]="window.window" />
+              <!-- The thin countdown of the current window: decorative (the code changes by itself). -->
+              <div class="countdown" aria-hidden="true"><span [style.inline-size.%]="remaining()"></span></div>
+              <div class="bilingual instruction">
+                <p *transloco="let fr; lang: 'fr'" lang="fr" dir="ltr">{{ fr('attendance.kiosk.instruction') }}</p>
+                <p *transloco="let ar; lang: 'ar'" lang="ar" dir="rtl">{{ ar('attendance.kiosk.instruction') }}</p>
+              </div>
+            </div>
+          } @else {
+            <ng-container *ngTemplateOutlet="offline" />
+          }
+
+          @if (!wake.fullscreen() || !wake.awake()) {
+            <button class="btn secondary fullscreen" type="button" data-action="fullscreen" (click)="keepAwake()">
+              {{ t('attendance.kiosk.fullscreen') }}
+            </button>
+          }
+        }
+      }
+    }
+  </div>
+
+  <!-- The offline message, in both languages (used twice above). -->
+  <ng-template #offline>
+    <div class="bilingual offline" role="status" data-state="offline">
+      <p *transloco="let fr; lang: 'fr'" lang="fr" dir="ltr">{{ fr('attendance.kiosk.offline') }}</p>
+      <p *transloco="let ar; lang: 'ar'" lang="ar" dir="rtl">{{ ar('attendance.kiosk.offline') }}</p>
+    </div>
+  </ng-template>
+</ng-container>

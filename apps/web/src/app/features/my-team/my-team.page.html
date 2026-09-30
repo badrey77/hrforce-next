@@ -1,0 +1,59 @@
+<!-- Mon équipe (my-team.page.ts): the HR board's layout without unit/site pickers. -->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('attendance.team.title') }}</h1>
+  </header>
+
+  @let current = query();
+  <div class="day-nav" role="group" [attr.aria-label]="t('attendance.board.dayLabel')">
+    <button class="btn secondary" type="button" data-action="prev-day" [attr.aria-label]="t('attendance.board.previousDay')" (click)="shiftDay(-1)">‹</button>
+    <label class="visually-hidden" for="team-date">{{ t('attendance.board.date') }}</label>
+    <input id="team-date" type="date" [value]="day()" [max]="todayIso" (change)="onDate($event)" />
+    <button class="btn secondary" type="button" data-action="next-day" [attr.aria-label]="t('attendance.board.nextDay')"
+      [disabled]="day() >= todayIso" (click)="shiftDay(1)">›</button>
+  </div>
+
+  <form class="filters" role="search" [attr.aria-label]="t('attendance.board.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="team-q">{{ t('attendance.board.search') }}</label>
+      <input id="team-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('attendance.board.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+  </form>
+
+  <section [attr.aria-busy]="team.isLoading()">
+    @if (team.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="team.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (team.hasValue()) {
+      @let view = team.value();
+      @if (view.units.length) {
+        <p class="muted">{{ t('attendance.team.units') }}</p>
+        <ul class="units" data-field="units">
+          @for (unit of view.units; track unit.id) {
+            <li class="badge"><bdi>{{ unit | displayName: lang() }}</bdi></li>
+          }
+        </ul>
+        <app-status-counts [counts]="view.counts" [selected]="current.status" (select)="onStatus($event)" />
+        @if (view.items.length) {
+          <app-presence-table [items]="view.items" />
+          @if (pageCount() > 1) {
+            <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+              <button class="btn secondary" type="button" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">{{ t('employees.pager.previous') }}</button>
+              <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+              <button class="btn secondary" type="button" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">{{ t('employees.pager.next') }}</button>
+            </nav>
+          }
+        } @else {
+          <p class="muted" data-state="no-match">{{ t('attendance.board.noMatch') }}</p>
+        }
+      } @else {
+        <p class="muted" data-state="no-team">{{ t('attendance.team.none') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

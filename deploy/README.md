@@ -89,6 +89,9 @@ account, private by default.
    - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: `openssl rand -base64 48` each (all different).
    - `AUTH_MFA_KEY`: `openssl rand -base64 32` (exactly 32 bytes; key of the two-step sign-in secrets). **Existing
      installs: add it to `.env` before the next deploy** (the API refuses to start without it in production).
+   - `ATTENDANCE_KEY`: `openssl rand -base64 32` (exactly 32 bytes; HMAC key of the attendance QR codes and scan
+     receipts, docs/contracts/attendance.md). **Existing installs: add it to `.env` before the deploy that ships
+     migration 0016** (the API refuses to start without it in production; `deploy.sh` checks it).
 
    **Back up `.env` somewhere safe** (password manager): without it, backups can still be restored but every
    password must be reset.
@@ -132,7 +135,8 @@ works on an existing database), `docker compose run --rm migrate && docker compo
 
 `worker` runs the jobs the API enqueues in its transactions (one notification e-mail per notification, sent through
 `SMTP_URL`) and the cron (UTC): audit partitions (1st of the month 00:10), leave accruals for the previous month (1st,
-01:00), auth cleanup (daily 03:00), read-notification cleanup (daily 03:30). Missed ticks are caught up when it starts
+01:00), auth cleanup (daily 03:00), read-notification cleanup (daily 03:30), employee-file retention (1st, 02:00),
+attendance punch retention (1st, 02:30). Missed ticks are caught up when it starts
 again (7 days back for the monthly jobs, 12 h for the daily ones). `docker compose stop worker` is safe: queued jobs
 wait in Postgres. Health = a heartbeat file touched every 30 s after a database check. Inspect the queue:
 `docker compose exec postgres psql -U postgres -d hrforce -c "select task_identifier, attempts, last_error, run_at from graphile_worker.jobs order by run_at"`.
@@ -194,6 +198,9 @@ those passwords (`/password/forgot` flow) right after seeding.
 - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: edit `.env`, `docker compose up -d api` (signs everyone out).
 - `AUTH_MFA_KEY`: **no rotation procedure yet** — a new key makes every enrolled authenticator unusable (each user then
   needs "Reset two-step sign-in" by an admin). Keep a copy of it outside the server (apps/api/README.md › Two-step sign-in).
+- `ATTENDANCE_KEY`: edit `.env`, `docker compose up -d api`. Only the codes on the kiosks' screens (≤ 2 min) and scans
+  waiting for a sign-in (≤ 5 min) stop working; the kiosks fetch new codes by themselves. The shared-phone signal
+  (device references) restarts from the new key.
 - DB passwords (`.env` is only read by the init hook on the first start): edit `.env`, then
   ```sh
   docker compose exec -T postgres psql -U postgres -v ON_ERROR_STOP=1 \

@@ -8,6 +8,17 @@ export const XSRF_COOKIE = 'XSRF-TOKEN';
 export const MFA_COOKIE = 'hrf_mfa';
 export const MFA_COOKIE_PATH = '/api/auth/mfa';
 export const XSRF_HEADER = 'x-xsrf-token';
+/**
+ * Attendance check-in (docs/contracts/attendance.md › Check-in, ADR 009):
+ *   hrf_kiosk  an entrance kiosk's device credential (company ‖ device ‖ secret), only sent to /api/kiosk/*
+ *   hrf_scan   the signed scan receipt (company ‖ device ‖ window ‖ scan instant), only sent to /api/me/attendance*
+ *   hrf_dev    a random per-browser identifier, kept as a keyed hash on QR punches (shared-phone signal)
+ */
+export const KIOSK_COOKIE = 'hrf_kiosk';
+export const KIOSK_COOKIE_PATH = '/api/kiosk';
+export const SCAN_COOKIE = 'hrf_scan';
+export const DEVICE_REF_COOKIE = 'hrf_dev';
+export const ATTENDANCE_COOKIE_PATH = '/api/me/attendance';
 
 export const ACCESS_COOKIE_PATH = '/api';
 export const REFRESH_COOKIE_PATH = '/api/auth';

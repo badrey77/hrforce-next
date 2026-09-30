@@ -1,0 +1,199 @@
+<!-- Settings › Bornes (kiosks-settings.ts). -->
+<section *transloco="let t" aria-labelledby="kiosks-title" data-section="kiosks">
+  <div class="toolbar">
+    <h2 id="kiosks-title">{{ t('attendance.kiosks.title') }}</h2>
+    @if (editing() === null) {
+      <button class="btn" type="button" data-action="new-kiosk" (click)="open({ kind: 'new' })">{{ t('attendance.kiosks.new') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('attendance.kiosks.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  <!-- The one-time pairing code: shown once, with its countdown and what to do on the tablet. -->
+  @if (pairing(); as p) {
+    <div class="panel pairing" data-panel="pairing" role="region" [attr.aria-label]="t('attendance.kiosks.pairingTitle')">
+      <h3>{{ t('attendance.kiosks.pairingTitle') }} — <bdi>{{ p.kiosk }}</bdi></h3>
+      @if (remaining() > 0) {
+        <p class="pairing-code" dir="ltr" data-field="pairing-code">{{ formatCode(p.code.code) }}</p>
+        <p data-field="countdown">{{ t('attendance.kiosks.expiresIn', { time: countdown() }) }}</p>
+        <p>{{ t('attendance.kiosks.pairingHowTo', { url: kioskUrl }) }}</p>
+        <p class="field-hint">{{ t('attendance.kiosks.pairingOnce') }}</p>
+      } @else {
+        <p class="warning" data-state="code-expired">{{ t('attendance.kiosks.codeExpired') }}</p>
+      }
+      <button class="btn secondary" type="button" data-action="dismiss-code" (click)="dismissPairing()">{{ t('attendance.kiosks.dismiss') }}</button>
+    </div>
+  }
+
+  @if (editing(); as e) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="kiosk">
+      <h3>{{ e.kind === 'new' ? t('attendance.kiosks.new') : t('attendance.kiosks.edit') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="grid">
+        <div class="field">
+          <label for="kiosk-site">{{ t('attendance.kiosks.site') }}</label>
+          <select id="kiosk-site" formControlName="siteId" aria-describedby="kiosk-site-error">
+            @for (site of sites(); track site.id) {
+              <option [value]="site.id">{{ site.code }} — {{ site.name }}</option>
+            }
+          </select>
+          <app-control-error [control]="c.siteId" errorId="kiosk-site-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="kiosk-fr">{{ t('attendance.kiosks.labelFr') }}</label>
+          <input id="kiosk-fr" formControlName="fr" lang="fr" dir="ltr" placeholder="Siège — Entrée principale" aria-describedby="kiosk-fr-error" />
+          <app-control-error [control]="c.fr" errorId="kiosk-fr-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="kiosk-ar">{{ t('attendance.kiosks.labelAr') }}</label>
+          <input id="kiosk-ar" formControlName="ar" lang="ar" dir="rtl" placeholder="المقر — المدخل الرئيسي" aria-describedby="kiosk-ar-error" />
+          <app-control-error [control]="c.ar" errorId="kiosk-ar-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="kiosk-networks">{{ t('attendance.kiosks.networks') }}</label>
+        <textarea id="kiosk-networks" formControlName="networks" rows="3" dir="ltr" spellcheck="false"
+          placeholder="41.200.10.0/24" aria-describedby="kiosk-networks-hint kiosk-networks-error"></textarea>
+        <p class="field-hint" id="kiosk-networks-hint">{{ t('attendance.kiosks.networksHint', { max: maxNetworks }) }}</p>
+        <app-control-error [control]="c.networks" errorId="kiosk-networks-error" [keys]="{ tooMany: 'attendance.kiosks.networksTooMany' }" />
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" [disabled]="saving()">{{ e.kind === 'new' ? t('attendance.kiosks.create') : t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="editing.set(null)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  } @else if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  <div [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('attendance.settings.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <div class="table-scroll">
+        <table class="data" data-table="kiosks">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('attendance.kiosks.label') }}</th>
+              <th scope="col">{{ t('attendance.kiosks.site') }}</th>
+              <th scope="col">{{ t('attendance.kiosks.status') }}</th>
+              <th scope="col">{{ t('attendance.kiosks.lastSeen') }}</th>
+              <th scope="col">{{ t('attendance.kiosks.networks') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('attendance.settings.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (k of kiosks(); track k.id) {
+              <tr [attr.data-kiosk]="k.id" [attr.data-status]="k.status">
+                <td>
+                  <span lang="fr" dir="ltr">{{ k.labels.fr }}</span><br />
+                  <span lang="ar" dir="rtl">{{ k.labels.ar }}</span>
+                </td>
+                <td><span class="code">{{ k.site.code }}</span> {{ k.site.name }}</td>
+                <td>
+                  <span class="badge" [attr.data-status]="k.status === 'active' ? 'approved' : k.status === 'revoked' ? 'cancelled' : 'pending'">
+                    {{ t('attendance.kiosks.statusName.' + k.status) }}
+                  </span>
+                  @if (k.pairing; as pending) {
+                    <span class="field-hint"> {{ t('attendance.kiosks.codePending', { date: (pending.expiresAt | date: 'short' : undefined : locale()) }) }}</span>
+                  }
+                  @if (k.revoked; as r) {
+                    <span class="field-hint" data-state="revoked"> — <bdi>{{ r.reason }}</bdi></span>
+                  }
+                </td>
+                <td class="nowrap">
+                  @if (k.lastSeen; as seen) {
+                    <time [attr.datetime]="seen.at" [attr.title]="seen.at | date: 'medium' : undefined : locale()">{{ seen.at | relativeTime: lang() : now() }}</time>
+                    <span class="field-hint code"> {{ seen.ip }}</span>
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>
+                  @if (k.allowedNetworks.length) {
+                    <ul class="networks">
+                      @for (n of k.allowedNetworks; track n) {
+                        <li>{{ n }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="muted">{{ t('attendance.kiosks.anyNetwork') }}</span>
+                  }
+                </td>
+                <td>
+                  <span class="form-actions">
+                    @if (k._actions.includes('pair')) {
+                      <button class="btn secondary" type="button" data-action="new-code" [disabled]="saving()" (click)="newCode(k)">{{ t('attendance.kiosks.newCode') }}</button>
+                    }
+                    @if (k._actions.includes('update')) {
+                      <button class="btn secondary" type="button" data-action="edit-kiosk" (click)="open({ kind: 'edit', kiosk: k })">{{ t('attendance.kiosks.edit') }}</button>
+                    }
+                    @if (k._actions.includes('revoke')) {
+                      <button class="btn secondary" type="button" data-action="revoke" (click)="openRevoke(k)">{{ t('attendance.kiosks.revoke') }}</button>
+                    }
+                    @if (canAudit()) {
+                      <button class="btn secondary" type="button" data-action="history" [attr.aria-expanded]="history() === k.id" (click)="toggleHistory(k)">{{ t('attendance.kiosks.history') }}</button>
+                    }
+                  </span>
+                </td>
+              </tr>
+              @if (history() === k.id) {
+                <tr>
+                  <td colspan="6" data-panel="kiosk-history">
+                    @defer (on viewport) {
+                      <app-timeline [subject]="'attendance_device:' + k.id" [resolver]="auditNames" />
+                    } @placeholder {
+                      <p class="muted">{{ t('audit.loading') }}</p>
+                    } @error {
+                      <p class="form-error" role="alert">{{ t('audit.chunkError') }}</p>
+                    }
+                  </td>
+                </tr>
+              }
+            } @empty {
+              <tr>
+                <td colspan="6" class="muted" data-state="empty">{{ t('attendance.kiosks.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </div>
+
+  <!-- Revocation is final: a modal dialog with a required reason. -->
+  <dialog #revokeDialog class="modal" aria-labelledby="revoke-title" (close)="onRevokeClosed()">
+    <form [formGroup]="revokeForm" (ngSubmit)="submitRevoke()" novalidate>
+      <h2 id="revoke-title">{{ t('attendance.kiosks.revokeTitle') }}</h2>
+      @if (revoking(); as k) {
+        <p><bdi>{{ label(k) }}</bdi> — {{ t('attendance.kiosks.revokeIntro') }}</p>
+      }
+      @if (revokeError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let reason = revokeForm.controls.reason;
+      <div class="field">
+        <label for="revoke-reason">{{ t('attendance.reason.label') }}</label>
+        <textarea id="revoke-reason" formControlName="reason" rows="3" dir="auto" required
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="revoke-reason-error"></textarea>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="revoke-reason-error">{{ t(reasonErrorKey(reason)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn danger" type="submit" data-action="confirm-revoke" [disabled]="saving()">{{ t('attendance.kiosks.revokeConfirm') }}</button>
+        <button class="btn secondary" type="button" (click)="closeRevoke()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</section>

@@ -92,6 +92,8 @@ services:
       AUTH_XSRF_SECRET: ${AUTH_XSRF_SECRET:?}
       # AES-256-GCM key of the TOTP secrets (two-step sign-in); required in production
       AUTH_MFA_KEY: ${AUTH_MFA_KEY:?}
+      # HMAC key of the attendance QR codes and scan receipts (docs/contracts/attendance.md); required in production
+      ATTENDANCE_KEY: ${ATTENDANCE_KEY:?}
       COOKIE_SECURE: "true"
       # Exactly one proxy (Caddy) in front of the API.
       TRUST_PROXY_HOPS: "1"

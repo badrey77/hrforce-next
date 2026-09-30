@@ -8,6 +8,7 @@ import { LEAVE_DEMO_USERS, seedDemoLeave, seedLeaveDefaults } from '../../src/mo
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
 import { query, type TestDatabase } from './test-database.js';
+import { seedAttendanceFixture } from './attendance-fixture.js';
 import { withXsrf, type XsrfPair } from './xsrf.js';
 
 /*
@@ -141,6 +142,11 @@ export interface FixtureOptions {
    * (seedDemoDocumentSettings), BETA's letterhead (French only) and a company-wide signatory, BETA's leave defaults
    */
   documents?: boolean;
+  /**
+   * + attendance (docs/contracts/attendance.md › Seed): DEMO's schedules, override and kiosks (Annaba and Constantine
+   * with known credentials, see attendance-fixture.ts), BETA's defaults, one kiosk and one punch
+   */
+  attendance?: boolean;
 }
 
 /** BETA's company-wide signatory (documents fixture). */
@@ -178,6 +184,7 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
         await seedCompanyProfile(tx, COMPANY_B, { legalNameFr: 'Beta SARL', legalNameAr: null, addressFr: '1 rue de Sétif, Sétif', addressAr: null, cityFr: 'Sétif', cityAr: null });
         await seedSignatory(tx, COMPANY_B, { id: BETA_SIGNATORY, orgUnitId: null, nameFr: 'Salima Beta', nameAr: 'سليمة بيتا', titleFr: 'Gérante', titleAr: 'المسيرة' });
       }
+      if (options.attendance) await seedAttendanceFixture(tx);
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },
       ]);

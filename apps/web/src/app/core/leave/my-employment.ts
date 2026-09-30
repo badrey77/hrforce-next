@@ -2,7 +2,9 @@
  * MyEmployment — "is this account linked to an employee?" (`GET /api/me/employment`), as app-wide signals.
  *
  * Self-service needs BOTH a permission AND a linked employment: `leave.request_self` for My leave
- * (docs/contracts/leave.md › Links), `document.request_self` for My documents (docs/contracts/documents.md › Web). The
+ * (docs/contracts/leave.md › Links), `document.request_self` for My documents (docs/contracts/documents.md › Web),
+ * `attendance.punch_self` for Pointage (docs/contracts/attendance.md › Web). The same answer also says which units
+ * the user heads today (`headOf`), which shows "Mon équipe" (a unit head needs no permission for it). The
  * permissions are in the session; the link is not, so it takes one request. The nav needs the answer (show the links
  * or not) and the /me/leave and /me/documents pages need the employment itself.
  *
@@ -24,12 +26,16 @@ import type { MyEmployment as MyEmploymentBody } from './leave.models';
 
 export const SELF_SERVICE_PERMISSION = 'leave.request_self';
 export const DOCUMENT_SELF_SERVICE_PERMISSION = 'document.request_self';
+export const ATTENDANCE_SELF_SERVICE_PERMISSION = 'attendance.punch_self';
 
 @Injectable({ providedIn: 'root' })
 export class MyEmployment {
   private readonly session = inject(Session);
   private readonly anySelfService = computed(
-    () => this.session.can(SELF_SERVICE_PERMISSION) || this.session.can(DOCUMENT_SELF_SERVICE_PERMISSION),
+    () =>
+      this.session.can(SELF_SERVICE_PERMISSION) ||
+      this.session.can(DOCUMENT_SELF_SERVICE_PERMISSION) ||
+      this.session.can(ATTENDANCE_SELF_SERVICE_PERMISSION),
   );
   private readonly resource = inject(LeaveApi).myEmploymentResource(() => this.anySelfService());
 
@@ -45,6 +51,8 @@ export class MyEmployment {
     return null;
   });
   readonly error = computed(() => this.resource.error());
+  /** The user heads at least one unit today ("Mon équipe" nav entry). */
+  readonly headsUnits = computed(() => (this.employment()?.headOf?.length ?? 0) > 0);
 
   reload(): void {
     this.resource.reload();

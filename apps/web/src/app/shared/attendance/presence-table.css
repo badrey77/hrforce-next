@@ -1,0 +1,64 @@
+/* The board table; under 640 px each row is a card (presence-table.ts explains the data-label pattern). */
+.presence .who a {
+  font-weight: 600;
+}
+
+.schedule-name {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .presence thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .presence,
+  .presence tbody,
+  .presence tr,
+  .presence td {
+    display: block;
+  }
+
+  .presence tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.presence td {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: space-between;
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.data.presence td:empty {
+    display: none;
+  }
+
+  .presence td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.data.presence td.who {
+    display: block;
+    font-size: 1.0625rem;
+  }
+
+  .presence td.who::before {
+    content: none;
+  }
+
+  .schedule-name {
+    display: inline;
+  }
+}

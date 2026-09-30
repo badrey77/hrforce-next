@@ -109,9 +109,17 @@ export const authRefreshInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
-/** `/api/...` except `/api/auth/...` (a 401 from login/refresh/logout is an answer, not an expired token). */
-function isRefreshable(url: string): boolean {
-  return (url === '/api' || url.startsWith('/api/') || url.startsWith('/api?')) && !url.startsWith('/api/auth/');
+/**
+ * `/api/...` except `/api/auth/...` (a 401 from login/refresh/logout is an answer, not an expired token) and
+ * `/api/kiosk/...` (docs/contracts/attendance.md › Kiosk: the entrance tablet has no user session; its 401 means
+ * "not paired", and a refresh + /login redirect would pull the kiosk screen away from the pairing form).
+ */
+export function isRefreshable(url: string): boolean {
+  return (
+    (url === '/api' || url.startsWith('/api/') || url.startsWith('/api?')) &&
+    !url.startsWith('/api/auth/') &&
+    !url.startsWith('/api/kiosk/')
+  );
 }
 
 /** Refresh re-issues `XSRF-TOKEN` (it is bound to the new session id): re-stamp a request that carried the old one. */

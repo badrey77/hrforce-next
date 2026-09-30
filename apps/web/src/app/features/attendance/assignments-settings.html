@@ -1,0 +1,149 @@
+<!-- Settings › Affectations (assignments-settings.ts). -->
+<section *transloco="let t" aria-labelledby="assignments-title" data-section="assignments">
+  <div class="toolbar">
+    <h2 id="assignments-title">{{ t('attendance.assignments.title') }}</h2>
+    @if (!adding()) {
+      <button class="btn" type="button" data-action="new-assignment" (click)="openAdd()">{{ t('attendance.assignments.new') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('attendance.assignments.intro') }}</p>
+  <p class="field-hint" data-state="company-notice">{{ t('attendance.assignments.companyNotice') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @if (adding()) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="assignment">
+      <h3>{{ t('attendance.assignments.new') }}</h3>
+      <div class="grid">
+        <div class="field">
+          <label for="asg-schedule">{{ t('attendance.assignments.schedule') }}</label>
+          <select id="asg-schedule" formControlName="scheduleId" aria-describedby="asg-schedule-error">
+            @for (s of schedules(); track s.id) {
+              <option [value]="s.id">{{ label(s.labels) }} ({{ s.code }})</option>
+            }
+          </select>
+          <app-control-error [control]="c.scheduleId" errorId="asg-schedule-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="asg-kind">{{ t('attendance.assignments.targetKind') }}</label>
+          <select id="asg-kind" formControlName="kind">
+            @for (kind of kinds; track kind) {
+              <option [value]="kind">{{ t('attendance.assignments.kind.' + kind) }}</option>
+            }
+          </select>
+        </div>
+        <!-- One control, three pickers: the kind decides which one is on screen (the value is cleared on change). -->
+        @switch (c.kind.value) {
+          @case ('site') {
+            <div class="field">
+              <label for="asg-site">{{ t('attendance.assignments.kind.site') }}</label>
+              <select id="asg-site" formControlName="targetId" aria-describedby="asg-target-error">
+                <option [ngValue]="null" disabled>{{ t('attendance.assignments.pickSite') }}</option>
+                @for (site of sites(); track site.id) {
+                  <option [ngValue]="site.id">{{ site.code }} — {{ site.name }}</option>
+                }
+              </select>
+              <app-control-error [control]="c.targetId" errorId="asg-target-error" [keys]="{ required: 'attendance.settings.required' }" />
+            </div>
+          }
+          @case ('unit') {
+            <div class="field">
+              <label for="asg-unit">{{ t('attendance.assignments.kind.unit') }}</label>
+              <app-org-unit-picker inputId="asg-unit" formControlName="targetId" [invalid]="c.targetId.invalid && c.targetId.touched" describedBy="asg-target-error" />
+              <app-control-error [control]="c.targetId" errorId="asg-target-error" [keys]="{ required: 'attendance.settings.required' }" />
+            </div>
+          }
+          @case ('employment') {
+            <div class="field">
+              <label for="asg-employee">{{ t('attendance.assignments.kind.employment') }}</label>
+              <app-employee-picker inputId="asg-employee" formControlName="targetId" [invalid]="c.targetId.invalid && c.targetId.touched" describedBy="asg-target-error" />
+              <app-control-error [control]="c.targetId" errorId="asg-target-error" [keys]="{ required: 'attendance.settings.required' }" />
+            </div>
+          }
+        }
+        <div class="field">
+          <label for="asg-from">{{ t('attendance.assignments.validFrom') }}</label>
+          <input id="asg-from" type="date" formControlName="validFrom" aria-describedby="asg-from-error" />
+          <app-control-error [control]="c.validFrom" errorId="asg-from-error" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="adding.set(false)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <div class="check">
+    <input id="asg-all" type="checkbox" [checked]="showAll()" (change)="showAll.set(!showAll())" />
+    <label for="asg-all">{{ t('attendance.assignments.showAll') }}</label>
+  </div>
+
+  <div [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('attendance.settings.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      @for (group of groups(); track group.kind) {
+        <h3 [attr.data-group]="group.kind">{{ t('attendance.assignments.group.' + group.kind) }}</h3>
+        <div class="table-scroll">
+          <table class="data" [attr.data-table]="'assignments-' + group.kind">
+            <thead>
+              <tr>
+                @if (group.kind !== 'company') {
+                  <th scope="col">{{ t('attendance.assignments.target') }}</th>
+                }
+                <th scope="col">{{ t('attendance.assignments.schedule') }}</th>
+                <th scope="col">{{ t('attendance.assignments.validFrom') }}</th>
+                <th scope="col">{{ t('attendance.assignments.validTo') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ t('attendance.settings.actions') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of group.items; track a.id) {
+                <tr [attr.data-assignment]="a.id">
+                  @if (group.kind !== 'company') {
+                    <td><bdi>{{ targetName(a) }}</bdi></td>
+                  }
+                  <td>{{ label(a.schedule.labels) }} <span class="code muted">{{ a.schedule.code }}</span></td>
+                  <td class="nowrap">{{ a.validFrom | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td class="nowrap">{{ a.validTo ? (a.validTo | date: 'mediumDate' : undefined : locale()) : t('attendance.schedules.open') }}</td>
+                  <td>
+                    @if (ending() === a.id) {
+                      <form class="form-actions" [formGroup]="endForm" (ngSubmit)="submitEnd(a)" novalidate>
+                        <label class="visually-hidden" [for]="'end-' + a.id">{{ t('attendance.assignments.lastDay') }}</label>
+                        <input [id]="'end-' + a.id" type="date" formControlName="validTo" />
+                        <button class="btn" type="submit" data-action="confirm-end" [disabled]="saving()">{{ t('attendance.assignments.end') }}</button>
+                        <button class="btn secondary" type="button" (click)="ending.set(null)">{{ t('common.cancel') }}</button>
+                      </form>
+                    } @else {
+                      <span class="form-actions">
+                        @if (a._actions.includes('end')) {
+                          <button class="btn secondary" type="button" data-action="end" (click)="openEnd(a)">{{ t('attendance.assignments.end') }}</button>
+                        }
+                        @if (a._actions.includes('delete')) {
+                          <button class="btn secondary" type="button" data-action="delete" [disabled]="saving()" (click)="remove(a)">{{ t('attendance.assignments.delete') }}</button>
+                        }
+                      </span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @empty {
+        <p class="muted" data-state="empty">{{ t('attendance.assignments.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </div>
+</section>

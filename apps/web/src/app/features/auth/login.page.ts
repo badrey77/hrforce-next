@@ -39,6 +39,7 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   type ElementRef,
   Injector,
@@ -116,6 +117,8 @@ export class LoginPage {
 
   /** `?returnUrl=` (bound by the router). Validated before use. */
   readonly returnUrl = input<string>();
+  /** Coming from an attendance scan (`returnUrl=/punch`): the page says the punch waits for this sign-in. */
+  protected readonly forPunch = computed(() => this.returnUrl() === '/punch');
 
   protected readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],

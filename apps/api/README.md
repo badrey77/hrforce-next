@@ -51,6 +51,7 @@ variables (values are never printed).
 | `AUTH_XSRF_SECRET` | yes | | ≥ 32 chars, HMAC key of the XSRF token; must differ from `AUTH_ACCESS_SECRET` |
 | `WEB_BASE_URL` | yes | | `http(s)://…` of the web app (trailing `/` dropped); mailed links are `${WEB_BASE_URL}/password/setup?token=…` |
 | `AUTH_MFA_KEY` | in production | public dev key (dev/test only, **insecure**) | base64 of exactly 32 bytes (`openssl rand -base64 32`): AES-256-GCM key of the TOTP secrets. Production refuses to boot without it (or with the dev key) |
+| `ATTENDANCE_KEY` | in production | public dev key (dev/test only, **insecure**) | base64 of exactly 32 bytes (`openssl rand -base64 32`): HMAC key of the attendance QR codes, scan receipts and device references (docs/contracts/attendance.md). Production refuses to boot without it (or with the dev key); rotating it only invalidates live codes (≤ 2 min) and receipts (≤ 5 min) |
 | `COOKIE_SECURE` | | `true` | `Secure` on every cookie. **Boot fails** if `false` and `NODE_ENV` is not `development`/`test` |
 | `MAIL_TRANSPORT` | | `smtp` | `smtp` \| `log`. `log` only in `development`/`test` |
 | `SMTP_URL` | with `smtp` | | `smtp://` or `smtps://` (nodemailer URL), e.g. `smtp://localhost:1025` (Mailpit) |

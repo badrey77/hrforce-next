@@ -16,7 +16,11 @@
     "tasksWithCount": "Mes tâches, {{count}} en attente",
     "tasksLive": "{{count}} tâche(s) en attente",
     "documents": "Documents",
-    "myDocuments": "Mes documents"
+    "myDocuments": "Mes documents",
+    "myAttendance": "Pointage",
+    "myTeam": "Mon équipe",
+    "attendance": "Présence",
+    "attendanceSettings": "Paramètres du pointage"
   },
   "language": {
     "label": "Langue",
@@ -57,7 +61,8 @@
         "useApp": "Utiliser le code de l'application",
         "back": "Retour au mot de passe",
         "expired": "La vérification a expiré. Saisissez à nouveau votre mot de passe."
-      }
+      },
+      "forPunch": "Connectez-vous pour enregistrer votre pointage."
     },
     "session": {
       "signOut": "Se déconnecter",
@@ -477,7 +482,14 @@
       "issued_document": "Document émis",
       "document_request": "Demande de document",
       "employee_file": "Pièce du dossier",
-      "employee_file_category": "Catégorie du dossier"
+      "employee_file_category": "Catégorie du dossier",
+      "attendance_policy": "Politique de pointage",
+      "attendance_device": "Borne de pointage",
+      "attendance_schedule": "Horaire",
+      "attendance_schedule_version": "Version d’horaire",
+      "attendance_schedule_override": "Horaire exceptionnel",
+      "attendance_schedule_assignment": "Affectation d’horaire",
+      "attendance_punch": "Pointage"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -706,6 +718,39 @@
         "active": "Active",
         "sort_order": "Ordre",
         "is_system": "Système"
+      },
+      "attendance_punch": {
+        "direction": "Sens",
+        "occurred_at": "Heure du pointage",
+        "received_at": "Reçu le",
+        "source": "Source",
+        "device_id": "Borne",
+        "qr_window": "Fenêtre du code",
+        "site_id": "Site",
+        "device_ref": "Identifiant du navigateur",
+        "reason": "Motif",
+        "created_by": "Saisi par",
+        "status": "État",
+        "voided_at": "Annulé le",
+        "voided_by": "Annulé par",
+        "void_reason": "Motif d’annulation"
+      },
+      "attendance_device": {
+        "kind": "Type",
+        "site_id": "Site",
+        "name_fr": "Entrée (français)",
+        "name_ar": "Entrée (arabe)",
+        "status": "État",
+        "credential_hash": "Identifiant de l’appareil",
+        "paired_at": "Appairée le",
+        "pairing_code_hash": "Code d’appairage",
+        "pairing_expires_at": "Code valable jusqu’au",
+        "allowed_networks": "Réseaux autorisés",
+        "created_by": "Créée par",
+        "created_at": "Créée le",
+        "revoked_at": "Révoquée le",
+        "revoked_by": "Révoquée par",
+        "revoke_reason": "Motif de révocation"
       }
     },
     "events": {
@@ -736,6 +781,28 @@
         "downloaded": "Pièce du dossier téléchargée",
         "deleted": "Pièce du dossier supprimée : {{reason}}",
         "purged": "{{count}} pièce(s) effacée(s) (durée de conservation)"
+      },
+      "attendance": {
+        "device_paired": "Borne appairée (adresse IP {{ip}})",
+        "purged": "{{punches}} pointage(s) effacé(s) (durée de conservation)",
+        "punch_recorded": {
+          "qr_in": "Arrivée pointée à une borne",
+          "qr_out": "Départ pointé à une borne",
+          "manual_in": "Pointage manuel ajouté : arrivée",
+          "manual_out": "Pointage manuel ajouté : départ",
+          "correction_in": "Arrivée ajoutée par une correction",
+          "correction_out": "Départ ajouté par une correction"
+        },
+        "punch_voided": {
+          "qr": "Pointage à une borne annulé",
+          "manual": "Pointage manuel annulé",
+          "correction": "Pointage de correction annulé"
+        },
+        "punch_deleted": {
+          "qr": "Pointage à une borne supprimé",
+          "manual": "Pointage manuel supprimé",
+          "correction": "Pointage de correction supprimé"
+        }
       }
     },
     "values": {
@@ -897,7 +964,8 @@
       "leave": "Congés",
       "history": "Historique",
       "documents": "Documents",
-      "file": "Dossier"
+      "file": "Dossier",
+      "attendance": "Présence"
     },
     "identity": {
       "edit": "Modifier",
@@ -1829,6 +1897,424 @@
       "loadError": "Impossible de charger les catégories.",
       "created": "Catégorie créée.",
       "saved": "Catégorie enregistrée."
+    }
+  },
+  "attendance": {
+    "status": {
+      "present": "Présent",
+      "late": "En retard",
+      "absent": "Absent",
+      "incomplete": "Incomplet",
+      "expected": "Attendu",
+      "on_leave": "En congé",
+      "holiday": "Jour férié",
+      "rest_day": "Repos",
+      "not_employed": "Hors contrat"
+    },
+    "flags": {
+      "open": "En cours",
+      "early_departure": "Départ anticipé",
+      "half_day_leave_morning": "Congé le matin",
+      "half_day_leave_afternoon": "Congé l’après-midi",
+      "leave_pending": "Congé en attente",
+      "worked_on_rest_day": "Travail un jour de repos",
+      "worked_on_holiday": "Travail un jour férié",
+      "worked_on_leave": "Travail pendant un congé",
+      "other_site": "Autre site",
+      "unpaired_punch": "Pointage isolé",
+      "manual_punch": "Saisie manuelle",
+      "corrected": "Corrigé",
+      "shared_device": "Téléphone partagé"
+    },
+    "flagHelp": {
+      "open": "Arrivée enregistrée, départ pas encore pointé.",
+      "early_departure": "Départ avant l’heure prévue, au-delà de la tolérance.",
+      "half_day_leave_morning": "Demi-journée de congé approuvée le matin.",
+      "half_day_leave_afternoon": "Demi-journée de congé approuvée l’après-midi.",
+      "leave_pending": "Une demande de congé couvrant ce jour attend une décision.",
+      "worked_on_rest_day": "Des pointages existent un jour de repos.",
+      "worked_on_holiday": "Des pointages existent un jour férié.",
+      "worked_on_leave": "Des pointages existent pendant un congé approuvé.",
+      "other_site": "Pointage sur une borne d’un autre site que celui de l’employé ce jour-là.",
+      "unpaired_punch": "Une arrivée sans départ (ou l’inverse) a été ignorée dans le calcul.",
+      "manual_punch": "Un pointage de ce jour a été saisi par les RH.",
+      "corrected": "Ce jour a été corrigé.",
+      "shared_device": "Le même navigateur a pointé pour un autre employé ce jour-là (signal, pas une preuve)."
+    },
+    "direction": {
+      "in": "Arrivée",
+      "out": "Départ"
+    },
+    "source": {
+      "qr": "QR",
+      "manual": "Saisie manuelle",
+      "correction": "Correction"
+    },
+    "punchStatus": {
+      "live": "Valide",
+      "void": "Annulé"
+    },
+    "scheduleSource": {
+      "employment": "Horaire individuel",
+      "unit": "Horaire de l’unité",
+      "site": "Horaire du site",
+      "company": "Horaire de l’entreprise"
+    },
+    "leavePart": {
+      "full": "journée entière",
+      "morning": "matin",
+      "afternoon": "après-midi"
+    },
+    "approximate": "Date approximative",
+    "columns": {
+      "employee": "Employé",
+      "unit": "Unité",
+      "schedule": "Horaire",
+      "arrival": "Arrivée",
+      "departure": "Départ",
+      "late": "Retard",
+      "worked": "Travaillé",
+      "status": "Statut",
+      "flags": "Signaux"
+    },
+    "day": {
+      "late": "Retard {{minutes}}",
+      "worked": "Travaillé {{minutes}}",
+      "break": "pause",
+      "recordedBy": "saisi par {{name}}",
+      "voided": "Annulé par {{name}}",
+      "noPunch": "Aucun pointage ce jour.",
+      "empty": "Aucun jour à afficher."
+    },
+    "totals": {
+      "worked": "Travaillé {{worked}} sur {{scheduled}} prévues",
+      "lateDays": "Jours de retard : {{count}}",
+      "absentDays": "Absences : {{count}}",
+      "incompleteDays": "Jours incomplets : {{count}}",
+      "leaveDays": "Jours de congé : {{count}}",
+      "earlyDepartureDays": "Départs anticipés : {{count}}"
+    },
+    "reason": {
+      "label": "Motif",
+      "required": "Le motif est obligatoire.",
+      "tooShort": "Le motif doit comporter au moins 3 caractères.",
+      "tooLong": "Le motif ne peut pas dépasser 500 caractères."
+    },
+    "void": {
+      "action": "Annuler",
+      "actionNamed": "Annuler le pointage de {{time}}",
+      "title": "Annuler un pointage",
+      "intro": "{{direction}} de {{time}}, le {{date}}. Le pointage reste visible, barré, avec ce motif.",
+      "confirm": "Annuler le pointage",
+      "done": "Pointage annulé.",
+      "already": "Ce pointage a déjà été annulé."
+    },
+    "manual": {
+      "action": "Ajouter un pointage",
+      "title": "Ajouter un pointage",
+      "intro": "Pour un pointage manqué (téléphone en panne, réseau coupé…). Heure d’Alger ; le motif est conservé dans l’historique.",
+      "direction": "Sens",
+      "date": "Date",
+      "time": "Heure",
+      "timeHint": "Heure d’Alger, format HH:MM.",
+      "timeFormat": "Saisissez une heure au format HH:MM.",
+      "site": "Site",
+      "siteDefault": "Site de l’employé ce jour-là",
+      "submit": "Enregistrer le pointage",
+      "done": "Pointage enregistré.",
+      "notEmployed": "L’employé n’était pas en poste à cette date.",
+      "selfManage": "Vous ne pouvez pas gérer vos propres pointages.",
+      "exists": "Un pointage existe déjà à cette minute.",
+      "future": "Cette heure est dans le futur.",
+      "tooOld": "Cette date dépasse la durée de conservation des pointages.",
+      "siteNotFound": "Site introuvable."
+    },
+    "segments": {
+      "range": "du {{from}} au {{to}}",
+      "via": {
+        "employment": "— affectation individuelle",
+        "unit": "— via l’unité",
+        "site": "— via le site"
+      }
+    },
+    "kiosk": {
+      "checking": "Connexion au serveur…",
+      "pairTitle": "Appairer cette borne",
+      "pairIntro": "Saisissez le code d’appairage fourni par le service RH (Paramètres du pointage › Bornes). Il est valable 10 minutes et ne sert qu’une fois.",
+      "codeLabel": "Code d’appairage",
+      "codeHint": "8 caractères, par exemple K7M2-9QXA.",
+      "codeInvalid": "Saisissez les 8 caractères du code.",
+      "pair": "Appairer",
+      "pairing": "Appairage…",
+      "pairInvalid": "Code invalide ou expiré.",
+      "pairNetwork": "Impossible de joindre le serveur. Vérifiez la connexion de la tablette.",
+      "revoked": "Borne désactivée — contactez les RH.",
+      "refused": "Cette borne n’est pas autorisée sur ce réseau. Adressez-vous au service RH.",
+      "offline": "Pointage indisponible — connexion perdue. Adressez-vous au service RH.",
+      "instruction": "Scannez ce code avec l’appareil photo de votre téléphone",
+      "qrLabel": "Code de pointage",
+      "fullscreen": "Plein écran"
+    },
+    "punch": {
+      "working": {
+        "scan": "Lecture du code…",
+        "punch": "Enregistrement du pointage…",
+        "signin": "Connexion requise…"
+      },
+      "entrance": "Entrée :",
+      "recorded": {
+        "in": "Arrivée enregistrée à {{time}}",
+        "out": "Départ enregistré à {{time}}"
+      },
+      "duplicate": "Déjà enregistré",
+      "seeMine": "Voir mon pointage",
+      "problemTitle": {
+        "expired": "Code expiré",
+        "invalid": "Code non reconnu",
+        "noScan": "Aucun scan en cours",
+        "notLinked": "Compte non relié",
+        "forbidden": "Pointage non autorisé",
+        "notEmployed": "Pointage impossible",
+        "network": "Pas de connexion",
+        "generic": "Pointage non enregistré"
+      },
+      "problem": {
+        "expired": "Ce code a expiré. Veuillez scanner à nouveau le code affiché à l’entrée.",
+        "invalid": "Ce code n’est pas valide. Veuillez scanner à nouveau le code affiché à l’entrée.",
+        "noScan": "Veuillez scanner à nouveau le code à l’entrée.",
+        "notLinked": "Votre compte n’est lié à aucun dossier employé. Adressez-vous au service RH.",
+        "forbidden": "Votre compte ne permet pas de pointer. Adressez-vous au service RH.",
+        "notEmployed": "Vous n’êtes pas en poste à cette date. Adressez-vous au service RH.",
+        "network": "Le serveur est injoignable. Le scan reste valable 5 minutes : réessayez.",
+        "generic": "Une erreur inattendue s’est produite. Veuillez scanner à nouveau le code à l’entrée."
+      }
+    },
+    "mine": {
+      "title": "Pointage",
+      "today": "Aujourd’hui",
+      "loadError": "Impossible de charger le pointage.",
+      "workedSoFar": "Travaillé",
+      "scheduleToday": "Horaire du jour",
+      "howTitle": "Comment pointer ?",
+      "how": "À l’entrée, visez le code affiché sur l’écran avec l’appareil photo de votre téléphone et ouvrez le lien proposé. Le pointage est enregistré à l’heure du scan, même s’il faut d’abord vous connecter.",
+      "howIphone": "Sur iPhone, utilisez Safari (l’appareil photo ouvre les liens dans Safari) et connectez-vous-y une première fois.",
+      "previousMonth": "Mois précédent",
+      "nextMonth": "Mois suivant",
+      "notLinked": "Votre compte n’est lié à aucun dossier employé. Adressez-vous au service RH."
+    },
+    "notice": {
+      "label": "Information sur les données de pointage",
+      "years": "Le pointage enregistre l’heure, l’entrée utilisée et un identifiant aléatoire de ce navigateur. Aucune localisation, photo ni donnée biométrique n’est collectée. Les pointages sont conservés {{count}} ans.",
+      "months": "Le pointage enregistre l’heure, l’entrée utilisée et un identifiant aléatoire de ce navigateur. Aucune localisation, photo ni donnée biométrique n’est collectée. Les pointages sont conservés {{count}} mois."
+    },
+    "board": {
+      "title": "Présence",
+      "countsLabel": "Répartition par statut (cliquer pour filtrer)",
+      "total": "{{count}} employé(s)",
+      "noHours": "Pas d’horaire ce jour",
+      "dayLabel": "Jour affiché",
+      "previousDay": "Jour précédent",
+      "nextDay": "Jour suivant",
+      "date": "Date",
+      "today": "Aujourd’hui",
+      "filters": "Filtres de présence",
+      "search": "Rechercher",
+      "searchPlaceholder": "Nom ou matricule",
+      "site": "Site",
+      "allSites": "Tous les sites",
+      "sort": "Trier par",
+      "sortBy": {
+        "unit": "Unité",
+        "name": "Nom",
+        "arrival": "Heure d’arrivée",
+        "status": "Statut"
+      },
+      "live": "Journée en cours : la liste se met à jour chaque minute.",
+      "noMatch": "Aucun employé ne correspond à ces filtres.",
+      "empty": "Aucun employé dans votre périmètre ce jour-là.",
+      "loadError": "Impossible de charger la présence.",
+      "tooMany": "Trop d’employés à afficher : choisissez une unité ou un site."
+    },
+    "team": {
+      "title": "Mon équipe",
+      "units": "Unités dirigées ce jour-là :",
+      "none": "Vous ne dirigez aucune unité à cette date."
+    },
+    "settings": {
+      "title": "Paramètres du pointage",
+      "back": "Retour à la présence",
+      "intro": "Horaires, affectations, bornes d’entrée et durée de conservation. Ces valeurs sont des données : les modifier ne demande aucun développement.",
+      "tabs": "Sections des paramètres du pointage",
+      "tab": {
+        "schedules": "Horaires",
+        "assignments": "Affectations",
+        "kiosks": "Bornes",
+        "policy": "Politique"
+      },
+      "companyOnly": "Seul un administrateur ayant ce droit sur toute l’entreprise peut modifier ces paramètres.",
+      "invalid": "Vérifiez ce champ.",
+      "required": "Ce champ est obligatoire.",
+      "labelFr": "Libellé (français)",
+      "labelAr": "Libellé (arabe)",
+      "labelEn": "Libellé (anglais)",
+      "loadError": "Impossible de charger ces paramètres.",
+      "actions": "Actions"
+    },
+    "week": {
+      "title": "Semaine type",
+      "iso": "jour ISO {{day}}",
+      "rest": "Repos",
+      "start": "Début",
+      "end": "Fin",
+      "breakStart": "Pause de",
+      "breakEnd": "à",
+      "weekly": "Total hebdomadaire : {{minutes}}",
+      "noWorkingDay": "Au moins un jour doit être travaillé.",
+      "invalidBreak": "La pause doit être comprise entre le début et la fin (renseignez ses deux heures ou aucune).",
+      "invalidTime": "L’heure de fin doit suivre l’heure de début."
+    },
+    "schedules": {
+      "title": "Horaires",
+      "new": "Nouvel horaire",
+      "code": "Code",
+      "codeHint": "Minuscules, chiffres et _ ; ne peut plus être modifié.",
+      "codeFormat": "De 2 à 40 caractères : une lettre minuscule, puis minuscules, chiffres ou _.",
+      "codeTaken": "Ce code est déjà utilisé.",
+      "inUse": "Cet horaire est affecté aujourd’hui ou à l’avenir : terminez d’abord ses affectations.",
+      "versionDate": "La nouvelle version doit commencer après le début de la version actuelle.",
+      "tolerance": "Tolérance (minutes)",
+      "validFrom": "Valable à partir du",
+      "newVersionOf": "Nouvelle version de « {{name}} »",
+      "versionHint": "Les versions ne se modifient pas : la version en cours s’arrête à cette date. Une date passée recalcule les jours concernés.",
+      "newVersionFrom": "Nouvelle version à partir du",
+      "rename": "Renommer",
+      "active": "Actif",
+      "inactive": "Inactif",
+      "summary": "{{weekly}} par semaine, tolérance {{tolerance}} min",
+      "since": "depuis le {{date}}",
+      "assignmentCount": "Affectations en cours ou à venir : {{count}}",
+      "newVersion": "Nouvelle version",
+      "deactivate": "Désactiver",
+      "activate": "Réactiver",
+      "history": "Historique des versions ({{count}})",
+      "open": "en cours",
+      "toleranceShort": "tolérance {{minutes}} min",
+      "empty": "Aucun horaire.",
+      "created": "Horaire créé.",
+      "versionAdded": "Nouvelle version enregistrée.",
+      "renamed": "Libellés enregistrés.",
+      "deactivated": "Horaire désactivé.",
+      "activated": "Horaire réactivé."
+    },
+    "overrides": {
+      "title": "Horaires exceptionnels",
+      "previousYear": "Année précédente",
+      "nextYear": "Année suivante",
+      "new": "Nouvelle période",
+      "edit": "Modifier",
+      "intro": "Une période datée (par exemple le Ramadan) remplace la semaine type, pour tous les horaires ou pour un seul.",
+      "appliesTo": "S’applique à",
+      "allSchedules": "Tous les horaires",
+      "from": "Du",
+      "to": "Au",
+      "toHint": "Dernier jour inclus ; 60 jours au plus.",
+      "approximate": "Dates approximatives (à confirmer)",
+      "name": "Nom",
+      "confirmDelete": "Confirmer la suppression",
+      "delete": "Supprimer",
+      "empty": "Aucune période cette année.",
+      "overlap": "Cette période chevauche une autre période du même horaire.",
+      "tooLong": "Une période ne peut pas dépasser 60 jours.",
+      "created": "Période créée.",
+      "saved": "Période enregistrée.",
+      "deleted": "Période supprimée."
+    },
+    "assignments": {
+      "title": "Affectations des horaires",
+      "new": "Nouvelle affectation",
+      "intro": "L’horaire le plus précis s’applique : employé, puis unité (et ses sous-unités), puis site, puis entreprise.",
+      "companyNotice": "L’horaire par défaut de l’entreprise ne se termine pas : pour le changer, ajoutez une nouvelle affectation « Entreprise » à partir d’une date.",
+      "schedule": "Horaire",
+      "targetKind": "Pour",
+      "kind": {
+        "company": "Entreprise (par défaut)",
+        "site": "Site",
+        "unit": "Unité",
+        "employment": "Employé"
+      },
+      "pickSite": "Choisissez un site",
+      "validFrom": "À partir du",
+      "validTo": "Jusqu’au",
+      "showAll": "Afficher aussi les affectations terminées et à venir",
+      "group": {
+        "company": "Par défaut de l’entreprise",
+        "site": "Sites",
+        "unit": "Unités",
+        "employment": "Employés"
+      },
+      "target": "Cible",
+      "lastDay": "Dernier jour",
+      "end": "Terminer",
+      "delete": "Supprimer",
+      "empty": "Aucune affectation.",
+      "overlap": "Cette cible a déjà une affectation sur cette période.",
+      "companyEnd": "L’affectation de l’entreprise ne se termine pas : ajoutez une nouvelle affectation par défaut.",
+      "started": "Seule une affectation qui n’a pas commencé peut être supprimée.",
+      "rootUnit": "Choisissez une unité sous la Direction générale (l’entreprise entière a sa propre affectation).",
+      "targetNotFound": "Cible introuvable.",
+      "inactive": "Cet horaire est désactivé.",
+      "created": "Affectation enregistrée.",
+      "ended": "Affectation terminée.",
+      "deleted": "Affectation supprimée."
+    },
+    "kiosks": {
+      "title": "Bornes de pointage",
+      "new": "Nouvelle borne",
+      "intro": "Une borne est une tablette à l’entrée d’un site qui affiche un code QR changeant toutes les 30 secondes. Elle ne donne accès à aucune donnée personnelle.",
+      "pairingTitle": "Code d’appairage",
+      "expiresIn": "Expire dans {{time}}",
+      "pairingHowTo": "Sur la tablette, ouvrez {{url}} et saisissez ce code.",
+      "pairingOnce": "Ce code ne sera plus affiché. S’il expire, utilisez « Nouveau code ».",
+      "codeExpired": "Ce code a expiré. Utilisez « Nouveau code ».",
+      "dismiss": "Fermer",
+      "edit": "Modifier",
+      "site": "Site",
+      "labelFr": "Entrée (français)",
+      "labelAr": "Entrée (arabe)",
+      "networks": "Réseaux autorisés",
+      "networksHint": "Facultatif : une adresse ou une plage par ligne (ex. 41.200.10.0/24), {{max}} au plus. Vide = tout réseau.",
+      "networksTooMany": "Pas plus de 10 réseaux.",
+      "networkInvalid": "Une adresse ou une plage n’est pas valide.",
+      "create": "Créer et obtenir le code",
+      "label": "Entrée",
+      "status": "État",
+      "lastSeen": "Dernière activité",
+      "statusName": {
+        "pending": "En attente d’appairage",
+        "active": "Active",
+        "revoked": "Révoquée"
+      },
+      "codePending": "code valable jusqu’au {{date}}",
+      "anyNetwork": "Tout réseau",
+      "newCode": "Nouveau code",
+      "revoke": "Révoquer",
+      "history": "Historique",
+      "empty": "Aucune borne.",
+      "revokeTitle": "Révoquer la borne",
+      "revokeIntro": "La tablette ne pourra plus afficher de code. C’est définitif : pour la réutiliser, créez une nouvelle borne.",
+      "revokeConfirm": "Révoquer",
+      "alreadyRevoked": "Cette borne est déjà révoquée.",
+      "created": "Borne créée.",
+      "saved": "Borne enregistrée.",
+      "revokedDone": "Borne révoquée."
+    },
+    "policy": {
+      "title": "Politique de pointage",
+      "retention": "Durée de conservation (mois)",
+      "retentionHint": "Entre {{min}} et {{max}} mois après la fin du mois concerné.",
+      "gap": "Délai anti-doublon (secondes)",
+      "gapHint": "Un second scan dans ce délai renvoie le premier pointage ({{min}} à {{max}} s).",
+      "saved": "Politique enregistrée."
     }
   }
 }

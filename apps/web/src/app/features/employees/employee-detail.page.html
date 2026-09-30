@@ -269,6 +269,13 @@
           </div>
         }
 
+        <!-- Présence: days, punches, manual punches and voids (employee-attendance-tab.ts). -->
+        @case ('attendance') {
+          <div data-panel="attendance">
+            <app-employee-attendance-tab [employee]="e" [date]="date() ?? null" />
+          </div>
+        }
+
         <!-- History: the timeline's code is fetched only when this tab is opened (chapter 13). ---------------- -->
         @case ('history') {
           <div data-panel="history">

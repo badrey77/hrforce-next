@@ -1,0 +1,98 @@
+<!-- The HR board (presence-board.page.ts): filters from the URL, counts, the table, the pager. -->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('attendance.board.title') }}</h1>
+    <a *appCan="'attendance.configure'" class="btn secondary" routerLink="/attendance/settings" data-action="settings">{{ t('attendance.settings.title') }}</a>
+  </header>
+
+  @let current = query();
+  <div class="day-nav" role="group" [attr.aria-label]="t('attendance.board.dayLabel')">
+    <button class="btn secondary" type="button" data-action="prev-day" [attr.aria-label]="t('attendance.board.previousDay')" (click)="shiftDay(-1)">‹</button>
+    <label class="visually-hidden" for="board-date">{{ t('attendance.board.date') }}</label>
+    <input id="board-date" type="date" [value]="day()" [max]="todayIso" (change)="onDate($event)" />
+    <button class="btn secondary" type="button" data-action="next-day" [attr.aria-label]="t('attendance.board.nextDay')"
+      [disabled]="day() >= todayIso" (click)="shiftDay(1)">›</button>
+    @if (day() === todayIso) {
+      <span class="badge">{{ t('attendance.board.today') }}</span>
+    }
+  </div>
+
+  <form class="filters" role="search" [attr.aria-label]="t('attendance.board.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="board-q">{{ t('attendance.board.search') }}</label>
+      <input id="board-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('attendance.board.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="board-unit">{{ t('attendance.columns.unit') }}</label>
+        <app-org-unit-picker inputId="board-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="board-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="board-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    @if (canSites()) {
+      <div class="field">
+        <label for="board-site">{{ t('attendance.board.site') }}</label>
+        <select id="board-site" (change)="onSelect('siteId', $event)">
+          <option value="" [selected]="!current.siteId">{{ t('attendance.board.allSites') }}</option>
+          @for (site of siteItems(); track site.id) {
+            <option [value]="site.id" [selected]="site.id === current.siteId">{{ site.code }} — {{ site.name }}</option>
+          }
+        </select>
+      </div>
+    }
+    <div class="field">
+      <label for="board-sort">{{ t('attendance.board.sort') }}</label>
+      <select id="board-sort" (change)="onSelect('sort', $event)">
+        @for (sort of sorts; track sort) {
+          <option [value]="sort" [selected]="sort === current.sort">{{ t('attendance.board.sortBy.' + sort) }}</option>
+        }
+      </select>
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="board.isLoading()">
+    @if (board.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="board.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (board.hasValue()) {
+      @let view = board.value();
+      <app-status-counts [counts]="view.counts" [selected]="current.status" (select)="onStatus($event)" />
+      @if (!view.final) {
+        <p class="field-hint" data-state="live">{{ t('attendance.board.live') }}</p>
+      }
+      @if (view.items.length) {
+        <app-presence-table [items]="view.items" [linkEmployees]="true" />
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="board-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="board-page-size" (change)="onSelect('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('attendance.board.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('attendance.board.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

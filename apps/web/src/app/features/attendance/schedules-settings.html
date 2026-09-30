@@ -1,0 +1,177 @@
+<!-- Settings › Horaires › schedules (schedules-settings.ts). -->
+<section *transloco="let t" aria-labelledby="schedules-title" data-section="schedules">
+  <div class="toolbar">
+    <h2 id="schedules-title">{{ t('attendance.schedules.title') }}</h2>
+    @if (panel()?.kind !== 'new') {
+      <button class="btn" type="button" data-action="new-schedule" (click)="openNew()">{{ t('attendance.schedules.new') }}</button>
+    }
+  </div>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    @if (!panel()) {
+      <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+  }
+
+  @if (panel(); as p) {
+    <div class="panel" [attr.data-panel]="p.kind">
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @switch (p.kind) {
+        @case ('new') {
+          @let c = newForm.controls;
+          <form [formGroup]="newForm" (ngSubmit)="submitNew()" novalidate data-form="new-schedule">
+            <h3>{{ t('attendance.schedules.new') }}</h3>
+            <div class="grid">
+              <div class="field">
+                <label for="sched-code">{{ t('attendance.schedules.code') }}</label>
+                <input id="sched-code" formControlName="code" dir="ltr" autocomplete="off" class="code"
+                  [attr.aria-invalid]="c.code.invalid && c.code.touched" aria-describedby="sched-code-hint sched-code-error" />
+                <p class="field-hint" id="sched-code-hint">{{ t('attendance.schedules.codeHint') }}</p>
+                <app-control-error [control]="c.code" errorId="sched-code-error" [keys]="{ pattern: 'attendance.schedules.codeFormat', required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="sched-fr">{{ t('attendance.settings.labelFr') }}</label>
+                <input id="sched-fr" formControlName="fr" lang="fr" dir="ltr" aria-describedby="sched-fr-error" />
+                <app-control-error [control]="c.fr" errorId="sched-fr-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="sched-ar">{{ t('attendance.settings.labelAr') }}</label>
+                <input id="sched-ar" formControlName="ar" lang="ar" dir="rtl" aria-describedby="sched-ar-error" />
+                <app-control-error [control]="c.ar" errorId="sched-ar-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="sched-en">{{ t('attendance.settings.labelEn') }}</label>
+                <input id="sched-en" formControlName="en" lang="en" dir="ltr" aria-describedby="sched-en-error" />
+                <app-control-error [control]="c.en" errorId="sched-en-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="sched-tolerance">{{ t('attendance.schedules.tolerance') }}</label>
+                <input id="sched-tolerance" type="number" min="0" [max]="toleranceMax" formControlName="toleranceMinutes" aria-describedby="sched-tolerance-error" />
+                <app-control-error [control]="c.toleranceMinutes" errorId="sched-tolerance-error" />
+              </div>
+              <div class="field">
+                <label for="sched-from">{{ t('attendance.schedules.validFrom') }}</label>
+                <input id="sched-from" type="date" formControlName="validFrom" aria-describedby="sched-from-error" />
+                <app-control-error [control]="c.validFrom" errorId="sched-from-error" />
+              </div>
+            </div>
+            <app-week-editor [week]="c.week" idPrefix="new-schedule" />
+            <div class="form-actions">
+              <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+              <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+            </div>
+          </form>
+        }
+        @case ('version') {
+          @let c = versionForm.controls;
+          <form [formGroup]="versionForm" (ngSubmit)="submitVersion(p.schedule)" novalidate data-form="new-version">
+            <h3>{{ t('attendance.schedules.newVersionOf', { name: name(p.schedule) }) }}</h3>
+            <p class="field-hint">{{ t('attendance.schedules.versionHint') }}</p>
+            <div class="grid">
+              <div class="field">
+                <label for="version-from">{{ t('attendance.schedules.newVersionFrom') }}</label>
+                <input id="version-from" type="date" formControlName="validFrom" aria-describedby="version-from-error" />
+                <app-control-error [control]="c.validFrom" errorId="version-from-error" />
+              </div>
+              <div class="field">
+                <label for="version-tolerance">{{ t('attendance.schedules.tolerance') }}</label>
+                <input id="version-tolerance" type="number" min="0" [max]="toleranceMax" formControlName="toleranceMinutes" aria-describedby="version-tolerance-error" />
+                <app-control-error [control]="c.toleranceMinutes" errorId="version-tolerance-error" />
+              </div>
+            </div>
+            <app-week-editor [week]="c.week" idPrefix="new-version" />
+            <div class="form-actions">
+              <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+              <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+            </div>
+          </form>
+        }
+        @case ('labels') {
+          @let c = labelsForm.controls;
+          <form [formGroup]="labelsForm" (ngSubmit)="submitLabels(p.schedule)" novalidate data-form="schedule-labels">
+            <h3>{{ t('attendance.schedules.rename') }} <span class="code">{{ p.schedule.code }}</span></h3>
+            <div class="grid">
+              <div class="field">
+                <label for="labels-fr">{{ t('attendance.settings.labelFr') }}</label>
+                <input id="labels-fr" formControlName="fr" lang="fr" dir="ltr" aria-describedby="labels-fr-error" />
+                <app-control-error [control]="c.fr" errorId="labels-fr-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="labels-ar">{{ t('attendance.settings.labelAr') }}</label>
+                <input id="labels-ar" formControlName="ar" lang="ar" dir="rtl" aria-describedby="labels-ar-error" />
+                <app-control-error [control]="c.ar" errorId="labels-ar-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+              <div class="field">
+                <label for="labels-en">{{ t('attendance.settings.labelEn') }}</label>
+                <input id="labels-en" formControlName="en" lang="en" dir="ltr" aria-describedby="labels-en-error" />
+                <app-control-error [control]="c.en" errorId="labels-en-error" [keys]="{ required: 'attendance.settings.required' }" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+              <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+            </div>
+          </form>
+        }
+      }
+    </div>
+  }
+
+  <div [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('attendance.settings.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <ul class="schedules">
+        @for (s of schedules(); track s.id) {
+          <li [attr.data-schedule]="s.code">
+            <div class="head">
+              <h3>{{ name(s) }} <span class="code muted">{{ s.code }}</span></h3>
+              <span class="badge" [attr.data-status]="s.active ? 'approved' : 'cancelled'">
+                {{ s.active ? t('attendance.schedules.active') : t('attendance.schedules.inactive') }}
+              </span>
+            </div>
+            @if (s.current; as cur) {
+              <p class="field-hint">
+                {{ t('attendance.schedules.summary', { weekly: (cur.weeklyMinutes | minutes: lang()), tolerance: cur.toleranceMinutes }) }}
+                · {{ t('attendance.schedules.since', { date: (cur.validFrom | date: 'mediumDate' : undefined : locale()) }) }}
+              </p>
+            }
+            <p class="field-hint">{{ t('attendance.schedules.assignmentCount', { count: s.assignmentCount }) }}</p>
+            <div class="form-actions">
+              <button class="btn secondary" type="button" data-action="new-version" (click)="openVersion(s)">{{ t('attendance.schedules.newVersion') }}</button>
+              <button class="btn secondary" type="button" data-action="rename" (click)="openLabels(s)">{{ t('attendance.schedules.rename') }}</button>
+              <button class="btn secondary" type="button" data-action="toggle-active" [disabled]="saving()" (click)="toggleActive(s)">
+                {{ s.active ? t('attendance.schedules.deactivate') : t('attendance.schedules.activate') }}
+              </button>
+            </div>
+            @if (s.versions.length) {
+              <details>
+                <summary>{{ t('attendance.schedules.history', { count: s.versions.length }) }}</summary>
+                <ul class="versions">
+                  @for (v of s.versions; track v.id) {
+                    <li [attr.data-version]="v.id">
+                      {{ v.validFrom | date: 'mediumDate' : undefined : locale() }} →
+                      {{ v.validTo ? (v.validTo | date: 'mediumDate' : undefined : locale()) : t('attendance.schedules.open') }}
+                      · {{ t('attendance.schedules.toleranceShort', { minutes: v.toleranceMinutes }) }}
+                    </li>
+                  }
+                </ul>
+              </details>
+            }
+          </li>
+        } @empty {
+          <li class="muted" data-state="empty">{{ t('attendance.schedules.empty') }}</li>
+        }
+      </ul>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </div>
+</section>

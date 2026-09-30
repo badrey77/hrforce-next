@@ -7,6 +7,7 @@ export {
   type HeadView,
   type MyEmploymentView,
   type UnitHeadsView,
+  type UnitRef,
   type UserEmploymentView,
 } from './application/staffing.service.js';
 export type { ManagerResolution } from './domain/manager.js';

@@ -1,0 +1,136 @@
+<!-- Settings › Horaires › overrides (overrides-settings.ts). -->
+<section *transloco="let t" aria-labelledby="overrides-title" data-section="overrides">
+  <div class="toolbar">
+    <h2 id="overrides-title">{{ t('attendance.overrides.title') }}</h2>
+    <div class="year">
+      <button class="btn secondary" type="button" [attr.aria-label]="t('attendance.overrides.previousYear')" (click)="shiftYear(-1)">‹</button>
+      <strong aria-live="polite" data-field="year">{{ year() }}</strong>
+      <button class="btn secondary" type="button" [attr.aria-label]="t('attendance.overrides.nextYear')" (click)="shiftYear(1)">›</button>
+    </div>
+    @if (editing() === null) {
+      <button class="btn" type="button" data-action="new-override" (click)="open('new')">{{ t('attendance.overrides.new') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('attendance.overrides.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @if (editing(); as item) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="override">
+      <h3>{{ item === 'new' ? t('attendance.overrides.new') : t('attendance.overrides.edit') }}</h3>
+      <div class="grid">
+        <div class="field">
+          <label for="ovr-schedule">{{ t('attendance.overrides.appliesTo') }}</label>
+          <select id="ovr-schedule" formControlName="scheduleId">
+            <option [ngValue]="null">{{ t('attendance.overrides.allSchedules') }}</option>
+            @for (s of schedules(); track s.id) {
+              <option [ngValue]="s.id">{{ label(s.labels) }} ({{ s.code }})</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="ovr-fr">{{ t('attendance.settings.labelFr') }}</label>
+          <input id="ovr-fr" formControlName="fr" lang="fr" dir="ltr" aria-describedby="ovr-fr-error" />
+          <app-control-error [control]="c.fr" errorId="ovr-fr-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="ovr-ar">{{ t('attendance.settings.labelAr') }}</label>
+          <input id="ovr-ar" formControlName="ar" lang="ar" dir="rtl" aria-describedby="ovr-ar-error" />
+          <app-control-error [control]="c.ar" errorId="ovr-ar-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="ovr-en">{{ t('attendance.settings.labelEn') }}</label>
+          <input id="ovr-en" formControlName="en" lang="en" dir="ltr" aria-describedby="ovr-en-error" />
+          <app-control-error [control]="c.en" errorId="ovr-en-error" [keys]="{ required: 'attendance.settings.required' }" />
+        </div>
+        <div class="field">
+          <label for="ovr-from">{{ t('attendance.overrides.from') }}</label>
+          <input id="ovr-from" type="date" formControlName="from" aria-describedby="ovr-from-error" />
+          <app-control-error [control]="c.from" errorId="ovr-from-error" />
+        </div>
+        <div class="field">
+          <label for="ovr-to">{{ t('attendance.overrides.to') }}</label>
+          <input id="ovr-to" type="date" formControlName="to" aria-describedby="ovr-to-hint ovr-to-error" />
+          <p class="field-hint" id="ovr-to-hint">{{ t('attendance.overrides.toHint') }}</p>
+          <app-control-error [control]="c.to" errorId="ovr-to-error" />
+        </div>
+        <div class="field">
+          <label for="ovr-tolerance">{{ t('attendance.schedules.tolerance') }}</label>
+          <input id="ovr-tolerance" type="number" min="0" [max]="toleranceMax" formControlName="toleranceMinutes" aria-describedby="ovr-tolerance-error" />
+          <app-control-error [control]="c.toleranceMinutes" errorId="ovr-tolerance-error" />
+        </div>
+        <div class="check">
+          <input id="ovr-approximate" type="checkbox" formControlName="approximate" />
+          <label for="ovr-approximate">{{ t('attendance.overrides.approximate') }}</label>
+        </div>
+      </div>
+      <app-week-editor [week]="c.week" idPrefix="override" />
+      <div class="form-actions">
+        <button class="btn" type="submit" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <div [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('attendance.settings.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <div class="table-scroll">
+        <table class="data" data-table="overrides">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('attendance.overrides.name') }}</th>
+              <th scope="col">{{ t('attendance.overrides.appliesTo') }}</th>
+              <th scope="col">{{ t('attendance.overrides.from') }}</th>
+              <th scope="col">{{ t('attendance.overrides.to') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('attendance.settings.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (o of items(); track o.id) {
+              <tr [attr.data-override]="o.id">
+                <td>
+                  {{ label(o.labels) }}
+                  @if (o.approximate) {
+                    <span class="badge">{{ t('attendance.approximate') }}</span>
+                  }
+                </td>
+                <td>{{ o.schedule ? label(o.schedule.labels) : t('attendance.overrides.allSchedules') }}</td>
+                <td class="nowrap">{{ o.from | date: 'mediumDate' : undefined : locale() }}</td>
+                <td class="nowrap">{{ o.to | date: 'mediumDate' : undefined : locale() }}</td>
+                <td>
+                  @if (confirming() === o.id) {
+                    <span class="form-actions">
+                      <button class="btn danger" type="button" data-action="confirm-delete" [disabled]="saving()" (click)="remove(o)">{{ t('attendance.overrides.confirmDelete') }}</button>
+                      <button class="btn secondary" type="button" (click)="confirming.set(null)">{{ t('common.cancel') }}</button>
+                    </span>
+                  } @else {
+                    <span class="form-actions">
+                      <button class="btn secondary" type="button" data-action="edit-override" (click)="open(o)">{{ t('attendance.overrides.edit') }}</button>
+                      <button class="btn secondary" type="button" data-action="delete-override" (click)="confirming.set(o.id)">{{ t('attendance.overrides.delete') }}</button>
+                    </span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="muted" data-state="empty">{{ t('attendance.overrides.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </div>
+</section>

@@ -1,0 +1,107 @@
+<!--
+  Pointage (my-attendance.page.ts). States from MyEmployment.linked(): null → asking; false → "not linked"; true → the
+  page. Today's card, how to punch, my month, and the Law 18-07 notice.
+-->
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('attendance.mine.title') }}</h1>
+  </header>
+
+  @if (linked()) {
+    @if (me.employment(); as employment) {
+      <p class="muted" data-field="me">
+        <bdi>{{ employment.person | displayName: lang() }}</bdi> · <span class="code">{{ employment.matricule }}</span>
+      </p>
+    }
+
+    <!-- Today ------------------------------------------------------------------------------------------------ -->
+    <section class="panel today" aria-labelledby="today-title" [attr.aria-busy]="today.isLoading()" data-panel="today">
+      <h2 id="today-title">{{ t('attendance.mine.today') }}</h2>
+      @if (today.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('attendance.mine.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="today.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (todayDay(); as day) {
+        <p><app-day-status [status]="day.status" /></p>
+        <dl class="facts">
+          <dt>{{ t('attendance.columns.arrival') }}</dt>
+          <dd class="big" data-field="arrival"><time dir="ltr">{{ day.arrival?.localTime ?? '—' }}</time></dd>
+          <dt>{{ t('attendance.columns.departure') }}</dt>
+          <dd class="big" data-field="departure"><time dir="ltr">{{ day.departure?.localTime ?? '—' }}</time></dd>
+          <dt>{{ t('attendance.mine.workedSoFar') }}</dt>
+          <dd data-field="worked">{{ day.workedMinutes | minutes: lang() }}</dd>
+          <dt>{{ t('attendance.mine.scheduleToday') }}</dt>
+          <dd data-field="schedule">
+            @if (day.schedule; as s) {
+              @if (s.expectedStart && s.expectedEnd) {
+                <span dir="ltr">{{ s.expectedStart }}–{{ s.expectedEnd }}</span>
+                @if (s.breakStart && s.breakEnd) {
+                  ({{ t('attendance.day.break') }} <span dir="ltr">{{ s.breakStart }}–{{ s.breakEnd }}</span>)
+                }
+              } @else {
+                {{ t('attendance.status.' + day.status) }}
+              }
+              <span class="field-hint"> · {{ label(s.override?.labels ?? s.labels) }}</span>
+            } @else {
+              —
+            }
+          </dd>
+        </dl>
+        @if (day.flags.length) {
+          <app-day-flags [flags]="day.flags" />
+        }
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <!-- How to punch ----------------------------------------------------------------------------------------- -->
+    <section aria-labelledby="how-title" data-panel="how">
+      <h2 id="how-title">{{ t('attendance.mine.howTitle') }}</h2>
+      <p>{{ t('attendance.mine.how') }}</p>
+      <p class="field-hint">{{ t('attendance.mine.howIphone') }}</p>
+    </section>
+
+    <!-- My month --------------------------------------------------------------------------------------------- -->
+    <section aria-labelledby="month-title" [attr.aria-busy]="monthDays.isLoading()" data-panel="month">
+      <div class="month-nav">
+        <button class="btn secondary" type="button" data-action="prev-month" [attr.aria-label]="t('attendance.mine.previousMonth')" (click)="shiftMonth(-1)">‹</button>
+        <h2 id="month-title" aria-live="polite">{{ month() + '-01' | date: 'LLLL y' : undefined : locale() }}</h2>
+        <button class="btn secondary" type="button" data-action="next-month" [attr.aria-label]="t('attendance.mine.nextMonth')"
+          [disabled]="isCurrentMonth()" (click)="shiftMonth(1)">›</button>
+      </div>
+      @if (monthDays.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('attendance.mine.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="monthDays.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (monthDays.hasValue()) {
+        @let totals = monthDays.value().totals;
+        <ul class="totals" data-panel="totals">
+          <li>{{ t('attendance.totals.worked', { worked: (totals.workedMinutes | minutes: lang()), scheduled: (totals.scheduledMinutes | minutes: lang()) }) }}</li>
+          <li>{{ t('attendance.totals.lateDays', { count: totals.lateDays }) }}</li>
+          <li>{{ t('attendance.totals.absentDays', { count: totals.absentDays }) }}</li>
+          <li>{{ t('attendance.totals.incompleteDays', { count: totals.incompleteDays }) }}</li>
+        </ul>
+        <app-day-list [days]="monthDays.value().items" />
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <!-- Law 18-07 information notice ---------------------------------------------------------------------- -->
+    @if (retention(); as r) {
+      <aside class="panel notice" data-panel="notice" [attr.aria-label]="t('attendance.notice.label')">
+        <p>{{ t('attendance.notice.' + r.unit, { count: r.count }) }}</p>
+      </aside>
+    }
+  } @else if (me.linked() === null && !me.error()) {
+    <p class="muted">{{ t('common.loading') }}</p>
+  } @else {
+    <div class="warning" data-state="not-linked">
+      <p>{{ t('attendance.mine.notLinked') }}</p>
+      <p><a routerLink="/">{{ t('common.backHome') }}</a></p>
+    </div>
+  }
+</ng-container>

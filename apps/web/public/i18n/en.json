@@ -16,7 +16,11 @@
     "tasksWithCount": "My tasks, {{count}} open",
     "tasksLive": "{{count}} open task(s)",
     "documents": "Documents",
-    "myDocuments": "My documents"
+    "myDocuments": "My documents",
+    "myAttendance": "Attendance",
+    "myTeam": "My team",
+    "attendance": "Presence",
+    "attendanceSettings": "Attendance settings"
   },
   "language": {
     "label": "Language",
@@ -57,7 +61,8 @@
         "useApp": "Use the code from my app",
         "back": "Back to password",
         "expired": "The verification expired. Enter your password again."
-      }
+      },
+      "forPunch": "Sign in to record your punch."
     },
     "session": {
       "signOut": "Sign out",
@@ -477,7 +482,14 @@
       "issued_document": "Issued document",
       "document_request": "Document request",
       "employee_file": "File document",
-      "employee_file_category": "File category"
+      "employee_file_category": "File category",
+      "attendance_policy": "Attendance policy",
+      "attendance_device": "Check-in kiosk",
+      "attendance_schedule": "Schedule",
+      "attendance_schedule_version": "Schedule version",
+      "attendance_schedule_override": "Exceptional hours",
+      "attendance_schedule_assignment": "Schedule assignment",
+      "attendance_punch": "Punch"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -706,6 +718,39 @@
         "active": "Active",
         "sort_order": "Order",
         "is_system": "System"
+      },
+      "attendance_punch": {
+        "direction": "Direction",
+        "occurred_at": "Punch time",
+        "received_at": "Received at",
+        "source": "Source",
+        "device_id": "Kiosk",
+        "qr_window": "Code window",
+        "site_id": "Site",
+        "device_ref": "Browser identifier",
+        "reason": "Reason",
+        "created_by": "Entered by",
+        "status": "Status",
+        "voided_at": "Voided at",
+        "voided_by": "Voided by",
+        "void_reason": "Void reason"
+      },
+      "attendance_device": {
+        "kind": "Kind",
+        "site_id": "Site",
+        "name_fr": "Entrance (French)",
+        "name_ar": "Entrance (Arabic)",
+        "status": "Status",
+        "credential_hash": "Device credential",
+        "paired_at": "Paired at",
+        "pairing_code_hash": "Pairing code",
+        "pairing_expires_at": "Code valid until",
+        "allowed_networks": "Allowed networks",
+        "created_by": "Created by",
+        "created_at": "Created at",
+        "revoked_at": "Revoked at",
+        "revoked_by": "Revoked by",
+        "revoke_reason": "Revocation reason"
       }
     },
     "events": {
@@ -736,6 +781,28 @@
         "downloaded": "File document downloaded",
         "deleted": "File document deleted: {{reason}}",
         "purged": "{{count}} document(s) erased (retention period)"
+      },
+      "attendance": {
+        "device_paired": "Kiosk paired (IP address {{ip}})",
+        "purged": "{{punches}} punch(es) erased (retention period)",
+        "punch_recorded": {
+          "qr_in": "Arrival recorded at a kiosk",
+          "qr_out": "Departure recorded at a kiosk",
+          "manual_in": "Manual punch added: arrival",
+          "manual_out": "Manual punch added: departure",
+          "correction_in": "Arrival added by a correction",
+          "correction_out": "Departure added by a correction"
+        },
+        "punch_voided": {
+          "qr": "Kiosk punch voided",
+          "manual": "Manual punch voided",
+          "correction": "Correction punch voided"
+        },
+        "punch_deleted": {
+          "qr": "Kiosk punch deleted",
+          "manual": "Manual punch deleted",
+          "correction": "Correction punch deleted"
+        }
       }
     },
     "values": {
@@ -897,7 +964,8 @@
       "leave": "Leave",
       "history": "History",
       "documents": "Documents",
-      "file": "File"
+      "file": "File",
+      "attendance": "Presence"
     },
     "identity": {
       "edit": "Edit",
@@ -1829,6 +1897,424 @@
       "loadError": "The categories could not be loaded.",
       "created": "Category created.",
       "saved": "Category saved."
+    }
+  },
+  "attendance": {
+    "status": {
+      "present": "Present",
+      "late": "Late",
+      "absent": "Absent",
+      "incomplete": "Incomplete",
+      "expected": "Expected",
+      "on_leave": "On leave",
+      "holiday": "Public holiday",
+      "rest_day": "Rest day",
+      "not_employed": "Not employed"
+    },
+    "flags": {
+      "open": "In progress",
+      "early_departure": "Early departure",
+      "half_day_leave_morning": "Morning off",
+      "half_day_leave_afternoon": "Afternoon off",
+      "leave_pending": "Leave pending",
+      "worked_on_rest_day": "Worked on a rest day",
+      "worked_on_holiday": "Worked on a holiday",
+      "worked_on_leave": "Worked on leave",
+      "other_site": "Other site",
+      "unpaired_punch": "Unpaired punch",
+      "manual_punch": "Manual entry",
+      "corrected": "Corrected",
+      "shared_device": "Shared phone"
+    },
+    "flagHelp": {
+      "open": "Arrival recorded, no departure yet.",
+      "early_departure": "Left before the scheduled end, beyond the tolerance.",
+      "half_day_leave_morning": "Approved half-day leave in the morning.",
+      "half_day_leave_afternoon": "Approved half-day leave in the afternoon.",
+      "leave_pending": "A leave request covering this day awaits a decision.",
+      "worked_on_rest_day": "Punches exist on a rest day.",
+      "worked_on_holiday": "Punches exist on a public holiday.",
+      "worked_on_leave": "Punches exist during approved leave.",
+      "other_site": "Punched at a kiosk of another site than the employee's that day.",
+      "unpaired_punch": "An arrival without a departure (or the reverse) was ignored.",
+      "manual_punch": "A punch of this day was entered by HR.",
+      "corrected": "This day was corrected.",
+      "shared_device": "The same browser punched for another employee that day (a signal, not proof)."
+    },
+    "direction": {
+      "in": "Arrival",
+      "out": "Departure"
+    },
+    "source": {
+      "qr": "QR",
+      "manual": "Manual entry",
+      "correction": "Correction"
+    },
+    "punchStatus": {
+      "live": "Valid",
+      "void": "Voided"
+    },
+    "scheduleSource": {
+      "employment": "Individual schedule",
+      "unit": "Unit schedule",
+      "site": "Site schedule",
+      "company": "Company schedule"
+    },
+    "leavePart": {
+      "full": "full day",
+      "morning": "morning",
+      "afternoon": "afternoon"
+    },
+    "approximate": "Approximate date",
+    "columns": {
+      "employee": "Employee",
+      "unit": "Unit",
+      "schedule": "Schedule",
+      "arrival": "Arrival",
+      "departure": "Departure",
+      "late": "Late",
+      "worked": "Worked",
+      "status": "Status",
+      "flags": "Signals"
+    },
+    "day": {
+      "late": "Late {{minutes}}",
+      "worked": "Worked {{minutes}}",
+      "break": "break",
+      "recordedBy": "entered by {{name}}",
+      "voided": "Voided by {{name}}",
+      "noPunch": "No punch this day.",
+      "empty": "No days to show."
+    },
+    "totals": {
+      "worked": "Worked {{worked}} of {{scheduled}} scheduled",
+      "lateDays": "Late days: {{count}}",
+      "absentDays": "Absences: {{count}}",
+      "incompleteDays": "Incomplete days: {{count}}",
+      "leaveDays": "Leave days: {{count}}",
+      "earlyDepartureDays": "Early departures: {{count}}"
+    },
+    "reason": {
+      "label": "Reason",
+      "required": "A reason is required.",
+      "tooShort": "The reason must be at least 3 characters.",
+      "tooLong": "The reason cannot exceed 500 characters."
+    },
+    "void": {
+      "action": "Void",
+      "actionNamed": "Void the {{time}} punch",
+      "title": "Void a punch",
+      "intro": "{{direction}} at {{time}}, on {{date}}. The punch stays visible, struck through, with this reason.",
+      "confirm": "Void the punch",
+      "done": "Punch voided.",
+      "already": "This punch was already voided."
+    },
+    "manual": {
+      "action": "Add a punch",
+      "title": "Add a punch",
+      "intro": "For a missed punch (broken phone, network down…). Algiers time; the reason is kept in the history.",
+      "direction": "Direction",
+      "date": "Date",
+      "time": "Time",
+      "timeHint": "Algiers time, HH:MM.",
+      "timeFormat": "Enter a time as HH:MM.",
+      "site": "Site",
+      "siteDefault": "The employee's site that day",
+      "submit": "Save the punch",
+      "done": "Punch saved.",
+      "notEmployed": "The employee was not employed on that date.",
+      "selfManage": "You cannot manage your own punches.",
+      "exists": "A punch already exists at that minute.",
+      "future": "This time is in the future.",
+      "tooOld": "This date is beyond the punch retention period.",
+      "siteNotFound": "Site not found."
+    },
+    "segments": {
+      "range": "{{from}} to {{to}}",
+      "via": {
+        "employment": "— individual assignment",
+        "unit": "— through the unit",
+        "site": "— through the site"
+      }
+    },
+    "kiosk": {
+      "checking": "Connecting to the server…",
+      "pairTitle": "Pair this kiosk",
+      "pairIntro": "Enter the pairing code given by HR (Attendance settings › Kiosks). It is valid for 10 minutes and works once.",
+      "codeLabel": "Pairing code",
+      "codeHint": "8 characters, for example K7M2-9QXA.",
+      "codeInvalid": "Enter the 8 characters of the code.",
+      "pair": "Pair",
+      "pairing": "Pairing…",
+      "pairInvalid": "Invalid or expired code.",
+      "pairNetwork": "Cannot reach the server. Check the tablet's connection.",
+      "revoked": "Kiosk disabled — contact HR.",
+      "refused": "This kiosk is not allowed on this network. Please contact HR.",
+      "offline": "Check-in unavailable — connection lost. Please contact HR.",
+      "instruction": "Scan this code with your phone's camera",
+      "qrLabel": "Check-in code",
+      "fullscreen": "Full screen"
+    },
+    "punch": {
+      "working": {
+        "scan": "Reading the code…",
+        "punch": "Recording your punch…",
+        "signin": "Sign-in required…"
+      },
+      "entrance": "Entrance:",
+      "recorded": {
+        "in": "Arrival recorded at {{time}}",
+        "out": "Departure recorded at {{time}}"
+      },
+      "duplicate": "Already recorded",
+      "seeMine": "See my attendance",
+      "problemTitle": {
+        "expired": "Code expired",
+        "invalid": "Code not recognised",
+        "noScan": "No scan in progress",
+        "notLinked": "Account not linked",
+        "forbidden": "Check-in not allowed",
+        "notEmployed": "Cannot check in",
+        "network": "No connection",
+        "generic": "Punch not recorded"
+      },
+      "problem": {
+        "expired": "This code has expired. Please scan the code at the entrance again.",
+        "invalid": "This code is not valid. Please scan the code at the entrance again.",
+        "noScan": "Please scan the code at the entrance again.",
+        "notLinked": "Your account is not linked to an employee record. Please contact HR.",
+        "forbidden": "Your account cannot check in. Please contact HR.",
+        "notEmployed": "You are not employed on this date. Please contact HR.",
+        "network": "The server cannot be reached. The scan stays valid for 5 minutes: try again.",
+        "generic": "Something went wrong. Please scan the code at the entrance again."
+      }
+    },
+    "mine": {
+      "title": "Attendance",
+      "today": "Today",
+      "loadError": "Could not load your attendance.",
+      "workedSoFar": "Worked",
+      "scheduleToday": "Today's schedule",
+      "howTitle": "How to check in",
+      "how": "At the entrance, point your phone's camera at the code on the screen and open the link it offers. The punch is recorded at the time of the scan, even if you have to sign in first.",
+      "howIphone": "On an iPhone, use Safari (the camera opens links in Safari) and sign in there once.",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "notLinked": "Your account is not linked to an employee record. Please contact HR."
+    },
+    "notice": {
+      "label": "About attendance data",
+      "years": "Check-in records the time, the entrance used and a random identifier of this browser. No location, photo or biometric data is collected. Punches are kept for {{count}} years.",
+      "months": "Check-in records the time, the entrance used and a random identifier of this browser. No location, photo or biometric data is collected. Punches are kept for {{count}} months."
+    },
+    "board": {
+      "title": "Presence",
+      "countsLabel": "By status (click to filter)",
+      "total": "{{count}} employee(s)",
+      "noHours": "No hours this day",
+      "dayLabel": "Day shown",
+      "previousDay": "Previous day",
+      "nextDay": "Next day",
+      "date": "Date",
+      "today": "Today",
+      "filters": "Presence filters",
+      "search": "Search",
+      "searchPlaceholder": "Name or employee number",
+      "site": "Site",
+      "allSites": "All sites",
+      "sort": "Sort by",
+      "sortBy": {
+        "unit": "Unit",
+        "name": "Name",
+        "arrival": "Arrival time",
+        "status": "Status"
+      },
+      "live": "Day in progress: the list refreshes every minute.",
+      "noMatch": "No employee matches these filters.",
+      "empty": "No employee in your scope that day.",
+      "loadError": "Could not load presence.",
+      "tooMany": "Too many employees to show: choose a unit or a site."
+    },
+    "team": {
+      "title": "My team",
+      "units": "Units headed that day:",
+      "none": "You head no unit on this date."
+    },
+    "settings": {
+      "title": "Attendance settings",
+      "back": "Back to presence",
+      "intro": "Schedules, assignments, entrance kiosks and retention. These values are data: changing them needs no development.",
+      "tabs": "Attendance settings sections",
+      "tab": {
+        "schedules": "Schedules",
+        "assignments": "Assignments",
+        "kiosks": "Kiosks",
+        "policy": "Policy"
+      },
+      "companyOnly": "Only an administrator holding this right over the whole company can change these settings.",
+      "invalid": "Check this field.",
+      "required": "This field is required.",
+      "labelFr": "Label (French)",
+      "labelAr": "Label (Arabic)",
+      "labelEn": "Label (English)",
+      "loadError": "Could not load these settings.",
+      "actions": "Actions"
+    },
+    "week": {
+      "title": "Standard week",
+      "iso": "ISO day {{day}}",
+      "rest": "Rest",
+      "start": "Start",
+      "end": "End",
+      "breakStart": "Break from",
+      "breakEnd": "to",
+      "weekly": "Weekly total: {{minutes}}",
+      "noWorkingDay": "At least one day must be worked.",
+      "invalidBreak": "The break must fall between start and end (fill both times or neither).",
+      "invalidTime": "The end must come after the start."
+    },
+    "schedules": {
+      "title": "Schedules",
+      "new": "New schedule",
+      "code": "Code",
+      "codeHint": "Lower case, digits and _; cannot be changed later.",
+      "codeFormat": "2 to 40 characters: a lower-case letter, then lower case, digits or _.",
+      "codeTaken": "This code is already used.",
+      "inUse": "This schedule is assigned today or in the future: end its assignments first.",
+      "versionDate": "The new version must start after the current version's start.",
+      "tolerance": "Tolerance (minutes)",
+      "validFrom": "Valid from",
+      "newVersionOf": "New version of “{{name}}”",
+      "versionHint": "Versions are never edited: the current one ends on this date. A past date recomputes the days concerned.",
+      "newVersionFrom": "New version from",
+      "rename": "Rename",
+      "active": "Active",
+      "inactive": "Inactive",
+      "summary": "{{weekly}} per week, tolerance {{tolerance}} min",
+      "since": "since {{date}}",
+      "assignmentCount": "Current or future assignments: {{count}}",
+      "newVersion": "New version",
+      "deactivate": "Deactivate",
+      "activate": "Reactivate",
+      "history": "Version history ({{count}})",
+      "open": "ongoing",
+      "toleranceShort": "tolerance {{minutes}} min",
+      "empty": "No schedule.",
+      "created": "Schedule created.",
+      "versionAdded": "New version saved.",
+      "renamed": "Labels saved.",
+      "deactivated": "Schedule deactivated.",
+      "activated": "Schedule reactivated."
+    },
+    "overrides": {
+      "title": "Exceptional hours",
+      "previousYear": "Previous year",
+      "nextYear": "Next year",
+      "new": "New period",
+      "edit": "Edit",
+      "intro": "A dated period (Ramadan, for example) replaces the standard week, for every schedule or for one.",
+      "appliesTo": "Applies to",
+      "allSchedules": "All schedules",
+      "from": "From",
+      "to": "To",
+      "toHint": "Last day included; 60 days at most.",
+      "approximate": "Approximate dates (to be confirmed)",
+      "name": "Name",
+      "confirmDelete": "Confirm deletion",
+      "delete": "Delete",
+      "empty": "No period this year.",
+      "overlap": "This period overlaps another period of the same schedule.",
+      "tooLong": "A period cannot exceed 60 days.",
+      "created": "Period created.",
+      "saved": "Period saved.",
+      "deleted": "Period deleted."
+    },
+    "assignments": {
+      "title": "Schedule assignments",
+      "new": "New assignment",
+      "intro": "The most specific schedule applies: employee, then unit (and its sub-units), then site, then company.",
+      "companyNotice": "The company default never ends: to change it, add a new “Company” assignment from a date.",
+      "schedule": "Schedule",
+      "targetKind": "For",
+      "kind": {
+        "company": "Company (default)",
+        "site": "Site",
+        "unit": "Unit",
+        "employment": "Employee"
+      },
+      "pickSite": "Choose a site",
+      "validFrom": "From",
+      "validTo": "Until",
+      "showAll": "Also show ended and future assignments",
+      "group": {
+        "company": "Company default",
+        "site": "Sites",
+        "unit": "Units",
+        "employment": "Employees"
+      },
+      "target": "Target",
+      "lastDay": "Last day",
+      "end": "End",
+      "delete": "Delete",
+      "empty": "No assignment.",
+      "overlap": "This target already has an assignment in this period.",
+      "companyEnd": "The company assignment does not end: add a new default assignment.",
+      "started": "Only an assignment that has not started can be deleted.",
+      "rootUnit": "Choose a unit below the head office (the whole company has its own assignment).",
+      "targetNotFound": "Target not found.",
+      "inactive": "This schedule is deactivated.",
+      "created": "Assignment saved.",
+      "ended": "Assignment ended.",
+      "deleted": "Assignment deleted."
+    },
+    "kiosks": {
+      "title": "Check-in kiosks",
+      "new": "New kiosk",
+      "intro": "A kiosk is a tablet at a site's entrance showing a QR code that changes every 30 seconds. It gives access to no personal data.",
+      "pairingTitle": "Pairing code",
+      "expiresIn": "Expires in {{time}}",
+      "pairingHowTo": "On the tablet, open {{url}} and enter this code.",
+      "pairingOnce": "This code will not be shown again. If it expires, use “New code”.",
+      "codeExpired": "This code has expired. Use “New code”.",
+      "dismiss": "Close",
+      "edit": "Edit",
+      "site": "Site",
+      "labelFr": "Entrance (French)",
+      "labelAr": "Entrance (Arabic)",
+      "networks": "Allowed networks",
+      "networksHint": "Optional: one address or range per line (e.g. 41.200.10.0/24), {{max}} at most. Empty = any network.",
+      "networksTooMany": "No more than 10 networks.",
+      "networkInvalid": "An address or range is not valid.",
+      "create": "Create and get the code",
+      "label": "Entrance",
+      "status": "Status",
+      "lastSeen": "Last seen",
+      "statusName": {
+        "pending": "Awaiting pairing",
+        "active": "Active",
+        "revoked": "Revoked"
+      },
+      "codePending": "code valid until {{date}}",
+      "anyNetwork": "Any network",
+      "newCode": "New code",
+      "revoke": "Revoke",
+      "history": "History",
+      "empty": "No kiosk.",
+      "revokeTitle": "Revoke the kiosk",
+      "revokeIntro": "The tablet will no longer show codes. This is final: to reuse it, create a new kiosk.",
+      "revokeConfirm": "Revoke",
+      "alreadyRevoked": "This kiosk is already revoked.",
+      "created": "Kiosk created.",
+      "saved": "Kiosk saved.",
+      "revokedDone": "Kiosk revoked."
+    },
+    "policy": {
+      "title": "Attendance policy",
+      "retention": "Retention (months)",
+      "retentionHint": "Between {{min}} and {{max}} months after the end of the month.",
+      "gap": "Duplicate window (seconds)",
+      "gapHint": "A second scan within this window returns the first punch ({{min}} to {{max}} s).",
+      "saved": "Policy saved."
     }
   }
 }

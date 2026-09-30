@@ -98,6 +98,10 @@
   min-inline-size: 0;
 }
 
+.content.bare {
+  padding: 0;
+}
+
 .content:focus {
   outline: none;
 }

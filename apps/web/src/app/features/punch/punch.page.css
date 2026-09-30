@@ -1,0 +1,74 @@
+/* Phone-first confirmation (punch.page.ts). Green for an arrival, blue for a departure, always with words and an icon. */
+.punch {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-inline-size: 28rem;
+  margin-inline: auto;
+  padding-block: var(--space-6);
+  text-align: center;
+}
+
+.status-line {
+  font-size: 1.125rem;
+}
+
+.done {
+  border-radius: var(--radius);
+  padding: var(--space-6) var(--space-4);
+}
+
+.done[data-direction='in'] {
+  background: #dafbe1;
+  color: #0b4d20;
+}
+
+.done[data-direction='out'] {
+  background: #ddf4ff;
+  color: #0a3069;
+}
+
+.icon {
+  inline-size: 4rem;
+  block-size: 4rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The arrows point along the reading direction: mirrored in Arabic. */
+.icon:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.direction {
+  margin: 0;
+  font-size: 2.5rem;
+}
+
+.time {
+  margin: 0;
+  font-size: 3rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.sentence {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.duplicate {
+  font-size: 0.9375rem;
+}
+
+.done .muted {
+  color: inherit;
+}
+
+.problem h1 {
+  font-size: 1.5rem;
+}

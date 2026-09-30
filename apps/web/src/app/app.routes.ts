@@ -23,6 +23,15 @@
  *   enforcement guard" out of reach; `mfaEnrollmentGuard` comes after `authGuard` so a signed-out visitor still gets
  *   the /login redirect first (the first non-`true` result wins). Sign-out is a button (POST), not a route, so it
  *   always works.
+ * - Attendance (docs/contracts/attendance.md › Web):
+ *   - `/kiosk` has NO guard and `data: { chrome: false }`: the entrance tablet is a paired device, never signed in,
+ *     and the page owns the whole screen (the root component reads the flag — app.ts `chromeOf`). Its own lazy chunk
+ *     (with the QR encoder), so no other page pays for it.
+ *   - `/punch` has no guard either: the phone may arrive signed out (the session often expired overnight). The page
+ *     scans first, then sends the visitor to /login itself with `returnUrl=/punch` (features/punch/punch.page.ts).
+ *   - `/me/attendance` needs `attendance.punch_self`; `/me/team` only a signed-in user (a unit head needs no
+ *     permission — the API returns an empty team to anyone else); `/attendance` asks for ANY of `attendance.read` /
+ *     `attendance.configure`, each child for its own (features/attendance/attendance.routes.ts).
  * Order still matters (first match wins, `**` last); a guard only decides whether its route may match.
  */
 import type { Routes } from '@angular/router';
@@ -125,6 +134,37 @@ export const routes: Routes = [
     path: 'me/security',
     canMatch: [authGuard],
     loadComponent: () => import('./features/security/security.page').then((m) => m.SecurityPage),
+  },
+  {
+    // Entrance kiosk (attendance ADR 009): a paired device, no user session, no app chrome.
+    path: 'kiosk',
+    data: { chrome: false },
+    loadComponent: () => import('./features/kiosk/kiosk.page').then((m) => m.KioskPage),
+  },
+  {
+    // Phone landing of a scanned QR code: works signed out (scan first, then sign in, then punch).
+    path: 'punch',
+    loadComponent: () => import('./features/punch/punch.page').then((m) => m.PunchPage),
+  },
+  {
+    // Pointage (self-service attendance): today, my month, the Law 18-07 notice.
+    path: 'me/attendance',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: 'attendance.punch_self' },
+    loadComponent: () => import('./features/my-attendance/my-attendance.page').then((m) => m.MyAttendancePage),
+  },
+  {
+    // Mon équipe: the presence of the units the user heads today (no permission: the API decides from org_unit_head).
+    path: 'me/team',
+    canMatch: signedIn,
+    loadComponent: () => import('./features/my-team/my-team.page').then((m) => m.MyTeamPage),
+  },
+  {
+    // HR presence board and attendance settings: read / configure checked per child (attendance.routes.ts).
+    path: 'attendance',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['attendance.read', 'attendance.configure'] },
+    loadChildren: () => import('./features/attendance/attendance.routes').then((m) => m.ATTENDANCE_ROUTES),
   },
   {
     // Personal settings (for now: email notification preferences).

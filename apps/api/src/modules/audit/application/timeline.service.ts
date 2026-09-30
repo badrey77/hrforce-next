@@ -10,6 +10,7 @@ export const AUDIT_READ = 'audit.read';
 export const LEAVE_READ = 'leave.read';
 export const DOCUMENT_READ = 'document.read';
 export const MEDICAL_READ = 'employee.medical.read';
+export const ATTENDANCE_CONFIGURE = 'attendance.configure';
 
 function subjectNotFound(): NotFoundException {
   return new NotFoundException('Subject not found');
@@ -27,7 +28,9 @@ function subjectNotFound(): NotFoundException {
  * document.* events) like GET /documents/:id — document.read over the employee's scope unit (no audit.read needed).
  * The employee timeline also lists the employee's issued documents and self-service document requests with their
  * events, and its employee-file rows and events — those of MEDICAL files only when the caller also holds
- * employee.medical.read over the employee's unit (a file title can be medical data).
+ * employee.medical.read over the employee's unit (a file title can be medical data) — and its attendance punch events
+ * except QR arrivals/departures (manual punches, voids, deletions; docs/contracts/attendance.md › Audit and timeline).
+ * An attendance kiosk (its device rows and events) is visible with attendance.configure held anywhere (no audit.read).
  * Anything else — unknown, other company, out of scope — is 404.
  */
 @Injectable()
@@ -92,6 +95,11 @@ export class TimelineService {
         const employmentId = await this.repo.issuedDocumentEmployment(companyId, subject.id);
         const unitId = employmentId ? await this.repo.employeeScopeUnit(companyId, employmentId) : undefined;
         if (!unitId || !(await this.scopes.inScope(DOCUMENT_READ, unitId))) throw subjectNotFound();
+        return plain;
+      }
+      case 'attendance_device': {
+        if ((await this.scopes.unitIds(ATTENDANCE_CONFIGURE)).size === 0) throw subjectNotFound();
+        if (!(await this.repo.attendanceDeviceKnown(companyId, subject.id))) throw subjectNotFound();
         return plain;
       }
       case 'user': {

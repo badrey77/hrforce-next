@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AttendanceModule } from './modules/attendance/index.js';
 import { AuditModule } from './modules/audit/index.js';
 import { AuthorizationModule } from './modules/authorization/index.js';
 import { DocumentsModule } from './modules/documents/index.js';
@@ -24,6 +25,7 @@ import { PlatformModule } from './platform/platform.module.js';
     WorkflowModule,
     LeaveModule,
     DocumentsModule,
+    AttendanceModule,
   ],
 })
 export class AppModule {}

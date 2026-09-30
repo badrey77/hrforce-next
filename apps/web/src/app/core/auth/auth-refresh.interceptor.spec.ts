@@ -91,6 +91,14 @@ describe('authRefreshInterceptor', () => {
     controller.expectNone(REFRESH);
   });
 
+  it('never refreshes nor redirects for /api/kiosk/* (the entrance tablet has no user session)', async () => {
+    const result = firstValueFrom(http.get('/api/kiosk/session'));
+    controller.expectOne('/api/kiosk/session').flush(problem401, unauthorized);
+
+    await expect(result).rejects.toSatisfy((e: unknown) => isApiProblemError(e) && e.status === 401);
+    controller.expectNone(REFRESH);
+  });
+
   it('ignores non-/api URLs and non-401 errors', async () => {
     const asset = firstValueFrom(http.get('/i18n/fr.json'));
     controller.expectOne('/i18n/fr.json').flush('', unauthorized);

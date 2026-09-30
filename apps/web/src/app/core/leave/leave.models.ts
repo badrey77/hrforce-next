@@ -280,6 +280,11 @@ export interface MyEmployment {
   readonly unit: UnitRef;
   readonly jobTitle: string;
   readonly hireDate: string;
+  /**
+   * Units the caller heads TODAY (`[]` when none) — added by the Attendance contract (Module boundaries › Staffing)
+   * for the "Mon équipe" nav entry. Optional: an older API does not send it (read as "heads nothing").
+   */
+  readonly headOf?: readonly UnitRef[];
 }
 
 // --- HR list query ----------------------------------------------------------------------------------------------

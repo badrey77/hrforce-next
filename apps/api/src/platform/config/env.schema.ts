@@ -26,7 +26,13 @@ const secret32 = z.string().min(32, 'must be at least 32 characters');
  */
 export const DEV_MFA_KEY = 'aHJmb3JjZS1kZXYtbWZhLWtleS1JTlNFQ1VSRS0wMDE=';
 
-/** Standard base64 of exactly 32 bytes (the AES-256-GCM key of the TOTP secrets). */
+/**
+ * Development/test default of ATTENDANCE_KEY (docs/contracts/attendance.md › Check-in). INSECURE: it is public (in the
+ * repository); production refuses to start without its own key.
+ */
+export const DEV_ATTENDANCE_KEY = 'aHJmb3JjZS1kZXYtYXR0ZW5kYW5jZS1rZXktSU5TRUM=';
+
+/** Standard base64 of exactly 32 bytes (the AES-256-GCM key of the TOTP secrets, the attendance HMAC key). */
 export function isMfaKey(value: string): boolean {
   if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) return false;
   return Buffer.from(value, 'base64').length === 32;
@@ -77,6 +83,13 @@ export const apiEnvSchema = z
    * (`openssl rand -base64 32`). Required in production; development/test fall back to {@link DEV_MFA_KEY} (insecure).
    */
   AUTH_MFA_KEY: z.string().refine(isMfaKey, { message: 'must be the base64 encoding of exactly 32 bytes (openssl rand -base64 32)' }).optional(),
+  /**
+   * HMAC key of the attendance check-in (docs/contracts/attendance.md › Check-in, ADR 009): the QR tokens, the scan
+   * receipts and the per-browser device references are keyed by subkeys of it. Base64 of exactly 32 bytes
+   * (`openssl rand -base64 32`). Required in production; development/test fall back to {@link DEV_ATTENDANCE_KEY}
+   * (insecure). Rotating it only invalidates the live codes (≤ 2 min) and receipts (≤ 5 min).
+   */
+  ATTENDANCE_KEY: z.string().refine(isMfaKey, { message: 'must be the base64 encoding of exactly 32 bytes (openssl rand -base64 32)' }).optional(),
   /** `Secure` flag on every cookie. false is only accepted when NODE_ENV is development or test. */
   COOKIE_SECURE: booleanFlag.default(true),
   /** Public base URL of the web app, used in mailed links (`${WEB_BASE_URL}/password/setup?token=…`). */
@@ -117,6 +130,12 @@ export const apiEnvSchema = z
     }
     if (env.AUTH_MFA_KEY !== undefined && env.AUTH_MFA_KEY === DEV_MFA_KEY && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
       ctx.addIssue({ code: 'custom', path: ['AUTH_MFA_KEY'], message: 'must not be the public development key' });
+    }
+    if (env.ATTENDANCE_KEY === undefined && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
+      ctx.addIssue({ code: 'custom', path: ['ATTENDANCE_KEY'], message: 'is required when NODE_ENV is production' });
+    }
+    if (env.ATTENDANCE_KEY !== undefined && env.ATTENDANCE_KEY === DEV_ATTENDANCE_KEY && !DEV_AUTH_ALLOWED_NODE_ENVS.includes(env.NODE_ENV)) {
+      ctx.addIssue({ code: 'custom', path: ['ATTENDANCE_KEY'], message: 'must not be the public development key' });
     }
     if (env.AUTH_ACCESS_SECRET === env.AUTH_XSRF_SECRET) {
       ctx.addIssue({ code: 'custom', path: ['AUTH_XSRF_SECRET'], message: 'must differ from AUTH_ACCESS_SECRET' });

@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -46,6 +46,10 @@ export const PERMISSION_CODES = [
   'employee_file.read',
   'employee_file.upload',
   'employee_file.delete',
+  'attendance.punch_self',
+  'attendance.read',
+  'attendance.manage',
+  'attendance.configure',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -83,12 +87,13 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
       'document.read', 'document.issue',
       'employee_file.read', 'employee_file.upload',
+      'attendance.read', 'attendance.manage',
     ],
   },
   {
     code: 'lecture',
     names: { fr: 'Lecture seule', ar: 'اطلاع فقط', en: 'Read only' },
-    permissions: ['org_unit.read', 'site.read', 'employee.read'],
+    permissions: ['org_unit.read', 'site.read', 'employee.read', 'attendance.read'],
   },
   {
     code: 'admin_acces',
@@ -96,11 +101,11 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
     permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read'],
   },
   {
-    // self-service (docs/contracts/leave.md, documents.md): request one's own leave and attestations; the manager
-    // step needs no permission
+    // self-service (docs/contracts/leave.md, documents.md, attendance.md): request one's own leave and attestations,
+    // clock in; the manager step and the unit heads' team view need no permission
     code: 'employe',
     names: { fr: 'Employé (libre-service)', ar: 'موظف (الخدمة الذاتية)', en: 'Employee (self-service)' },
-    permissions: ['leave.request_self', 'document.request_self'],
+    permissions: ['leave.request_self', 'document.request_self', 'attendance.punch_self'],
   },
 ];
 

@@ -1,5 +1,5 @@
 import { CREATED, GRANT_ROW, GRANTED, LEAVE_APPROVED, LEAVE_CREATED, MASKED, RENAMED, TASK_DONE, WORKFLOW_APPROVE } from '../../../testing/audit-fixtures';
-import { type AuditNameResolver, buildTimeline, type ChangeView, type EventView, NO_NAMES } from './timeline-view';
+import { type AuditNameResolver, buildTimeline, type ChangeView, eventSentenceKey, type EventView, NO_NAMES } from './timeline-view';
 
 const NOW = new Date(2026, 8, 26, 14); // local 2026-09-26 14:00
 
@@ -75,6 +75,27 @@ describe('buildTimeline (pure view model)', () => {
       unit: 'Région Ouest',
       validFrom: '2026-10-01',
     });
+  });
+
+  it('lists are shown as items separated by commas, an empty list as empty (not raw JSON)', () => {
+    const entry = {
+      ...CREATED,
+      table: 'attendance_device',
+      changes: [
+        { field: 'allowed_networks', before: [], after: ['192.168.1.0/24', '10.0.0.5/32'], masked: false },
+      ],
+      op: 'update' as const,
+    };
+    const change = buildTimeline([entry], NO_NAMES, NOW)[0]?.entries[0] as ChangeView | undefined;
+    const line = change?.lines[0];
+    expect(line?.before).toEqual({ kind: 'empty' });
+    expect(line?.after).toEqual({ kind: 'text', text: '192.168.1.0/24, 10.0.0.5/32' });
+  });
+
+  it('punch events pick their sentence by source and direction (they carry no other data)', () => {
+    expect(eventSentenceKey('attendance.punch_recorded', { source: 'manual', direction: 'in' })).toBe('audit.events.attendance.punch_recorded.manual_in');
+    expect(eventSentenceKey('attendance.punch_voided', { source: 'qr' })).toBe('audit.events.attendance.punch_voided.qr');
+    expect(eventSentenceKey('attendance.purged', { punches: 3 })).toBe('audit.events.attendance.purged');
   });
 
   it('event dates go through the day formatter; unknown people fall back to the actors of the entries', () => {

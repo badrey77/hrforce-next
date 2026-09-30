@@ -1,0 +1,145 @@
+<!--
+  Présence tab (employee-attendance-tab.ts): month navigator, schedules that applied, totals, the day list with
+  punches, and two dialogs (manual punch, void) always in the DOM, closed until showModal().
+-->
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <div class="month-nav">
+      <button class="btn secondary" type="button" data-action="prev-month" [attr.aria-label]="t('attendance.mine.previousMonth')" (click)="shiftMonth(-1)">‹</button>
+      <h2 aria-live="polite" data-field="month">{{ month() + '-01' | date: 'LLLL y' : undefined : locale() }}</h2>
+      <button class="btn secondary" type="button" data-action="next-month" [attr.aria-label]="t('attendance.mine.nextMonth')"
+        [disabled]="isCurrentMonth()" (click)="shiftMonth(1)">›</button>
+    </div>
+    @if (canManage()) {
+      <button class="btn" type="button" data-action="add-punch" (click)="openAdd()">{{ t('attendance.manual.action') }}</button>
+    }
+  </div>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+
+  @if (segments.hasValue() && segments.value().items.length) {
+    <ul class="segments" data-panel="segments">
+      @for (seg of segments.value().items; track seg.from) {
+        <li>
+          {{ t('attendance.segments.range', { from: (seg.from | date: 'd MMM' : undefined : locale()), to: (seg.to | date: 'd MMM' : undefined : locale()) }) }} :
+          <strong>{{ label(seg.schedule.labels) }}</strong>
+          — {{ t('attendance.scheduleSource.' + seg.source) }}
+          @if (seg.sourceRef; as ref) {
+            {{ t('attendance.segments.via.' + ref.kind) }} <bdi>{{ ref.code }}</bdi>
+          }
+          @for (o of seg.overrides; track o.id) {
+            <span class="badge">{{ label(o.labels) }}</span>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <section [attr.aria-busy]="days.isLoading()" data-panel="attendance-days">
+    @if (days.error() && !days.hasValue()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="days.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (days.hasValue()) {
+      @let totals = days.value().totals;
+      <ul class="totals" data-panel="totals">
+        <li>{{ t('attendance.totals.worked', { worked: (totals.workedMinutes | minutes: lang()), scheduled: (totals.scheduledMinutes | minutes: lang()) }) }}</li>
+        <li>{{ t('attendance.totals.lateDays', { count: totals.lateDays }) }} ({{ totals.lateMinutes | minutes: lang() }})</li>
+        <li>{{ t('attendance.totals.absentDays', { count: totals.absentDays }) }}</li>
+        <li>{{ t('attendance.totals.incompleteDays', { count: totals.incompleteDays }) }}</li>
+        <li>{{ t('attendance.totals.leaveDays', { count: totals.leaveDays }) }}</li>
+        <li>{{ t('attendance.totals.earlyDepartureDays', { count: totals.earlyDepartureDays }) }}</li>
+      </ul>
+      <app-day-list [days]="days.value().items" [openDate]="openDate()" (voidPunch)="openVoid($event)" />
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  <!-- Manual punch ------------------------------------------------------------------------------------------------ -->
+  <dialog #addDialog class="modal" aria-labelledby="add-punch-title" (close)="onAddClosed()">
+    <form [formGroup]="addForm" (ngSubmit)="submitAdd()" novalidate data-form="manual-punch">
+      <h2 id="add-punch-title">{{ t('attendance.manual.title') }}</h2>
+      <p class="field-hint">{{ t('attendance.manual.intro') }}</p>
+      @if (addError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let c = addForm.controls;
+      <fieldset class="field">
+        <legend>{{ t('attendance.manual.direction') }}</legend>
+        <div class="check">
+          <input id="manual-in" type="radio" formControlName="direction" value="in" />
+          <label for="manual-in">{{ t('attendance.direction.in') }}</label>
+          <input id="manual-out" type="radio" formControlName="direction" value="out" />
+          <label for="manual-out">{{ t('attendance.direction.out') }}</label>
+        </div>
+      </fieldset>
+      <div class="field">
+        <label for="manual-date">{{ t('attendance.manual.date') }}</label>
+        <input id="manual-date" type="date" formControlName="date" [max]="todayIso" aria-describedby="manual-date-error" />
+        <app-control-error [control]="c.date" errorId="manual-date-error" [keys]="{ required: 'attendance.settings.required' }" />
+      </div>
+      <div class="field">
+        <label for="manual-time">{{ t('attendance.manual.time') }}</label>
+        <input id="manual-time" type="time" dir="ltr" formControlName="time" aria-describedby="manual-time-hint manual-time-error" />
+        <p class="field-hint" id="manual-time-hint">{{ t('attendance.manual.timeHint') }}</p>
+        <app-control-error [control]="c.time" errorId="manual-time-error" [keys]="{ required: 'attendance.settings.required', pattern: 'attendance.manual.timeFormat' }" />
+      </div>
+      @if (sites().length) {
+        <div class="field">
+          <label for="manual-site">{{ t('attendance.manual.site') }}</label>
+          <select id="manual-site" formControlName="siteId" aria-describedby="manual-site-error">
+            <option value="">{{ t('attendance.manual.siteDefault') }}</option>
+            @for (site of sites(); track site.id) {
+              <option [value]="site.id">{{ site.code }} — {{ site.name }}</option>
+            }
+          </select>
+          <app-control-error [control]="c.siteId" errorId="manual-site-error" />
+        </div>
+      }
+      <div class="field">
+        <label for="manual-reason">{{ t('attendance.reason.label') }}</label>
+        <textarea id="manual-reason" formControlName="reason" rows="3" dir="auto" required
+          [attr.aria-invalid]="c.reason.invalid && c.reason.touched" aria-describedby="manual-reason-error"></textarea>
+        @if (c.reason.invalid && c.reason.touched) {
+          <p class="field-error" id="manual-reason-error">{{ t(reasonErrorKey(c.reason)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="confirm-add" [disabled]="adding()">{{ t('attendance.manual.submit') }}</button>
+        <button class="btn secondary" type="button" (click)="closeAdd()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Void a punch ------------------------------------------------------------------------------------------------- -->
+  <dialog #voidDialog class="modal" aria-labelledby="void-title" (close)="onVoidClosed()">
+    <form [formGroup]="voidForm" (ngSubmit)="submitVoid()" novalidate data-form="void-punch">
+      <h2 id="void-title">{{ t('attendance.void.title') }}</h2>
+      @if (voiding(); as p) {
+        <p>
+          {{ t('attendance.void.intro', { direction: t('attendance.direction.' + p.direction), time: p.localTime, date: (p.workDate | date: 'mediumDate' : undefined : locale()) }) }}
+        </p>
+      }
+      @if (voidError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let reason = voidForm.controls.reason;
+      <div class="field">
+        <label for="void-reason">{{ t('attendance.reason.label') }}</label>
+        <textarea id="void-reason" formControlName="reason" rows="3" dir="auto" required
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="void-reason-error"></textarea>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="void-reason-error">{{ t(reasonErrorKey(reason)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn danger" type="submit" data-action="confirm-void" [disabled]="voidSubmitting()">{{ t('attendance.void.confirm') }}</button>
+        <button class="btn secondary" type="button" (click)="closeVoid()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

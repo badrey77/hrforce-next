@@ -32,6 +32,12 @@
  *   Leave tab — its own resource, created only when the tab is rendered.
  * - **Dossier tab** (`employee_file.read`): `<app-employee-file-tab>` (employee-file-tab.ts) — the uploaded documents
  *   of the person's file, with upload progress, downloads and deletion; same "own resources, created when shown" idea.
+ * - **Présence tab** (`attendance.read`): `<app-employee-attendance-tab>` (employee-attendance-tab.ts) — the
+ *   employee's days and punches, manual punches and voids (docs/contracts/attendance.md › Web).
+ * - **`?tab=` and `?date=` as entry points** (the presence board links to `/employees/<id>?tab=attendance&date=…`).
+ *   Both are query-param INPUTS; the `tab` input is declared with `alias: 'tab'` (`initialTab` in the code) because
+ *   `tab` already names the page's local tab signal. `withComponentInputBinding()` binds by the PUBLIC name, the
+ *   alias. The local `tab` signal is a `linkedSignal` of (id, initialTab): a new link resets it, clicks move it.
  * - **"Rehire"** is a link to `/employees/:id/rehire`, shown when the employment has an end date and the session
  *   holds `employee.create` (not an `_actions` entry: it creates a NEW employment, whose unit is not known yet).
  * - **`DecimalPipe` with an explicit locale** for money (`"85000.00" | number: '1.2-2' : locale()`): the string is
@@ -77,6 +83,7 @@ import { Timeline } from '../../shared/timeline/timeline';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 import { AssignmentForm } from './assignment-form';
 import { employeeProblemToForm, END_SLUGS, isoDate, notBefore } from './employee-forms';
+import { EmployeeAttendanceTab } from './employee-attendance-tab';
 import { EmployeeDocumentsTab } from './employee-documents-tab';
 import { EmployeeFileTab } from './employee-file-tab';
 import { EmployeeLeaveTab } from './employee-leave-tab';
@@ -84,7 +91,8 @@ import { FieldError } from './field-error';
 import { PersonForm } from './person-form';
 import { BankForm, NssForm, SalaryForm } from './sensitive-forms';
 
-export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'history';
+export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'attendance' | 'history';
+const EMPLOYEE_TABS: readonly string[] = ['identity', 'assignments', 'pay', 'bank', 'leave', 'documents', 'file', 'attendance', 'history'];
 type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
 /** Documents read to name signatories in the History: the API's page maximum (documents contract › GET /documents). */
 const DOCUMENTS_FOR_NAMES = 100;
@@ -107,6 +115,7 @@ const DOCUMENTS_FOR_NAMES = 100;
     EmployeeLeaveTab,
     EmployeeDocumentsTab,
     EmployeeFileTab,
+    EmployeeAttendanceTab,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-detail.page.html',
@@ -121,6 +130,8 @@ export class EmployeeDetailPage {
   private readonly canDocuments = inject(Session).allows('document.read');
   /** Dossier tab (documents contract › Phase B › Web): the employee file needs `employee_file.read`. */
   private readonly canFile = inject(Session).allows('employee_file.read');
+  /** Présence tab (attendance contract › Web): days and punches need `attendance.read`. */
+  private readonly canAttendance = inject(Session).allows('attendance.read');
   /** "Rehire" on an employment with an end date (employee-rehire.page.ts); the route has the same guard. */
   protected readonly canRehire = inject(Session).allows('employee.create');
   protected readonly lang = inject(LanguageService).current;
@@ -128,6 +139,10 @@ export class EmployeeDetailPage {
 
   /** `:id` of the route (the employment id). */
   readonly id = input.required<string>();
+  /** `?tab=` — the tab to open first (e.g. `attendance` from the presence board). */
+  readonly initialTab = input<string | undefined>(undefined, { alias: 'tab' });
+  /** `?date=` — the day the Présence tab shows first. */
+  readonly date = input<string | undefined>();
 
   protected readonly employee = this.api.detailResource(this.id);
   protected readonly detail = computed<EmployeeDetail | undefined>(() =>
@@ -160,10 +175,14 @@ export class EmployeeDetailPage {
     if (this.canLeave()) tabs.push('leave');
     if (this.canDocuments()) tabs.push('documents');
     if (this.canFile()) tabs.push('file');
+    if (this.canAttendance()) tabs.push('attendance');
     if (this.canAudit()) tabs.push('history');
     return tabs;
   });
-  protected readonly tab = linkedSignal<string, EmployeeTab>({ source: this.id, computation: () => 'identity' });
+  protected readonly tab = linkedSignal<{ id: string; tab: string | undefined }, EmployeeTab>({
+    source: () => ({ id: this.id(), tab: this.initialTab() }),
+    computation: ({ tab }) => (EMPLOYEE_TABS.includes(tab as EmployeeTab) ? (tab as EmployeeTab) : 'identity'),
+  });
   protected readonly activeTab = computed<EmployeeTab>(() => (this.tabs().includes(this.tab()) ? this.tab() : 'identity'));
   protected readonly editing = linkedSignal<string, Editing | null>({ source: this.id, computation: () => null });
   protected readonly feedback = signal<string | null>(null);

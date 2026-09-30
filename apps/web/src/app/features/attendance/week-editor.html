@@ -1,0 +1,41 @@
+<!-- week-editor.ts: one row per day, Sunday first; the ISO number under the day name. -->
+<ng-container *transloco="let t">
+  <fieldset class="week" [attr.data-week]="idPrefix()">
+    <legend>{{ t('attendance.week.title') }}</legend>
+    @for (row of rows(); track row.day) {
+      @let g = group(row.index);
+      <div class="row" [attr.data-day]="row.day">
+        <span class="name">
+          {{ weekdayDate(row.day) | date: 'EEEE' : undefined : locale() }}
+          <small>{{ t('attendance.week.iso', { day: row.day }) }}</small>
+        </span>
+        <span class="check">
+          <input type="checkbox" [id]="idPrefix() + '-rest-' + row.day" [formControl]="g.controls.rest" />
+          <label [for]="idPrefix() + '-rest-' + row.day">{{ t('attendance.week.rest') }}</label>
+        </span>
+        @if (!row.rest) {
+          <span class="times">
+            <label [for]="idPrefix() + '-start-' + row.day">{{ t('attendance.week.start') }}</label>
+            <input type="time" dir="ltr" [id]="idPrefix() + '-start-' + row.day" [formControl]="g.controls.start" />
+            <label [for]="idPrefix() + '-end-' + row.day">{{ t('attendance.week.end') }}</label>
+            <input type="time" dir="ltr" [id]="idPrefix() + '-end-' + row.day" [formControl]="g.controls.end" />
+            <label [for]="idPrefix() + '-bs-' + row.day">{{ t('attendance.week.breakStart') }}</label>
+            <input type="time" dir="ltr" [id]="idPrefix() + '-bs-' + row.day" [formControl]="g.controls.breakStart" />
+            <label [for]="idPrefix() + '-be-' + row.day">{{ t('attendance.week.breakEnd') }}</label>
+            <input type="time" dir="ltr" [id]="idPrefix() + '-be-' + row.day" [formControl]="g.controls.breakEnd" />
+            @if (row.minutes) {
+              <span class="field-hint">{{ row.minutes | minutes: language() }}</span>
+            }
+          </span>
+        }
+        @if (row.error; as error) {
+          <p class="field-error" [attr.data-error]="'day-' + row.day">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+      </div>
+    }
+    <p class="field-hint" data-field="weekly">{{ t('attendance.week.weekly', { minutes: (weekly() | minutes: language()) }) }}</p>
+    @if (noWorkingDay()) {
+      <p class="field-error" data-error="no-working-day">{{ t('attendance.week.noWorkingDay') }}</p>
+    }
+  </fieldset>
+</ng-container>

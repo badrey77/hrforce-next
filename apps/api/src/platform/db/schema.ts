@@ -38,6 +38,108 @@ export interface Assignment {
   valid: string;
 }
 
+export interface AttendanceDevice {
+  allowed_networks: Generated<string[]>;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  credential_hash: Buffer | null;
+  id: Generated<string>;
+  kind: Generated<string>;
+  name_ar: string;
+  name_fr: string;
+  paired_at: Timestamp | null;
+  pairing_code_hash: Buffer | null;
+  pairing_expires_at: Timestamp | null;
+  revoke_reason: string | null;
+  revoked_at: Timestamp | null;
+  revoked_by: string | null;
+  site_id: string;
+  status: Generated<string>;
+}
+
+export interface AttendanceDeviceHeartbeat {
+  company_id: string;
+  device_id: string;
+  last_ip: string | null;
+  last_seen_at: Generated<Timestamp>;
+  last_user_agent: string | null;
+}
+
+export interface AttendancePolicy {
+  company_id: string;
+  min_punch_gap_seconds: Generated<number>;
+  retention_months: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface AttendancePunch {
+  company_id: string;
+  created_by: string | null;
+  device_id: string | null;
+  device_ref: string | null;
+  direction: string;
+  employment_id: string;
+  id: Generated<string>;
+  occurred_at: Timestamp;
+  qr_window: Int8 | null;
+  reason: string | null;
+  received_at: Generated<Timestamp>;
+  site_id: string | null;
+  source: string;
+  status: Generated<string>;
+  void_reason: string | null;
+  voided_at: Timestamp | null;
+  voided_by: string | null;
+  work_date: Generated<Timestamp | null>;
+}
+
+export interface AttendanceSchedule {
+  active: Generated<boolean>;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+}
+
+export interface AttendanceScheduleAssignment {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  employment_id: string | null;
+  id: Generated<string>;
+  org_unit_id: string | null;
+  schedule_id: string;
+  site_id: string | null;
+  target_kind: string;
+  valid: string;
+}
+
+export interface AttendanceScheduleOverride {
+  approximate: Generated<boolean>;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  dates: string;
+  id: Generated<string>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  schedule_id: string | null;
+  tolerance_minutes: number;
+  week: Json;
+}
+
+export interface AttendanceScheduleVersion {
+  company_id: string;
+  id: Generated<string>;
+  schedule_id: string;
+  tolerance_minutes: number;
+  valid: string;
+  week: Json;
+}
+
 export interface AuditChangeLog {
   actor_user_id: string | null;
   after: Json | null;
@@ -534,6 +636,14 @@ export interface WorkflowTask {
 
 export interface DB {
   assignment: Assignment;
+  attendance_device: AttendanceDevice;
+  attendance_device_heartbeat: AttendanceDeviceHeartbeat;
+  attendance_policy: AttendancePolicy;
+  attendance_punch: AttendancePunch;
+  attendance_schedule: AttendanceSchedule;
+  attendance_schedule_assignment: AttendanceScheduleAssignment;
+  attendance_schedule_override: AttendanceScheduleOverride;
+  attendance_schedule_version: AttendanceScheduleVersion;
   "audit.change_log": AuditChangeLog;
   "audit.event": AuditEvent;
   "audit.masked_column": AuditMaskedColumn;

@@ -145,11 +145,14 @@ describe('Authorization (e2e, real grants)', () => {
       assertNoSecrets(res.body);
       const scope = [{ unitId: unitA('REG-EST'), includeDescendants: true }];
       expect(res.body.permissions).toEqual([
+        'attendance.manage', 'attendance.read',
         'document.issue', 'document.read',
         'employee.create', 'employee.read', 'employee.update', 'employee_file.read', 'employee_file.upload',
         'leave.adjust', 'leave.approve_hr', 'leave.read', 'leave.request', 'org_unit.read', 'site.read',
       ]);
       expect(res.body.scopes).toEqual({
+        'attendance.manage': scope,
+        'attendance.read': scope,
         'document.issue': scope,
         'document.read': scope,
         'employee.create': scope,
@@ -169,7 +172,7 @@ describe('Authorization (e2e, real grants)', () => {
 
     it('admin holds everything except employee.medical.read / update on DG (+); a member without grants holds nothing', async () => {
       const admin = await client('admin').get('/api/me').expect(200);
-      expect(admin.body.permissions).toHaveLength(32);
+      expect(admin.body.permissions).toHaveLength(36);
       expect(admin.body.permissions).not.toContain('employee.medical.read');
       expect(admin.body.permissions).not.toContain('employee.medical.update');
       expect(admin.body.scopes['employee.salary.read']).toEqual([{ unitId: unitA('DG'), includeDescendants: true }]);
@@ -281,6 +284,7 @@ describe('Authorization (e2e, real grants)', () => {
         'leave.request_self', 'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust', 'leave.configure',
         'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self',
         'employee_file.read', 'employee_file.upload', 'employee_file.delete',
+        'attendance.punch_self', 'attendance.read', 'attendance.manage', 'attendance.configure',
       ]);
       expect(items[0]).toEqual({
         code: 'org_unit.read',
@@ -296,7 +300,7 @@ describe('Authorization (e2e, real grants)', () => {
       const res = await client('acces').get('/api/access/roles').expect(200);
       const roles = res.body.items as { code: string; isSystem: boolean; permissions: string[]; names: { ar: string } }[];
       expect(roles.filter((r) => r.isSystem).map((r) => r.code).toSorted()).toEqual(['admin_acces', 'admin_rh_central', 'employe', 'lecture', 'rh_regional']);
-      expect(roles.find((r) => r.code === 'lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);
+      expect(roles.find((r) => r.code === 'lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'attendance.read']);
       expect(roles.find((r) => r.code === 'rh_regional')?.names.ar).toBe('مسؤول الموارد البشرية الجهوي');
     });
 
@@ -531,7 +535,7 @@ describe('Authorization (e2e, real grants)', () => {
     });
 
     it('permission is a read-only catalogue; grants are never deleted and only shortened', async () => {
-      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(34);
+      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(38);
       await expect(inTenant(COMPANY_A, `insert into permission values ('x.y', 'x', 'x', 'x', 'access', false, 999)`)).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role_grant')).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role')).rejects.toThrow(/permission denied/);

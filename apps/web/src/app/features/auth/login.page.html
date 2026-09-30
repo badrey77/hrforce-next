@@ -1,5 +1,9 @@
 <ng-container *transloco="let t">
   <h1 id="login-title">{{ t('auth.login.title') }}</h1>
+  <!-- Back from an entrance QR scan (features/punch/punch.page.ts): say why a sign-in is asked for. -->
+  @if (forPunch()) {
+    <p class="feedback" data-state="for-punch">{{ t('auth.login.forPunch') }}</p>
+  }
 
   <!--
     One component, two steps. `@switch` renders exactly one `@case`; the other step's DOM does not exist (its inputs

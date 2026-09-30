@@ -18,5 +18,9 @@
   {
     "table": "employee_file_content",
     "reason": "Bytes of an uploaded employee file (docs/contracts/documents.md › Phase B, ADR 005): one row per employee_file, inserted with it and removed only after its tombstone (deleted_at) or retention mark (purged_at) is set — both audited row changes of employee_file, which also carries the audited sha256 and size. Diffing up to 10–20 MB of bytes per upload would bloat audit.change_log for nothing."
+  },
+  {
+    "table": "attendance_device_heartbeat",
+    "reason": "Operational heartbeat of an entrance kiosk (docs/contracts/attendance.md › Data, ADR 009 §1): one row per device, overwritten at most once a minute by the kiosk's own calls (last seen, source IP, user agent) and shown in kiosk management; not business data. Auditing it would add a change row per kiosk per minute; pairing, re-pairing and revocation are audited on attendance_device (and the attendance.device_paired event)."
   }
 ]

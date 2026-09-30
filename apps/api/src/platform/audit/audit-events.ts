@@ -7,7 +7,17 @@
  */
 
 /** Subject types of audit events and timelines. */
-export type AuditSubjectType = 'user' | 'org_unit' | 'site' | 'role' | 'employee' | 'leave_request' | 'document_request' | 'issued_document' | 'employee_file';
+export type AuditSubjectType =
+  | 'user'
+  | 'org_unit'
+  | 'site'
+  | 'role'
+  | 'employee'
+  | 'leave_request'
+  | 'document_request'
+  | 'issued_document'
+  | 'employee_file'
+  | 'attendance_device';
 
 export interface AuditEventInput {
   /** `<area>.<event>`, e.g. `auth.login`, `access.grant_created` */

@@ -1,6 +1,6 @@
 # HRForce Next — project state and decisions (handoff)
 
-Last updated: 2026-09-29. This file carries what was decided in conversation and is not obvious from the code.
+Last updated: 2026-09-30. This file carries what was decided in conversation and is not obvious from the code.
 Keep it current: when a decision is made or an open question is answered, update this file in the same commit.
 
 ## Where we are
@@ -44,6 +44,9 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-29 | Documents Phase B committed. The Typst logo-memory crash risk is fixed next (pixel-size limit on logos). HR users seeing/uploading to their own employee file: **left as is for now** (product decision pending) |
 | 2026-09-29 | Staging server not ready yet. While waiting for the owner's answers (SSO/sister app, documents wording, leave assumptions), a **cleanup round** over the known small issues that need no product decision |
 | 2026-09-29 | Arabic wording rule: **gender-neutral everywhere** (UI, e-mails, documents where the sex is unknown): masdar/passive forms such as « يرجى إعادة المحاولة » instead of masculine imperatives |
+| 2026-09-29 | **Attendance is a module inside HRForce** (not a sister app, so no SSO needed for it). Check-in by **rotating signed QR** shown at each entrance and scanned with the HRForce web app on the employee's phone; badge readers may come later behind the same check-in API. Entrances are **mostly online**: no offline capture, HR records missed punches manually. First slice: arrivals and departures, daily presence view, work schedules (lateness/absence), corrections through the workflow engine. No biometrics (Law 18-07) |
+| 2026-09-29 | **ADR 009 accepted** (attendance check-in: kiosk paired by one-time code, server-signed QR rotating every 30 s, scanned with the phone's camera as a link, receipt then punch at scan time). Daily sign-in on phones kept (ADR 004 unchanged). Presence visibility as proposed (HR in scope, `lecture` in scope, unit heads their team, employees their own). Punches are audited as events **without personal payload** so the retention purge fully erases them. Build in two phases: A (kiosks, punches, schedules, daily status, presence board), B (corrections workflow, monthly report) |
+| 2026-09-30 | Attendance Phase A committed. Residual check-in risks (link-punch; bearer scan receipt) **mitigated in Phase B**: a one-tap confirmation on `/punch` (a link never punches silently) and the scan receipt shortened to 2 minutes |
 
 ## M2 progress
 
@@ -59,6 +62,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - **Documents Phase A (generated documents + numbering + register): built and independently verified 2026-09-29** (contract `docs/contracts/documents.md`, ADR 008). Typst PDFs in fr/ar checked visually (shaping, bidi, gender agreement), gap-free numbering under concurrency, identical reprints, void keeps the number, self-service attestation via workflow `document.hr_only`, titre de congé from approved leave. Verifier fixes: bidi control characters stripped from printed data (an RTL override mirrored the legal sentence), `<bdi>` on the Arabic detail page, lower-case number formats. Chrome/Edge PDF viewer works under the production CSP. API image 344 → 422 MB.
 - **Documents Phase B (employee file): built and independently verified 2026-09-29.** Dossier tab (upload with XHR progress, drag-and-drop, download, delete with reason), file categories settings, content sniffing (PDF/JPEG/PNG), attachment downloads with sandbox CSP through Caddy, audited downloads, medical category hidden, monthly retention purge. Verifier fixes: UTF-8 upload filenames (multer read them as latin1), download name follows the real type, client expiry-date check, 413 message, medical note wording, and an 8 GB allocation in the Typst spec's own test template (the Windows 0xC0000409 crash).
 - **Cleanup round: built and independently verified 2026-09-29.** Refused routes show 404 (and don't load their code); top-of-form errors scrolled into view and focused (`RevealAlertDirective`); rehire link hidden when the person has an open employment (`person.hasOpenEmployment`); timeline fingerprints/names/scan status; PDF long tokens wrap (templates @2); Arabic titre day count with number agreement; neutral Arabic e-mails; login throttle fix for backward DB clock jumps (the cause of the Windows test flakes).
+- **Attendance Phase A: built and independently verified 2026-09-30** (contract `docs/contracts/attendance.md`, ADR 009). Kiosk pairing, rotating signed QR decoded from the kiosk canvas and punched from a 390 px phone through sign-in (punch stored at scan time, not sign-in time), duplicates, expiry, offline kiosk, revocation; presence board, team view, schedules, manual punch/void; punches audited as events only (nothing personal left after purge). Security: the XSRF 401-for-anonymous change gives an attacker nothing; no CSRF-punch; spoofed forwarding headers refused through Caddy. Verifier fixes: `/punch` now reacts to a new code while already open (evening departure in the installed app), readable punch events in the timeline, kiosk history names. **Next: Phase B** (corrections workflow, monthly report).
 
 ## Assumptions in force (not yet confirmed — change by role edit/data, not code)
 
@@ -75,6 +79,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 3. **App-role trust** (ADR 004 note): accept that a compromised `hrforce_app` DB role could mint sessions / forge audit events, or plan a separate credential service before go-live.
 4. Team size and target date (plan open question).
 5. **Documents** (`docs/contracts/documents.md`): confirm the remaining assumptions (1–4, 8–16); have an Algerian HR/legal reader check the fr/ar legal wording, including the new Arabic titre day-count sentence (`titre_conge@2`, contract "Settled by the cleanup") and the neutral Arabic e-mail wording (`notifications.md`); retention periods per employee-file category; should a "Médecine du travail" role exist (medical files stay unused until then).
+6. **Attendance** (`docs/contracts/attendance.md`): confirm the assumptions (hours Sun–Thu 08:00–16:30 with 12:00–12:30 break, 10 min tolerance, Ramadan hours and dates, 5-year retention, correction chain and window, flags); check whether an ANPDP declaration is needed for attendance data (Law 18-07); decide an audit-log retention policy (the audit log has none yet).
 
 ## Operations notes
 
@@ -85,6 +90,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - A company without a `security_policy` row is treated as MFA-enforced (safe default). DEMO has enforcement off; `bootstrap` creates companies with it on.
 - **Employee file (Documents Phase B):** `EMPLOYEE_FILE_MAX_BYTES` (default 10 MB, max 20 MB; the web's `EMPLOYEE_FILE_MAX_BYTES` in `core/employee-files/employee-files.models.ts` must match). Caddy caps uploads to `/api/employees/*/files` at 25 MB. Deleted/purged files survive in backups for `BACKUP_RETENTION_DAYS`.
 - A "Médecine du travail" role cannot be created through the API (role creation refuses permissions no one holds): if the owner wants it, an operator inserts it by SQL with `employee.medical.read` + `employee.medical.update`.
+- **`ATTENDANCE_KEY`** (attendance QR signing secret) will be required once Attendance Phase A ships: existing staging installs must add it to `deploy/.env` before that deploy (`init-env.sh` generates it for new installs). The web server must serve `.webmanifest` with the right MIME type.
 
 ## Known small issues (not fixed)
 
@@ -96,6 +102,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 - Timeline still shows raw ids for `leave_request_id` / `document_request_id` on an issued document and `issued_document_id` on a document request.
 - `hasOpenEmployment` is true for an employment ending in the future, so the rehire link stays hidden until that date although the API would accept a rehire dated after it.
 - **Typst runs in the API process** (ADR 008): an out-of-memory in the native renderer would abort the whole API, and `worker.terminate()` cannot stop a native render. The logo trigger is fixed (2026-09-29: logos limited to 4000 px per side and 16 MP, read from the PNG/JPEG header at upload and again at render; an oversized stored logo is left out; render input capped at 2 MB). A logo within the limits can still cost ~128 MB per render thread. The full fix for any other trigger is rendering in a child process (ADR 008 fallback option).
+- Attendance: on a 390 px phone the app header pushes the punch success card partly below the fold; the retention field shows a generic error instead of the allowed range. The API must never be published directly (allowed-network checks trust Caddy's forwarding headers).
 - Employee file: HR users can see and upload to their own file when it is in their scope (e.g. rh.est linked to EMP-0022): product decision. The app role can set `purged_at` (trust question 3).
 
 ## Environment facts

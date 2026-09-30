@@ -34,6 +34,11 @@ export const REDACT_PATHS: readonly string[] = [
   '*.otpauthUri',
   '*.qrPng',
   '*.hrf_mfa',
+  // attendance check-in (docs/contracts/attendance.md): the kiosk credential, the scan receipt, the browser id, and
+  // the pairing code of POST /api/kiosk/pair (req.body.code above) — each one is a credential or a personal signal
+  '*.hrf_kiosk',
+  '*.hrf_scan',
+  '*.hrf_dev',
   'code',
   'recoveryCode',
   'recoveryCodes',

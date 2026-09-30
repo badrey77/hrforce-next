@@ -1,0 +1,89 @@
+<!-- day-list.ts: one <details> per day, newest first. -->
+<ng-container *transloco="let t">
+  <ul class="days">
+    @for (day of reversed(); track day.date) {
+      <li [attr.data-day]="day.date">
+        <details [open]="day.date === openDate()">
+          <summary>
+            <span class="date nowrap">{{ day.date | date: 'EEE d MMM' : undefined : locale() }}</span>
+            <app-day-status [status]="day.status" />
+            <span class="times nowrap" dir="ltr">{{ day.arrival?.localTime ?? '—' }} – {{ day.departure?.localTime ?? '—' }}</span>
+            @if (day.lateMinutes) {
+              <span class="late">{{ t('attendance.day.late', { minutes: (day.lateMinutes | minutes: lang()) }) }}</span>
+            }
+            @if (day.workedMinutes) {
+              <span class="muted">{{ t('attendance.day.worked', { minutes: (day.workedMinutes | minutes: lang()) }) }}</span>
+            }
+            @if (day.flags.length) {
+              <app-day-flags [flags]="day.flags" />
+            }
+          </summary>
+
+          <div class="detail">
+            @if (day.schedule; as s) {
+              <p class="field-hint" data-field="schedule">
+                {{ label(s.override?.labels ?? s.labels) }} ·
+                {{ t('attendance.scheduleSource.' + s.source) }}
+                @if (s.start && s.end) {
+                  · <span dir="ltr">{{ s.start }}–{{ s.end }}</span>
+                  @if (s.breakStart && s.breakEnd) {
+                    ({{ t('attendance.day.break') }} <span dir="ltr">{{ s.breakStart }}–{{ s.breakEnd }}</span>)
+                  }
+                }
+                @if (s.override?.approximate) {
+                  <span class="badge">{{ t('attendance.approximate') }}</span>
+                }
+              </p>
+            }
+            @if (day.leave; as leave) {
+              <p class="field-hint">{{ label(leave.type.labels) }} — {{ t('attendance.leavePart.' + leave.part) }}</p>
+            }
+            @if (day.holiday; as holiday) {
+              <p class="field-hint">{{ label(holiday.labels) }}</p>
+            }
+
+            <ol class="punches">
+              @for (punch of day.punches ?? []; track punch.id) {
+                <li [attr.data-punch]="punch.id" [class.void]="punch.status === 'void'">
+                  <span class="punch-main">
+                    <time class="nowrap" dir="ltr">{{ punch.localTime }}</time>
+                    <strong>{{ t('attendance.direction.' + punch.direction) }}</strong>
+                    <span class="badge" [attr.data-source]="punch.source">{{ t('attendance.source.' + punch.source) }}</span>
+                  </span>
+                  <span class="field-hint">
+                    @if (punch.kiosk) {
+                      <bdi>{{ kiosk(punch) }}</bdi>
+                    } @else if (punch.site) {
+                      <bdi>{{ punch.site.name }}</bdi>
+                    }
+                    @if (punch.reason) {
+                      — <bdi>{{ punch.reason }}</bdi>
+                    }
+                    @if (punch.createdBy) {
+                      — {{ t('attendance.day.recordedBy', { name: punch.createdBy.displayName }) }}
+                    }
+                  </span>
+                  @if (punch.void; as v) {
+                    <span class="field-hint" data-state="void">
+                      {{ t('attendance.day.voided', { name: v.by?.displayName ?? t('audit.system') }) }} — <bdi>{{ v.reason }}</bdi>
+                    </span>
+                  }
+                  @if (punch.status === 'live' && punch._actions.includes('void')) {
+                    <button class="btn secondary small" type="button" data-action="void-punch"
+                      [attr.aria-label]="t('attendance.void.actionNamed', { time: punch.localTime })" (click)="voidPunch.emit(punch)">
+                      {{ t('attendance.void.action') }}
+                    </button>
+                  }
+                </li>
+              } @empty {
+                <li class="muted" data-state="no-punch">{{ t('attendance.day.noPunch') }}</li>
+              }
+            </ol>
+          </div>
+        </details>
+      </li>
+    } @empty {
+      <li class="muted" data-state="empty">{{ t('attendance.day.empty') }}</li>
+    }
+  </ul>
+</ng-container>

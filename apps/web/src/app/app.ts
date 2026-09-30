@@ -23,12 +23,34 @@
  *   the count ("3 open tasks") without stealing focus; it is always in the DOM (a live region added together with its
  *   text is often not announced) and stays empty until the count is known.
  *
+ * Attendance (docs/contracts/attendance.md › Web):
+ * - **A route without the chrome.** The entrance kiosk (`/kiosk`) is a full-screen display: no header, no nav, no
+ *   skip link. Its route says so with STATIC route data, `data: { chrome: false }` (app.routes.ts), and this
+ *   component reads it. The root component is not inside any route, so it cannot inject an `ActivatedRoute` of the
+ *   page; instead it listens to the router: after each `NavigationEnd`, `chromeOf()` walks the activated route tree
+ *   from the root to the deepest child (`firstChild`) and looks for `chrome: false` on the way. `toSignal()` turns
+ *   that stream into a signal the template reads (`initialValue: true`: the normal layout until the first navigation
+ *   ends). The alternative — a layout component with the chrome, and routes nested under it — would move every
+ *   existing route one level down for the sake of one page.
+ * - **Nav rules**: "Pointage" needs `attendance.punch_self` AND a linked employment (like My leave); "Mon équipe"
+ *   appears when `GET /me/employment` says the user heads a unit today (`headOf`, no permission involved);
+ *   "Présence" needs `attendance.read`, and a user who may only configure gets a link straight to the settings.
+ *
  * Notifications (docs/contracts/notifications.md › Web): the header bell (shell/notification-bell.ts) is rendered only
  * while signed in. Its data — and the live SSE connection — belong to the root `NotificationCenter`, which opens and
  * closes the stream by itself as the Session changes; the shell only decides whether the bell is shown.
  */
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  type ActivatedRouteSnapshot,
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from '@angular/router';
+import { filter, map } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
@@ -36,6 +58,17 @@ import { TasksBadge } from './core/tasks/tasks-badge';
 import { LanguageSwitcher } from './shell/language-switcher';
 import { NotificationBell } from './shell/notification-bell';
 import { UserMenu } from './shell/user-menu';
+
+/** Route `data` key: `chrome: false` hides the header, the nav and the skip link (the kiosk). */
+export const CHROME_DATA_KEY = 'chrome';
+
+/** False when the active route, or one of its parents, has `data: { chrome: false }`. */
+export function chromeOf(root: ActivatedRouteSnapshot): boolean {
+  for (let route: ActivatedRouteSnapshot | null = root; route; route = route.firstChild) {
+    if (route.data[CHROME_DATA_KEY] === false) return false;
+  }
+  return true;
+}
 
 interface NavLink {
   readonly path: string;
@@ -60,6 +93,16 @@ export class App {
   protected readonly session = inject(Session);
   private readonly myEmployment = inject(MyEmployment);
   protected readonly tasks = inject(TasksBadge);
+  private readonly router = inject(Router);
+
+  /** Header, nav and skip link are shown (every route except those with `data: { chrome: false }`). */
+  protected readonly chrome = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map(() => chromeOf(this.router.routerState.snapshot.root)),
+    ),
+    { initialValue: true },
+  );
 
   private readonly navLinks: readonly NavLink[] = [
     { path: '/', labelKey: 'nav.home', exact: true },
@@ -71,10 +114,26 @@ export class App {
       permission: 'document.request_self',
       visible: () => this.myEmployment.linked() === true,
     },
+    {
+      path: '/me/attendance',
+      labelKey: 'nav.myAttendance',
+      exact: false,
+      permission: 'attendance.punch_self',
+      visible: () => this.myEmployment.linked() === true,
+    },
     { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: true },
+    { path: '/me/team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
     { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
     { path: '/leave', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
     { path: '/documents', labelKey: 'nav.documents', exact: false, permission: 'document.read' },
+    { path: '/attendance', labelKey: 'nav.attendance', exact: false, permission: 'attendance.read' },
+    {
+      path: '/attendance/settings',
+      labelKey: 'nav.attendanceSettings',
+      exact: false,
+      permission: 'attendance.configure',
+      visible: () => !this.session.can('attendance.read'),
+    },
     { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     { path: '/access', labelKey: 'nav.access', exact: false, permission: 'access.read' },
     { path: '/settings', labelKey: 'nav.settings', exact: false },

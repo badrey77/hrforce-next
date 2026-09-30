@@ -11,7 +11,8 @@ import { LeaveRepository } from './infra/leave.repository.js';
 /**
  * Leave (docs/contracts/leave.md): configuration (types, holidays, policy), requests approved through the workflow
  * engine (subject `leave_request`), the balance ledger, accruals and the self-service / HR endpoints.
- * Exports {@link LeaveFacts} (read-only request facts + resumption date) for the Documents module's titre de congé.
+ * Exports {@link LeaveFacts} (read-only request facts + resumption date) for the Documents module's titre de congé, and
+ * the holidays and approved / pending requests the Attendance module's daily computation reads.
  */
 @Module({
   imports: [StaffingModule, WorkflowModule],

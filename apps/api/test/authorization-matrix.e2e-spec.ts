@@ -26,6 +26,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { as, BETA_SIGNATORY, COMPANY_B, companyOf, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { DEMO_SIGNATORIES, demoLogoPng, demoPdf, DocumentsClock } from '../src/modules/documents/index.js';
 import { LeaveClock } from '../src/modules/leave/index.js';
+import { DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf, windowOf } from '../src/modules/attendance/index.js';
+import { BETA_KIOSK, kioskCookie, qrToken, scanReceipt } from './support/attendance-fixture.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
@@ -45,6 +47,8 @@ interface Req {
   fields?: Record<string, string>;
   /** the upload's file name (default logo.png) */
   filename?: string;
+  /** extra cookies (kiosk credential, scan receipt), sent with the XSRF cookie on unsafe methods */
+  cookie?: string;
 }
 
 interface RouteSpec {
@@ -148,6 +152,57 @@ const SELF_ROWS = (ok: number): readonly Row[] => [
   ['est', '-', ok], ['agent', '-', ok], // Karim and agent.annaba are linked
   ['ouest', '-', 403], ['acces', '-', 403],
 ];
+
+// ── attendance (docs/contracts/attendance.md › Authorization matrix rows) ──────────────────────────────────────────
+const DEMO_SITE_ALG_CTR = '0190a5d0-0000-7000-8000-000000000202';
+const BETA_SITE = '0190a5d0-0000-7000-8000-000000000b21';
+const ATT_WEEK = weekOf('08:00', '16:30', '12:00', '12:30');
+/** Filled in beforeAll: BETA's schedule / override / assignment, and pools of targets each used once. */
+const ATT = {
+  betaSchedule: '',
+  betaOverride: '',
+  betaAssignment: '',
+  voids: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  overrides: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  assignments: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  kiosks: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+};
+/** Each call takes the next target of the pool (a success changes it for good: void, delete, revoke). */
+const next = (pool: string[]): string => pool.shift() ?? 'pool-exhausted';
+const attDay = (n: number, plus = 0) => new Date(Date.UTC(2031, 0, 1 + n * 2 + plus)).toISOString().slice(0, 10);
+const ATT_READ_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 200], ['ouest', 'est', 404],
+  ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+  ['agent', 'est', 403],
+];
+const ATT_MANAGE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
+  ['est', 'est', ok], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+const ATT_SETTINGS_READ: readonly Row[] = [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 200], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]];
+/** attendance.configure on a resource of the caller's own company (est = company A's, other = BETA's). */
+const ATT_CONFIG_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403],
+  ['beta', 'other', ok], ['beta', 'est', 404],
+];
+/** A creation whose body names a company resource (site, schedule): BETA naming company A's → 422 not_found. */
+const ATT_CREATE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403],
+  ['beta', 'other', ok], ['beta', 'est', 422],
+];
+const ATT_SELF_ROWS = (ok: number): readonly Row[] => [
+  ['agent', '-', ok], ['est', '-', ok], ['chef', '-', ok],
+  ['admin', '-', 409], ['beta', '-', 409], // attendance.punch_self held, no linked employment: attendance-not-linked
+  ['ouest', '-', 403], ['acces', '-', 403],
+];
+const scheduleOf = (t: Target) => (t === 'other' ? ATT.betaSchedule : DEMO_SCHEDULES.agence);
+const kioskOf = (t: Target) => (t === 'other' ? BETA_KIOSK : DEMO_KIOSKS.cne.id);
 
 const READERS: readonly Row[] = [
   ['admin', '-', 200],
@@ -696,6 +751,155 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [...READERS, ['agent', '-', 200], ['chef', '-', 200]],
   },
 
+  // ── attendance: device side and scan (public) ──────────────────────────────────────────────────────────
+  'POST /api/kiosk/pair': {
+    access: 'public',
+    request: (t) => ({ path: '/api/kiosk/pair', body: { code: t === 'est' ? DEMO_PAIRING_CODE : 'ZZZZ-ZZZZ' } }),
+    rows: [['anon', '-', 410], ['anon', 'est', 200]],
+  },
+  'GET /api/kiosk/session': {
+    access: 'public',
+    request: (t) => ({ path: '/api/kiosk/session', ...(t === '-' ? {} : { cookie: kioskCookie(t === 'est' ? DEMO_KIOSKS.cne.id : DEMO_KIOSKS.oran.id) }) }),
+    rows: [['anon', '-', 401], ['anon', 'est', 200], ['anon', 'other', 401]], // other: the revoked Oran kiosk
+  },
+  'GET /api/kiosk/qr': {
+    access: 'public',
+    request: (t) => ({ path: '/api/kiosk/qr', ...(t === '-' ? {} : { cookie: kioskCookie(t === 'est' ? DEMO_KIOSKS.cne.id : DEMO_KIOSKS.oran.id) }) }),
+    rows: [['anon', '-', 401], ['anon', 'est', 200], ['anon', 'other', 401]],
+  },
+  'POST /api/attendance/scan': {
+    access: 'public',
+    request: (t) => ({ path: '/api/attendance/scan', body: { token: t === 'est' ? qrToken(DEMO_KIOSKS.cne.id, windowOf(Date.now())) : 'not-a-token' } }),
+    rows: [['anon', 'est', 200], ['anon', '-', 422]],
+  },
+
+  // ── attendance: self-service and team ──────────────────────────────────────────────────────────────────
+  'POST /api/me/attendance/punches': {
+    access: 'attendance.punch_self',
+    request: () => ({ path: '/api/me/attendance/punches', cookie: scanReceipt(DEMO_KIOSKS.cne.id, Date.now()) }),
+    rows: ATT_SELF_ROWS(201),
+  },
+  'GET /api/me/attendance/days': { access: 'attendance.punch_self', request: () => ({ path: '/api/me/attendance/days' }), rows: ATT_SELF_ROWS(200) },
+  'GET /api/me/team/presence': {
+    access: 'authenticated',
+    request: () => ({ path: '/api/me/team/presence' }),
+    rows: [['chef', '-', 200], ['est', '-', 200], ['agent', '-', 200], ['admin', '-', 200], ['ouest', '-', 200], ['acces', '-', 200], ['beta', '-', 200]],
+  },
+
+  // ── attendance: HR ─────────────────────────────────────────────────────────────────────────────────────
+  'GET /api/attendance/presence': {
+    access: 'attendance.read',
+    request: () => ({ path: '/api/attendance/presence?pageSize=5' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 200], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403], ['chef', '-', 403]],
+  },
+  'GET /api/employees/:id/attendance/days': { access: 'attendance.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/attendance/days` }), rows: ATT_READ_ROWS },
+  'GET /api/employees/:id/attendance/schedule': { access: 'attendance.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/attendance/schedule` }), rows: ATT_READ_ROWS },
+  'POST /api/employees/:id/attendance/punches': {
+    access: 'attendance.manage',
+    request: (t, n) => ({
+      path: `/api/employees/${employeeOf(t)}/attendance/punches`,
+      body: { direction: 'in', date: '2026-09-01', time: `${String(Math.floor((300 + n) / 60) % 24).padStart(2, '0')}:${String((300 + n) % 60).padStart(2, '0')}`, reason: 'Matrice' },
+    }),
+    rows: ATT_MANAGE_ROWS(201),
+  },
+  'POST /api/attendance/punches/:id/void': {
+    access: 'attendance.manage',
+    request: (t) => ({ path: `/api/attendance/punches/${next(ATT.voids[t])}/void`, body: { reason: 'Matrice' } }),
+    rows: ATT_MANAGE_ROWS(200),
+  },
+  'GET /api/attendance/policy': { access: 'attendance.read', request: () => ({ path: '/api/attendance/policy' }), rows: ATT_SETTINGS_READ },
+  'PUT /api/attendance/policy': { access: 'attendance.configure', request: () => ({ path: '/api/attendance/policy', body: { minPunchGapSeconds: 120 } }), rows: CONFIG_ROWS(200) },
+  'GET /api/attendance/schedules': { access: 'attendance.read', request: () => ({ path: '/api/attendance/schedules' }), rows: ATT_SETTINGS_READ },
+  'POST /api/attendance/schedules': {
+    access: 'attendance.configure',
+    request: (_t, n) => ({ path: '/api/attendance/schedules', body: { code: `mx_sched_${n}`, labels: { fr: `Horaire ${n}`, ar: 'توقيت', en: `Schedule ${n}` }, week: ATT_WEEK, toleranceMinutes: 10 } }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PATCH /api/attendance/schedules/:id': {
+    access: 'attendance.configure',
+    request: (t, n) => ({ path: `/api/attendance/schedules/${scheduleOf(t)}`, body: { labels: { fr: `Horaire ${n}`, ar: 'توقيت', en: `Schedule ${n}` } } }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+  'POST /api/attendance/schedules/:id/versions': {
+    access: 'attendance.configure',
+    request: (t, n) => ({ path: `/api/attendance/schedules/${scheduleOf(t)}/versions`, body: { validFrom: attDay(n), week: ATT_WEEK, toleranceMinutes: 5 } }),
+    rows: ATT_CONFIG_ROWS(201),
+  },
+  'GET /api/attendance/schedule-overrides': { access: 'attendance.read', request: () => ({ path: '/api/attendance/schedule-overrides?year=2027' }), rows: ATT_SETTINGS_READ },
+  'POST /api/attendance/schedule-overrides': {
+    access: 'attendance.configure',
+    request: (_t, n) => ({
+      path: '/api/attendance/schedule-overrides',
+      body: { scheduleId: null, labels: { fr: `Période ${n}`, ar: 'فترة', en: `Period ${n}` }, from: attDay(n + 400), to: attDay(n + 400), week: ATT_WEEK, toleranceMinutes: 5, approximate: false },
+    }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PUT /api/attendance/schedule-overrides/:id': {
+    access: 'attendance.configure',
+    request: (t, n) => ({
+      path: `/api/attendance/schedule-overrides/${t === 'other' ? ATT.betaOverride : DEMO_SCHEDULES.ramadan}`,
+      body: {
+        scheduleId: null,
+        labels: { fr: `Ramadan ${n}`, ar: 'رمضان', en: 'Ramadan' },
+        from: t === 'other' ? '2027-06-01' : '2027-02-08',
+        to: t === 'other' ? '2027-06-02' : '2027-03-09',
+        week: weekOf('09:00', '16:00', null, null),
+        toleranceMinutes: 10,
+        approximate: true,
+      },
+    }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+  'DELETE /api/attendance/schedule-overrides/:id': {
+    access: 'attendance.configure',
+    request: (t) => ({ path: `/api/attendance/schedule-overrides/${next(ATT.overrides[t])}` }),
+    rows: ATT_CONFIG_ROWS(204),
+  },
+  'GET /api/attendance/schedule-assignments': { access: 'attendance.read', request: () => ({ path: '/api/attendance/schedule-assignments?at=all' }), rows: ATT_SETTINGS_READ },
+  'POST /api/attendance/schedule-assignments': {
+    access: 'attendance.configure',
+    request: (t, n) => ({
+      path: '/api/attendance/schedule-assignments',
+      body: { scheduleId: scheduleOf(t), target: { kind: 'site', id: t === 'other' ? BETA_SITE : DEMO_SITE_ALG_CTR }, validFrom: attDay(n + 800) },
+    }),
+    rows: ATT_CREATE_ROWS(201),
+  },
+  'POST /api/attendance/schedule-assignments/:id/end': {
+    access: 'attendance.configure',
+    request: (t) => ({ path: `/api/attendance/schedule-assignments/${t === 'other' ? ATT.betaAssignment : DEMO_SCHEDULES.agencyUnit}/end`, body: { validTo: '2035-12-31' } }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+  'DELETE /api/attendance/schedule-assignments/:id': {
+    access: 'attendance.configure',
+    request: (t) => ({ path: `/api/attendance/schedule-assignments/${next(ATT.assignments[t])}` }),
+    rows: ATT_CONFIG_ROWS(204),
+  },
+  'GET /api/attendance/kiosks': {
+    access: 'attendance.configure',
+    request: () => ({ path: '/api/attendance/kiosks' }),
+    rows: [['admin', '-', 200], ['est', '-', 403], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'POST /api/attendance/kiosks': {
+    access: 'attendance.configure',
+    request: (t, n) => ({ path: '/api/attendance/kiosks', body: { siteId: t === 'other' ? BETA_SITE : DEMO_SITE_ALG_CTR, labels: { fr: `Borne ${n}`, ar: 'شاشة' } } }),
+    rows: ATT_CREATE_ROWS(201),
+  },
+  'PATCH /api/attendance/kiosks/:id': {
+    access: 'attendance.configure',
+    request: (t, n) => ({ path: `/api/attendance/kiosks/${kioskOf(t)}`, body: { labels: { fr: `Entrée ${n}`, ar: 'المدخل' } } }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+  'POST /api/attendance/kiosks/:id/pairing-code': {
+    access: 'attendance.configure',
+    request: (t) => ({ path: `/api/attendance/kiosks/${kioskOf(t)}/pairing-code` }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+  'POST /api/attendance/kiosks/:id/revoke': {
+    access: 'attendance.configure',
+    request: (t) => ({ path: `/api/attendance/kiosks/${next(ATT.kiosks[t])}/revoke`, body: { reason: 'Matrice' } }),
+    rows: ATT_CONFIG_ROWS(200),
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
     // @Authenticated: audit.read is checked by the handler for every subject type except leave_request (own visibility)
@@ -736,7 +940,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    fx = await seedAccessFixture(db, undefined, { leave: true, documents: true });
+    fx = await seedAccessFixture(db, undefined, { leave: true, documents: true, attendance: true });
     const pinned = { today: () => '2026-09-26' };
     app = await createTestApp(db, {
       devAuth: true,
@@ -808,6 +1012,52 @@ describe('Authorization matrix (e2e, real grants)', () => {
     FILE.delOuest = await put('admin', 'ouest', 'delete ouest');
     FILE.delOther = await put('beta', 'other', 'delete other');
     expect(Object.values(FILE).every((v) => v !== ''), JSON.stringify(FILE)).toBe(true);
+    // attendance: BETA's schedule, an override and an assignment; pools of punches to void, overrides and future
+    // assignments to delete, kiosks to revoke (each success consumes its target)
+    ATT.betaSchedule = (await query<{ id: string }>(db.superuserUrl, `select id from attendance_schedule where company_id = $1 and code = 'standard'`, [COMPANY_B]))[0]?.id ?? '';
+    const override = async (company: string, from: string) =>
+      (
+        await query<{ id: string }>(
+          db.superuserUrl,
+          `insert into attendance_schedule_override (company_id, name_fr, name_ar, name_en, dates, week, tolerance_minutes)
+           values ($1, 'Matrice', 'مصفوفة', 'Matrix', daterange($2::date, $2::date + 1, '[)'), $3::jsonb, 5) returning id`,
+          [company, from, JSON.stringify(ATT_WEEK)],
+        )
+      )[0]?.id ?? '';
+    const assignment = async (company: string, schedule: string, site: string, from: string) =>
+      (
+        await query<{ id: string }>(
+          db.superuserUrl,
+          `insert into attendance_schedule_assignment (company_id, schedule_id, target_kind, site_id, valid)
+           values ($1, $2, 'site', $3, daterange($4::date, $4::date + 1, '[)')) returning id`,
+          [company, schedule, site, from],
+        )
+      )[0]?.id ?? '';
+    const kiosk = async (company: string, site: string, k: number) =>
+      (await query<{ id: string }>(db.superuserUrl, `insert into attendance_device (company_id, site_id, name_fr, name_ar) values ($1, $2, $3, 'شاشة') returning id`, [company, site, `Borne pool ${k}`]))[0]?.id ?? '';
+    const punch = async (company: string, employmentId: string, k: number) =>
+      (
+        await query<{ id: string }>(
+          db.superuserUrl,
+          `insert into attendance_punch (company_id, employment_id, direction, occurred_at, source, reason)
+           values ($1, $2, 'in', $3, 'manual', 'Matrice') returning id`,
+          [company, employmentId, new Date(Date.UTC(2026, 8, 2, 6, k))],
+        )
+      )[0]?.id ?? '';
+    ATT.betaOverride = await override(COMPANY_B, '2027-06-01');
+    ATT.betaAssignment = await assignment(COMPANY_B, ATT.betaSchedule, BETA_SITE, '2035-01-01');
+    for (let k = 0; k < 8; k++) {
+      ATT.voids.est.push(await punch(unitCompany, employeeA(27), k));
+      ATT.voids.ouest.push(await punch(unitCompany, employeeA(36), k));
+      ATT.voids.other.push(await punch(COMPANY_B, EMPLOYEE_B.employmentId, k));
+      ATT.overrides.est.push(await override(unitCompany, `2033-0${1 + Math.floor(k / 4)}-${String(1 + (k % 4) * 3).padStart(2, '0')}`));
+      ATT.overrides.other.push(await override(COMPANY_B, `2033-0${1 + Math.floor(k / 4)}-${String(1 + (k % 4) * 3).padStart(2, '0')}`));
+      ATT.assignments.est.push(await assignment(unitCompany, DEMO_SCHEDULES.agence, '0190a5d0-0000-7000-8000-000000000203', `2037-01-${String(1 + k * 3).padStart(2, '0')}`));
+      ATT.assignments.other.push(await assignment(COMPANY_B, ATT.betaSchedule, BETA_SITE, `2037-01-${String(1 + k * 3).padStart(2, '0')}`));
+      ATT.kiosks.est.push(await kiosk(unitCompany, DEMO_SITE_ALG_CTR, k));
+      ATT.kiosks.other.push(await kiosk(COMPANY_B, BETA_SITE, k));
+    }
+    expect([ATT.betaSchedule, ATT.betaOverride, ATT.betaAssignment].every((v) => v !== ''), JSON.stringify(ATT)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();
@@ -862,6 +1112,7 @@ describe('Authorization matrix (e2e, real grants)', () => {
               : client.patch(req.path);
     let multipart = call;
     for (const [k, v] of Object.entries(req.fields ?? {})) multipart = multipart.field(k, v);
+    if (req.cookie) call.set('Cookie', method === 'GET' ? req.cookie : `${xsrf.cookie}; ${req.cookie}`);
     const res = req.upload ? await multipart.attach('file', req.upload, req.filename ?? 'logo.png') : req.body ? await call.send(req.body) : await call;
     expect(res.status, `${key} as ${actor} on ${target}: ${JSON.stringify(res.body)}`).toBe(status);
   });

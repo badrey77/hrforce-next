@@ -1,0 +1,72 @@
+<!-- presence-table.ts: a table on a desktop, cards on a phone (presence-table.css). -->
+<ng-container *transloco="let t">
+  <div class="table-scroll">
+    <table class="data presence" role="table" data-table="presence">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th scope="col" role="columnheader">{{ t('attendance.columns.employee') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.unit') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.schedule') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.arrival') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.departure') }}</th>
+          <th scope="col" role="columnheader" class="num">{{ t('attendance.columns.late') }}</th>
+          <th scope="col" role="columnheader" class="num">{{ t('attendance.columns.worked') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.status') }}</th>
+          <th scope="col" role="columnheader">{{ t('attendance.columns.flags') }}</th>
+        </tr>
+      </thead>
+      <tbody role="rowgroup">
+        @for (day of items(); track day.employee.id) {
+          <tr role="row" [attr.data-employee]="day.employee.id" [attr.data-status]="day.status">
+            <td role="cell" class="who" [attr.data-label]="t('attendance.columns.employee')">
+              @if (linkEmployees()) {
+                <a [routerLink]="['/employees', day.employee.id]" [queryParams]="{ tab: 'attendance', date: day.date }"><bdi>{{ day.employee.person | displayName: lang() }}</bdi></a>
+              } @else {
+                <bdi>{{ day.employee.person | displayName: lang() }}</bdi>
+              }
+              <span class="code muted"> {{ day.employee.matricule }}</span>
+            </td>
+            <td role="cell" [attr.data-label]="t('attendance.columns.unit')"><bdi>{{ day.employee.unit | displayName: lang() }}</bdi></td>
+            <td role="cell" [attr.data-label]="t('attendance.columns.schedule')">
+              @if (day.schedule; as s) {
+                @if (s.expectedStart && s.expectedEnd) {
+                  <span class="nowrap" dir="ltr">{{ s.expectedStart }}–{{ s.expectedEnd }}</span>
+                } @else {
+                  <span class="muted">{{ t('attendance.board.noHours') }}</span>
+                }
+                <span class="field-hint schedule-name"> {{ label(s.override?.labels ?? s.labels) }}</span>
+              } @else {
+                —
+              }
+            </td>
+            <td role="cell" class="nowrap" [attr.data-label]="t('attendance.columns.arrival')">
+              <time>{{ day.arrival?.localTime ?? '—' }}</time>
+            </td>
+            <td role="cell" class="nowrap" [attr.data-label]="t('attendance.columns.departure')">
+              <time>{{ day.departure?.localTime ?? '—' }}</time>
+            </td>
+            <td role="cell" class="num nowrap" [attr.data-label]="t('attendance.columns.late')">
+              {{ day.lateMinutes ? (day.lateMinutes | minutes: lang()) : '—' }}
+            </td>
+            <td role="cell" class="num nowrap" [attr.data-label]="t('attendance.columns.worked')">
+              {{ day.workedMinutes ? (day.workedMinutes | minutes: lang()) : '—' }}
+            </td>
+            <td role="cell" [attr.data-label]="t('attendance.columns.status')">
+              <app-day-status [status]="day.status" />
+              @if (day.leave; as leave) {
+                <span class="field-hint"> {{ label(leave.type.labels) }}</span>
+              } @else if (day.holiday; as holiday) {
+                <span class="field-hint"> {{ label(holiday.labels) }}</span>
+              }
+            </td>
+            <td role="cell" [attr.data-label]="t('attendance.columns.flags')">
+              @if (day.flags.length) {
+                <app-day-flags [flags]="day.flags" />
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</ng-container>

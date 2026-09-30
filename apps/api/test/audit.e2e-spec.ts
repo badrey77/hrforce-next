@@ -9,10 +9,12 @@ import { fileURLToPath } from 'node:url';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type request from 'supertest';
+import request from 'supertest';
 import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
 import { DEMO_SIGNATORIES, demoPdf } from '../src/modules/documents/index.js';
+import { DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf } from '../src/modules/attendance/index.js';
+import { scanReceipt } from './support/attendance-fixture.js';
 import { as, COMPANY_A, EMPLOYEE_B, employeeA, GRANTS, seedAccessFixture, unitA, unitB, USERS, type AccessFixture, type ActorName } from './support/access-fixture.js';
 import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
@@ -62,7 +64,9 @@ const M1_TABLES = [
   'role', 'role_grant', 'role_permission', 'site',
 ];
 const AUDITED_TABLES = [
-  'assignment', 'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
+  'assignment',
+  'attendance_device', 'attendance_policy', 'attendance_schedule', 'attendance_schedule_assignment', 'attendance_schedule_override', 'attendance_schedule_version',
+  'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
   'employment', 'employment_salary',
   'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
@@ -120,7 +124,7 @@ async function timeline(actor: ActorName, subject: string, extra = ''): Promise<
 
 beforeAll(async () => {
   db = await createTestDatabase();
-  fx = await seedAccessFixture(db, undefined, { leave: true, documents: true });
+  fx = await seedAccessFixture(db, undefined, { leave: true, documents: true, attendance: true });
   app = await createTestApp(db, { devAuth: true, devPermissions: false, overrides: [{ provide: MfaClock, useValue: { nowMs: () => mfaClock.now } }] });
   xsrf = await fetchXsrf(app);
 });
@@ -336,9 +340,17 @@ describe('capture (direct SQL as the migrator: actor and request id null)', () =
 });
 
 // ---------------------------------------------------------------------------------------------------------------
+/** One write with its own request id; asserts success. */
+async function runWrite(key: string, send: (requestId: string) => request.Test): Promise<{ requestId: string; res: request.Response }> {
+  const requestId = rid('att');
+  const res = await send(requestId);
+  expect(res.status, `${key}: ${JSON.stringify(res.body)}`).toBeLessThan(300);
+  return { requestId, res };
+}
+
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
   /** POST routes that write nothing (a read with a body). */
-  const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview'];
+  const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview', 'POST /api/attendance/scan'];
   /**
    * Writes to an AUDIT-EXEMPT table only (tools/guardrails/audit-exempt.json): marking one's own notifications read
    * changes notification.read_at — per-user UI state of derived rows whose source events are audited. No audit row
@@ -357,7 +369,19 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/access/users/:id/mfa/reset': 'auth.mfa_reset',
   };
   const PENDING_ONLY_WRITES = ['POST /api/me/mfa/enroll/start'];
-  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '' };
+  /**
+   * Attendance punches (docs/contracts/attendance.md › Audit, owner decision 2026-09-29): audited as EVENTS without the
+   * personal payload (trigger audit.capture_punch_event(), no change_log row); the kiosk pairing (public, no user):
+   * the attendance_device update with actor null + attendance.device_paired. Asserted below.
+   */
+  const ATTENDANCE_EVENT_WRITES: Record<string, string> = {
+    'POST /api/me/attendance/punches': 'attendance.punch_recorded',
+    'POST /api/employees/:id/attendance/punches': 'attendance.punch_recorded',
+    'POST /api/attendance/punches/:id/void': 'attendance.punch_voided',
+    'POST /api/kiosk/pair': 'attendance.device_paired',
+  };
+  const WEEK = weekOf('08:00', '16:30', '12:00', '12:30');
+  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '', overrideToDelete: '', assignmentToDelete: '', kioskToRevoke: '' };
 
   beforeAll(async () => {
     const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
@@ -391,6 +415,16 @@ describe('exit criterion: every write through the API produces an audit row with
       await client('admin').post(`/api/employees/${employeeA(27)}/files`).field('categoryId', LV.diploma).field('title', 'À supprimer')
         .attach('file', demoPdf('TEST DATA - audit delete'), 'delete.pdf').expect(201)
     ).body.id;
+    // attendance: an override and a future assignment to delete, a kiosk to revoke
+    LV.overrideToDelete = (
+      await client('admin').post('/api/attendance/schedule-overrides').send({ scheduleId: null, labels: { fr: 'Supprimer', ar: 'حذف', en: 'Delete' }, from: '2029-08-01', to: '2029-08-02', week: WEEK, toleranceMinutes: 5, approximate: false }).expect(201)
+    ).body.id;
+    LV.assignmentToDelete = (
+      await client('admin').post('/api/attendance/schedule-assignments').send({ scheduleId: DEMO_SCHEDULES.agence, target: { kind: 'site', id: '0190a5d0-0000-7000-8000-000000000203' }, validFrom: '2029-06-01' }).expect(201)
+    ).body.id;
+    LV.kioskToRevoke = (
+      await client('admin').post('/api/attendance/kiosks').send({ siteId: '0190a5d0-0000-7000-8000-000000000203', labels: { fr: 'Blida — Entrée', ar: 'البليدة — المدخل' } }).expect(201)
+    ).body.kiosk.id;
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
   });
 
@@ -539,6 +573,50 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: `/api/employees/${employeeA(27)}/files/${LV.fileToDelete}/delete`, body: { reason: 'Pièce erronée' } }),
       tables: ['employee_file'],
     },
+    'PUT /api/attendance/policy': { request: () => ({ path: '/api/attendance/policy', body: { retentionMonths: 72 } }), tables: ['attendance_policy'] },
+    'POST /api/attendance/schedules': {
+      request: () => ({ path: '/api/attendance/schedules', body: { code: 'aud_sched', labels: { fr: 'Audit', ar: 'تدقيق', en: 'Audit' }, week: WEEK, toleranceMinutes: 10 } }),
+      tables: ['attendance_schedule', 'attendance_schedule_version'],
+    },
+    'PATCH /api/attendance/schedules/:id': {
+      request: () => ({ path: `/api/attendance/schedules/${DEMO_SCHEDULES.agence}`, body: { labels: { fr: 'Agence (audit)', ar: 'الوكالة', en: 'Agency' } } }),
+      tables: ['attendance_schedule'],
+    },
+    'POST /api/attendance/schedules/:id/versions': {
+      request: () => ({ path: `/api/attendance/schedules/${DEMO_SCHEDULES.agence}/versions`, body: { validFrom: '2029-01-01', week: WEEK, toleranceMinutes: 5 } }),
+      tables: ['attendance_schedule_version'],
+    },
+    'POST /api/attendance/schedule-overrides': {
+      request: () => ({ path: '/api/attendance/schedule-overrides', body: { scheduleId: null, labels: { fr: 'Audit', ar: 'تدقيق', en: 'Audit' }, from: '2029-05-01', to: '2029-05-02', week: WEEK, toleranceMinutes: 5, approximate: false } }),
+      tables: ['attendance_schedule_override'],
+    },
+    'PUT /api/attendance/schedule-overrides/:id': {
+      request: () => ({
+        path: `/api/attendance/schedule-overrides/${DEMO_SCHEDULES.ramadan}`,
+        body: { scheduleId: null, labels: { fr: 'Ramadan 1448', ar: 'رمضان 1448', en: 'Ramadan 1448' }, from: '2027-02-08', to: '2027-03-09', week: weekOf('09:00', '16:00', null, null), toleranceMinutes: 15, approximate: true },
+      }),
+      tables: ['attendance_schedule_override'],
+    },
+    'DELETE /api/attendance/schedule-overrides/:id': { request: () => ({ path: `/api/attendance/schedule-overrides/${LV.overrideToDelete}`, body: {} }), tables: ['attendance_schedule_override'] },
+    'POST /api/attendance/schedule-assignments': {
+      request: () => ({ path: '/api/attendance/schedule-assignments', body: { scheduleId: DEMO_SCHEDULES.agence, target: { kind: 'site', id: '0190a5d0-0000-7000-8000-000000000202' }, validFrom: '2029-01-01' } }),
+      tables: ['attendance_schedule_assignment'],
+    },
+    'POST /api/attendance/schedule-assignments/:id/end': {
+      request: () => ({ path: `/api/attendance/schedule-assignments/${DEMO_SCHEDULES.agencyUnit}/end`, body: { validTo: '2029-12-31' } }),
+      tables: ['attendance_schedule_assignment'],
+    },
+    'DELETE /api/attendance/schedule-assignments/:id': { request: () => ({ path: `/api/attendance/schedule-assignments/${LV.assignmentToDelete}`, body: {} }), tables: ['attendance_schedule_assignment'] },
+    'POST /api/attendance/kiosks': {
+      request: () => ({ path: '/api/attendance/kiosks', body: { siteId: '0190a5d0-0000-7000-8000-000000000202', labels: { fr: 'Alger Centre — Entrée', ar: 'الجزائر الوسطى — المدخل' } } }),
+      tables: ['attendance_device'],
+    },
+    'PATCH /api/attendance/kiosks/:id': {
+      request: () => ({ path: `/api/attendance/kiosks/${DEMO_KIOSKS.cne.id}`, body: { labels: { fr: 'Constantine — Porte A', ar: 'قسنطينة — الباب أ' } } }),
+      tables: ['attendance_device'],
+    },
+    'POST /api/attendance/kiosks/:id/pairing-code': { request: () => ({ path: `/api/attendance/kiosks/${DEMO_KIOSKS.cne.id}/pairing-code`, body: {} }), tables: ['attendance_device'] },
+    'POST /api/attendance/kiosks/:id/revoke': { request: () => ({ path: `/api/attendance/kiosks/${LV.kioskToRevoke}/revoke`, body: { reason: 'Audit' } }), tables: ['attendance_device'] },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -552,7 +630,44 @@ describe('exit criterion: every write through the API produces an audit row with
       .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
       .map((r) => `${r.method} ${r.path}`)
       .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key) && !PENDING_ONLY_WRITES.includes(key));
-    expect([...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES)].toSorted()).toEqual(writes.toSorted());
+    expect([...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES), ...Object.keys(ATTENDANCE_EVENT_WRITES)].toSorted()).toEqual(writes.toSorted());
+  });
+
+  it('attendance punches are audited as events without the personal payload; the kiosk pairing writes a device row (actor null) and its event', async () => {
+    const manual = await runWrite('POST /api/employees/:id/attendance/punches', (id) =>
+      client('admin').post(`/api/employees/${employeeA(27)}/attendance/punches`).set('X-Request-Id', id).send({ direction: 'in', date: '2026-09-01', time: '07:31', reason: 'Réseau coupé' }),
+    );
+    const voided = await runWrite('POST /api/attendance/punches/:id/void', (id) =>
+      client('admin').post(`/api/attendance/punches/${manual.res.body.id}/void`).set('X-Request-Id', id).send({ reason: 'Erreur' }),
+    );
+    // rh.admin is linked to EMP-0002 in this suite
+    const mine = await runWrite('POST /api/me/attendance/punches', (id) =>
+      request(app.getHttpServer())
+        .post('/api/me/attendance/punches')
+        .set('X-Dev-User-Id', USERS.admin.id)
+        .set('X-Dev-Company-Id', COMPANY_A)
+        .set('Cookie', `${xsrf.cookie}; ${scanReceipt(DEMO_KIOSKS.cne.id, Date.now())}`)
+        .set('X-XSRF-TOKEN', xsrf.token)
+        .set('X-Request-Id', id),
+    );
+    for (const [key, r, actor] of [
+      ['POST /api/employees/:id/attendance/punches', manual, USERS.admin.id],
+      ['POST /api/attendance/punches/:id/void', voided, USERS.admin.id],
+      ['POST /api/me/attendance/punches', mine, null],
+    ] as const) {
+      expect(await changes('request_id = $1', [r.requestId]), key).toEqual([]);
+      const rows = await events('request_id = $1', [r.requestId]);
+      expect(rows.map((e) => e.type), key).toEqual([ATTENDANCE_EVENT_WRITES[key]]);
+      expect(rows[0]).toMatchObject({ company_id: COMPANY_A, actor_user_id: actor, subject_type: 'attendance_punch' });
+      expect(Object.keys(rows[0]?.data ?? {}).every((k) => k === 'source' || k === 'direction'), key).toBe(true);
+    }
+    const pair = await runWrite('POST /api/kiosk/pair', (id) =>
+      request(app.getHttpServer()).post('/api/kiosk/pair').set('Cookie', xsrf.cookie).set('X-XSRF-TOKEN', xsrf.token).set('X-Request-Id', id).send({ code: DEMO_PAIRING_CODE }),
+    );
+    const rows = await changes('request_id = $1', [pair.requestId]);
+    expect(rows.map((r) => [r.table_name, r.op, r.actor_user_id])).toEqual([['attendance_device', 'update', null]]);
+    expect(rows[0]?.after?.['credential_hash']).toBe('***');
+    expect((await events('request_id = $1', [pair.requestId])).map((e) => e.type)).toEqual([ATTENDANCE_EVENT_WRITES['POST /api/kiosk/pair']]);
   });
 
   it('two-step sign-in writes (auth schema only) each record their application event in the request transaction', async () => {

@@ -3,7 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { App } from './app';
+import type { ActivatedRouteSnapshot } from '@angular/router';
+import { App, chromeOf } from './app';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
 import { NotificationCenter } from './core/notifications/notification-center';
@@ -13,6 +14,7 @@ import { LanguageService } from './core/i18n/language.service';
 import { ME_FIXTURE, ME_LECTURE, meWith } from '../testing/auth-fixtures';
 import { translocoTesting } from '../testing/transloco-testing';
 
+const route = (data: object, firstChild: unknown = null) => ({ data, firstChild }) as unknown as ActivatedRouteSnapshot;
 const links = (el: HTMLElement) => [...el.querySelectorAll('nav a')].map((a) => a.getAttribute('href'));
 
 /** What the root stores ask for once signed in: open tasks, leave types, the linked employment, notifications. */
@@ -83,6 +85,19 @@ describe('App shell', () => {
       imports: [App, translocoTesting()],
       providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
+  });
+
+  it('attendance nav: Pointage when linked, Mon équipe when heading a unit, Présence or its settings by permission', async () => {
+    answers = { employment: { id: 'e-1', matricule: 'EMP-1', person: { lastName: 'A', firstName: 'B', lastNameAr: null, firstNameAr: null }, unit: { id: 'u', code: 'U', name: 'U', nameAr: null, kind: 'agency' }, jobTitle: 'x', hireDate: '2024-01-01', headOf: [{ id: 'u', code: 'U', name: 'U', nameAr: null, kind: 'agency' }] } };
+    TestBed.inject(Session).set(meWith(['attendance.punch_self', 'attendance.configure']));
+    const { el } = await render();
+    expect(links(el)).toEqual(expect.arrayContaining(['/me/attendance', '/me/team', '/attendance/settings']));
+    expect(links(el)).not.toContain('/attendance');
+  });
+
+  it('chromeOf: false when the active route or a parent has data.chrome === false', () => {
+    expect(chromeOf(route({}, route({ chrome: false })))).toBe(false);
+    expect(chromeOf(route({}, route({})))).toBe(true);
   });
 
   it('hides the nav and the user menu when signed out', async () => {

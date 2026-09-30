@@ -1,17 +1,20 @@
 <ng-container *transloco="let t">
-  <a class="skip-link" href="#main">{{ t('app.skipToContent') }}</a>
-  <header class="header">
-    <a class="brand" routerLink="/">{{ t('app.title') }}</a>
-    <div class="header-tools">
-      @if (session.isAuthenticated()) {
-        <app-notification-bell />
-      }
-      <app-user-menu />
-      <app-language-switcher />
-    </div>
-  </header>
+  <!-- `chrome()`: false on the kiosk route (data: { chrome: false }), which owns the whole screen. -->
+  @if (chrome()) {
+    <a class="skip-link" href="#main">{{ t('app.skipToContent') }}</a>
+    <header class="header">
+      <a class="brand" routerLink="/">{{ t('app.title') }}</a>
+      <div class="header-tools">
+        @if (session.isAuthenticated()) {
+          <app-notification-bell />
+        }
+        <app-user-menu />
+        <app-language-switcher />
+      </div>
+    </header>
+  }
   <div class="layout">
-    @if (session.isAuthenticated()) {
+    @if (chrome() && session.isAuthenticated()) {
       <nav class="sidenav" [attr.aria-label]="t('nav.label')">
         <ul>
           @for (link of visibleLinks(); track link.path) {
@@ -36,7 +39,7 @@
         </p>
       </nav>
     }
-    <main id="main" class="content" tabindex="-1">
+    <main id="main" class="content" [class.bare]="!chrome()" tabindex="-1">
       <router-outlet />
     </main>
   </div>

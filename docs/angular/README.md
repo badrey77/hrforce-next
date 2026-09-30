@@ -87,6 +87,13 @@ the files it discusses, so you can jump straight to the source.
     bound to, drag and drop, client-side checks as a courtesy, `<progress>` + `[attr.value]`, `<details>` groups,
     confirm-before-delete, a size pipe over `Intl.NumberFormat`, testing uploads.
 
+20. [20-kiosks-timers-canvas-and-the-punch-flow.md](./20-kiosks-timers-canvas-and-the-punch-flow.md) — Attendance: a
+    route without the app chrome (route `data` read by the root component), timers owned by a component with
+    `DestroyRef` cleanup, a clock corrected against the server, drawing on a `<canvas>` with `viewChild` +
+    `afterRenderEffect`, visibility/online/Wake Lock/Fullscreen behind services, two translation languages on one
+    screen, reading and clearing the URL fragment, a flow that survives a sign-in redirect, the web app manifest,
+    testing time.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen.
 
 ## Concept → chapter → file index
@@ -313,3 +320,20 @@ Concepts not yet in this codebase (`NgModule`, zone-based apps, the `@ViewChild`
 decorator (the signal `viewChild()` is used instead), multi-slot projection with
 `<ng-content select="…">`) are intentionally left out — this guide only
 teaches what the code actually uses, and grows as the code does (see `CLAUDE.md`).
+| Route `data` read by the root component (`chrome: false`), `NavigationEnd` → `toSignal` | 20, 05 | `src/app/app.ts` (`chromeOf`), `src/app/app.routes.ts` |
+| Timers (`setInterval`/`setTimeout`) writing a signal, one `DestroyRef.onDestroy` cleanup, `takeUntilDestroyed(destroyRef)` on HTTP | 20, 16 | `src/app/features/kiosk/kiosk.page.ts` |
+| Clock corrected against `serverTime`; time rules as pure functions | 20 | `src/app/features/kiosk/kiosk-clock.ts` |
+| Canvas drawing with `viewChild.required` + `afterRenderEffect`; `host: {'(window:resize)'}` | 20, 16 | `src/app/features/kiosk/qr-canvas.ts` |
+| Browser events as state (signals) AND events (Observables) in a root service | 20, 16 | `src/app/core/browser/page-activity.ts` |
+| Screen Wake Lock + Fullscreen behind a component-scoped service (user gesture, re-acquire on visibility) | 20, 18 | `src/app/core/browser/screen-wake.ts` |
+| `*transloco="let fr; lang: 'fr'"` — a second language on one screen; `<ng-template>` + `*ngTemplateOutlet` | 20, 08 | `src/app/features/kiosk/kiosk.page.html` |
+| URL fragment: `snapshot.fragment`, dropped with `router.navigate([], { replaceUrl: true })` | 20, 05 | `src/app/features/punch/punch.page.ts` |
+| A flow that survives a sign-in redirect (server-side receipt + `returnUrl`) | 20, 11 | `src/app/features/punch/punch.page.ts`, `src/app/features/auth/login.page.ts` |
+| Periodic refresh only while visible (`interval()` + `visible()`) | 20, 15 | `src/app/features/attendance/presence-board.page.ts` |
+| Aliased input (`input(undefined, { alias: 'tab' })`) for a query-param entry point | 20, 14 | `src/app/features/employees/employee-detail.page.ts`, `presence-board.page.ts` |
+| One table markup that becomes cards on a phone (`data-label`, explicit ARIA roles) | 20 | `src/app/shared/attendance/presence-table.ts` |
+| `FormArray` of typed day groups passed to a child editor; validators reusing domain rules | 20, 07 | `src/app/features/attendance/week-form.ts`, `week-editor.ts` |
+| One control shared by several pickers (`setValidators` on kind change) | 20, 07 | `src/app/features/attendance/assignments-settings.ts` |
+| Countdown signal fed by `setInterval` (one-time pairing code) | 20 | `src/app/features/attendance/kiosks-settings.ts` |
+| Web app manifest, icons, no service worker | 20 | `public/manifest.webmanifest`, `src/index.html` |
+| Fake timers + an `InjectionToken` spy for `location.reload()` | 20, 09 | `src/app/features/kiosk/kiosk.page.spec.ts` |

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEV_MFA_KEY, isMfaKey, migratorEnvSchema, workerEnvSchema } from './env.schema.js';
+import { DEV_ATTENDANCE_KEY, DEV_MFA_KEY, isMfaKey, migratorEnvSchema, workerEnvSchema } from './env.schema.js';
 import { EnvValidationError, loadEnv, parseEnv } from './load-env.js';
 
 const valid = {
@@ -10,6 +10,7 @@ const valid = {
   WEB_BASE_URL: 'https://hr.example.dz',
   SMTP_URL: 'smtp://mail.example.dz:587',
   AUTH_MFA_KEY: Buffer.alloc(32, 7).toString('base64'),
+  ATTENDANCE_KEY: Buffer.alloc(32, 9).toString('base64'),
 };
 const dev = { ...valid, NODE_ENV: 'development' };
 
@@ -24,6 +25,18 @@ describe('loadEnv', () => {
     expect(loadEnv(valid).AUTH_MFA_KEY).toBe(valid.AUTH_MFA_KEY);
     expect(loadEnv({ ...withoutKey, NODE_ENV: 'development' }).AUTH_MFA_KEY).toBeUndefined();
     expect(isMfaKey(DEV_MFA_KEY)).toBe(true);
+  });
+
+  it('ATTENDANCE_KEY: base64 of exactly 32 bytes; required in production (not the dev key); optional in development/test', () => {
+    const { ATTENDANCE_KEY: _key, ...withoutKey } = valid;
+    expect(() => loadEnv(withoutKey)).toThrow(/ATTENDANCE_KEY: is required when NODE_ENV is production/);
+    expect(() => loadEnv({ ...valid, ATTENDANCE_KEY: DEV_ATTENDANCE_KEY })).toThrow(/ATTENDANCE_KEY: must not be the public development key/);
+    for (const bad of [Buffer.alloc(31).toString('base64'), Buffer.alloc(33).toString('base64'), 'x'.repeat(44)]) {
+      expect(() => loadEnv({ ...valid, ATTENDANCE_KEY: bad })).toThrow(/ATTENDANCE_KEY: must be the base64 encoding of exactly 32 bytes/);
+    }
+    expect(loadEnv(valid).ATTENDANCE_KEY).toBe(valid.ATTENDANCE_KEY);
+    expect(loadEnv({ ...withoutKey, NODE_ENV: 'development' }).ATTENDANCE_KEY).toBeUndefined();
+    expect(isMfaKey(DEV_ATTENDANCE_KEY)).toBe(true);
   });
 
   it('applies defaults to a minimal valid environment', () => {

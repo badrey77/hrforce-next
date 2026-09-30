@@ -72,9 +72,10 @@ describe('system roles', () => {
       'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust',
       'document.read', 'document.issue',
       'employee_file.read', 'employee_file.upload',
+      'attendance.read', 'attendance.manage',
     ]);
-    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self']);
-    expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read']);
+    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self', 'attendance.punch_self']);
+    expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'attendance.read']);
     expect(byCode.get('admin_acces')?.permissions).toEqual(['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read']);
     for (const role of SYSTEM_ROLES) {
       expect(role.code).toMatch(ROLE_CODE_PATTERN);

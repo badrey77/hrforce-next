@@ -47,6 +47,9 @@ describe('app routes: refused URLs show the 404 page', () => {
     '/me/documents',
     '/employees/new',
     '/employees/e-1/rehire',
+    '/attendance',
+    '/attendance/settings',
+    '/me/attendance',
   ])('%s without its permission', async (url) => {
     const harness = await open(ME_LECTURE, url);
 
@@ -62,6 +65,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/leave/settings', ['leave.read']],
     ['/documents/settings', ['document.read', 'document.issue']],
     ['/documents/a/b', ['document.read']],
+    ['/attendance', ['attendance.configure']],
+    ['/attendance/settings', ['attendance.read']],
   ])('%s with only %j', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
@@ -72,10 +77,26 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/documents', ['document.read']],
     ['/leave', ['leave.read']],
     ['/leave/settings', ['leave.configure']],
+    ['/attendance', ['attendance.read']],
+    ['/attendance/settings', ['attendance.configure']],
+    ['/me/team', []],
   ])('%s with %j opens the page', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
     expect(harness.routeNativeElement).not.toBeNull();
     expect(heading(harness)).not.toBe('404');
+  });
+});
+
+describe('app routes: the entrance kiosk', () => {
+  it('opens signed out (no guard, no /login redirect) and is not the 404 page', async () => {
+    TestBed.configureTestingModule({
+      imports: [translocoTesting()],
+      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/kiosk');
+    expect(TestBed.inject(Router).url).toBe('/kiosk');
+    expect(harness.routeNativeElement?.querySelector('app-kiosk-page, .kiosk')).not.toBeNull();
   });
 });

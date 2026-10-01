@@ -38,10 +38,17 @@ module.exports = {
       },
     },
     {
+      name: 'sso-demo-standalone',
+      comment: 'The demo relying party (apps/sso-demo, docs/contracts/sso.md) is a separate app: it talks to HRForce over OIDC only and must not import the API or the web code.',
+      severity: 'error',
+      from: { path: '^apps/sso-demo/src/' },
+      to: { path: '^apps/(api|web)/' },
+    },
+    {
       name: 'no-circular',
       comment: 'No circular dependencies (rule 4).',
       severity: 'error',
-      from: { path: '^apps/(api|web)/src/' },
+      from: { path: '^apps/(api|web|sso-demo)/src/' },
       to: { circular: true },
     },
     {
@@ -69,7 +76,7 @@ module.exports = {
       name: 'not-to-unresolvable',
       comment: 'Relative imports must resolve (otherwise the rules above cannot see them).',
       severity: 'error',
-      from: { path: '^apps/(api|web)/src/' },
+      from: { path: '^apps/(api|web|sso-demo)/src/' },
       to: { couldNotResolve: true, path: '^\\.' },
     },
   ],

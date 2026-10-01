@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEV_ATTENDANCE_KEY, DEV_MFA_KEY, isMfaKey, migratorEnvSchema, workerEnvSchema } from './env.schema.js';
+import { DEV_ATTENDANCE_KEY, DEV_MFA_KEY, DEV_OIDC_KEY, isMfaKey, migratorEnvSchema, workerEnvSchema } from './env.schema.js';
 import { EnvValidationError, loadEnv, parseEnv } from './load-env.js';
 
 const valid = {
@@ -11,6 +11,7 @@ const valid = {
   SMTP_URL: 'smtp://mail.example.dz:587',
   AUTH_MFA_KEY: Buffer.alloc(32, 7).toString('base64'),
   ATTENDANCE_KEY: Buffer.alloc(32, 9).toString('base64'),
+  OIDC_KEY: Buffer.alloc(32, 11).toString('base64'),
 };
 const dev = { ...valid, NODE_ENV: 'development' };
 
@@ -37,6 +38,20 @@ describe('loadEnv', () => {
     expect(loadEnv(valid).ATTENDANCE_KEY).toBe(valid.ATTENDANCE_KEY);
     expect(loadEnv({ ...withoutKey, NODE_ENV: 'development' }).ATTENDANCE_KEY).toBeUndefined();
     expect(isMfaKey(DEV_ATTENDANCE_KEY)).toBe(true);
+  });
+
+  it('OIDC_KEY: base64 of exactly 32 bytes; required in production (not the dev key, not another key); optional in development/test', () => {
+    const { OIDC_KEY: _key, ...withoutKey } = valid;
+    expect(() => loadEnv(withoutKey)).toThrow(/OIDC_KEY: is required when NODE_ENV is production/);
+    expect(() => loadEnv({ ...valid, OIDC_KEY: DEV_OIDC_KEY })).toThrow(/OIDC_KEY: must not be the public development key/);
+    expect(() => loadEnv({ ...valid, OIDC_KEY: valid.AUTH_MFA_KEY })).toThrow(/OIDC_KEY: must differ from AUTH_MFA_KEY and ATTENDANCE_KEY/);
+    expect(() => loadEnv({ ...valid, OIDC_KEY: valid.ATTENDANCE_KEY })).toThrow(/OIDC_KEY: must differ from AUTH_MFA_KEY and ATTENDANCE_KEY/);
+    for (const bad of [Buffer.alloc(31).toString('base64'), Buffer.alloc(33).toString('base64'), 'x'.repeat(44)]) {
+      expect(() => loadEnv({ ...valid, OIDC_KEY: bad })).toThrow(/OIDC_KEY: must be the base64 encoding of exactly 32 bytes/);
+    }
+    expect(loadEnv(valid).OIDC_KEY).toBe(valid.OIDC_KEY);
+    expect(loadEnv({ ...withoutKey, NODE_ENV: 'development' }).OIDC_KEY).toBeUndefined();
+    expect(isMfaKey(DEV_OIDC_KEY)).toBe(true);
   });
 
   it('applies defaults to a minimal valid environment', () => {

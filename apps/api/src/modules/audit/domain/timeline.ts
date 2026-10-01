@@ -2,7 +2,7 @@
  * Audit timeline — pure rules (docs/contracts/audit.md › Endpoint). No Nest, no Kysely.
  */
 
-export const TIMELINE_SUBJECT_TYPES = ['org_unit', 'site', 'role', 'user', 'employee', 'leave_request', 'issued_document', 'attendance_device', 'attendance_correction'] as const;
+export const TIMELINE_SUBJECT_TYPES = ['org_unit', 'site', 'role', 'user', 'employee', 'leave_request', 'issued_document', 'attendance_device', 'attendance_correction', 'sso_client'] as const;
 
 /** Subject types whose history follows the subject's own visibility rule instead of `audit.read`. */
 export const SELF_VISIBLE_SUBJECT_TYPES: readonly TimelineSubjectType[] = ['leave_request', 'issued_document', 'attendance_device', 'attendance_correction'];

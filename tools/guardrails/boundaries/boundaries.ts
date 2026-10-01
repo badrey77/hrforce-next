@@ -9,7 +9,7 @@ import extractDepcruiseOptions from 'dependency-cruiser/config-utl/extract-depcr
 import { type GuardResult, isMain, REPO_ROOT, runCli, type Violation } from '../lib/report.ts';
 
 export const CONFIG_FILE = path.join(REPO_ROOT, '.dependency-cruiser.cjs');
-export const SOURCE_DIRS = ['apps/api/src', 'apps/web/src'];
+export const SOURCE_DIRS = ['apps/api/src', 'apps/web/src', 'apps/sso-demo/src'];
 
 /**
  * @param baseDir directory whose layout mirrors the repo (the repo root, or a test fixture)

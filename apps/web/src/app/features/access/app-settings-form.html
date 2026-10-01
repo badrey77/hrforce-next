@@ -1,0 +1,104 @@
+<!-- app-settings-form.ts: create or edit a connected app. URI rows are FormArrays (see the header). -->
+<form *transloco="let t" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="sso-app">
+  @if (savedNote()) {
+    <p class="feedback" role="status">{{ t('sso.form.saved') }}</p>
+  }
+  @if (readOnly()) {
+    <p class="muted" data-note="read-only">{{ t('sso.apps.readOnlyNote') }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @let clientId = form.controls.clientId;
+  <div class="field">
+    <label for="sso-client-id">{{ t('sso.apps.clientId') }}</label>
+    <input id="sso-client-id" type="text" formControlName="clientId" dir="ltr" class="code" autocomplete="off"
+      spellcheck="false" maxlength="40" required [attr.aria-invalid]="clientId.invalid && clientId.touched"
+      aria-describedby="sso-client-id-hint sso-client-id-error" />
+    @if (isNew()) {
+      <p class="field-hint" id="sso-client-id-hint">{{ t('sso.form.clientIdHint') }}</p>
+    }
+    @if (clientId.invalid && clientId.touched) {
+      <p class="field-error" id="sso-client-id-error">
+        {{ clientId.hasError('server') ? clientId.getError('server') : t(fieldErrorKey(clientId, 'sso.form.errors.clientIdPattern')) }}
+      </p>
+    }
+  </div>
+
+  @let name = form.controls.name;
+  <div class="field">
+    <label for="sso-name">{{ t('sso.form.name') }}</label>
+    <input id="sso-name" type="text" formControlName="name" dir="auto" required [attr.maxlength]="nameMax"
+      [attr.aria-invalid]="name.invalid && name.touched" [attr.aria-describedby]="name.invalid && name.touched ? 'sso-name-error' : null" />
+    @if (name.invalid && name.touched) {
+      <p class="field-error" id="sso-name-error">{{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}</p>
+    }
+  </div>
+
+  @let nameAr = form.controls.nameAr;
+  <div class="field">
+    <label for="sso-name-ar">{{ t('sso.form.nameAr') }}</label>
+    <!-- Typed in Arabic even in the French UI: lang + dir make it shape and align right-to-left. -->
+    <input id="sso-name-ar" type="text" formControlName="nameAr" lang="ar" dir="rtl" [attr.maxlength]="nameMax"
+      [attr.aria-invalid]="nameAr.invalid && nameAr.touched" [attr.aria-describedby]="nameAr.invalid && nameAr.touched ? 'sso-name-ar-error' : null" />
+    @if (nameAr.invalid && nameAr.touched) {
+      <p class="field-error" id="sso-name-ar-error">{{ nameAr.hasError('server') ? nameAr.getError('server') : t(fieldErrorKey(nameAr)) }}</p>
+    }
+  </div>
+
+  <!-- The two URI lists share one block, written once with `@for` over their names. -->
+  @for (listName of uriLists; track listName) {
+    @let rows = list(listName);
+    <fieldset [attr.data-list]="listName" [attr.aria-describedby]="listName + '-hint'">
+      <legend>{{ t('sso.form.' + listName) }}</legend>
+      <p class="field-hint" [id]="listName + '-hint'">{{ t('sso.form.' + listName + 'Hint') }}</p>
+      @for (row of rows.controls; track row; let i = $index) {
+        <div class="field">
+          <label class="visually-hidden" [for]="listName + '-' + i">{{ t('sso.form.uriLabel', { n: i + 1 }) }}</label>
+          <div class="uri-row">
+            <input [id]="listName + '-' + i" type="url" [formControl]="row" dir="ltr" inputmode="url" autocomplete="off"
+              spellcheck="false" placeholder="https://" [attr.aria-invalid]="row.invalid && row.touched"
+              [attr.aria-describedby]="row.invalid && row.touched ? listName + '-' + i + '-error' : null" />
+            @if (!readOnly()) {
+              <button class="btn secondary" type="button" [attr.data-action]="'remove-' + listName"
+                [disabled]="listName === 'redirectUris' && rows.length === 1" (click)="removeUri(listName, i)">
+                {{ t('sso.form.removeUri') }}<span class="visually-hidden"> {{ i + 1 }}</span>
+              </button>
+            }
+          </div>
+          @if (row.invalid && row.touched) {
+            <p class="field-error" [id]="listName + '-' + i + '-error'">{{ row.hasError('server') ? row.getError('server') : t(fieldErrorKey(row)) }}</p>
+          }
+        </div>
+      }
+      @if (rows.invalid && rows.touched && rows.errors) {
+        <p class="field-error" [attr.data-error]="listName">{{ t(fieldErrorKey(rows)) }}</p>
+      }
+      @if (!readOnly() && rows.length < uriListMax) {
+        <button class="btn secondary" type="button" [attr.data-action]="'add-' + listName" (click)="addUri(listName)">{{ t('sso.form.addUri') }}</button>
+      }
+    </fieldset>
+  }
+
+  <fieldset>
+    <legend>{{ t('sso.form.authMethod') }}</legend>
+    @for (method of methods; track method) {
+      <div class="radio">
+        <input type="radio" [id]="'sso-auth-' + method" formControlName="clientAuthMethod" [value]="method" />
+        <label [for]="'sso-auth-' + method">{{ t('sso.authMethod.' + method) }}</label>
+      </div>
+    }
+  </fieldset>
+
+  @if (!readOnly()) {
+    <div class="form-actions">
+      <button class="btn" type="submit" data-action="save-app" [disabled]="submitting()">
+        {{ submitting() ? t('access.form.saving') : isNew() ? t('sso.form.create') : t('common.save') }}
+      </button>
+      @if (isNew()) {
+        <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+      }
+    </div>
+  }
+</form>

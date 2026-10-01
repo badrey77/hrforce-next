@@ -20,6 +20,17 @@ export const SCAN_COOKIE = 'hrf_scan';
 export const DEVICE_REF_COOKIE = 'hrf_dev';
 export const ATTENDANCE_COOKIE_PATH = '/api/me/attendance';
 
+/**
+ * The OpenID Connect provider's cookies (docs/contracts/sso.md, ADR 007 §4). Documentation constants: the library
+ * (oidc-provider) sets them itself, signed (`.sig` companions), HttpOnly, SameSite=Lax:
+ *   hrf_op_session      the provider's thin session (Path=/oidc, browser-session cookie)
+ *   hrf_op_interaction  binds a sign-in handoff to this browser (Path=/api/sso/interactions/<uid>)
+ *   hrf_op_resume       the resume step of that handoff (Path=/oidc/auth/<uid>)
+ */
+export const OIDC_SESSION_COOKIE = 'hrf_op_session';
+export const OIDC_INTERACTION_COOKIE = 'hrf_op_interaction';
+export const OIDC_RESUME_COOKIE = 'hrf_op_resume';
+
 export const ACCESS_COOKIE_PATH = '/api';
 export const REFRESH_COOKIE_PATH = '/api/auth';
 export const XSRF_COOKIE_PATH = '/';

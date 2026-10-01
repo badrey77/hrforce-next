@@ -8,6 +8,7 @@ Source plan: "HRForce Next — Phase 1 Plan" (M1 thin vertical slice).
 ```
 apps/api      NestJS HTTP API + background worker (src/worker.ts) → workspace "@hrforce/api"
 apps/web      Angular SPA                                     → workspace "@hrforce/web"
+apps/sso-demo Demo sister app signing in through HRForce SSO (ADR 007; Express + openid-client, dev only) → workspace "@hrforce/sso-demo"
 docs/adr      Architecture decision records (001–005)
 tools/        Repo scripts; tools/guardrails = CI checks
 .github/workflows/ci.yml

@@ -43,6 +43,9 @@ describe('app routes: refused URLs show the 404 page', () => {
     '/access/users',
     '/access/roles/new',
     '/access/security',
+    '/access/apps',
+    '/access/apps/new',
+    '/access/apps/c-1',
     '/me/leave',
     '/me/documents',
     '/employees/new',
@@ -72,6 +75,10 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/attendance/settings', ['attendance.read']],
     ['/attendance/corrections', ['attendance.configure']],
     ['/attendance/reports', ['attendance.configure']],
+    ['/access/users', ['sso.read']],
+    ['/access/roles', ['sso.read']],
+    ['/access/apps', ['access.read']],
+    ['/access/apps/new', ['sso.read']],
   ])('%s with only %j', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
@@ -87,6 +94,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/attendance/corrections', ['attendance.read']],
     ['/attendance/reports', ['attendance.read']],
     ['/me/team', []],
+    ['/access/apps', ['sso.read']],
+    ['/access/apps/new', ['sso.read', 'sso.manage_apps']],
   ])('%s with %j opens the page', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
@@ -105,5 +114,18 @@ describe('app routes: the entrance kiosk', () => {
     await harness.navigateByUrl('/kiosk');
     expect(TestBed.inject(Router).url).toBe('/kiosk');
     expect(harness.routeNativeElement?.querySelector('app-kiosk-page, .kiosk')).not.toBeNull();
+  });
+});
+
+describe('app routes: the SSO sign-in handoff', () => {
+  it('/sso/:uid opens signed out (no guard, no /login redirect before the page decides)', async () => {
+    TestBed.configureTestingModule({
+      imports: [translocoTesting()],
+      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting()],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/sso/Ab3_dE-fGhIjKlMnOpQrStU');
+    expect(TestBed.inject(Router).url).toBe('/sso/Ab3_dE-fGhIjKlMnOpQrStU');
+    expect(harness.routeNativeElement?.querySelector('.handoff')).not.toBeNull();
   });
 });

@@ -1,0 +1,153 @@
+<!-- app-users-tab.ts: the app's role assignments, the assign form (search + radios + role), remove with a dialog. -->
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <h3>{{ t('sso.assignments.title') }}</h3>
+    @if (canAssign() && !adding() && client().roles.length > 0) {
+      <button class="btn" type="button" data-action="assign" (click)="startAssign()">{{ t('sso.assignments.assign') }}</button>
+    }
+  </div>
+  @if (canAssign() && client().roles.length === 0) {
+    <p class="field-hint" data-note="no-roles">{{ t('sso.assignments.noRoles') }}</p>
+  }
+
+  @if (feedback(); as name) {
+    <p class="feedback" role="status">{{ t('sso.assignments.added') }} <bdi>{{ name }}</bdi></p>
+  }
+  @if (removedNote()) {
+    <p class="feedback" role="status">{{ t('sso.assignments.removed') }}</p>
+  }
+
+  @if (adding()) {
+    <section class="panel" aria-labelledby="assign-title" data-form="assign">
+      <h4 id="assign-title">{{ t('sso.assignments.assign') }}</h4>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @if (canSearch()) {
+        <!-- A plain search form (template reference variable `#q` read on submit): the list only changes on purpose. -->
+        <form class="search" role="search" (submit)="search($event, q.value)">
+          <label for="assign-search">{{ t('sso.assignments.searchUser') }}</label>
+          <input #q id="assign-search" type="search" [placeholder]="t('access.users.searchPlaceholder')" />
+          <button class="btn secondary" type="submit">{{ t('access.users.searchSubmit') }}</button>
+        </form>
+      } @else {
+        <p class="field-hint" data-state="no-access-read">{{ t('sso.assignments.needsAccessRead') }}</p>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        @let userId = form.controls.userId;
+        <fieldset class="user-choices" [attr.aria-busy]="users.isLoading()" aria-describedby="assign-self-hint">
+          <legend>{{ t('sso.assignments.user') }}</legend>
+          <p class="field-hint" id="assign-self-hint">{{ t('sso.assignments.selfHint') }}</p>
+          @if (users.error()) {
+            <p class="form-error" role="alert">{{ t('access.users.loadError') }}</p>
+          }
+          @for (user of userItems(); track user.id) {
+            @let self = user.id === selfId();
+            @if (self) {
+              <!-- Your own row: listed (so the search does not look broken) but not selectable. -->
+              <div class="radio self" [attr.data-user]="user.id" data-state="self">
+                <span class="no-radio" aria-hidden="true"></span>
+                <span><bdi>{{ user.displayName }}</bdi> <span class="muted" dir="ltr">{{ user.email }}</span>&ngsp;<span class="badge">{{ t('sso.assignments.self') }}</span></span>
+              </div>
+            } @else {
+              <div class="radio" [attr.data-user]="user.id">
+                <input type="radio" [id]="'assign-user-' + user.id" formControlName="userId" [value]="user.id" />
+                <label [for]="'assign-user-' + user.id"><bdi>{{ user.displayName }}</bdi> <span class="muted" dir="ltr">{{ user.email }}</span></label>
+              </div>
+            }
+          } @empty {
+            @if (users.hasValue()) {
+              <p class="muted">{{ t('sso.assignments.noResult') }}</p>
+            }
+          }
+          @if (userId.invalid && userId.touched) {
+            <p class="field-error">{{ t(fieldErrorKey(userId)) }}</p>
+          }
+        </fieldset>
+
+        @let roleId = form.controls.roleId;
+        <div class="field">
+          <label for="assign-role">{{ t('sso.assignments.role') }}</label>
+          <select id="assign-role" formControlName="roleId" required [attr.aria-invalid]="roleId.invalid && roleId.touched"
+            [attr.aria-describedby]="roleId.invalid && roleId.touched ? 'assign-role-error' : null">
+            <option value="">{{ t('sso.assignments.pickRole') }}</option>
+            @for (role of client().roles; track role.id) {
+              <option [value]="role.id">{{ role.names[lang()] }} ({{ role.code }})</option>
+            }
+          </select>
+          @if (roleId.invalid && roleId.touched) {
+            <p class="field-error" id="assign-role-error">{{ t(fieldErrorKey(roleId)) }}</p>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="confirm-assign" [disabled]="submitting()">
+            {{ submitting() ? t('access.form.saving') : t('sso.assignments.submit') }}
+          </button>
+          <button class="btn secondary" type="button" (click)="cancelAssign()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    </section>
+  }
+
+  <section [attr.aria-busy]="assignments.isLoading()">
+    @if (assignments.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('sso.assignments.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="assignments.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (assignments.hasValue()) {
+      <div class="table-scroll">
+        <table class="data" data-table="app-assignments">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('sso.assignments.user') }}</th>
+              <th scope="col">{{ t('sso.assignments.role') }}</th>
+              <th scope="col">{{ t('sso.assignments.assignedBy') }}</th>
+              <th scope="col">{{ t('sso.assignments.since') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (assignment of items(); track assignment.id) {
+              <tr [attr.data-assignment]="assignment.id">
+                <td><a [routerLink]="['/access/users', assignment.user.id]"><bdi>{{ assignment.user.displayName }}</bdi></a></td>
+                <td>{{ roleName(assignment.role) }} <span class="code" dir="ltr">({{ assignment.role.code }})</span></td>
+                <td><bdi>{{ assignment.assignedBy?.displayName ?? '—' }}</bdi></td>
+                <td class="nowrap"><time [attr.datetime]="assignment.assignedAt">{{ assignment.assignedAt | date: 'mediumDate' : undefined : locale() }}</time></td>
+                <td>
+                  @if (assignment._actions.includes('remove')) {
+                    <button class="btn secondary" type="button" data-action="remove" (click)="openRemove(assignment)">{{ t('sso.assignments.remove') }}</button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5">{{ t('sso.assignments.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  <dialog #removeDialog class="modal" role="alertdialog" aria-labelledby="remove-assignment-title" data-dialog="remove-assignment" (close)="removing.set(null)">
+    <h3 id="remove-assignment-title">{{ t('sso.assignments.removeTitle') }}</h3>
+    @if (removing(); as current) {
+      <p>{{ t('sso.assignments.removeConfirm', { role: current.role.code }) }} <bdi>{{ current.user.displayName }}</bdi></p>
+    }
+    @if (removeError(); as error) {
+      <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-remove" [disabled]="submitting()" (click)="confirmRemove()">
+        {{ t('sso.assignments.remove') }}
+      </button>
+      <button class="btn secondary" type="button" autofocus (click)="closeRemove()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+</ng-container>

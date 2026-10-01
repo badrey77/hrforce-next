@@ -459,6 +459,33 @@ export interface NotificationPreference {
   user_id: string;
 }
 
+export interface OidcClientAuthFailure {
+  at: Generated<Timestamp>;
+  client_id: string;
+  id: Generated<Int8>;
+  ip: string | null;
+}
+
+export interface OidcModelStore {
+  consumed_at: Timestamp | null;
+  expires_at: Timestamp | null;
+  grant_id: string | null;
+  id_hash: Buffer;
+  model: string;
+  payload: Json;
+  uid_hash: Buffer | null;
+}
+
+export interface OidcSigningKey {
+  activated_at: Timestamp | null;
+  alg: Generated<string>;
+  created_at: Generated<Timestamp>;
+  jwk_enc: Buffer;
+  kid: string;
+  retired_at: Timestamp | null;
+  status: string;
+}
+
 export interface OrgUnit {
   axis: Generated<string>;
   code: string;
@@ -610,6 +637,45 @@ export interface Site {
   wilaya: string;
 }
 
+export interface SsoAppRole {
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  sso_client_id: string;
+}
+
+export interface SsoClient {
+  client_auth_method: Generated<string>;
+  client_id: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  credential_set_at: Generated<Timestamp>;
+  disabled_at: Timestamp | null;
+  disabled_by: string | null;
+  disabled_reason: string | null;
+  id: Generated<string>;
+  name: string;
+  name_ar: string | null;
+  post_logout_redirect_uris: Generated<string[]>;
+  redirect_uris: string[];
+  secret_enc: Buffer;
+  status: Generated<string>;
+}
+
+export interface SsoRoleAssignment {
+  assigned_at: Generated<Timestamp>;
+  assigned_by: string | null;
+  company_id: string;
+  id: Generated<string>;
+  sso_app_role_id: string;
+  user_id: string;
+}
+
 export interface UserEmployment {
   company_id: string;
   employment_id: string;
@@ -697,6 +763,9 @@ export interface DB {
   leave_type: LeaveType;
   notification: Notification;
   notification_preference: NotificationPreference;
+  "oidc.client_auth_failure": OidcClientAuthFailure;
+  "oidc.model_store": OidcModelStore;
+  "oidc.signing_key": OidcSigningKey;
   org_unit: OrgUnit;
   org_unit_closure: OrgUnitClosure;
   org_unit_head: OrgUnitHead;
@@ -712,6 +781,9 @@ export interface DB {
   role_permission: RolePermission;
   security_policy: SecurityPolicy;
   site: Site;
+  sso_app_role: SsoAppRole;
+  sso_client: SsoClient;
+  sso_role_assignment: SsoRoleAssignment;
   user_employment: UserEmployment;
   workflow_definition: WorkflowDefinition;
   workflow_instance: WorkflowInstance;

@@ -1,0 +1,146 @@
+<!-- app-detail.page.ts: header + actions, the show-once secret after a rotation, four tabs, two dialogs. -->
+<ng-container *transloco="let t">
+  <app-access-nav />
+  <p><a routerLink="/access/apps">{{ t('sso.apps.back') }}</a></p>
+
+  @if (app(); as current) {
+    <div class="app-header">
+      <div>
+        <h2 id="app-title">
+          {{ current.name }}
+          @if (current.nameAr) {
+            &ngsp;<span class="muted" lang="ar" dir="rtl">{{ current.nameAr }}</span>
+          }
+        </h2>
+        <p class="muted">
+          <span class="code" dir="ltr">{{ current.clientId }}</span>
+          &ngsp;<span class="badge" [attr.data-app-status]="current.status">{{ t('sso.status.' + current.status) }}</span>
+        </p>
+      </div>
+      <div class="form-actions" data-actions="header">
+        @if (can('rotate_secret')) {
+          <button class="btn secondary" type="button" data-action="rotate" [disabled]="working() || secret() !== null" (click)="openRotate()">
+            {{ t('sso.actions.rotate') }}
+          </button>
+        }
+        @if (can('disable')) {
+          <button class="btn danger" type="button" data-action="disable" [disabled]="working()" (click)="openDisable()">{{ t('sso.actions.disable') }}</button>
+        }
+        @if (can('enable')) {
+          <button class="btn" type="button" data-action="enable" [disabled]="working()" (click)="enable()">{{ t('sso.actions.enable') }}</button>
+        }
+      </div>
+    </div>
+
+    <dl class="facts">
+      <dt>{{ t('sso.apps.credentialSetAt') }}</dt>
+      <dd><time [attr.datetime]="current.credentialSetAt">{{ current.credentialSetAt | date: 'medium' : undefined : locale() }}</time></dd>
+      <dt>{{ t('sso.apps.createdAt') }}</dt>
+      <dd>
+        <time [attr.datetime]="current.createdAt">{{ current.createdAt | date: 'mediumDate' : undefined : locale() }}</time>
+        @if (current.createdBy; as by) {
+          — <bdi>{{ by.displayName }}</bdi>
+        }
+      </dd>
+      @if (current.status === 'disabled') {
+        <dt>{{ t('sso.apps.disabledAt') }}</dt>
+        <dd data-field="disabled">
+          <time [attr.datetime]="current.disabledAt">{{ current.disabledAt | date: 'medium' : undefined : locale() }}</time>
+          @if (current.disabledReason; as reason) {
+            — <bdi>{{ reason }}</bdi>
+          }
+        </dd>
+      }
+    </dl>
+
+    @if (feedback(); as key) {
+      <p class="feedback" role="status">{{ t(key) }}</p>
+    }
+    @if (actionError(); as error) {
+      <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    @if (secret(); as value) {
+      <app-sso-secret-panel [secret]="value" [clientId]="current.clientId" (done)="finishSecret()" />
+    }
+
+    <!-- Tabs as a local signal: ARIA roles tie each tab to the one panel below. -->
+    <div class="tabs" role="tablist" [attr.aria-label]="t('sso.detail.tabsLabel')">
+      @for (item of tabs(); track item) {
+        <button type="button" role="tab" [id]="'app-tab-' + item" [attr.data-app-tab]="item" [attr.aria-selected]="tab() === item"
+          aria-controls="app-tab-panel" (click)="selectTab(item)">
+          {{ t('sso.detail.tabs.' + item) }}
+        </button>
+      }
+    </div>
+    <div id="app-tab-panel" role="tabpanel" [attr.aria-labelledby]="'app-tab-' + tab()" [attr.data-panel]="tab()">
+      @switch (tab()) {
+        @case ('settings') {
+          <app-sso-app-form [client]="current" (saved)="onSaved()" />
+          <app-sso-connect-panel [client]="current" />
+        }
+        @case ('roles') {
+          <app-sso-roles-tab [client]="current" (changed)="client.reload()" />
+        }
+        @case ('users') {
+          <app-sso-users-tab [client]="current" (changed)="client.reload()" />
+        }
+        @case ('history') {
+          @defer (on viewport; prefetch on idle) {
+            <app-timeline [subject]="'sso_client:' + current.id" [resolver]="auditNames" />
+          } @placeholder {
+            <p class="muted">{{ t('audit.loading') }}</p>
+          } @loading (after 100ms; minimum 300ms) {
+            <p class="muted">{{ t('audit.loading') }}</p>
+          } @error {
+            <p class="form-error" role="alert">{{ t('audit.chunkError') }}</p>
+          }
+        }
+      }
+    </div>
+  } @else if (client.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="client.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+
+  <dialog #rotateDialog class="modal" role="alertdialog" aria-labelledby="rotate-title" aria-describedby="rotate-text" data-dialog="rotate">
+    <h3 id="rotate-title">{{ t('sso.actions.rotateTitle') }}</h3>
+    <p id="rotate-text" class="warning">{{ t('sso.actions.rotateConfirm') }}</p>
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-rotate" [disabled]="working()" (click)="confirmRotate()">
+        {{ working() ? t('access.form.saving') : t('sso.actions.rotateSubmit') }}
+      </button>
+      <button class="btn secondary" type="button" autofocus (click)="closeRotate()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+
+  <dialog #disableDialog class="modal" aria-labelledby="disable-title" data-dialog="disable">
+    <form [formGroup]="disableForm" (ngSubmit)="confirmDisable()" novalidate>
+      <h3 id="disable-title">{{ t('sso.actions.disableTitle') }}</h3>
+      <p>{{ t('sso.actions.disableIntro') }}</p>
+      @if (disableError(); as error) {
+        <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let reason = disableForm.controls.reason;
+      <div class="field">
+        <label for="disable-reason">{{ t('sso.actions.reason') }}</label>
+        <textarea id="disable-reason" formControlName="reason" rows="3" required [attr.maxlength]="reasonMax"
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="disable-reason-hint disable-reason-error"></textarea>
+        <p class="field-hint" id="disable-reason-hint">{{ t('sso.actions.reasonHint') }}</p>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="disable-reason-error">{{ reason.hasError('server') ? reason.getError('server') : t(fieldErrorKey(reason)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn danger" type="submit" data-action="confirm-disable" [disabled]="working()">{{ t('sso.actions.disableSubmit') }}</button>
+        <button class="btn secondary" type="button" (click)="closeDisable()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

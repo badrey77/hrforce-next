@@ -4,5 +4,11 @@
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"
+  },
+  "/oidc": {
+    "target": "http://localhost:3000",
+    "secure": false,
+    "changeOrigin": false,
+    "logLevel": "warn"
   }
 }

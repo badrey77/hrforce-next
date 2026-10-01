@@ -101,6 +101,13 @@ the files it discusses, so you can jump straight to the source.
     `viewChild(Class)`, a before/after view with `<del>`/`<ins>`, a union variant without an employee in My tasks, a
     CSV download driven by the page's query.
 
+22. [22-leaving-the-spa-an-openid-connect-sign-in-handoff.md](./22-leaving-the-spa-an-openid-connect-sign-in-handoff.md) —
+    SSO: OpenID Connect in two paragraphs, a handoff page with no guard and no chrome (an `effect()` keyed on a route
+    param, the session read once), `returnUrl` across sign-in / second factor / enrollment, leaving the SPA with
+    `location.assign` behind an `InjectionToken` vs the router, a show-once secret (component signal, Clipboard API,
+    `canDeactivate`, `beforeunload`), repeatable rows with a `FormArray`, a parent route guarded by any of two
+    permissions with a redirect function, a resource passed to a child, `toSignal(valueChanges)`.
+
 Once you have skimmed the whole guide, use recipe 10 whenever you build a new screen.
 
 ## Concept → chapter → file index
@@ -243,6 +250,13 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
 | Testing the real route table (every refused URL → 404) | 05, 09 | `src/app/app.routes.spec.ts` |
 | Attribute directive with an input named like its selector; `host` attributes; `afterRenderEffect` to scroll + focus | 07, 16 | `src/app/shared/reveal-alert/reveal-alert.directive.ts` |
 | Timeline values: fingerprints, opaque ids, resources that exist only while a tab is shown | 13 | `src/app/shared/timeline/timeline-view.ts`, `src/app/features/employees/employee-detail.page.ts` |
+| Leaving the SPA: `location.assign` behind an `InjectionToken` (`PAGE_LOCATION`) vs `router.navigate` | 22, 04 | `src/app/core/browser/page-location.ts`, `src/app/features/sso/sso-handoff.page.ts` |
+| A route with no guard that works signed in or out; `effect()` + `untracked()` keyed on a route param; session read once | 22, 20 | `src/app/features/sso/sso-handoff.page.ts` |
+| `returnUrl` round trip through login, TOTP and enrollment; loop guard in a query param (`?fresh=1`) | 22, 11, 17 | `src/app/features/sso/sso-handoff.page.ts`, `src/app/features/auth/login.page.ts` |
+| Show-once secret: component signal cleared on destroy, Clipboard API with select() fallback, `canDeactivate` guard, `(window:beforeunload)` host listener | 22 | `src/app/features/access/secret-panel.ts`, `src/app/features/access/app-new.page.ts` |
+| `FormArray` of URI rows (`[formControl]` per row, `track row`), array validators, 422 codes on `list.<i>` | 22, 07 | `src/app/features/access/app-settings-form.ts`, `src/app/features/access/sso-forms.ts` |
+| `redirectTo` as a function; parent route with ANY of two permissions, per-child guards | 22, 05, 12 | `src/app/features/access/access.routes.ts` |
+| A `HttpResourceRef` passed to a child as an input; `toSignal(control.valueChanges)` | 22, 03 | `src/app/features/access/user-apps-section.ts`, `src/app/features/access/user-detail.page.ts` |
 
 ## Glossary
 
@@ -317,6 +331,9 @@ Once you have skimmed the whole guide, use recipe 10 whenever you build a new sc
   during bootstrap; the app waits for its Promise/Observable. See chapter 11.
 - **Lazy loading** — code for a route is fetched only when the user navigates there
   (`loadComponent`/`loadChildren`), splitting the JS bundle. See chapter 05.
+- **OpenID Connect (OIDC)** — a sign-in protocol on top of OAuth 2.0: an app redirects to a provider, gets back a
+  one-time code and swaps it server-side for a signed ID token. HRForce is the provider; the web only hosts the
+  handoff page (`/sso/:uid`). See chapter 22.
 - **Server-Sent Events (SSE)** — a long-lived HTTP response (`text/event-stream`) on which the
   server writes named events; read in the browser with `EventSource`. See chapter 16.
 - **`TestBed`** — Angular's test harness: configures a mini application (providers,

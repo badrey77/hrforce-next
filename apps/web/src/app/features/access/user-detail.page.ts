@@ -33,6 +33,9 @@
  *   page. A second native `<dialog>` asks for confirmation, because the action is destructive (it also signs the
  *   person out everywhere). `role="alertdialog"` tells assistive tech this dialog needs a decision; focus starts on
  *   Cancel, the safe choice (`autofocus` inside a modal dialog is honoured by `showModal()`).
+ * - **Applications** (docs/contracts/sso.md › Web): `<app-user-apps-section>` (`*appCan="'sso.read'"`) lists the
+ *   person's connected-app roles. This page creates the `GET /sso/assignments?userId=` resource (gated by `sso.read`)
+ *   and passes it to the section as an input, because the history tab also uses it to name app roles.
  */
 import {
   ChangeDetectionStrategy,
@@ -62,6 +65,10 @@ import { AccessNav } from './access-nav';
 import { accessAuditNames } from './audit-names';
 import { GrantForm } from './grant-form';
 import { LinkedEmployee } from './linked-employee';
+import { UserAppsSection } from './user-apps-section';
+import { SsoApi } from '../../core/sso/sso-api';
+import { ssoAppName } from '../../core/sso/sso.models';
+import { LanguageService } from '../../core/i18n/language.service';
 
 function loadErrorKey(error: unknown, fallback: string, notFound = fallback): string {
   if (!isApiProblemError(error)) return fallback;
@@ -83,7 +90,7 @@ export function resetErrorKey(error: unknown): string {
 
 @Component({
   selector: 'app-access-user-detail-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective, HistoryTabs, LinkedEmployee],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, AccessNav, GrantForm, CanDirective, HistoryTabs, LinkedEmployee, UserAppsSection],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './user-detail.page.html',
   styleUrl: './access.css',
@@ -116,8 +123,21 @@ export class UserDetailPage {
   protected readonly grantItems = computed<readonly GrantView[]>(() => (this.grants.hasValue() ? this.grants.value().items : []));
   protected readonly grantsErrorKey = computed(() => loadErrorKey(this.grants.error(), 'access.grants.loadError'));
 
+  // --- Connected apps (docs/contracts/sso.md › Web) -----------------------------------------------------------
+
+  private readonly canReadApps = inject(Session).allows('sso.read');
+  private readonly lang = inject(LanguageService).current;
+  /** `GET /sso/assignments?userId=` — owned here, shown by `<app-user-apps-section>`, and read by `auditNames`. */
+  protected readonly appAssignments = inject(SsoApi).assignmentsResource(() =>
+    this.canReadApps() ? { userId: this.id() } : undefined,
+  );
+
   /** Names for the audit history: roles from the catalogue; units and people from the member and their grants. */
   protected readonly auditNames = accessAuditNames(this.catalog, {
+    appRoles: computed(() => {
+      const items = this.appAssignments.hasValue() ? this.appAssignments.value().items : [];
+      return new Map(items.map((a) => [a.role.id, `${ssoAppName(a.client, this.lang())} — ${a.role.code}`]));
+    }),
     units: computed(() => new Map(this.grantItems().map((g) => [g.unit.id, g.unit.name]))),
     users: computed(() => {
       const names = new Map<string, string>();

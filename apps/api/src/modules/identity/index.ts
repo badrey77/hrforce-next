@@ -13,3 +13,5 @@ export { MfaService } from './application/mfa.service.js';
 export { MfaClock } from './application/mfa-clock.js';
 export type { MeMfaView, MfaStatusView } from './application/mfa-views.js';
 export { base32Decode, hotp, totpStep } from './domain/mfa.js';
+export { IdentitySessions } from './application/identity-sessions.js';
+export type { MeRecord, SsoSessionRecord } from './infra/identity.repository.js';

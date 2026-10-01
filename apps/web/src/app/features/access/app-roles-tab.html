@@ -1,0 +1,116 @@
+<!-- app-roles-tab.ts: the app's roles; one form serves "new" and "edit names". -->
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <h3>{{ t('sso.roles.title') }}</h3>
+    @if (client()._actions.includes('add_role') && editing() === null) {
+      <button class="btn" type="button" data-action="new-role" (click)="startNew()">{{ t('sso.roles.add') }}</button>
+    }
+  </div>
+  <p class="field-hint">{{ t('sso.roles.intro') }}</p>
+
+  @if (feedback(); as message) {
+    <p class="feedback" role="status">{{ t(message.key, { code: message.code }) }}</p>
+  }
+
+  @if (editing(); as current) {
+    <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="app-role">
+      <h4>{{ current === 'new' ? t('sso.roles.add') : t('sso.roles.edit') }}</h4>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let code = form.controls.code;
+      <div class="field">
+        <label for="app-role-code">{{ t('sso.roles.code') }}</label>
+        <input id="app-role-code" type="text" formControlName="code" class="code" dir="ltr" autocomplete="off" maxlength="40"
+          required [attr.aria-invalid]="code.invalid && code.touched" aria-describedby="app-role-code-hint app-role-code-error" />
+        @if (current === 'new') {
+          <p class="field-hint" id="app-role-code-hint">{{ t('sso.roles.codeHint') }}</p>
+        }
+        @if (code.invalid && code.touched) {
+          <p class="field-error" id="app-role-code-error">
+            {{ code.hasError('server') ? code.getError('server') : t(fieldErrorKey(code, 'sso.form.errors.roleCodePattern')) }}
+          </p>
+        }
+      </div>
+      <div formGroupName="names">
+        @for (lang of nameLanguages; track lang) {
+          @let name = form.controls.names.controls[lang];
+          <div class="field">
+            <label [for]="'app-role-name-' + lang">{{ t('access.roles.nameIn.' + lang) }}</label>
+            <input [id]="'app-role-name-' + lang" type="text" [formControlName]="lang" [attr.lang]="lang" dir="auto" required
+              [attr.aria-invalid]="name.invalid && name.touched"
+              [attr.aria-describedby]="name.invalid && name.touched ? 'app-role-name-' + lang + '-error' : null" />
+            @if (name.invalid && name.touched) {
+              <p class="field-error" [id]="'app-role-name-' + lang + '-error'">
+                {{ name.hasError('server') ? name.getError('server') : t(fieldErrorKey(name)) }}
+              </p>
+            }
+          </div>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-role" [disabled]="submitting()">
+          {{ submitting() ? t('access.form.saving') : t('common.save') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <div class="table-scroll">
+    <table class="data" data-table="app-roles">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('sso.roles.code') }}</th>
+          <th scope="col">{{ t('sso.roles.name') }}</th>
+          <th scope="col">{{ t('sso.roles.users') }}</th>
+          <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (role of client().roles; track role.id) {
+          <tr [attr.data-role]="role.code">
+            <td><span class="code" dir="ltr">{{ role.code }}</span></td>
+            <td>{{ roleName(role) }}</td>
+            <td>{{ role.assignmentCount }}</td>
+            <td>
+              <div class="form-actions">
+                @if (can(role, 'update')) {
+                  <button class="btn secondary" type="button" data-action="edit-role" (click)="startEdit(role)">{{ t('sso.roles.edit') }}</button>
+                }
+                @if (can(role, 'delete')) {
+                  <button class="btn secondary" type="button" data-action="delete-role" (click)="openDelete(role)">{{ t('sso.roles.delete') }}</button>
+                } @else if (can(role, 'update') && role.assignmentCount > 0) {
+                  <!-- Shown but disabled: say WHY (tooltip on the wrapper + text for screen readers). -->
+                  <span [title]="t('sso.roles.inUse', { count: role.assignmentCount })">
+                    <button class="btn secondary" type="button" disabled data-action="delete-role"
+                      [attr.aria-describedby]="'in-use-' + role.id">{{ t('sso.roles.delete') }}</button>
+                  </span>
+                  <span class="visually-hidden" [id]="'in-use-' + role.id">{{ t('sso.roles.inUse', { count: role.assignmentCount }) }}</span>
+                }
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4">{{ t('sso.roles.empty') }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <dialog #deleteDialog class="modal" role="alertdialog" aria-labelledby="delete-role-title" data-dialog="delete-role" (close)="deleting.set(null)">
+    <h3 id="delete-role-title">{{ t('sso.roles.deleteTitle') }}</h3>
+    <p>{{ t('sso.roles.deleteConfirm', { code: deleting()?.code ?? '' }) }}</p>
+    @if (deleteError(); as error) {
+      <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-delete-role" [disabled]="submitting()" (click)="confirmDelete()">
+        {{ t('sso.roles.delete') }}
+      </button>
+      <button class="btn secondary" type="button" autofocus (click)="closeDelete()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+</ng-container>

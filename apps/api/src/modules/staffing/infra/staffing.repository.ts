@@ -22,6 +22,15 @@ export interface EmployeeCardRow {
   unitNameAr: string | null;
 }
 
+export interface EmployeeClaimRow {
+  matricule: string;
+  active: boolean;
+  unitId: string | null;
+  unitCode: string | null;
+  unitName: string | null;
+  unitNameAr: string | null;
+}
+
 export interface HeadRow {
   id: string;
   employmentId: string;
@@ -68,6 +77,31 @@ export class StaffingRepository {
       .where('user_id', '=', userId)
       .executeTakeFirst();
     return row?.employment_id;
+  }
+
+  /**
+   * The SSO `employee` claim of a user (docs/contracts/sso.md › Claims): the linked employment's matricule, whether it
+   * is open on `date`, and the unit of its assignment valid on `date` (none → null unit). undefined = not linked.
+   */
+  async employeeClaim(companyId: string, userId: string, date: string): Promise<EmployeeClaimRow | undefined> {
+    const { rows } = await sql<EmployeeClaimRow>`
+      select e.matricule,
+             (e.hire_date <= ${date}::date and (e.end_date is null or e.end_date >= ${date}::date)) as active,
+             u.id as "unitId", u.code as "unitCode", coalesce(v.name, u.code) as "unitName", v.name_ar as "unitNameAr"
+        from user_employment ue
+        join employment e on e.company_id = ue.company_id and e.id = ue.employment_id
+        left join assignment a on a.company_id = e.company_id and a.employment_id = e.id and a.valid @> ${date}::date
+        left join org_unit u on u.company_id = a.company_id and u.id = a.org_unit_id
+        left join lateral (
+          select vv.name, vv.name_ar from org_unit_version vv
+           where vv.company_id = u.company_id and vv.org_unit_id = u.id
+           order by (vv.valid @> ${date}::date) desc, lower(vv.valid) desc
+           limit 1
+        ) v on true
+       where ue.company_id = ${companyId}::uuid and ue.user_id = ${userId}::uuid
+       order by lower(a.valid) desc nulls last
+       limit 1`.execute(currentTx());
+    return rows[0];
   }
 
   async usersOfEmployments(companyId: string, employmentIds: readonly string[]): Promise<Map<string, string>> {

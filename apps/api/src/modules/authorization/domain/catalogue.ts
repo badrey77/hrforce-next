@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -50,6 +50,9 @@ export const PERMISSION_CODES = [
   'attendance.read',
   'attendance.manage',
   'attendance.configure',
+  'sso.read',
+  'sso.manage_apps',
+  'sso.assign',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -98,7 +101,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
   {
     code: 'admin_acces',
     names: { fr: 'Administrateur des accès', ar: 'مسؤول الصلاحيات', en: 'Access administrator' },
-    permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read'],
+    // + connected apps and their roles (docs/contracts/sso.md › Permissions)
+    permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read', 'sso.read', 'sso.manage_apps', 'sso.assign'],
   },
   {
     // self-service (docs/contracts/leave.md, documents.md, attendance.md): request one's own leave and attestations,

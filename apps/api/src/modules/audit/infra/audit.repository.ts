@@ -123,6 +123,12 @@ export class AuditRepository {
     return row !== undefined;
   }
 
+  /** The connected app exists (apps are disabled, never deleted by the app). */
+  async ssoClientKnown(companyId: string, id: string): Promise<boolean> {
+    const { rows } = await sql<{ id: string }>`select id from sso_client where company_id = ${companyId}::uuid and id = ${id}::uuid`.execute(currentTx());
+    return rows.length > 0;
+  }
+
   /** What decides who may see a punch correction's history (like GET /attendance/corrections/:id). undefined = unknown. */
   async correctionAccess(companyId: string, id: string): Promise<{ employmentId: string; linkedUserId: string | null; workflowInstanceId: string | null } | undefined> {
     const { rows } = await sql<{ employmentId: string; linkedUserId: string | null; workflowInstanceId: string | null }>`
@@ -224,6 +230,11 @@ export class AuditRepository {
         select p.id from attendance_punch p where p.company_id = ${companyId}::uuid
            and (p.correction_id = ${subject.id}::uuid or p.void_correction_id = ${subject.id}::uuid))))`;
     }
+    if (subject.type === 'sso_client') {
+      // its own events (secret rotations) + the sso.* events naming its client id (sign-ins, role assignments)
+      return sql<boolean>`(${own} or (e.type like 'sso.%' and e.data ->> 'clientId' = (
+        select c.client_id from sso_client c where c.company_id = ${companyId}::uuid and c.id = ${subject.id}::uuid)))`;
+    }
     if (subject.type !== 'employee') return own;
     return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
       select r.id from leave_request r where r.company_id = ${companyId}::uuid and r.employment_id = ${subject.id}::uuid))
@@ -311,6 +322,15 @@ export class AuditRepository {
       case 'attendance_device':
         // the kiosk's rows (the heartbeat is audit-exempt; the credential and pairing-code hashes are masked)
         return sql<boolean>`c.table_name = 'attendance_device' and c.row_id = ${id}::uuid`;
+      case 'sso_client':
+        // the app, its roles and their assignments (live, or identified by an insert/delete row: roles and assignments
+        // are deleted by the app; secret_enc is masked)
+        return sql<boolean>`(c.table_name = 'sso_client' and c.row_id = ${id}::uuid)
+          or (c.table_name = 'sso_app_role' and coalesce(c.after, c.before) ->> 'sso_client_id' = ${id}::text)
+          or (c.table_name = 'sso_role_assignment' and (coalesce(c.after, c.before) ->> 'sso_app_role_id') in (
+                select i.row_id::text from audit.change_log i
+                 where i.company_id = ${companyId}::uuid and i.table_name = 'sso_app_role' and i.op = 'insert'
+                   and i.after ->> 'sso_client_id' = ${id}::text))`;
       case 'user':
         // the user's grants whose unit is in the caller's audit.read scope (grants are never deleted by the app; an
         // insert row also identifies one removed by hand)
@@ -321,7 +341,8 @@ export class AuditRepository {
                 select i.row_id from audit.change_log i
                  where i.company_id = ${companyId}::uuid and i.table_name = 'role_grant' and i.op = 'insert'
                    and i.after ->> 'user_id' = ${id}::text
-                   and (i.after ->> 'org_unit_id')::uuid in (${unitScope}))`;
+                   and (i.after ->> 'org_unit_id')::uuid in (${unitScope}))
+          or (c.table_name = 'sso_role_assignment' and coalesce(c.after, c.before) ->> 'user_id' = ${id}::text)`;
     }
   }
 }

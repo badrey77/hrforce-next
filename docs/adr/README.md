@@ -14,7 +14,7 @@ Report 13 §6 for the full P1 feature list these ADRs support.
 | [004](./004-browser-auth.md) | Browser auth — httpOnly cookies for both tokens, plus XSRF | Accepted | Report 13: "Not covered today" |
 | [005](./005-infrastructure.md) | Infrastructure — Postgres only in P1 | Accepted | 10-BACKEND-REDESIGN.md §2, §6 (Redis, BullMQ, four apps) |
 | [006](./006-workflow-engine.md) | Workflow engine — Postgres state machine | Accepted | — (approvals were ad-hoc status columns) |
-| 007 | SSO (reserved, open question 1 in HANDOFF) | — | — |
+| [007](./007-sso-oidc-provider.md) | SSO — HRForce as an OpenID Connect provider (`oidc-provider` in the API, Postgres only), app roles managed in HRForce | **Accepted** 2026-09-30 | ADR 004 "SSO/OIDC out of scope for P1" |
 | [008](./008-document-generation.md) | Document generation — Typst in the API, stored PDFs, gap-free numbering in Postgres | **Accepted** | 2026-09-28 |
 | [009](./009-attendance-check-in.md) | Attendance check-in — rotating signed QR at the entrance, scanned by the employee's phone | **Accepted** | 2026-09-29 |
 
@@ -37,6 +37,9 @@ Report 13 §6 for the full P1 feature list these ADRs support.
   whose "who may act" is answered by 002's scoped grants at read time.
 - **008** (M3, accepted) generates numbered PDFs inside the request transaction (005) with Typst, stores them in
   Postgres, and reuses 006 for self-service document requests.
+- **007** (accepted) makes HRForce an OpenID Connect provider for the group's apps: the provider runs inside the API
+  (005: its state in Postgres), reuses 004's sign-in page, cookies and two-step verification through an interaction
+  handoff, and carries app roles managed with 002-style admin screens in the ID token.
 - **009** (accepted) is attendance check-in: server-signed rotating QR codes on paired entrance displays, scanned with
   the phone's own camera into the web app (004's cookies, no CSP change), punches in Postgres (005), corrections
   through 006.

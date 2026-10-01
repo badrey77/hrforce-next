@@ -6,7 +6,7 @@ import { AuthService } from '../application/auth.service.js';
 import { PasswordService } from '../application/password.service.js';
 import { AuthXsrf } from './auth-xsrf.guard.js';
 import type { MfaRequiredView } from '../application/mfa-views.js';
-import { ForgotPasswordRequestDto, LoginRequestDto, MfaVerifyRequestDto, PasswordSetupRequestDto } from './auth.dto.js';
+import { ForgotPasswordRequestDto, LoginRequestDto, LogoutRequestDto, MfaVerifyRequestDto, PasswordSetupRequestDto } from './auth.dto.js';
 
 /**
  * docs/contracts/identity.md › Endpoints. No request transaction (@SkipTransaction): failed logins must still be
@@ -60,8 +60,8 @@ export class AuthController {
   @Public()
   @AuthXsrf()
   @HttpCode(204)
-  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
-    return this.auth.logout(req, res);
+  logout(@Body() body: LogoutRequestDto, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    return this.auth.logout(req, res, body.expectedUserId);
   }
 
   @Post('password/forgot')

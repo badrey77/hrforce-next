@@ -4,6 +4,10 @@
   @if (forPunch()) {
     <p class="feedback" data-state="for-punch">{{ t('auth.login.forPunch') }}</p>
   }
+  <!-- Back from an app that signs in through HRForce (features/sso/sso-handoff.page.ts). No app name: see login.page.ts. -->
+  @if (forSso()) {
+    <p class="feedback" data-state="for-sso">{{ t('auth.login.forSso') }}</p>
+  }
 
   <!--
     One component, two steps. `@switch` renders exactly one `@case`; the other step's DOM does not exist (its inputs

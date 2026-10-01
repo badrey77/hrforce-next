@@ -119,6 +119,12 @@ export class LoginPage {
   readonly returnUrl = input<string>();
   /** Coming from an attendance scan (`returnUrl=/punch`): the page says the punch waits for this sign-in. */
   protected readonly forPunch = computed(() => this.returnUrl() === '/punch');
+  /**
+   * Coming from the SSO handoff page (`returnUrl=/sso/<uid>`, docs/contracts/sso.md › Web): a connected app is waiting
+   * for this sign-in. The banner does NOT name the app: the URL is attacker-controlled, and only the handoff page may
+   * say which app is asking (it reads the name from the API). `safeReturnUrl()` accepts the path as it is.
+   */
+  protected readonly forSso = computed(() => this.returnUrl()?.startsWith('/sso/') ?? false);
 
   protected readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],

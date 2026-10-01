@@ -4,6 +4,7 @@ export { StaffingClock } from './application/staffing-clock.js';
 export {
   StaffingService,
   type EmployeeCard,
+  type EmployeeClaim,
   type HeadView,
   type MyEmploymentView,
   type UnitHeadsView,

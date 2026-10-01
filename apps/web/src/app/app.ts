@@ -5,7 +5,7 @@
  * store) is true. Because the template reads that signal, signing in or out re-renders the shell on its own.
  *
  * Permission-aware nav (docs/contracts/authorization.md › Web): Employees needs `employee.read`, Organization needs
- * `org_unit.read`, Access needs `access.read`. The links are filtered in a `computed()` rather than with `*appCan` on each `<li>`: the rule lives
+ * `org_unit.read`, Access needs `access.read` or `sso.read` (connected apps, docs/contracts/sso.md). The links are filtered in a `computed()` rather than with `*appCan` on each `<li>`: the rule lives
  * next to the link data (a `permission` field), the template stays one plain `@for`, and the list is rebuilt only
  * when the session's `permissions` change. (`*appCan` — shared/can/can.directive.ts — is the better fit for a
  * one-off element, e.g. the Sites tab in features/organization/org-nav.ts.) Hiding a link is comfort, not
@@ -135,7 +135,13 @@ export class App {
       visible: () => !this.session.can('attendance.read'),
     },
     { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
-    { path: '/access', labelKey: 'nav.access', exact: false, permission: 'access.read' },
+    // Access holds users/roles (access.read) and connected apps (sso.read): either one shows the link.
+    {
+      path: '/access',
+      labelKey: 'nav.access',
+      exact: false,
+      visible: () => this.session.can('access.read') || this.session.can('sso.read'),
+    },
     { path: '/settings', labelKey: 'nav.settings', exact: false },
   ];
 

@@ -6,6 +6,7 @@ import { AuthController } from './api/auth.controller.js';
 import { MeController } from './api/me.controller.js';
 import { MfaController } from './api/mfa.controller.js';
 import { AuthService } from './application/auth.service.js';
+import { IdentitySessions } from './application/identity-sessions.js';
 import { MailSender } from './application/mail-sender.js';
 import { MeService } from './application/me.service.js';
 import { MfaClock } from './application/mfa-clock.js';
@@ -39,8 +40,9 @@ import { PasswordHasher } from './infra/password-hasher.js';
     MfaRepository,
     MfaCipher,
     MfaClock,
+    IdentitySessions,
     { provide: MailSender, inject: [ENV], useFactory: (env: Env) => createMailSender(env) },
   ],
-  exports: [MailSender, MfaService],
+  exports: [MailSender, MfaService, IdentitySessions],
 })
 export class IdentityModule {}

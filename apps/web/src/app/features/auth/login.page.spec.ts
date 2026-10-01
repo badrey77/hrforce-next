@@ -103,6 +103,16 @@ describe('LoginPage', () => {
     expect(navigate).toHaveBeenCalledWith('/');
   });
 
+  it('shows the SSO banner (without any app name) for returnUrl=/sso/…, and returns there after sign-in', async () => {
+    expect(el.querySelector('[data-state="for-sso"]')).toBeNull();
+    fixture.componentRef.setInput('returnUrl', '/sso/abcdefghijklmnopqrstuvwxyz?fresh=1');
+    await fixture.whenStable();
+
+    expect(el.querySelector('[data-state="for-sso"]')?.textContent?.trim()).toBe("Connectez-vous pour continuer vers l'application.");
+    await succeed();
+    expect(navigate).toHaveBeenCalledWith('/sso/abcdefghijklmnopqrstuvwxyz?fresh=1');
+  });
+
   it('goes to a valid internal returnUrl', async () => {
     fixture.componentRef.setInput('returnUrl', '/organization?asOf=2025-01-31');
     await succeed();

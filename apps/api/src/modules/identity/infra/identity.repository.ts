@@ -55,6 +55,15 @@ export interface MeRecord {
   company: CompanyRecord;
 }
 
+/** auth.sso_session: is the HRForce session behind an access token still live, and how did it sign in. */
+export interface SsoSessionRecord {
+  live: boolean;
+  /** the family's first row: the login instant */
+  authTime: Date;
+  amr: string[];
+  accountStatus: AccountStatus;
+}
+
 export interface CompanyRecord {
   id: string;
   code: string;
@@ -116,10 +125,11 @@ export class IdentityRepository {
     return { dbNow: throttleNow(toDate(row.db_now), emailFailures, ipFailures), emailFailures, ipFailures };
   }
 
-  async createSession(userId: string, refreshHash: Buffer, ip: string | null, userAgent: string | null): Promise<NewSession | null> {
+  /** `amr`: how the session signed in (docs/contracts/sso.md › Identity additions): `['pwd']` or `['pwd','otp','mfa']`. */
+  async createSession(userId: string, refreshHash: Buffer, ip: string | null, userAgent: string | null, amr: readonly string[] = ['pwd']): Promise<NewSession | null> {
     const { rows } = await sql<{ session_id: string; company_id: string; expires_at: Timestamp; absolute_expires_at: Timestamp }>`
       select session_id, company_id, expires_at, absolute_expires_at
-        from auth.create_session(${userId}::uuid, ${refreshHash}, ${ip}::inet, ${userAgent})`.execute(this.executor());
+        from auth.create_session(${userId}::uuid, ${refreshHash}, ${ip}::inet, ${userAgent}, ${[...amr]}::text[])`.execute(this.executor());
     const row = rows[0];
     return row
       ? { sessionId: row.session_id, companyId: row.company_id, expiresAt: toDate(row.expires_at), absoluteExpiresAt: toDate(row.absolute_expires_at) }
@@ -175,6 +185,17 @@ export class IdentityRepository {
 
   async revokeFamily(refreshHash: Buffer | null, sid: string | null, userId: string | null): Promise<void> {
     await sql`select auth.revoke_family(${refreshHash}, ${sid}::uuid, ${userId}::uuid)`.execute(this.executor());
+  }
+
+  /**
+   * The SSO handoff's check (auth.sso_session, migration 0018): the refresh session `sid` of `userId` and its whole
+   * family are live; the family's login instant and amr; the account status. null for an unknown sid.
+   */
+  async ssoSession(sid: string, userId: string): Promise<SsoSessionRecord | null> {
+    const { rows } = await sql<{ live: boolean; auth_time: Timestamp; amr: string[]; account_status: AccountStatus }>`
+      select live, auth_time, amr, account_status from auth.sso_session(${sid}::uuid, ${userId}::uuid)`.execute(this.executor());
+    const row = rows[0];
+    return row ? { live: row.live, authTime: toDate(row.auth_time), amr: row.amr, accountStatus: row.account_status } : null;
   }
 
   async me(userId: string, companyId: string): Promise<MeRecord | null> {

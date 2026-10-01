@@ -61,6 +61,8 @@ export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): P
     }
     const catalog = await withClient(db.superuserUrl, (client) => loadCatalog(client));
     const authTables = (await withClient(db.superuserUrl, (client) => loadCatalog(client, 'auth'))).map((t) => `auth.${t.name}`);
+    // schema oidc (docs/contracts/sso.md): global provider state, documented in the exemption file like auth
+    const oidcTables = (await withClient(db.superuserUrl, (client) => loadCatalog(client, 'oidc'))).map((t) => `oidc.${t.name}`);
     // audit schema: only the partitioned parents and the masking list are documented (monthly partitions come and go)
     const auditTables = (await withClient(db.superuserUrl, (client) => loadAuditParents(client))).map((name) => `audit.${name}`);
     const tables = parseMigrationTables(root, MIGRATIONS_DIR);
@@ -72,7 +74,7 @@ export async function checkDb(superuserUrl: string, root: string = REPO_ROOT): P
     return [
       {
         name: 'company-id',
-        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables, undefined, [...authTables, ...auditTables])],
+        violations: [...exempt.violations, ...evaluateCompanyId(catalog, exempt.entries, tables, undefined, [...authTables, ...oidcTables, ...auditTables])],
         info: `company-id: ${catalog.length} tables in public (${exempt.entries.length} exempt)`,
       },
       {

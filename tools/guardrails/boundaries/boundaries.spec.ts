@@ -25,11 +25,13 @@ describe('boundaries (dependency-cruiser rules)', () => {
         // web
         expect.stringMatching(/web-feature-isolation apps\/web\/src\/app\/features\/a\/a\.page\.ts .*features\/b\/b\.service\.ts/),
         expect.stringMatching(/web-core-not-to-features apps\/web\/src\/app\/core\/menu\.ts .*features\/a\/a\.page\.ts/),
+        // the SSO demo app stays separate from the API and the web
+        expect.stringMatching(/sso-demo-standalone apps\/sso-demo\/src\/reach-into-api\.ts .*apps\/api\/src\/platform\/db\/leak\.ts/),
       ]),
     );
     // importing another module through its index.ts is allowed
     expect(found.some((m) => /via-index .*employee\/index\.ts/.test(m))).toBe(false);
-    expect(result.violations).toHaveLength(9);
+    expect(result.violations).toHaveLength(10);
   });
 
   it('accepts the "good" fixture tree (index imports, pure domain, shared/core use from features)', async () => {

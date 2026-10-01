@@ -32,6 +32,10 @@
  *   - `/me/attendance` needs `attendance.punch_self`; `/me/team` only a signed-in user (a unit head needs no
  *     permission — the API returns an empty team to anyone else); `/attendance` asks for ANY of `attendance.read` /
  *     `attendance.configure`, each child for its own (features/attendance/attendance.routes.ts).
+ * - SSO (docs/contracts/sso.md › Web): `/sso/:uid`, the OpenID Connect sign-in handoff, has NO guard and
+ *   `data: { chrome: false }`, like the kiosk: a connected app sends signed-out visitors here too, and the page itself
+ *   decides (details first, then /login with `returnUrl=/sso/<uid>`). `/access` now asks for ANY of `access.read` /
+ *   `sso.read` (Access → Applications needs only the second).
  * Order still matters (first match wins, `**` last); a guard only decides whether its route may match.
  */
 import type { Routes } from '@angular/router';
@@ -79,10 +83,11 @@ export const routes: Routes = [
       import('./features/organization/organization.routes').then((m) => m.ORGANIZATION_ROUTES),
   },
   {
-    // Access management (users, grants, roles): its own lazy chunk, never downloaded without access.read.
+    // Access management (users, grants, roles, connected apps): its own lazy chunk. The parent asks for ANY of
+    // access.read / sso.read; each child checks its own (features/access/access.routes.ts).
     path: 'access',
     canMatch: [...signedIn, permissionGuard()],
-    data: { permission: 'access.read' },
+    data: { permission: ['access.read', 'sso.read'] },
     loadChildren: () => import('./features/access/access.routes').then((m) => m.ACCESS_ROUTES),
   },
   {
@@ -145,6 +150,12 @@ export const routes: Routes = [
     // Phone landing of a scanned QR code: works signed out (scan first, then sign in, then punch).
     path: 'punch',
     loadComponent: () => import('./features/punch/punch.page').then((m) => m.PunchPage),
+  },
+  {
+    // SSO sign-in handoff (docs/contracts/sso.md › Web): works signed in or out, no guard, no app chrome.
+    path: 'sso/:uid',
+    data: { chrome: false },
+    loadComponent: () => import('./features/sso/sso-handoff.page').then((m) => m.SsoHandoffPage),
   },
   {
     // Pointage (self-service attendance): today, my month, the Law 18-07 notice.

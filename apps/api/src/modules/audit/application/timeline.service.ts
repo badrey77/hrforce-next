@@ -12,6 +12,7 @@ export const DOCUMENT_READ = 'document.read';
 export const MEDICAL_READ = 'employee.medical.read';
 export const ATTENDANCE_CONFIGURE = 'attendance.configure';
 export const ATTENDANCE_READ = 'attendance.read';
+export const SSO_READ = 'sso.read';
 
 function subjectNotFound(): NotFoundException {
   return new NotFoundException('Subject not found');
@@ -117,6 +118,12 @@ export class TimelineService {
       case 'attendance_device': {
         if ((await this.scopes.unitIds(ATTENDANCE_CONFIGURE)).size === 0) throw subjectNotFound();
         if (!(await this.repo.attendanceDeviceKnown(companyId, subject.id))) throw subjectNotFound();
+        return plain;
+      }
+      case 'sso_client': {
+        // a connected app (docs/contracts/sso.md › Audit and timeline): sso.read AND audit.read held anywhere
+        if ((await this.scopes.unitIds(SSO_READ)).size === 0 || (await this.scopes.unitIds(AUDIT_READ)).size === 0) throw subjectNotFound();
+        if (!(await this.repo.ssoClientKnown(companyId, subject.id))) throw subjectNotFound();
         return plain;
       }
       case 'user': {

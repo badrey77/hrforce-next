@@ -27,6 +27,9 @@
     <!-- Linked employee (self-service and unit-head approvals, docs/contracts/leave.md › Links). -->
     <app-linked-employee [user]="person" (changed)="member.reload()" />
 
+    <!-- Connected-app roles (docs/contracts/sso.md › Web). The page owns the request and passes the resource down. -->
+    <app-user-apps-section *appCan="'sso.read'" [user]="person" [assignments]="appAssignments" />
+
     <!-- Grants = the "Details" tab; the member's audit history is the other one (shared/timeline/history-tabs.ts). -->
     <app-history-tabs [subject]="'user:' + person.id" [resolver]="auditNames">
       <div class="toolbar">

@@ -55,5 +55,17 @@
   {
     "table": "audit.masked_column",
     "reason": "Global list of masked columns of the audit trail (docs/contracts/audit.md, migration 0009): metadata, not tenant data; SELECT-only for hrforce_app."
+  },
+  {
+    "table": "oidc.model_store",
+    "reason": "Global OIDC provider state (docs/contracts/sso.md, ADR 007, migration 0018), schema oidc, keyed by hashed ids; reachable only by the SSO module (hrforce_app) and the worker's oidc.cleanup. Exists before any tenant is known (interactions, token lookups by value); not audited (operational, high churn; sign-ins are audited as sso.sign_in events)."
+  },
+  {
+    "table": "oidc.signing_key",
+    "reason": "Global OIDC provider state (docs/contracts/sso.md, ADR 007, migration 0018), schema oidc, keyed by hashed ids; reachable only by the SSO module (hrforce_app) and the worker's oidc.cleanup. Exists before any tenant is known (interactions, token lookups by value); not audited (operational, high churn; sign-ins are audited as sso.sign_in events)."
+  },
+  {
+    "table": "oidc.client_auth_failure",
+    "reason": "Global OIDC provider state (docs/contracts/sso.md, ADR 007, migration 0018), schema oidc, keyed by hashed ids; reachable only by the SSO module (hrforce_app) and the worker's oidc.cleanup. Exists before any tenant is known (interactions, token lookups by value); not audited (operational, high churn; sign-ins are audited as sso.sign_in events)."
   }
 ]

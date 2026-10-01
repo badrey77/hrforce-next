@@ -62,7 +62,8 @@
         "back": "Back to password",
         "expired": "The verification expired. Enter your password again."
       },
-      "forPunch": "Sign in to record your punch."
+      "forPunch": "Sign in to record your punch.",
+      "forSso": "Sign in to continue to the app."
     },
     "session": {
       "signOut": "Sign out",
@@ -268,7 +269,8 @@
       "label": "Access sections",
       "users": "Users",
       "roles": "Roles",
-      "security": "Security policy"
+      "security": "Security policy",
+      "apps": "Apps"
     },
     "status": {
       "invited": "Invited",
@@ -280,7 +282,8 @@
       "access": "Access",
       "employee": "Employees",
       "sensitive": "Sensitive data",
-      "leave": "Leave"
+      "leave": "Leave",
+      "sso": "Connected apps"
     },
     "users": {
       "search": "Search users",
@@ -491,7 +494,10 @@
       "attendance_schedule_assignment": "Schedule assignment",
       "attendance_punch": "Punch",
       "attendance_correction": "Attendance correction",
-      "attendance_correction_item": "Requested change"
+      "attendance_correction_item": "Requested change",
+      "sso_client": "Connected app",
+      "sso_app_role": "App role",
+      "sso_role_assignment": "App role assignment"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -773,6 +779,36 @@
       "attendance_policy": {
         "correction_max_age_days": "Correction window (days)",
         "correction_workflow_code": "Correction chain"
+      },
+      "sso_client": {
+        "client_id": "Client id",
+        "name": "Name",
+        "name_ar": "Name (Arabic)",
+        "status": "Status",
+        "secret_enc": "Secret (masked)",
+        "credential_set_at": "Secret issued at",
+        "client_auth_method": "How the secret is sent",
+        "redirect_uris": "Redirect URIs",
+        "post_logout_redirect_uris": "Post-logout URIs",
+        "created_by": "Registered by",
+        "created_at": "Registered at",
+        "disabled_at": "Disabled at",
+        "disabled_by": "Disabled by",
+        "disabled_reason": "Reason for disabling"
+      },
+      "sso_app_role": {
+        "sso_client_id": "App",
+        "code": "Code",
+        "name_fr": "Name (French)",
+        "name_ar": "Name (Arabic)",
+        "name_en": "Name (English)",
+        "created_at": "Created at"
+      },
+      "sso_role_assignment": {
+        "sso_app_role_id": "App role",
+        "user_id": "User",
+        "assigned_by": "Assigned by",
+        "assigned_at": "Assigned at"
       }
     },
     "events": {
@@ -833,6 +869,12 @@
         "correction_cancelled": "Attendance correction cancelled",
         "correction_deleted": "Attendance correction deleted",
         "correction_item_deleted": "Change no. {{number}} deleted"
+      },
+      "sso": {
+        "sign_in": "Signed in to “{{clientName}}” with HRForce (IP address {{ip}})",
+        "client_secret_rotated": "Secret of app {{clientId}} regenerated",
+        "role_assigned": "App role “{{roleCode}}” assigned ({{clientId}})",
+        "role_removed": "App role “{{roleCode}}” removed ({{clientId}})"
       }
     },
     "values": {
@@ -2484,6 +2526,192 @@
       "loadError": "Could not load the report.",
       "exportError": "The export could not be downloaded. Please try again.",
       "tooMany": "Too many employees for this report (over 5,000): please choose a unit or a site."
+    }
+  },
+  "sso": {
+    "handoff": {
+      "title": "Sign in with HRForce",
+      "working": {
+        "loading": "Preparing the sign-in…",
+        "signin": "Redirecting to sign-in…",
+        "fresh": "The app asks for a new sign-in.",
+        "leaving": "Returning to the app…"
+      },
+      "completing": "Signing in to “{{app}}”…",
+      "expired": "This sign-in request has expired. Please start again from the app.",
+      "unavailable": "This app is disabled or unknown.",
+      "notMember": "This account has no access to “{{app}}”.",
+      "fresh": "The app asks for a new sign-in.",
+      "signedInAs": "Signed-in account:",
+      "backToApp": "Back to the app",
+      "switchAccount": "Switch account",
+      "home": "Go to the HRForce home page"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Disabled"
+    },
+    "authMethod": {
+      "client_secret_basic": "HTTP Basic header (client_secret_basic, recommended)",
+      "client_secret_post": "In the request body (client_secret_post)"
+    },
+    "apps": {
+      "title": "Connected apps",
+      "intro": "Group apps that sign people in with HRForce (OpenID Connect). Their roles are managed here and sent to the app at each sign-in.",
+      "create": "New app",
+      "createTitle": "New connected app",
+      "created": "App registered.",
+      "readOnlyNote": "You can view connected apps but not change them.",
+      "name": "App",
+      "clientId": "Client id",
+      "status": "Status",
+      "roles": "Roles",
+      "users": "Users",
+      "credentialSetAt": "Secret issued",
+      "createdAt": "Registered on",
+      "disabledAt": "Disabled on",
+      "empty": "No connected app.",
+      "loadError": "Could not load the connected apps.",
+      "notFound": "App not found.",
+      "back": "← All apps"
+    },
+    "form": {
+      "clientIdHint": "Lower-case letters, digits and “-”, 3 to 40 characters, starting with a letter. Unique across the group. Cannot be changed later.",
+      "name": "App name",
+      "nameAr": "Arabic name (optional)",
+      "redirectUris": "Redirect URIs",
+      "redirectUrisHint": "Exact address HRForce returns to after sign-in (1 to 10). “https://” required, except “http://localhost” for testing.",
+      "postLogoutRedirectUris": "Post-logout URIs (optional)",
+      "postLogoutRedirectUrisHint": "Exact address HRForce returns to after signing out from the app (0 to 10).",
+      "uriLabel": "Address {{n}}",
+      "addUri": "Add an address",
+      "removeUri": "Remove",
+      "authMethod": "How the app sends its secret",
+      "create": "Register the app",
+      "saved": "Settings saved.",
+      "errors": {
+        "required": "This field is required.",
+        "invalid": "Invalid value.",
+        "clientIdPattern": "Lower-case letters, digits and “-” only, 3 to 40 characters, starting with a letter.",
+        "roleCodePattern": "Lower-case letters, digits and “_” only, 2 to 40 characters, starting with a letter.",
+        "too_long": "Text too long.",
+        "too_short": "Text too short (at least 3 characters).",
+        "too_many": "10 addresses at most.",
+        "invalid_uri": "Invalid address: a full http(s) URL, without “#”, “*” or credentials.",
+        "insecure_uri": "“http://” is only accepted for localhost, 127.0.0.1 or [::1]. Use “https://”.",
+        "duplicate": "This address is listed twice.",
+        "immutable": "This value cannot be changed.",
+        "taken": "This value is already used.",
+        "not_member": "This user is not a member of the company.",
+        "unknown": "This role does not exist."
+      }
+    },
+    "secret": {
+      "title": "Client secret",
+      "label": "Secret",
+      "warning": "This secret will never be shown again. Copy it now into the app’s configuration.",
+      "copy": "Copy",
+      "copied": "Secret copied.",
+      "copyFailed": "Automatic copy failed: the secret is selected, copy it with Ctrl+C.",
+      "confirm": "I have copied the secret",
+      "done": "Done",
+      "leaveConfirm": "The secret will never be shown again. Leave this page anyway?"
+    },
+    "connect": {
+      "title": "How to connect the app",
+      "intro": "Values to enter in the app’s OpenID Connect library (authorization code flow with PKCE S256).",
+      "issuer": "Issuer",
+      "discovery": "Discovery",
+      "clientId": "Client id",
+      "redirectUri": "Redirect URI",
+      "postLogoutRedirectUri": "Post-logout URI",
+      "scopes": "Scopes to request",
+      "copy": "Copy",
+      "copied": "Copied."
+    },
+    "detail": {
+      "tabsLabel": "App sections",
+      "tabs": {
+        "settings": "Settings",
+        "roles": "Roles",
+        "users": "Users",
+        "history": "History"
+      }
+    },
+    "actions": {
+      "rotate": "Regenerate the secret",
+      "rotateTitle": "Regenerate the secret?",
+      "rotateConfirm": "The old secret stops working at once: the app cannot sign anyone in until its configuration has the new secret.",
+      "rotateSubmit": "Regenerate",
+      "rotated": "New secret issued.",
+      "disable": "Disable",
+      "disableTitle": "Disable the app",
+      "disableIntro": "Nobody can sign in to this app through HRForce until it is enabled again.",
+      "reason": "Reason",
+      "reasonHint": "3 to 500 characters.",
+      "disableSubmit": "Disable the app",
+      "disabled": "App disabled.",
+      "enable": "Enable again",
+      "enabled": "App enabled again."
+    },
+    "roles": {
+      "title": "App roles",
+      "intro": "A role’s code is sent to the app in the ID token (“roles”). The names are for HRForce screens.",
+      "add": "New role",
+      "edit": "Edit names",
+      "delete": "Delete",
+      "code": "Code",
+      "codeHint": "Lower-case letters, digits and “_”, 2 to 40 characters, starting with a letter. Cannot be changed later.",
+      "name": "Name",
+      "users": "Users",
+      "empty": "No role defined for this app.",
+      "inUse": "Role held by {{count}} user(s): remove those assignments before deleting it.",
+      "deleteTitle": "Delete the role",
+      "deleteConfirm": "Delete the role “{{code}}”?",
+      "created": "Role “{{code}}” created.",
+      "saved": "Role “{{code}}” saved.",
+      "deleted": "Role “{{code}}” deleted."
+    },
+    "assignments": {
+      "title": "App users",
+      "assign": "Assign a role",
+      "submit": "Assign",
+      "user": "User",
+      "role": "Role",
+      "pickRole": "Choose a role",
+      "assignedBy": "Assigned by",
+      "since": "Since",
+      "remove": "Remove",
+      "removeTitle": "Remove a role",
+      "removeConfirm": "Remove the role “{{role}}” from:",
+      "empty": "Nobody has a role in this app.",
+      "loadError": "Could not load the assignments.",
+      "searchUser": "Search a user",
+      "noResult": "No user found.",
+      "self": "you",
+      "selfHint": "Nobody can assign a role to themselves.",
+      "needsAccessRead": "Searching users needs the “View access” permission.",
+      "noRoles": "Define a role in the “Roles” tab first.",
+      "added": "Role assigned to",
+      "removed": "Role removed."
+    },
+    "userApps": {
+      "title": "Apps",
+      "app": "App",
+      "pickApp": "Choose an app",
+      "assign": "Assign",
+      "none": "No app role.",
+      "confirmRemove": "Remove this role?"
+    },
+    "problems": {
+      "forbiddenScope": "Only company-wide administrators can make this change.",
+      "clientIdTaken": "This id is already used (possibly by another company of the group).",
+      "clientDisabled": "The app is already disabled.",
+      "clientActive": "The app is already active.",
+      "roleCodeTaken": "This role code already exists for this app.",
+      "roleInUse": "This role is still assigned: remove those assignments before deleting it.",
+      "assignSelf": "Nobody can assign or remove their own app role.",
+      "assignmentDuplicate": "This user already has this role."
     }
   }
 }

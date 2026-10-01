@@ -57,6 +57,20 @@ export class AccessApi {
   }
 
   /**
+   * The same `GET /access/users?q=` as a search that may be OFF: `undefined` sends nothing (the form is closed), `''`
+   * lists everyone. Used by the app-role assignment form (docs/contracts/sso.md › Scope rules › User picker).
+   */
+  userSearchResource(q: () => string | undefined): HttpResourceRef<AccessUserList | undefined> {
+    return httpResource<AccessUserList>(() => {
+      const value = q();
+      if (value === undefined) return undefined;
+      const text = value.trim();
+      const params: Record<string, string> = text ? { q: text } : {};
+      return { url: `${ACCESS_API_BASE}/users`, params };
+    });
+  }
+
+  /**
    * `GET /access/users/:id` — one member (same shape as a list item). Keyed on `id()`: a new id cancels the previous
    * request and fetches again; `undefined` sends nothing. Not visible to the caller (or unknown) → 404.
    */

@@ -62,7 +62,8 @@
         "back": "Retour au mot de passe",
         "expired": "La vérification a expiré. Saisissez à nouveau votre mot de passe."
       },
-      "forPunch": "Connectez-vous pour enregistrer votre pointage."
+      "forPunch": "Connectez-vous pour enregistrer votre pointage.",
+      "forSso": "Connectez-vous pour continuer vers l'application."
     },
     "session": {
       "signOut": "Se déconnecter",
@@ -268,7 +269,8 @@
       "label": "Sections des accès",
       "users": "Utilisateurs",
       "roles": "Rôles",
-      "security": "Politique de sécurité"
+      "security": "Politique de sécurité",
+      "apps": "Applications"
     },
     "status": {
       "invited": "Invité",
@@ -280,7 +282,8 @@
       "access": "Accès",
       "employee": "Employés",
       "sensitive": "Données sensibles",
-      "leave": "Congés"
+      "leave": "Congés",
+      "sso": "Applications connectées"
     },
     "users": {
       "search": "Rechercher un utilisateur",
@@ -491,7 +494,10 @@
       "attendance_schedule_assignment": "Affectation d’horaire",
       "attendance_punch": "Pointage",
       "attendance_correction": "Correction de pointage",
-      "attendance_correction_item": "Changement demandé"
+      "attendance_correction_item": "Changement demandé",
+      "sso_client": "Application connectée",
+      "sso_app_role": "Rôle d'application",
+      "sso_role_assignment": "Attribution d'un rôle d'application"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -773,6 +779,36 @@
       "attendance_policy": {
         "correction_max_age_days": "Délai de correction (jours)",
         "correction_workflow_code": "Circuit des corrections"
+      },
+      "sso_client": {
+        "client_id": "Identifiant client",
+        "name": "Nom",
+        "name_ar": "Nom (arabe)",
+        "status": "Statut",
+        "secret_enc": "Secret (masqué)",
+        "credential_set_at": "Secret émis le",
+        "client_auth_method": "Envoi du secret",
+        "redirect_uris": "Adresses de retour",
+        "post_logout_redirect_uris": "Adresses après déconnexion",
+        "created_by": "Enregistrée par",
+        "created_at": "Enregistrée le",
+        "disabled_at": "Désactivée le",
+        "disabled_by": "Désactivée par",
+        "disabled_reason": "Motif de désactivation"
+      },
+      "sso_app_role": {
+        "sso_client_id": "Application",
+        "code": "Code",
+        "name_fr": "Nom (français)",
+        "name_ar": "Nom (arabe)",
+        "name_en": "Nom (anglais)",
+        "created_at": "Créé le"
+      },
+      "sso_role_assignment": {
+        "sso_app_role_id": "Rôle d'application",
+        "user_id": "Utilisateur",
+        "assigned_by": "Attribué par",
+        "assigned_at": "Attribué le"
       }
     },
     "events": {
@@ -833,6 +869,12 @@
         "correction_cancelled": "Correction de pointage annulée",
         "correction_deleted": "Correction de pointage supprimée",
         "correction_item_deleted": "Changement n° {{number}} supprimé"
+      },
+      "sso": {
+        "sign_in": "Connexion à « {{clientName}} » via HRForce (adresse IP {{ip}})",
+        "client_secret_rotated": "Secret de l'application {{clientId}} régénéré",
+        "role_assigned": "Rôle d'application « {{roleCode}} » attribué ({{clientId}})",
+        "role_removed": "Rôle d'application « {{roleCode}} » retiré ({{clientId}})"
       }
     },
     "values": {
@@ -2484,6 +2526,192 @@
       "loadError": "Impossible de charger le rapport.",
       "exportError": "L’export n’a pas pu être téléchargé. Veuillez réessayer.",
       "tooMany": "Trop d’employés pour ce rapport (plus de 5 000) : veuillez choisir une unité ou un site."
+    }
+  },
+  "sso": {
+    "handoff": {
+      "title": "Connexion via HRForce",
+      "working": {
+        "loading": "Préparation de la connexion…",
+        "signin": "Redirection vers la connexion…",
+        "fresh": "L'application demande une nouvelle connexion.",
+        "leaving": "Retour à l'application…"
+      },
+      "completing": "Connexion à « {{app}} »…",
+      "expired": "Cette demande de connexion a expiré. Veuillez recommencer depuis l'application.",
+      "unavailable": "Cette application est désactivée ou inconnue.",
+      "notMember": "Ce compte n'a pas accès à « {{app}} ».",
+      "fresh": "L'application demande une nouvelle connexion.",
+      "signedInAs": "Compte connecté :",
+      "backToApp": "Retourner à l'application",
+      "switchAccount": "Changer de compte",
+      "home": "Aller à l'accueil de HRForce"
+    },
+    "status": {
+      "active": "Active",
+      "disabled": "Désactivée"
+    },
+    "authMethod": {
+      "client_secret_basic": "En-tête HTTP Basic (client_secret_basic, recommandé)",
+      "client_secret_post": "Dans le corps de la requête (client_secret_post)"
+    },
+    "apps": {
+      "title": "Applications connectées",
+      "intro": "Applications du groupe qui utilisent la connexion HRForce (OpenID Connect). Leurs rôles sont gérés ici et transmis à l'application à chaque connexion.",
+      "create": "Nouvelle application",
+      "createTitle": "Nouvelle application connectée",
+      "created": "Application enregistrée.",
+      "readOnlyNote": "Vous pouvez consulter les applications connectées, mais pas les modifier.",
+      "name": "Application",
+      "clientId": "Identifiant client",
+      "status": "Statut",
+      "roles": "Rôles",
+      "users": "Utilisateurs",
+      "credentialSetAt": "Secret émis",
+      "createdAt": "Enregistrée le",
+      "disabledAt": "Désactivée le",
+      "empty": "Aucune application connectée.",
+      "loadError": "Impossible de charger les applications connectées.",
+      "notFound": "Application introuvable.",
+      "back": "← Toutes les applications"
+    },
+    "form": {
+      "clientIdHint": "Lettres minuscules, chiffres et « - », de 3 à 40 caractères, en commençant par une lettre. Unique dans tout le groupe. Non modifiable ensuite.",
+      "name": "Nom de l'application",
+      "nameAr": "Nom en arabe (facultatif)",
+      "redirectUris": "Adresses de retour (redirect URI)",
+      "redirectUrisHint": "Adresse exacte où HRForce renvoie après la connexion (1 à 10). « https:// » obligatoire, sauf « http://localhost » pour les essais.",
+      "postLogoutRedirectUris": "Adresses après déconnexion (facultatif)",
+      "postLogoutRedirectUrisHint": "Adresse exacte où HRForce renvoie après la déconnexion depuis l'application (0 à 10).",
+      "uriLabel": "Adresse {{n}}",
+      "addUri": "Ajouter une adresse",
+      "removeUri": "Retirer",
+      "authMethod": "Envoi du secret par l’application",
+      "create": "Enregistrer l'application",
+      "saved": "Paramètres enregistrés.",
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "invalid": "Valeur invalide.",
+        "clientIdPattern": "Lettres minuscules, chiffres et « - » uniquement, de 3 à 40 caractères, en commençant par une lettre.",
+        "roleCodePattern": "Lettres minuscules, chiffres et « _ » uniquement, de 2 à 40 caractères, en commençant par une lettre.",
+        "too_long": "Texte trop long.",
+        "too_short": "Texte trop court (3 caractères au moins).",
+        "too_many": "10 adresses au maximum.",
+        "invalid_uri": "Adresse invalide : URL complète http(s), sans « # », sans « * » et sans identifiants.",
+        "insecure_uri": "« http:// » est accepté uniquement pour localhost, 127.0.0.1 ou [::1]. Utilisez « https:// ».",
+        "duplicate": "Cette adresse figure deux fois.",
+        "immutable": "Cette valeur ne peut pas être modifiée.",
+        "taken": "Cette valeur est déjà utilisée.",
+        "not_member": "Cet utilisateur n'est pas membre de la société.",
+        "unknown": "Ce rôle est introuvable."
+      }
+    },
+    "secret": {
+      "title": "Secret du client",
+      "label": "Secret",
+      "warning": "Ce secret ne sera plus jamais affiché. Copiez-le maintenant dans la configuration de l'application.",
+      "copy": "Copier",
+      "copied": "Secret copié.",
+      "copyFailed": "Copie automatique impossible : le secret est sélectionné, copiez-le avec Ctrl+C.",
+      "confirm": "J'ai copié le secret",
+      "done": "Terminer",
+      "leaveConfirm": "Le secret ne sera plus jamais affiché. Quitter cette page quand même ?"
+    },
+    "connect": {
+      "title": "Comment connecter l'application",
+      "intro": "Valeurs à saisir dans la bibliothèque OpenID Connect de l'application (flux « authorization code » avec PKCE S256).",
+      "issuer": "Émetteur (issuer)",
+      "discovery": "Découverte (discovery)",
+      "clientId": "Identifiant client",
+      "redirectUri": "Adresse de retour",
+      "postLogoutRedirectUri": "Adresse après déconnexion",
+      "scopes": "Portées à demander (scopes)",
+      "copy": "Copier",
+      "copied": "Copié."
+    },
+    "detail": {
+      "tabsLabel": "Sections de l'application",
+      "tabs": {
+        "settings": "Paramètres",
+        "roles": "Rôles",
+        "users": "Utilisateurs",
+        "history": "Historique"
+      }
+    },
+    "actions": {
+      "rotate": "Régénérer le secret",
+      "rotateTitle": "Régénérer le secret ?",
+      "rotateConfirm": "L'ancien secret cessera de fonctionner immédiatement : l'application ne pourra plus connecter personne tant que sa configuration n'aura pas reçu le nouveau secret.",
+      "rotateSubmit": "Régénérer",
+      "rotated": "Nouveau secret émis.",
+      "disable": "Désactiver",
+      "disableTitle": "Désactiver l'application",
+      "disableIntro": "Plus personne ne pourra se connecter à cette application via HRForce jusqu'à sa réactivation.",
+      "reason": "Motif",
+      "reasonHint": "De 3 à 500 caractères.",
+      "disableSubmit": "Désactiver l'application",
+      "disabled": "Application désactivée.",
+      "enable": "Réactiver",
+      "enabled": "Application réactivée."
+    },
+    "roles": {
+      "title": "Rôles de l'application",
+      "intro": "Le code d'un rôle est transmis à l'application dans le jeton d'identité (« roles »). Les noms servent aux écrans de HRForce.",
+      "add": "Nouveau rôle",
+      "edit": "Modifier les noms",
+      "delete": "Supprimer",
+      "code": "Code",
+      "codeHint": "Lettres minuscules, chiffres et « _ », de 2 à 40 caractères, en commençant par une lettre. Non modifiable ensuite.",
+      "name": "Nom",
+      "users": "Utilisateurs",
+      "empty": "Aucun rôle défini pour cette application.",
+      "inUse": "Rôle attribué à {{count}} utilisateur(s) : retirez ces attributions avant de le supprimer.",
+      "deleteTitle": "Supprimer le rôle",
+      "deleteConfirm": "Supprimer le rôle « {{code}} » ?",
+      "created": "Rôle « {{code}} » créé.",
+      "saved": "Rôle « {{code}} » enregistré.",
+      "deleted": "Rôle « {{code}} » supprimé."
+    },
+    "assignments": {
+      "title": "Utilisateurs de l'application",
+      "assign": "Attribuer un rôle",
+      "submit": "Attribuer",
+      "user": "Utilisateur",
+      "role": "Rôle",
+      "pickRole": "Choisir un rôle",
+      "assignedBy": "Attribué par",
+      "since": "Depuis le",
+      "remove": "Retirer",
+      "removeTitle": "Retirer un rôle",
+      "removeConfirm": "Retirer le rôle « {{role}} » de :",
+      "empty": "Personne n'a de rôle dans cette application.",
+      "loadError": "Impossible de charger les attributions.",
+      "searchUser": "Rechercher un utilisateur",
+      "noResult": "Aucun utilisateur trouvé.",
+      "self": "vous",
+      "selfHint": "Personne ne peut s'attribuer un rôle à soi-même.",
+      "needsAccessRead": "La recherche des utilisateurs nécessite la permission « Consulter les accès ».",
+      "noRoles": "Définissez d'abord un rôle dans l'onglet « Rôles ».",
+      "added": "Rôle attribué à",
+      "removed": "Rôle retiré."
+    },
+    "userApps": {
+      "title": "Applications",
+      "app": "Application",
+      "pickApp": "Choisir une application",
+      "assign": "Attribuer",
+      "none": "Aucun rôle d'application.",
+      "confirmRemove": "Retirer ce rôle ?"
+    },
+    "problems": {
+      "forbiddenScope": "Seuls les administrateurs de toute la société peuvent faire cette modification.",
+      "clientIdTaken": "Cet identifiant est déjà utilisé (éventuellement par une autre société du groupe).",
+      "clientDisabled": "L'application est déjà désactivée.",
+      "clientActive": "L'application est déjà active.",
+      "roleCodeTaken": "Ce code de rôle existe déjà pour cette application.",
+      "roleInUse": "Ce rôle est encore attribué : retirez ces attributions avant de le supprimer.",
+      "assignSelf": "Personne ne peut s'attribuer ou se retirer un rôle d'application.",
+      "assignmentDuplicate": "Cet utilisateur a déjà ce rôle."
     }
   }
 }

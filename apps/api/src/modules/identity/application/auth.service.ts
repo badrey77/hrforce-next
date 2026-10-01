@@ -109,7 +109,7 @@ export class AuthService {
       this.cookies.setMfaPending(res, token);
       return { mfaRequired: true };
     }
-    await this.startSession(req, res, account.userId, email, {});
+    await this.startSession(req, res, account.userId, email, {}, ['pwd']);
     return undefined;
   }
 
@@ -168,7 +168,8 @@ export class AuthService {
     }
 
     this.cookies.clearMfaPending(res);
-    const session = await this.startSession(req, res, claims.sub, email, { mfa: method });
+    // amr of the session (docs/contracts/sso.md › Identity additions): TOTP or recovery code alike
+    const session = await this.startSession(req, res, claims.sub, email, { mfa: method }, ['pwd', 'otp', 'mfa']);
     if (method === 'recovery') {
       const left = outcome.recoveryCodesLeft ?? 0;
       await this.audit.recordFor(
@@ -184,11 +185,11 @@ export class AuthService {
    * The end of a successful sign-in: session row, login_event success, audit auth.login (own short transaction under
    * the session's company), the browser's previous session revoked, cookies issued.
    */
-  private async startSession(req: Request, res: Response, userId: string, email: string, extra: Record<string, unknown>): Promise<NewSession> {
+  private async startSession(req: Request, res: Response, userId: string, email: string, extra: Record<string, unknown>, amr: readonly string[]): Promise<NewSession> {
     const { ip, userAgent } = clientOf(req);
     const record = (outcome: LoginOutcome) => this.repo.recordLoginEvent({ email, userId, ip, userAgent, outcome });
     const refresh = newOpaqueToken();
-    const session = await this.repo.createSession(userId, sha256(refresh), ip, userAgent);
+    const session = await this.repo.createSession(userId, sha256(refresh), ip, userAgent, amr);
     if (!session) {
       // active but member of no company: no access at all
       await record('disabled');
@@ -228,19 +229,24 @@ export class AuthService {
     this.issue(res, rotation.session.userId, rotation.session, refresh);
   }
 
-  /** Revokes the family of the presented refresh token (and of the access token's session), clears the cookies. */
-  async logout(req: Request, res: Response): Promise<void> {
+  /**
+   * Revokes the family of the presented refresh token (and of the access token's session), clears the cookies.
+   * `expectedUserId` (docs/contracts/sso.md › Logout flow: the RP-initiated logout page sends the ID token's `sub`):
+   * when the presented session belongs to ANOTHER user, or there is no session, nothing happens at all — nothing
+   * revoked, cookies untouched, no audit — so a logout started for one person never signs out the next one.
+   */
+  async logout(req: Request, res: Response, expectedUserId?: string): Promise<void> {
     const refreshHash = hashOpaqueToken(readCookie(req, REFRESH_COOKIE));
     const identity = await identityOf(this.identityResolver, req);
     const sid = identity.sessionId ?? null;
-    if (refreshHash || sid) await this.repo.revokeFamily(refreshHash, sid, sid ? identity.userId : null);
-    // who signed out: the access token's user, else the owner of the presented refresh token
+    // who is signing out: the access token's user, else the owner of the presented refresh token
+    const refreshOwner = refreshHash ? await this.repo.sessionOwner(refreshHash) : null;
     const owner =
       sid && identity.userId && identity.companyId
         ? { userId: identity.userId, companyId: identity.companyId }
-        : refreshHash
-          ? await this.repo.sessionOwner(refreshHash)
-          : null;
+        : refreshOwner;
+    if (expectedUserId !== undefined && owner?.userId !== expectedUserId.toLowerCase()) return;
+    if (refreshHash || sid) await this.repo.revokeFamily(refreshHash, sid, sid ? identity.userId : null);
     if (owner) {
       await this.audit.recordFor(
         { companyId: owner.companyId, actorUserId: owner.userId },

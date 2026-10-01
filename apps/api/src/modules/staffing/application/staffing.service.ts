@@ -33,6 +33,15 @@ export interface MyEmploymentView extends EmployeeCard {
   headOf: UnitRef[];
 }
 
+/** The SSO `employee` claim (docs/contracts/sso.md › Claims). */
+export interface EmployeeClaim {
+  matricule: string;
+  /** the employment is open on the date */
+  active: boolean;
+  /** the unit of the assignment valid on the date; null when none */
+  unit: { id: string; code: string; name: string; nameAr: string | null } | null;
+}
+
 export interface UserEmploymentView {
   userId: string;
   employment: EmployeeCard | null;
@@ -96,6 +105,22 @@ export class StaffingService {
   async linkedEmploymentOf(userId: string): Promise<string | null> {
     const { companyId } = tenant();
     return (await this.repo.linkOfUser(companyId, userId)) ?? null;
+  }
+
+  /**
+   * The SSO `employee` claim of `userId` on `date` (Algiers date), read in the current transaction (the claims
+   * transaction of the client's company); null when the user is not linked to an employment of this company.
+   */
+  async employeeClaim(userId: string, date: string): Promise<EmployeeClaim | null> {
+    const { companyId } = requireContext();
+    if (!companyId) return null;
+    const row = await this.repo.employeeClaim(companyId, userId, date);
+    if (!row) return null;
+    return {
+      matricule: row.matricule,
+      active: row.active,
+      unit: row.unitId && row.unitCode ? { id: row.unitId, code: row.unitCode, name: row.unitName ?? row.unitCode, nameAr: row.unitNameAr } : null,
+    };
   }
 
   /** employmentId → linked user id. */

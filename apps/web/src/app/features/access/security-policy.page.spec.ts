@@ -113,6 +113,7 @@ describe('Access › Security policy', () => {
     await harness.navigateByUrl('/access/security');
     await settle();
     http.expectNone('/api/access/security-policy');
-    expect(el().textContent).toBe('not found');
+    // The Access feature now ends with the shared 404 entry (it has children with different permissions).
+    expect(el().querySelector('h1')?.textContent?.trim()).toBe('404');
   });
 });

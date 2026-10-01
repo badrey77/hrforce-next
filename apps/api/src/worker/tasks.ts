@@ -6,6 +6,7 @@ import { PgAuditEvents } from '../modules/audit/index.js';
 import { algiersToday, runEmployeeFileRetention } from '../modules/documents/index.js';
 import { runAccruals } from '../modules/leave/index.js';
 import { cleanupReadNotifications, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
+import { runOidcCleanup } from '../modules/sso/index.js';
 import type { Database } from '../platform/db/database.js';
 import { forEachCompany, inCompany } from './company-loop.js';
 
@@ -36,6 +37,7 @@ export const TASKS = {
   notificationsCleanup: 'notifications.cleanup',
   employeeFilesRetention: 'employee_files.retention',
   attendanceRetention: 'attendance.retention',
+  oidcCleanup: 'oidc.cleanup',
 } as const;
 
 const requestIdOf = (task: string, job: JobInfo) => `job:${task}:${job.id}`;
@@ -129,6 +131,17 @@ export async function attendanceRetentionTask(deps: WorkerDeps, payload: unknown
   return { today, companies: results.length, punches: results.reduce((n, r) => n + (r.result?.punches ?? 0), 0), corrections: results.reduce((n, r) => n + (r.result?.corrections ?? 0), 0) };
 }
 
+/**
+ * `oidc.cleanup` (daily) — the OpenID Connect provider's expired rows (> 1 day) and old client-authentication failures
+ * (docs/contracts/sso.md › Worker); global, not per company. `payload.now` (ISO instant) pins the clock (tests).
+ */
+export async function oidcCleanupTask(deps: WorkerDeps, payload: unknown): Promise<Record<string, unknown>> {
+  const given = ((payload ?? {}) as Record<string, unknown>)['now'];
+  if (given !== undefined && (typeof given !== 'string' || Number.isNaN(Date.parse(given)))) throw new Error('oidc.cleanup: payload.now must be an ISO instant');
+  const result = await runOidcCleanup(deps.db, typeof given === 'string' ? new Date(given) : new Date());
+  return { ...result };
+}
+
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;
 
 const HANDLERS: Record<string, TaskFn> = {
@@ -139,6 +152,7 @@ const HANDLERS: Record<string, TaskFn> = {
   [TASKS.notificationsCleanup]: notificationsCleanupTask,
   [TASKS.employeeFilesRetention]: employeeFilesRetentionTask,
   [TASKS.attendanceRetention]: attendanceRetentionTask,
+  [TASKS.oidcCleanup]: oidcCleanupTask,
 };
 
 /** Graphile Worker task list: every handler with structured logging (a thrown error = a retry with back-off). */

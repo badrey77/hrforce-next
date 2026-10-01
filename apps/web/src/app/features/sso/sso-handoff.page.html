@@ -1,0 +1,88 @@
+<!--
+  sso-handoff.page.ts. A centred card, no app chrome (the route has `data: { chrome: false }`), so the language
+  switcher is placed here. One `@switch` on the state kind: working / completing / problem. The app name comes from the
+  API (`details.client`), never from the URL, and is wrapped in Unicode isolates for use inside a sentence.
+-->
+<ng-container *transloco="let t">
+  <div class="handoff-page">
+    <div class="handoff-tools"><app-language-switcher /></div>
+    <section class="handoff card" [attr.data-state]="state().kind" [attr.aria-busy]="state().kind !== 'problem'">
+      <p class="brand">{{ t('app.title') }}</p>
+      <h1>{{ t('sso.handoff.title') }}</h1>
+
+      @switch (state().kind) {
+        @case ('completing') {
+          <!-- `role="status"`: announced politely; the page is about to leave, nothing to act on. -->
+          <p class="status-line" role="status" data-state="completing">
+            <span class="spinner" aria-hidden="true"></span>
+            {{ t('sso.handoff.completing', { app: appName() }) }}
+          </p>
+        }
+
+        @case ('working') {
+          @if (state(); as s) {
+            @if (s.kind === 'working') {
+              <p class="status-line" role="status" [attr.data-step]="s.step">
+                <span class="spinner" aria-hidden="true"></span>
+                {{ t('sso.handoff.working.' + s.step) }}
+              </p>
+            }
+          }
+        }
+
+        @case ('problem') {
+          @if (state(); as s) {
+            @if (s.kind === 'problem') {
+              <!-- `role="alert"`: the flow stopped; the message is read out at once. -->
+              <div class="form-error" role="alert" [attr.data-problem]="s.problem">
+                @switch (s.problem) {
+                  @case ('notMember') {
+                    <p>{{ t('sso.handoff.notMember', { app: appName() }) }}</p>
+                    @if (accountName(); as name) {
+                      <p class="muted">{{ t('sso.handoff.signedInAs') }} <bdi>{{ name }}</bdi></p>
+                    }
+                  }
+                  @case ('disabled') {
+                    <p>{{ t('auth.login.errors.disabled') }}</p>
+                  }
+                  @case ('fresh') {
+                    <p>{{ t('sso.handoff.fresh') }}</p>
+                  }
+                  @case ('network') {
+                    <p>{{ t('errors.network') }}</p>
+                  }
+                  @case ('generic') {
+                    <p>{{ t('errors.generic') }}</p>
+                  }
+                  @default {
+                    <p>{{ t('sso.handoff.' + s.problem) }}</p>
+                  }
+                }
+              </div>
+
+              <div class="form-actions">
+                @if (s.client && (s.problem === 'notMember' || s.problem === 'disabled' || s.problem === 'fresh')) {
+                  <button class="btn" type="button" data-action="back-to-app" (click)="backToApp()">
+                    {{ t('sso.handoff.backToApp') }}
+                  </button>
+                }
+                @if (s.problem === 'notMember' || s.problem === 'fresh') {
+                  <button class="btn secondary" type="button" data-action="switch-account" (click)="switchAccount()">
+                    {{ t('sso.handoff.switchAccount') }}
+                  </button>
+                }
+                @if (s.problem === 'network' || s.problem === 'generic') {
+                  <button class="btn" type="button" data-action="retry" (click)="retry()">{{ t('common.retry') }}</button>
+                }
+                @if (s.problem === 'expired' || s.problem === 'unavailable' || s.problem === 'network' || s.problem === 'generic') {
+                  <!-- routerLink: HRForce's own home page is inside this app, so the router is the right tool here. -->
+                  <a class="btn secondary" routerLink="/" data-action="home">{{ t('sso.handoff.home') }}</a>
+                }
+              </div>
+            }
+          }
+        }
+      }
+    </section>
+  </div>
+</ng-container>

@@ -27,13 +27,15 @@ export type AuditRefKind =
   | 'leaveType'
   | 'step'
   | 'signatory'
-  | 'fileCategory';
+  | 'fileCategory'
+  /** A connected app's role id (`sso_role_assignment.sso_app_role_id`), named by its code where the page knows it. */
+  | 'appRole';
 
 /**
  * References whose raw value means nothing to a reader (a bare UUID, unlike a role code or a unit id an admin may
  * recognise): when the page cannot name them, the line says "name not available" instead of printing the id.
  */
-const OPAQUE_REFS: ReadonlySet<AuditRefKind> = new Set<AuditRefKind>(['signatory', 'fileCategory']);
+const OPAQUE_REFS: ReadonlySet<AuditRefKind> = new Set<AuditRefKind>(['signatory', 'fileCategory', 'appRole']);
 
 /**
  * Names a referenced value (a unit id, a role code…) from data the host page already has, or `undefined` to show
@@ -74,6 +76,10 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   // Attendance (attendance contract › Audit): who recorded a manual punch, who revoked a kiosk.
   created_by: 'user',
   revoked_by: 'user',
+  // SSO (sso contract › Audit): who assigned an app role, who disabled an app; which app role an assignment is for.
+  assigned_by: 'user',
+  disabled_by: 'user',
+  sso_app_role_id: 'appRole',
 };
 
 /**
@@ -114,6 +120,9 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'attendance_correction.status': 'attendance.corrections.status.',
   'attendance_correction_item.action': 'attendance.corrections.action.',
   'attendance_correction_item.direction': 'attendance.direction.',
+  // SSO: the same words as Access → Applications.
+  'sso_client.status': 'sso.status.',
+  'sso_client.client_auth_method': 'sso.authMethod.',
 };
 
 /**
@@ -144,6 +153,8 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Attendance Phase B: the links repeat the subject; punch ids mean nothing to a reader (the item shows the time).
   attendance_correction: ['employment_id', 'workflow_instance_id'],
   attendance_correction_item: ['correction_id', 'punch_id', 'result_punch_id'],
+  // SSO: a role row on the app's own history repeats the app.
+  sso_app_role: ['sso_client_id'],
 };
 
 export type DisplayValue =

@@ -1,0 +1,103 @@
+<!-- user-apps-section.ts: the person's connected-app roles; assign (app → role) and remove (inline confirm). -->
+<section *transloco="let t" class="panel" aria-labelledby="user-apps-title" data-section="user-apps">
+  <div class="toolbar">
+    <h3 id="user-apps-title">{{ t('sso.userApps.title') }}</h3>
+    @if (canAssign() && !adding()) {
+      <button class="btn secondary" type="button" data-action="assign-app" (click)="startAssign()">{{ t('sso.userApps.assign') }}</button>
+    }
+  </div>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  @if (adding()) {
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="user-app">
+      @let clientId = form.controls.clientId;
+      <div class="field">
+        <label for="user-app-client">{{ t('sso.userApps.app') }}</label>
+        <select id="user-app-client" formControlName="clientId" required (change)="onAppChange()"
+          [attr.aria-invalid]="clientId.invalid && clientId.touched" [attr.aria-busy]="appsLoading()">
+          <option value="">{{ t('sso.userApps.pickApp') }}</option>
+          @for (app of apps(); track app.id) {
+            <option [value]="app.id">{{ appName(app) }}</option>
+          }
+        </select>
+        @if (clientId.invalid && clientId.touched) {
+          <p class="field-error">{{ t(fieldErrorKey(clientId)) }}</p>
+        }
+      </div>
+      @let roleId = form.controls.roleId;
+      <div class="field">
+        <label for="user-app-role">{{ t('sso.assignments.role') }}</label>
+        <select id="user-app-role" formControlName="roleId" required [attr.aria-invalid]="roleId.invalid && roleId.touched">
+          <option value="">{{ t('sso.assignments.pickRole') }}</option>
+          @for (role of roles(); track role.id) {
+            <option [value]="role.id">{{ role.names[lang()] }} ({{ role.code }})</option>
+          }
+        </select>
+        @if (roleId.invalid && roleId.touched) {
+          <p class="field-error">{{ t(fieldErrorKey(roleId)) }}</p>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="confirm-assign-app" [disabled]="submitting()">
+          {{ submitting() ? t('access.form.saving') : t('sso.assignments.submit') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="adding.set(false)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @let resource = assignments();
+  @if (resource.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('sso.assignments.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="resource.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (resource.hasValue()) {
+    @if (items().length === 0) {
+      <p class="muted" data-state="no-apps">{{ t('sso.userApps.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data" data-table="user-apps">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('sso.userApps.app') }}</th>
+              <th scope="col">{{ t('sso.assignments.role') }}</th>
+              <th scope="col">{{ t('sso.assignments.since') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('access.grants.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (assignment of items(); track assignment.id) {
+              <tr [attr.data-assignment]="assignment.id">
+                <td><a [routerLink]="['/access/apps', assignment.client.id]">{{ appName(assignment.client) }}</a></td>
+                <td>{{ roleName(assignment.role) }} <span class="code" dir="ltr">({{ assignment.role.code }})</span></td>
+                <td class="nowrap"><time [attr.datetime]="assignment.assignedAt">{{ assignment.assignedAt | date: 'mediumDate' : undefined : locale() }}</time></td>
+                <td>
+                  @if (assignment._actions.includes('remove') && !isSelf()) {
+                    <div class="form-actions">
+                      @if (removing() === assignment.id) {
+                        <span>{{ t('sso.userApps.confirmRemove') }}</span>
+                        <button class="btn danger" type="button" data-action="confirm-remove-app" [disabled]="submitting()" (click)="remove(assignment)">{{ t('access.grants.yes') }}</button>
+                        <button class="btn secondary" type="button" (click)="removing.set(null)">{{ t('access.grants.no') }}</button>
+                      } @else {
+                        <button class="btn secondary" type="button" data-action="remove-app" (click)="removing.set(assignment.id)">{{ t('sso.assignments.remove') }}</button>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

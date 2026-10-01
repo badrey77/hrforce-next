@@ -24,9 +24,12 @@ import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
+import { DEMO_SSO_CLIENT, seedDemoSso } from '../modules/sso/index.js';
 
 const seedEnvSchema = migratorEnvSchema.extend({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /** the API's OIDC_KEY (unset = the public development key): the demo app's secret is sealed with it */
+  OIDC_KEY: z.string().optional(),
 });
 
 async function main(): Promise<void> {
@@ -47,8 +50,13 @@ async function main(): Promise<void> {
       const documents = await seedDemoDocuments(tx, renderer, algiersToday());
       const employeeFiles = await seedDemoEmployeeFiles(tx);
       const attendance = await seedDemoAttendance(tx, Date.now());
-      return { employees, leave, documents: { ...documents, employeeFiles }, attendance };
-    }).then(({ employees, leave, documents, attendance }) => {
+      const sso = await seedDemoSso(tx, env.OIDC_KEY);
+      return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso };
+    }).then(({ employees, leave, documents, attendance, sso }) => {
+      logger.info(
+        { clientId: DEMO_SSO_CLIENT.clientId, created: sso, redirectUris: DEMO_SSO_CLIENT.redirectUris },
+        `SSO demo app seeded (docs/contracts/sso.md): client ${DEMO_SSO_CLIENT.clientId}, development secret ${DEMO_SSO_CLIENT.secret} (INSECURE, also in apps/sso-demo/.env.example)`,
+      );
       logger.info(
         attendance,
         `attendance demo seeded (schedules, kiosks, punches); pair a kiosk at /kiosk with the development code ${attendance.pairingCode} (valid 30 days)`,

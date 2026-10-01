@@ -91,7 +91,7 @@ jobs:
       - run: npm test -w @hrforce/api
 
   test-web:
-    name: Test web
+    name: Test web (+ SSO demo app)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -103,6 +103,8 @@ jobs:
       - run: npm install -g npm@${{ env.NPM_VERSION }}
       - run: npm ci
       - run: npm test -w @hrforce/web
+      - name: Test the SSO demo app (apps/sso-demo, no database needed)
+        run: npm test -w @hrforce/sso-demo
 
   build:
     name: Build (api + web + API image)

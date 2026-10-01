@@ -33,6 +33,7 @@ while IFS= read -r line || [[ -n $line ]]; do
     AUTH_XSRF_SECRET=*) line="AUTH_XSRF_SECRET=$(b64)" ;;
     AUTH_MFA_KEY=*) line="AUTH_MFA_KEY=$(openssl rand -base64 32)" ;;
     ATTENDANCE_KEY=*) line="ATTENDANCE_KEY=$(openssl rand -base64 32)" ;;
+    OIDC_KEY=*) line="OIDC_KEY=$(openssl rand -base64 32)" ;;
   esac
   printf '%s\n' "$line"
 done < .env.staging.example > "$tmp"

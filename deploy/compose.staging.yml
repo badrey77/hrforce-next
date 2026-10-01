@@ -66,6 +66,8 @@ services:
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MIGRATOR_DATABASE_URL: postgres://hrforce_migrator:${HRFORCE_MIGRATOR_PASSWORD:?}@postgres:5432/hrforce
+      # For the SSO signing-key CLI (node dist/scripts/oidc-keys.js, README › Rotate secrets):
+      OIDC_KEY: ${OIDC_KEY:?}
       # For user:invite (mailed setup links):
       WEB_BASE_URL: https://${STAGING_DOMAIN:?}
       MAIL_TRANSPORT: smtp
@@ -94,6 +96,8 @@ services:
       AUTH_MFA_KEY: ${AUTH_MFA_KEY:?}
       # HMAC key of the attendance QR codes and scan receipts (docs/contracts/attendance.md); required in production
       ATTENDANCE_KEY: ${ATTENDANCE_KEY:?}
+      # SSO (docs/contracts/sso.md): encrypts client secrets and signing keys, signs the provider's cookies; required in production
+      OIDC_KEY: ${OIDC_KEY:?}
       COOKIE_SECURE: "true"
       # Exactly one proxy (Caddy) in front of the API.
       TRUST_PROXY_HOPS: "1"

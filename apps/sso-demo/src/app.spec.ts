@@ -78,7 +78,7 @@ describe('demo app (integration with a fake provider)', () => {
       `default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self' ${new URL(provider.issuer).origin}; frame-ancestors 'none'; base-uri 'none'`,
     );
     expect(res.headers['x-content-type-options']).toBe('nosniff');
-    expect(res.headers['referrer-policy']).toBe('no-referrer');
+    expect(res.headers['referrer-policy']).toBe('same-origin');
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.headers['x-powered-by']).toBeUndefined();
     expect(res.text).toContain('Se connecter avec HRForce');
@@ -228,7 +228,10 @@ describe('demo app (integration with a fake provider)', () => {
     const { cookie } = await signIn();
     const res = await request(app).post('/logout').set('Cookie', cookie).set('Origin', 'https://evil.example');
     expect(res.status).toBe(403);
+    expect((await request(app).post('/logout').set('Cookie', cookie).set('Origin', 'null')).status).toBe(403);
     expect((await request(app).get('/welcome').set('Cookie', cookie)).status).toBe(200);
+    // what a browser sends for the demo's own form under Referrer-Policy: same-origin
+    expect((await request(app).post('/logout').set('Cookie', cookie).set('Origin', BASE)).status).toBe(303);
     const css = await request(app).get('/assets/demo.css');
     expect(css.headers['content-type']).toMatch(/^text\/css/);
     expect(css.text).toContain('padding-inline');

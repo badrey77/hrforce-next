@@ -92,6 +92,9 @@ account, private by default.
    - `ATTENDANCE_KEY`: `openssl rand -base64 32` (exactly 32 bytes; HMAC key of the attendance QR codes and scan
      receipts, docs/contracts/attendance.md). **Existing installs: add it to `.env` before the deploy that ships
      migration 0016** (the API refuses to start without it in production; `deploy.sh` checks it).
+   - `OIDC_KEY`: `openssl rand -base64 32` (exactly 32 bytes, different from the two keys above; key of the SSO client
+     secrets and token-signing keys, docs/contracts/sso.md). **Existing installs: add it to `.env` before the deploy
+     that ships migration 0018** (the API refuses to start without it in production; `deploy.sh` checks it).
 
    **Back up `.env` somewhere safe** (password manager): without it, backups can still be restored but every
    password must be reset.
@@ -198,6 +201,13 @@ those passwords (`/password/forgot` flow) right after seeding.
 - `COOKIE_SECRET`, `AUTH_ACCESS_SECRET`, `AUTH_XSRF_SECRET`: edit `.env`, `docker compose up -d api` (signs everyone out).
 - `AUTH_MFA_KEY`: **no rotation procedure yet** — a new key makes every enrolled authenticator unusable (each user then
   needs "Reset two-step sign-in" by an admin). Keep a copy of it outside the server (apps/api/README.md › Two-step sign-in).
+- `OIDC_KEY`: **no rotation procedure yet** (as `AUTH_MFA_KEY`) — a new key makes every connected app's secret and
+  every signing key unreadable: `/oidc/*` then answers 503 until
+  `docker compose run --rm migrate node dist/scripts/oidc-keys.js reset` creates a fresh signing key, and
+  each app's secret is regenerated in Access → Applications. Keep a copy of it outside the server.
+- SSO signing keys (docs/contracts/sso.md › Keys): `docker compose run --rm migrate node dist/scripts/oidc-keys.js <command>`
+  with `status`, `stage` (publish a next key), `promote` (≥ 24 h after `stage`, or `--now`), `prune`; then
+  `docker compose restart api`. Suspected leak: `stage`, `promote --now`, `prune --now`, restart.
 - `ATTENDANCE_KEY`: edit `.env`, `docker compose up -d api`. Only the codes on the kiosks' screens (≤ 2 min) and scans
   waiting for a sign-in (≤ 5 min) stop working; the kiosks fetch new codes by themselves. The shared-phone signal
   (device references) restarts from the new key.

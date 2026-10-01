@@ -22,7 +22,9 @@ export function securityHeaders(issuer: string) {
   return (_req: Request, res: Response, next: NextFunction): void => {
     res.setHeader('Content-Security-Policy', csp);
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'no-referrer');
+    // same-origin, not no-referrer: with no-referrer Chrome sends `Origin: null` on the logout form's POST, which the
+    // foreign-Origin check refuses. Other origins (HRForce on the logout redirect) still get no Referer.
+    res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Cache-Control', 'no-store');
     next();

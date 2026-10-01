@@ -1,6 +1,6 @@
 # Edge proxy for staging (service `proxy` in compose.staging.yml; image caddy:2.10-alpine).
 #  - automatic HTTPS (Let's Encrypt) for {$STAGING_DOMAIN}; HTTP → HTTPS redirect is automatic
-#  - /api and /api/* → api:3000 (the NestJS API); everything else → web:8080 (static Angular build, SPA fallback)
+#  - /api, /api/*, /oidc and /oidc/* → api:3000 (the NestJS API); everything else → web:8080 (static Angular build, SPA fallback)
 #  - security headers on every response, API included
 # Upstream names resolve on the compose-internal network only; neither api nor web publishes a port.
 {
@@ -21,7 +21,15 @@
 			fields {
 				request>uri query {
 					delete token
+					# SSO (/oidc/*): an ID token sent back at logout, and the authorization code / state of a resume
+					delete id_token_hint
+					delete login_hint
+					delete code
+					delete state
 				}
+				# the provider's resume redirect carries the authorization code in its Location (as the API's own logs,
+				# which redact res.headers.location)
+				resp_headers>Location delete
 			}
 		}
 	}
@@ -43,12 +51,17 @@
 	# Content-Security-Policy, by two mutually exclusive matchers (no ordering question between them):
 	#  - employee-file downloads (docs/contracts/documents.md › Upload validation): uploaded bytes are never a page —
 	#    the API's own `sandbox; default-src 'none'` is kept (and enforced here too);
-	#  - everything else: scripts only our own files (no inline script, no eval). Styles: 'unsafe-inline' is required
+	#  - the OpenID Connect provider (/oidc/*) is left out: its pages send their own CSP (a hashed inline script, and
+#    form-action naming the connected app's origin for the logout redirect), which must reach the browser untouched;
+#  - everything else: scripts only our own files (no inline script, no eval). Styles: 'unsafe-inline' is required
 	#    because Angular injects component styles as <style> elements at runtime (no per-request nonce with a static
 	#    server). Fonts are self-hosted (Cairo, Source Sans 3). The index.html build output must contain no inline
 	#    <script> / on* handler: apps/web/Dockerfile fails the build otherwise (deploy/web/check-index-csp.mjs).
 	@employeeFileContent path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
-	@notEmployeeFileContent not path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+	@notEmployeeFileContent {
+		not path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+		not path /oidc /oidc/*
+	}
 	header @employeeFileContent {
 		Content-Security-Policy "sandbox; default-src 'none'"
 		defer
@@ -72,6 +85,15 @@
 		}
 		# Caddy replaces any client-sent X-Forwarded-For with the real client IP (no trusted_proxies configured),
 		# so the API's TRUST_PROXY_HOPS=1 yields the true client address for the login throttle.
+		reverse_proxy api:3000
+	}
+
+	# HRForce as an OpenID Connect provider (docs/contracts/sso.md): discovery, authorize, token, JWKS, userinfo and
+	# logout are served by the API under the issuer ${WEB_BASE_URL}/oidc.
+	@oidc path /oidc /oidc/*
+	handle @oidc {
+		request_header -X-Dev-User-Id
+		request_header -X-Dev-Company-Id
 		reverse_proxy api:3000
 	}
 

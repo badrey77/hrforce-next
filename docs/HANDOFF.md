@@ -22,7 +22,7 @@ Keep it current: when a decision is made or an open question is answered, update
 1. Write a contract in `docs/contracts/<slice>.md` first (shapes, endpoints, status codes, problem slugs, scope rules).
 2. Build backend (`apps/api`) and web (`apps/web` + `docs/angular`) in parallel against it.
 3. An independent verifier runs the full gate from clean, drives the app in a real browser (fr + ar, desktop + 390 px), probes security, and fixes small defects. Record behaviour the build settled in the contract.
-4. The web is a **teaching codebase**: see CLAUDE.md (explain Angular in code, update the guide, "Angular concepts used" in replies).
+4. ~~The web is a teaching codebase~~: stopped 2026-10-01 (see the decisions table and CLAUDE.md).
 
 Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=… npm test && npm run test:tools && npm run guard && TEST_DATABASE_URL=… npm run guard:db && npm run build`.
 
@@ -49,6 +49,7 @@ Full gate: `npm ci && npm run lint && npm run typecheck && TEST_DATABASE_URL=…
 | 2026-09-30 | Attendance Phase A committed. Residual check-in risks (link-punch; bearer scan receipt) **mitigated in Phase B**: a one-tap confirmation on `/punch` (a link never punches silently) and the scan receipt shortened to 2 minutes |
 | 2026-09-30 | **SSO, first step** (open question 1, partly answered): HRForce becomes an **OpenID Connect provider** (`oidc-provider` in the API, Postgres only) — ADR 007. **Roles of connected apps are managed in HRForce** (an admin assigns an app role such as « operator » to a user for that app; the role travels in the ID token). Scope: enough for a demo — client registration by an admin, login through HRForce's own sign-in page and two-step verification, no consent screen for first-party apps, ID token with identity + app roles, logout. A tiny demo sister app `apps/sso-demo` (Node, `openid-client`, authorization code + PKCE) shows a welcome page with the user's role. Which real apps will use SSO is still open |
 | 2026-09-30 | **ADR 007 accepted** (issuer `${WEB_BASE_URL}/oidc`; HRForce session = SSO session; RS256 keys and client secrets encrypted with `OIDC_KEY`; no refresh tokens). Logout from an app **also ends the HRForce session**. Clients are **per company**; apps and app roles managed company-wide by `admin_acces` / `admin_rh_central` (MFA); users without a role still sign in with `roles: []` |
+| 2026-10-01 | **Stop explaining Angular**: no more teaching comments in new web code, no new `docs/angular/` chapters, no "Angular concepts used" in replies. Existing comments and the guide (22 chapters) stay as they are |
 
 ## M2 progress
 

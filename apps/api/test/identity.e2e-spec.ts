@@ -598,7 +598,9 @@ describe('Identity (e2e)', () => {
           where n.nspname = 'auth' and has_function_privilege('hrforce_app', p.oid, 'execute')`,
       );
       // 0007's twelve + auth.company_members (0008) + auth.session_owner, auth.default_company (0009) + 0013's eleven MFA functions
-      expect(definers.length).toBe(26);
+      // + auth.sso_session (0018; its auth.create_session replaces 0007's)
+      expect(definers.length).toBe(27);
+      expect(definers.map((f) => f.proname)).toContain('sso_session');
       for (const f of definers) {
         expect(f.prosecdef, f.proname).toBe(true);
         expect(f.proconfig, f.proname).toEqual(['search_path=pg_catalog, auth']);

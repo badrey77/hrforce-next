@@ -908,7 +908,7 @@ the XSRF helper.
 10. **CSP:** every `/oidc` HTML response has the policy above. The resume account-switch page (user A's provider
     session, user B completing) runs: its inline script's hash is in the header.
 11. **Storage:**
-    - no row of `oidc.model_store` contains a `jti`, the code or the access token string;
+    - no row of `oidc.model_store` has a `jti` field (only its name in `__idFields`), the code or the access token string;
     - `sso_client.secret_enc` never equals the secret, and decrypting it with another client id as AAD fails;
     - the `audit.change_log` diff of a rotation shows `secret_enc` masked;
     - no `audit.*` row, and no captured log line (the `mfa-logs` pattern), contains the code, the ID token, the

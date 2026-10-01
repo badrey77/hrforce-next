@@ -70,7 +70,8 @@ const AUDITED_TABLES = [
   'employment', 'employment_salary',
   'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
-  'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
+  'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'sso_app_role', 'sso_client', 'sso_role_assignment',
+  'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
 const C = '0190a5d0-0000-7000-8000-00000000c0de';
 
@@ -370,6 +371,12 @@ describe('exit criterion: every write through the API produces an audit row with
   };
   const PENDING_ONLY_WRITES = ['POST /api/me/mfa/enroll/start'];
   /**
+   * The SSO sign-in handoff (docs/contracts/sso.md › Audit and timeline) writes only the provider's state in `oidc.*`,
+   * which is not audited (operational, no business data). `complete` records `sso.sign_in` in the CLIENT's company, in
+   * its own transaction (asserted in sso.e2e-spec.ts); `abort` only ends the interaction.
+   */
+  const OIDC_STATE_WRITES = ['POST /api/sso/interactions/:uid/complete', 'POST /api/sso/interactions/:uid/abort'];
+  /**
    * Attendance punches (docs/contracts/attendance.md › Audit, owner decision 2026-09-29): audited as EVENTS without the
    * personal payload (trigger audit.capture_punch_event(), no change_log row); the kiosk pairing (public, no user):
    * the attendance_device update with actor null + attendance.device_paired. Asserted below.
@@ -384,7 +391,8 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/me/attendance/corrections/:id/cancel': 'attendance.correction_cancelled',
   };
   const WEEK = weekOf('08:00', '16:30', '12:00', '12:30');
-  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '', overrideToDelete: '', assignmentToDelete: '', kioskToRevoke: '' };
+  const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '', overrideToDelete: '', assignmentToDelete: '', kioskToRevoke: '',
+    ssoClient: '', ssoToDisable: '', ssoToEnable: '', ssoRole: '', ssoRoleToDelete: '', ssoAssignmentToDelete: '' };
 
   beforeAll(async () => {
     const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
@@ -428,6 +436,19 @@ describe('exit criterion: every write through the API produces an audit row with
     LV.kioskToRevoke = (
       await client('admin').post('/api/attendance/kiosks').send({ siteId: '0190a5d0-0000-7000-8000-000000000203', labels: { fr: 'Blida — Entrée', ar: 'البليدة — المدخل' } }).expect(201)
     ).body.kiosk.id;
+    // SSO: an app to edit (with a role to assign and a role to delete), an app to disable, a disabled app to enable,
+    // an assignment to remove
+    const ssoApp = async (clientId: string) =>
+      (await client('admin').post('/api/sso/clients').send({ clientId, name: `App ${clientId}`, redirectUris: ['https://app.test/callback'] }).expect(201)).body.id as string;
+    const ssoRole = async (code: string) =>
+      (await client('admin').post(`/api/sso/clients/${LV.ssoClient}/roles`).send({ code, names: { fr: code, ar: 'دور', en: code } }).expect(201)).body.id as string;
+    LV.ssoClient = await ssoApp('aud-app');
+    LV.ssoToDisable = await ssoApp('aud-off');
+    LV.ssoToEnable = await ssoApp('aud-on');
+    await client('admin').post(`/api/sso/clients/${LV.ssoToEnable}/disable`).send({ reason: 'Audit' }).expect(200);
+    LV.ssoRole = await ssoRole('operator');
+    LV.ssoRoleToDelete = await ssoRole('obsolete');
+    LV.ssoAssignmentToDelete = (await client('admin').post('/api/sso/assignments').send({ userId: USERS.chef.id, roleId: LV.ssoRole }).expect(201)).body.id;
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
   });
 
@@ -620,6 +641,26 @@ describe('exit criterion: every write through the API produces an audit row with
     },
     'POST /api/attendance/kiosks/:id/pairing-code': { request: () => ({ path: `/api/attendance/kiosks/${DEMO_KIOSKS.cne.id}/pairing-code`, body: {} }), tables: ['attendance_device'] },
     'POST /api/attendance/kiosks/:id/revoke': { request: () => ({ path: `/api/attendance/kiosks/${LV.kioskToRevoke}/revoke`, body: { reason: 'Audit' } }), tables: ['attendance_device'] },
+    'POST /api/sso/clients': {
+      request: () => ({ path: '/api/sso/clients', body: { clientId: 'aud-new', name: 'App audit', redirectUris: ['https://new.test/callback'] } }),
+      tables: ['sso_client'],
+    },
+    'PATCH /api/sso/clients/:id': { request: () => ({ path: `/api/sso/clients/${LV.ssoClient}`, body: { nameAr: 'تطبيق التدقيق' } }), tables: ['sso_client'] },
+    // the secret column is masked on both sides; the update is still recorded (credential_set_at changes too)
+    'POST /api/sso/clients/:id/rotate-secret': { request: () => ({ path: `/api/sso/clients/${LV.ssoClient}/rotate-secret`, body: {} }), tables: ['sso_client'] },
+    'POST /api/sso/clients/:id/disable': { request: () => ({ path: `/api/sso/clients/${LV.ssoToDisable}/disable`, body: { reason: 'Plus utilisée' } }), tables: ['sso_client'] },
+    'POST /api/sso/clients/:id/enable': { request: () => ({ path: `/api/sso/clients/${LV.ssoToEnable}/enable`, body: {} }), tables: ['sso_client'] },
+    'POST /api/sso/clients/:id/roles': {
+      request: () => ({ path: `/api/sso/clients/${LV.ssoClient}/roles`, body: { code: 'auditor', names: { fr: 'Auditeur', ar: 'التدقيق', en: 'Auditor' } } }),
+      tables: ['sso_app_role'],
+    },
+    'PATCH /api/sso/roles/:roleId': {
+      request: () => ({ path: `/api/sso/roles/${LV.ssoRole}`, body: { names: { fr: 'Opérateur', ar: 'التشغيل', en: 'Operator' } } }),
+      tables: ['sso_app_role'],
+    },
+    'DELETE /api/sso/roles/:roleId': { request: () => ({ path: `/api/sso/roles/${LV.ssoRoleToDelete}`, body: {} }), tables: ['sso_app_role'] },
+    'POST /api/sso/assignments': { request: () => ({ path: '/api/sso/assignments', body: { userId: USERS.agent.id, roleId: LV.ssoRole } }), tables: ['sso_role_assignment'] },
+    'DELETE /api/sso/assignments/:id': { request: () => ({ path: `/api/sso/assignments/${LV.ssoAssignmentToDelete}`, body: {} }), tables: ['sso_role_assignment'] },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -632,7 +673,7 @@ describe('exit criterion: every write through the API produces an audit row with
     const writes = routes
       .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
       .map((r) => `${r.method} ${r.path}`)
-      .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key) && !PENDING_ONLY_WRITES.includes(key));
+      .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key) && !PENDING_ONLY_WRITES.includes(key) && !OIDC_STATE_WRITES.includes(key));
     expect([...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES), ...Object.keys(ATTENDANCE_EVENT_WRITES)].toSorted()).toEqual(writes.toSorted());
   });
 

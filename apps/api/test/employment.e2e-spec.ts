@@ -451,7 +451,7 @@ describe('writes — field permissions, scope, date rules, 409 slugs', () => {
     expect(matricules(await all('admin', `q=${ended.nin}&status=all`)).toSorted()).toEqual(['EMP-0025', 'RH-5']);
   });
 
-  it('person.hasOpenEmployment: any employment of the person not over today, whatever the viewer’s scope — a boolean, no id', async () => {
+  it('person.hasOpenEmployment: any employment of the person without an end date, whatever the viewer’s scope — a boolean, no id', async () => {
     // an open employment reports itself
     expect((await client('admin').get(`/api/employees/${employeeA(33)}`).expect(200)).body.person.hasOpenEmployment).toBe(true);
     // EMP-0040 ended 2026-03-31 in Agence Tlemcen (Région Ouest, lecture.ouest's scope)

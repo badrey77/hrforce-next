@@ -26,6 +26,7 @@ function details(extra: Partial<SsoInteractionView> = {}): SsoInteractionView {
     uid: UID,
     client: { clientId: 'sso-demo', name: 'Démo SSO', nameAr: 'تطبيق تجريبي للدخول الموحد' },
     freshLoginRequired: false,
+    uiLocales: [],
     ...extra,
   };
 }
@@ -113,6 +114,21 @@ describe('SsoHandoffPage (/sso/:uid)', () => {
     await open(null);
     http.expectNone(`${BASE}/complete`);
     expect(decodeURIComponent(router.url)).toBe(`/login?returnUrl=/sso/${UID}`);
+  });
+
+  it("signed out: the app's ui_locales sets the sign-in language unless this device has a chosen one", async () => {
+    const languages = TestBed.inject(LanguageService);
+    await open(null, details({ uiLocales: ['ar', 'fr'] }));
+    expect(languages.current()).toBe('ar');
+    expect(languages.hasStoredChoice()).toBe(false);
+    expect(decodeURIComponent(router.url)).toBe(`/login?returnUrl=/sso/${UID}`);
+    languages.use('fr');
+    try {
+      await open(null, details({ uiLocales: ['ar'] }), `/sso/${UID}?again=1`);
+      expect(languages.current()).toBe('fr');
+    } finally {
+      localStorage.clear();
+    }
   });
 
   it('details 404: "expired", a link home, no button back to an unknown app', async () => {

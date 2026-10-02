@@ -67,6 +67,7 @@ import { Session } from '../../core/auth/session';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { problemSlug } from '../../core/http/problem-form';
 import { LanguageService } from '../../core/i18n/language.service';
+import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const PUNCH_RETURN_URL = '/punch';
 /** The receipt's lifetime (contract › Phase B: `hrf_scan` Max-Age=120). */
@@ -134,7 +135,7 @@ export function receiptTimeLeft(receipt: ReceiptView, scan: { readonly view: Sca
 
 @Component({
   selector: 'app-punch-page',
-  imports: [TranslocoDirective, RouterLink],
+  imports: [TranslocoDirective, RouterLink, RevealAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './punch.page.html',
   styleUrl: './punch.page.css',

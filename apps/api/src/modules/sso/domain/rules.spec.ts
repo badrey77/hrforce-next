@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { algiersDate, freshLoginRequired, parseMaxAge, uriIssue, uriListIssues } from './rules.js';
+import { algiersDate, freshLoginRequired, parseMaxAge, parseUiLocales, uriIssue, uriListIssues } from './rules.js';
 
 describe('uriIssue (assumption 9: exact https URIs, http only on loopback)', () => {
   it('accepts https anywhere and http on loopback hosts with any port', () => {
@@ -70,6 +70,15 @@ describe('freshLoginRequired (complete, step 5)', () => {
     expect(freshLoginRequired({ prompt: undefined, maxAge: 60, authTime: new Date('2026-09-30T09:58:00Z'), interactionCreatedAt: created, now })).toBe(true);
     expect(freshLoginRequired({ prompt: undefined, maxAge: 60, authTime: new Date('2026-09-30T09:59:30Z'), interactionCreatedAt: created, now })).toBe(false);
     expect(freshLoginRequired({ prompt: undefined, maxAge: 0, authTime: new Date('2026-09-30T09:59:59Z'), interactionCreatedAt: created, now })).toBe(true);
+  });
+
+  it('parseUiLocales keeps the languages HRForce speaks, in order, without duplicates', () => {
+    expect(parseUiLocales('ar-DZ fr')).toEqual(['ar', 'fr']);
+    expect(parseUiLocales('de AR en-GB ar')).toEqual(['ar', 'en']);
+    expect(parseUiLocales('de es')).toEqual([]);
+    expect(parseUiLocales(undefined)).toEqual([]);
+    expect(parseUiLocales(['ar'])).toEqual([]);
+    expect(parseUiLocales('ar '.repeat(100))).toEqual([]);
   });
 
   it('parseMaxAge accepts non-negative integers as number or string', () => {

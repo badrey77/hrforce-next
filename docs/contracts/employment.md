@@ -72,12 +72,13 @@ Also: `org_unit_version.name_ar` (optional) — Arabic unit name, date-effective
   `employment-open`, shown above the form.
 - **`person.hasOpenEmployment` (cleanup, 2026-09-29).** `EmployeeDetail.person.hasOpenEmployment: boolean` (every
   response that returns the detail: GET, POST, PATCH/PUT writes) — true when the same person has an employment that is
-  not over today (`end_date` null or ≥ today), this one included, **whatever the caller's scope**. The web offers
+  without an end date (`end_date` null; until the cleanup of 2026-10-02 also one ending on or after today), this one
+  included, **whatever the caller's scope**. The web offers
   "Rehire" only when it is false. A boolean only: the other employment's id, matricule and unit are never exposed, and
   it stays 404 outside scope. Disclosure accepted: `POST /employees` with `personId` already answers 409
-  `employment-open` for such a person (when the caller can read the latest employment). Note the rehire rule itself
-  still refuses only an employment with no end date; one ending in the future makes the flag true while a rehire
-  dated after that end would be accepted.
+  `employment-open` for such a person (when the caller can read the latest employment). Since the cleanup of 2026-10-02 the flag follows
+  the rehire rule exactly (only an employment without an end date blocks it): an employment ending in the future offers
+  "Rehire", and the form refuses a start on or before that end.
 - **Settled by the verification (cleanup, 2026-09-29).** Real app: EMP-0025 (Agence Constantine, Région Est, ended)
   rehired by `rh.admin` into Agence Oran (Région Ouest). `rh.est` then reads the old employment with
   `hasOpenEmployment: true` and nothing else new (no id, matricule, unit or job of the Oran employment anywhere in the

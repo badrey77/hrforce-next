@@ -110,6 +110,16 @@ describe('LanguageService', () => {
     expect(service.hasStoredChoice()).toBe(false);
   });
 
+  it('applyLanguageHint() applies the first known language of an app hint, without storing it; a stored choice wins', () => {
+    expect(service.applyLanguageHint(['de', 'ar', 'fr'])).toBe(true);
+    expect(service.current()).toBe('ar');
+    expect(service.hasStoredChoice()).toBe(false);
+    expect(service.applyLanguageHint(['de'])).toBe(false);
+    service.use('en');
+    expect(service.applyLanguageHint(['ar'])).toBe(false);
+    expect(service.current()).toBe('en');
+  });
+
   it('applyAccountLocale() yields to a stored choice and ignores unknown locales', () => {
     service.use('en');
 

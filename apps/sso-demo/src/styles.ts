@@ -38,3 +38,7 @@ pre { overflow-x: auto; padding: .75rem; background: var(--bg); border: 1px soli
   background: var(--accent); color: var(--accent-fg); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
 .button:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 `;
+
+/** The tab icon, served at /assets/favicon.svg (`<link rel="icon">` on every page; without it browsers ask for a missing
+ *  /favicon.ico on each visit). A plain "S" on the accent colour: no external request, no script. */
+export const DEMO_FAVICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#0b5cad"/><text x="16" y="23" font-family="sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">S</text></svg>`;

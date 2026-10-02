@@ -1,9 +1,12 @@
 /** Response shapes of the SSO endpoints (docs/contracts/sso.md › Endpoints). */
+import type { UiLanguage } from '../domain/rules.js';
 
 export interface SsoInteractionView {
   uid: string;
   client: { clientId: string; name: string; nameAr: string | null };
   freshLoginRequired: boolean;
+  /** The app's `ui_locales` hint, reduced to fr/ar/en (preferred first; `[]` when absent). */
+  uiLocales: UiLanguage[];
 }
 
 export interface SsoRedirectView {

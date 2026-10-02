@@ -73,6 +73,20 @@ export class LanguageService {
     return true;
   }
 
+  /**
+   * Applies the first language of `hints` that the app speaks — the `ui_locales` of an app sending someone to sign in
+   * through HRForce (docs/contracts/sso.md) — unless this device has a stored choice. Not stored, like the account
+   * locale (which replaces it after sign-in). Returns whether a language was applied.
+   */
+  applyLanguageHint(hints: readonly string[]): boolean {
+    const lang = hints.find(isAppLanguage);
+    if (this.hasStoredChoice() || lang === undefined) {
+      return false;
+    }
+    this.use(lang, { remember: false });
+    return true;
+  }
+
   private readStored(): AppLanguage | null {
     try {
       const value = this.document.defaultView?.localStorage.getItem(LANGUAGE_STORAGE_KEY);

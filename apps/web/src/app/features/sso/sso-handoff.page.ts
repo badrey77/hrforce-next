@@ -123,7 +123,8 @@ export class SsoHandoffPage {
   private readonly router = inject(Router);
   private readonly location = inject(PAGE_LOCATION);
   private readonly document = inject(DOCUMENT);
-  protected readonly lang = inject(LanguageService).current;
+  private readonly languages = inject(LanguageService);
+  protected readonly lang = this.languages.current;
 
   /** `:uid` of the route (the interaction id). Never rendered. */
   readonly uid = input.required<string>();
@@ -189,6 +190,9 @@ export class SsoHandoffPage {
     const client = details.client;
 
     if (!this.session.isAuthenticated()) {
+      // the sign-in page in the app's language (ui_locales), unless this device already has a chosen language; the
+      // account's own locale takes over after sign-in
+      this.languages.applyLanguageHint(details.uiLocales ?? []);
       this.state.set({ kind: 'working', step: 'signin', client });
       await this.toLogin(uid, false);
       return;

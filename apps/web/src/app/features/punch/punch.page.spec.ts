@@ -130,6 +130,8 @@ describe('PunchPage', () => {
     expect(done?.textContent).toContain('Arrivée enregistrée à 07:52');
     expect(done?.querySelector('[data-state="duplicate"]')).toBeNull();
     expect(done?.querySelector('a')?.getAttribute('href')).toBe('/me/attendance');
+    // brought into view and focused (on a phone the header and menu would push it below the fold)
+    expect(document.activeElement).toBe(done);
 
     TestBed.inject(LanguageService).use('ar', { remember: false });
     await settle();

@@ -10,7 +10,7 @@
  * control), and `PUT` sends only what the form holds.
  */
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { type AbstractControl, NonNullableFormBuilder, ReactiveFormsModule, type ValidationErrors, type ValidatorFn, Validators } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { AttendanceApi } from '../../core/attendance/attendance-api';
 import {
@@ -29,6 +29,22 @@ import { attendanceProblemToForm } from '../../shared/attendance/attendance-form
 import { ControlError } from '../../shared/attendance/control-error';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 import { POLICY_SLUGS } from './settings-problems';
+
+/**
+ * A whole number within [min, max], reported as ONE error carrying both bounds (`{range: {min, max}}`), so the message
+ * can name the allowed range (Validators.min/max each report only their own bound).
+ */
+function wholeNumberBetween(min: number, max: number): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const raw: unknown = control.value;
+    if (raw === null || raw === '' || raw === undefined) return null;
+    const value = Number(raw);
+    return Number.isInteger(value) && value >= min && value <= max ? null : { range: { min, max } };
+  };
+}
+
+/** Field errors of this form: the range message names the allowed values. */
+const POLICY_ERRORS = { range: 'attendance.policy.outOfRange', required: 'attendance.settings.required' } as const;
 
 @Component({
   selector: 'app-attendance-policy-settings',
@@ -58,21 +74,21 @@ import { POLICY_SLUGS } from './settings-problems';
             <input id="att-retention" type="number" [min]="bounds.retentionMin" [max]="bounds.retentionMax" formControlName="retentionMonths"
               aria-describedby="att-retention-hint att-retention-error" />
             <p class="field-hint" id="att-retention-hint">{{ t('attendance.policy.retentionHint', { min: bounds.retentionMin, max: bounds.retentionMax }) }}</p>
-            <app-control-error [control]="c.retentionMonths" errorId="att-retention-error" />
+            <app-control-error [control]="c.retentionMonths" errorId="att-retention-error" [keys]="errorKeys" />
           </div>
           <div class="field">
             <label for="att-gap">{{ t('attendance.policy.gap') }}</label>
             <input id="att-gap" type="number" [min]="bounds.gapMin" [max]="bounds.gapMax" formControlName="minPunchGapSeconds"
               aria-describedby="att-gap-hint att-gap-error" />
             <p class="field-hint" id="att-gap-hint">{{ t('attendance.policy.gapHint', { min: bounds.gapMin, max: bounds.gapMax }) }}</p>
-            <app-control-error [control]="c.minPunchGapSeconds" errorId="att-gap-error" />
+            <app-control-error [control]="c.minPunchGapSeconds" errorId="att-gap-error" [keys]="errorKeys" />
           </div>
           <div class="field">
             <label for="att-correction-age">{{ t('attendance.policy.correctionAge') }}</label>
             <input id="att-correction-age" type="number" [min]="bounds.ageMin" [max]="bounds.ageMax" formControlName="correctionMaxAgeDays"
               aria-describedby="att-correction-age-hint att-correction-age-error" />
             <p class="field-hint" id="att-correction-age-hint">{{ t('attendance.policy.correctionAgeHint', { min: bounds.ageMin, max: bounds.ageMax }) }}</p>
-            <app-control-error [control]="c.correctionMaxAgeDays" errorId="att-correction-age-error" />
+            <app-control-error [control]="c.correctionMaxAgeDays" errorId="att-correction-age-error" [keys]="errorKeys" />
           </div>
           <div class="field">
             <label for="att-correction-flow">{{ t('attendance.policy.correctionWorkflow') }}</label>
@@ -105,15 +121,16 @@ export class AttendancePolicySettings {
     ageMax: CORRECTION_AGE_MAX,
   };
   protected readonly workflowCodes = CORRECTION_WORKFLOW_CODES;
+  protected readonly errorKeys = POLICY_ERRORS;
   protected readonly policy = this.api.policyResource();
   protected readonly saving = signal(false);
   protected readonly feedback = signal<string | null>(null);
   protected readonly formError = signal<FormMessage | null>(null);
 
   protected readonly form = this.fb.group({
-    retentionMonths: [60, [Validators.required, Validators.min(RETENTION_MIN), Validators.max(RETENTION_MAX)]],
-    minPunchGapSeconds: [120, [Validators.required, Validators.min(GAP_MIN), Validators.max(GAP_MAX)]],
-    correctionMaxAgeDays: [CORRECTION_MAX_AGE_DEFAULT, [Validators.required, Validators.min(CORRECTION_AGE_MIN), Validators.max(CORRECTION_AGE_MAX)]],
+    retentionMonths: [60, [Validators.required, wholeNumberBetween(RETENTION_MIN, RETENTION_MAX)]],
+    minPunchGapSeconds: [120, [Validators.required, wholeNumberBetween(GAP_MIN, GAP_MAX)]],
+    correctionMaxAgeDays: [CORRECTION_MAX_AGE_DEFAULT, [Validators.required, wholeNumberBetween(CORRECTION_AGE_MIN, CORRECTION_AGE_MAX)]],
     correctionWorkflowCode: this.fb.control<CorrectionWorkflowCode>('attendance.manager_then_hr'),
   });
 

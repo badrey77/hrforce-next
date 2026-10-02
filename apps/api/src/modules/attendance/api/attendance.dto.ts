@@ -73,7 +73,7 @@ export class ManualPunchDto extends createZodDto(
   z.object({
     direction: z.enum(['in', 'out']),
     date: isoDate,
-    time: z.string().refine((v) => parseHhMm(v) !== null, { message: 'HH:MM, 00:00–23:59' }),
+    time: z.string().refine((v) => parseHhMm(v) !== null, { message: 'HH:MM, 00:00–23:59', params: { code: 'invalid_time' } }),
     reason: text(3, 500),
     siteId: uuid.optional(),
   }),
@@ -174,7 +174,7 @@ export class CorrectionRequestDto extends createZodDto(
           z.object({
             action: z.literal('add'),
             direction: z.enum(['in', 'out']),
-            time: z.string().refine((v) => parseHhMm(v) !== null, { message: 'HH:MM, 00:00–23:59' }),
+            time: z.string().refine((v) => parseHhMm(v) !== null, { message: 'HH:MM, 00:00–23:59', params: { code: 'invalid_time' } }),
           }),
           z.object({ action: z.literal('void'), punchId: uuid }),
         ]),

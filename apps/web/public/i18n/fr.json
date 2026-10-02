@@ -1092,7 +1092,7 @@
       "hireDateHint": "Après la fin de l'emploi précédent ({{date}}).",
       "stillOpen": "Cet emploi n'est pas terminé : mettez-y fin avant de réembaucher la personne.",
       "submit": "Créer le nouvel emploi",
-      "personEmployed": "Cette personne a déjà un emploi en cours, ou dont la date de fin n’est pas encore passée : elle ne peut pas être réembauchée pour l’instant."
+      "personEmployed": "Cette personne a déjà un emploi en cours (sans date de fin) : elle ne peut pas être réembauchée pour l’instant."
     },
     "endReasons": {
       "resignation": "Démission",
@@ -2407,6 +2407,7 @@
       "title": "Politique de pointage",
       "retention": "Durée de conservation (mois)",
       "retentionHint": "Entre {{min}} et {{max}} mois après la fin du mois concerné.",
+      "outOfRange": "Un nombre entier entre {{min}} et {{max}}.",
       "gap": "Délai anti-doublon (secondes)",
       "gapHint": "Un second scan dans ce délai renvoie le premier pointage ({{min}} à {{max}} s).",
       "saved": "Politique enregistrée.",

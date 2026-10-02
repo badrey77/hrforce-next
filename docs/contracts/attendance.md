@@ -990,3 +990,13 @@ and rosters, overtime and payroll export, month locking, reminders ("no departur
 alerts to HR, HR corrections on behalf of an employee through the workflow (HR records manual punches instead).
 
 - **Arabic arrival/departure wording (2026-09-30, lead):** « تسجيل الدخول / تسجيل الخروج » also mean "sign in / sign out" and appeared on the same phone screen as the header's sign-out button. Attendance strings now use **« الوصول » (arrival)** and **« المغادرة » (departure)**: « تسجيل الوصول عند {{entrance}}؟ », « تم تسجيل المغادرة على الساعة {{time}} », labels « الوصول / المغادرة ». Sign-in/sign-out strings are unchanged.
+
+**Settled by the cleanup (2026-10-02)**
+- `/punch`: the result card (done, already recorded, problem) is scrolled into view and focused (`RevealAlertDirective`):
+  on a 390 px phone the app header and menu pushed it below the fold. Browser-checked: the card lies within the
+  viewport and holds the focus.
+- Policy settings: retention, duplicate gap and correction window refuse a value outside their range, or a fraction,
+  with one message naming the range (« Un nombre entier entre 12 et 120. » / « يرجى إدخال عدد صحيح بين 12 و120. »).
+- Corrections: a malformed time (`24:00`, `25:00`) answers 422 code **`invalid_time`** on `changes.<i>.time` (was
+  `custom`), like the week editor. Platform: a zod `.refine()` may name its contract code in `params.code`.
+

@@ -143,9 +143,11 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   workflow_instance: ['definition_id', 'subject_type', 'subject_id', 'subject_user_id'],
   workflow_task: ['instance_id'],
   // Documents: links that repeat the subject or the type (shown by `type_code`); `snapshot` is the whole printed text
-  // as JSON — one unreadable line here, and the document's detail page already shows what was printed.
-  issued_document: ['employment_id', 'document_type_id', 'snapshot'],
-  document_request: ['employment_id', 'document_type_id', 'workflow_instance_id'],
+  // as JSON — one unreadable line here, and the document's detail page already shows what was printed. The links
+  // between a document and the leave request / document request it came from are bare ids (they meant nothing as a
+  // line); the detail pages show those relations.
+  issued_document: ['employment_id', 'document_type_id', 'snapshot', 'leave_request_id', 'document_request_id'],
+  document_request: ['employment_id', 'document_type_id', 'workflow_instance_id', 'issued_document_id'],
   // Employee file: the employment repeats the subject.
   employee_file: ['employment_id'],
   // Attendance: the employment repeats the subject; `work_date` is generated from `occurred_at`.

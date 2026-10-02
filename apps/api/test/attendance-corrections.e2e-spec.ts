@@ -145,6 +145,8 @@ describe('request validation', () => {
     expect(future.body.errors).toEqual([expect.objectContaining({ field: 'changes.0.time', code: 'future' })]);
     // malformed input: zod 422 before anything else
     await ask('agent', { date: '2026-09-27', reason: 'x', changes: [add('in', '25:00')] }).expect(422);
+    const midnight = await ask('agent', { date: '2026-09-27', reason: 'Oubli', changes: [add('in', '24:00')] }).expect(422);
+    expect(midnight.body.errors).toEqual([expect.objectContaining({ field: 'changes.0.time', code: 'invalid_time' })]);
     await ask('agent', { date: '2026-09-27', reason: 'Oubli', changes: [{ action: 'void', punchId: 'nope' }] }).expect(422);
   });
 

@@ -28,11 +28,23 @@ function schemaOf(metatype: unknown): z.ZodType | undefined {
   return schema;
 }
 
+/**
+ * The contract code of an issue: zod's own code, or — for a `.refine()` — the `params.code` it names
+ * (`refine(check, { message, params: { code: 'invalid_time' } })`), so custom rules answer a real code, not `custom`.
+ */
+function issueCode(issue: z.core.$ZodIssue): string {
+  if (issue.code === 'custom') {
+    const code: unknown = issue.params?.['code'];
+    if (typeof code === 'string') return code;
+  }
+  return issue.code;
+}
+
 export function toFieldErrors(issues: readonly z.core.$ZodIssue[], prefix?: string): FieldError[] {
   return issues.map((issue) => {
     const path = issue.path.map(String);
     if (prefix) path.unshift(prefix);
-    return { field: path.join('.'), code: issue.code, message: issue.message };
+    return { field: path.join('.'), code: issueCode(issue), message: issue.message };
   });
 }
 

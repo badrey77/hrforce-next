@@ -181,4 +181,26 @@ describe('buildTimeline (pure view model)', () => {
     const unnamedEntry = unnamed?.entries[0] as ChangeView;
     expect(unnamedEntry.lines[0]?.after).toEqual({ kind: 'unnamed' });
   });
+
+  it('hides the bare links between a document and the request it came from', () => {
+    const [day] = buildTimeline(
+      [
+        { id: 'c:11', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'issued_document', op: 'insert',
+          changes: [
+            { field: 'number', before: null, after: 'ATT-2026-0001', masked: false },
+            { field: 'leave_request_id', before: null, after: 'lr-1', masked: false },
+            { field: 'document_request_id', before: null, after: 'dr-1', masked: false },
+          ] },
+        { id: 'c:12', at: '2026-09-26T10:00:01Z', actor: null, requestId: null, kind: 'change', table: 'document_request', op: 'update',
+          changes: [{ field: 'issued_document_id', before: null, after: 'd-1', masked: false }] },
+      ],
+      NO_NAMES,
+      NOW,
+    );
+    const fields = (day?.entries ?? []).flatMap((e) => ((e as ChangeView).lines ?? []).map((l) => l.field));
+    expect(fields).toContain('number');
+    expect(fields).not.toContain('leave_request_id');
+    expect(fields).not.toContain('document_request_id');
+    expect(fields).not.toContain('issued_document_id');
+  });
 });

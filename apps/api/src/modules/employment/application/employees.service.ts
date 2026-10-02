@@ -434,7 +434,7 @@ export class EmployeesService {
     const detail: EmployeeDetail = {
       id: employment.id,
       matricule: employment.matricule,
-      person: { ...personView(person), hasOpenEmployment: hasOpenEmployment(employments, today) },
+      person: { ...personView(person), hasOpenEmployment: hasOpenEmployment(employments) },
       unit: shownView ? { id: shownView.unit.id, code: shownView.unit.code, name: shownView.unit.name, nameAr: shownView.unit.nameAr, kind: shownView.unit.kind } : unitRef(unitId, undefined),
       site: shownView?.site ?? null,
       jobTitle: shownView?.jobTitle ?? '',

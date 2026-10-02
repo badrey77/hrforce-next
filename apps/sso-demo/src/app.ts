@@ -7,7 +7,7 @@
  *   POST /logout      local session dropped, 303 to HRForce's end_session (RP-initiated logout)
  *   GET  /signed-out  the post-logout page
  *   GET  /lang/:lang  fr | ar
- *   GET  /assets/demo.css
+ *   GET  /assets/demo.css, /assets/favicon.svg
  * Logs: one line per request (method, path without the query string, status, ms). Never codes, tokens, the client
  * secret or claims.
  */
@@ -19,7 +19,7 @@ import { oauthErrorCode, type RelyingParty } from './oidc.js';
 import { errorPage, homePage, notFoundPage, PAGE_PATHS, signedOutPage, welcomePage } from './pages.js';
 import { parseCookies, securityHeaders } from './security.js';
 import type { SessionEntry, SessionStore } from './session.js';
-import { DEMO_CSS } from './styles.js';
+import { DEMO_CSS, DEMO_FAVICON } from './styles.js';
 
 export const SESSION_COOKIE = 'sso_demo_sid';
 export const LANG_COOKIE = 'sso_demo_lang';
@@ -73,6 +73,11 @@ export function createApp({ env, rp, sessions, logger }: AppDeps): express.Expre
   app.get('/assets/demo.css', (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.type('text/css').send(DEMO_CSS);
+  });
+
+  app.get('/assets/favicon.svg', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.type('image/svg+xml').send(DEMO_FAVICON);
   });
 
   app.get('/', (req, res) => {

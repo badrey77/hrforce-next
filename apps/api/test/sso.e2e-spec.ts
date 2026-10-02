@@ -254,13 +254,20 @@ describe('SSO: discovery and keys', () => {
 });
 
 describe('SSO: sign-in round trip', () => {
+  it("details: the app's ui_locales, reduced to the languages HRForce speaks (the web applies it before sign-in)", async () => {
+    const b = new OidcBrowser(base);
+    const p = await start(b, { ui_locales: 'ar-DZ de fr' });
+    const view = (await (await b.api('GET', `/api/sso/interactions/${p.uid}/details`)).json()) as { uiLocales: string[] };
+    expect(view.uiLocales).toEqual(['ar', 'fr']);
+  });
+
   it('code + PKCE with two-step sign-in in the middle; ID token = identity + this app’s roles; userinfo = same claims', async () => {
     const b = new OidcBrowser(base);
     const p = await start(b);
     const details = await b.api('GET', `/api/sso/interactions/${p.uid}/details`);
     expect(details.status).toBe(200);
     const view = (await details.json()) as Record<string, unknown>;
-    expect(view).toEqual({ uid: p.uid, client: { clientId: 'sso-test', name: 'App test', nameAr: 'تطبيق اختبار' }, freshLoginRequired: false });
+    expect(view).toEqual({ uid: p.uid, client: { clientId: 'sso-test', name: 'App test', nameAr: 'تطبيق اختبار' }, freshLoginRequired: false, uiLocales: [] });
     assertNoSecrets(view);
     await b.api('GET', '/api/auth/csrf');
     expect((await complete(b, p.uid)).status).toBe(401); // signed out → the web sends the user to /login

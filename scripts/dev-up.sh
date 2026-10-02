@@ -42,7 +42,22 @@ echo
   "do \$\$ begin if not exists (select from pg_roles where rolname = 'hrforce_worker') then
      create role hrforce_worker login nosuperuser nocreatedb nocreaterole nobypassrls password 'hrforce_worker_dev'; end if; end \$\$")
 
-set -a; source apps/api/.env; set +a
+# Load apps/api/.env WITHOUT running it as shell code: values may hold characters the shell would interpret
+# (MAIL_FROM=HRForce <no-reply@…> is a redirection to bash). KEY=VALUE lines only, surrounding quotes removed —
+# the same rules as dev-up.ps1.
+while IFS= read -r line || [ -n "$line" ]; do
+  line="${line%$'\r'}"
+  line="${line#"${line%%[![:space:]]*}"}"
+  case "$line" in '' | '#'*) continue ;; esac
+  case "$line" in *=*) ;; *) continue ;; esac
+  name="${line%%=*}"
+  name="${name%"${name##*[![:space:]]}"}"
+  value="${line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  value="${value#\"}"; value="${value%\"}"; value="${value#\'}"; value="${value%\'}"
+  [ -n "$name" ] && export "$name=$value"
+done < apps/api/.env
 
 step "Migrating and seeding the demo data"
 npm run migrate -w @hrforce/api

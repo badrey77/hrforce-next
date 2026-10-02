@@ -117,8 +117,10 @@ export const apiEnvSchema = z
   MAIL_FROM: z.string().min(3).default('HRForce <no-reply@hrforce.invalid>'),
   /** PDF rendering (ADR 008): a render taking longer is killed and answered 503 `document-render-failed`. */
   PDF_RENDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120_000).default(15_000),
-  /** Renderer threads per API process (each holds its own Typst compiler and fonts, ~50 MB). */
+  /** Render processes per API process (each holds its own Typst compiler and fonts, ~50 MB; ADR 008). */
   PDF_RENDER_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(1),
+  /** Memory a render process may reach while rendering, in MB; above it the render is killed (503). Linux only. */
+  PDF_RENDER_MAX_MEMORY_MB: z.coerce.number().int().min(256).max(8192).default(1024),
   /** Directory holding `fonts/` and `templates/` (default: apps/api/assets/pdf, resolved from the package root). */
   PDF_ASSETS_DIR: z.string().min(1).optional(),
   /**

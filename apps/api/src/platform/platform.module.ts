@@ -48,7 +48,12 @@ import { XsrfGuard } from './security/xsrf.guard.js';
       provide: PdfRenderer,
       inject: [ENV],
       useFactory: (env: Env) =>
-        new TypstPdfRenderer({ timeoutMs: env.PDF_RENDER_TIMEOUT_MS, concurrency: env.PDF_RENDER_CONCURRENCY, ...(env.PDF_ASSETS_DIR ? { assetsDir: env.PDF_ASSETS_DIR } : {}) }),
+        new TypstPdfRenderer({
+          timeoutMs: env.PDF_RENDER_TIMEOUT_MS,
+          concurrency: env.PDF_RENDER_CONCURRENCY,
+          maxMemoryBytes: env.PDF_RENDER_MAX_MEMORY_MB * 1024 * 1024,
+          ...(env.PDF_ASSETS_DIR ? { assetsDir: env.PDF_ASSETS_DIR } : {}),
+        }),
     },
   ],
   exports: [ConfigModule, DbModule, RequestIdentityResolver, JobQueue, PdfRenderer],

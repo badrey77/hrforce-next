@@ -76,10 +76,11 @@ Checks:
    version is recorded with every document). It lives behind a platform port `PdfRenderer`
    (`apps/api/src/platform/pdf/`): `render({template, input, assets, standard}) → Buffer`. The port hides the engine,
    so moving to the Typst CLI (child process) or Chromium later changes one adapter.
-   - Rendering runs in a **dedicated `worker_threads` thread** per API process (the binding's `pdf()` is synchronous
-     native code: it must not block the event loop), with a queue and a **timeout of 15 s** (→ 503
-     `document-render-failed`). One compiler instance per thread, created at first use; fonts passed as in-memory
-     blobs (`fontBlobs`, no directory scan, no system fonts).
+   - Rendering runs in a **dedicated child process** per API process (amended 2026-10-02, see below; first a
+     `worker_threads` thread). The binding's `pdf()` is synchronous native code: it must not block the event loop,
+     nor take the API down when it faults. There is a queue and a **timeout of 15 s** (→ 503 `document-render-failed`).
+     One compiler instance per process, created at first use; fonts passed as in-memory blobs (`fontBlobs`, no
+     directory scan, no system fonts).
    - Output: **PDF/A-2b**, A4, document date = the issue date, title/author set, no wall-clock timestamp.
    - Data reaches templates **only** as one JSON string in `sys.inputs` (strings are never evaluated as markup);
      binary assets (the company logo) through `mapShadow` under a per-company virtual path.
@@ -139,11 +140,11 @@ Checks:
 
 **Negative**
 - **+~51 MB** in the API image (binding 50 MB + fonts 1.1 MB) — much less than Chromium (+~760 MB) but not nothing;
-  **+~50 MB RSS** per API process once the renderer thread has compiled its first document. The worker entry point
+  **+~50 MB RSS** per API process once the render process has compiled its first document. The worker entry point
   shares the image; it does not load the renderer unless a job needs it.
-- The binding is a third-party wrapper (Myriad-Dreamin/typst.ts) that trails Typst releases; a native crash would take
-  the API process down (a thread does not isolate native faults). Mitigations: our templates are fixed code, inputs are
-  bounded strings, the adapter can switch to the official CLI in a child process if this proves fragile.
+- The binding is a third-party wrapper (Myriad-Dreamin/typst.ts) that trails Typst releases. A native crash or an
+  out-of-memory abort ends the render process only (amendment below); our templates are fixed code and inputs are
+  bounded strings.
 - The team learns a little Typst (layout language) for templates.
 - Stored PDFs grow the database and the nightly `pg_dump` (≈ 300 MB per 10 000 documents).
 - Serialised issuing per type and year (acceptable at HR volumes; revisit only for bulk issuing).
@@ -157,3 +158,28 @@ copy); LibreOffice headless with DOCX templates (~500 MB, slow start, non-determ
 ## Supersedes
 
 Nothing (the legacy design did not specify document generation).
+
+## Amendment (2026-10-02): render in a child process
+
+The first build ran the binding in a `worker_threads` thread. A thread shares the API process: a Rust allocation
+failure inside Typst aborted the **whole API** (seen in a test, documents contract › Settled), and
+`worker.terminate()` cannot interrupt native code, so a timed-out render kept its CPU and memory until Typst returned.
+The logo pixel limits (2026-09-29) removed the known trigger, not the class of fault.
+
+**Change:** the same binding now runs in a **child process** (`child_process.fork` of `platform/pdf/render-worker`,
+IPC with `serialization: 'advanced'`), behind the same `PdfRenderer` port. The engine, fonts, templates and options
+are unchanged, so output is identical and the recorded engine version is unchanged.
+- A crash or an abort ends the child only: its job fails (`PdfRenderError('error')` → 503), and the next job starts a
+  fresh process.
+- A timeout sends **SIGKILL**, which really stops native code and frees its memory.
+- **Memory ceiling** `PDF_RENDER_MAX_MEMORY_MB` (default 1024): while a render runs, the parent samples the child's
+  resident memory every 50 ms (`/proc/<pid>/status`, Linux as in production) and kills it above the ceiling
+  (`PdfRenderError('memory')` → 503). It is not checked on other platforms, where a crash is still contained.
+- The child gets an **empty environment** (only Node's IPC variables; `SystemRoot` on Windows): no database URL, key
+  or secret of the API reaches the renderer.
+
+**Why not the official Typst CLI** (the option named above): a separate binary to download, pin, checksum and install
+on Windows dev machines, and a different engine build (reprints are stored bytes, but new documents would change).
+Forking the existing binding gets the same isolation with nothing new to install. Cost: one more Node process per
+render slot (≈ 50–60 MB RSS once warm, about what the thread used).
+

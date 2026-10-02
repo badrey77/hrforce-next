@@ -118,6 +118,8 @@ describe('SsoHandoffPage (/sso/:uid)', () => {
 
   it("signed out: the app's ui_locales sets the sign-in language unless this device has a chosen one", async () => {
     const languages = TestBed.inject(LanguageService);
+    // the precondition is "no language chosen on this device": never inherit one stored by another spec
+    localStorage.clear();
     await open(null, details({ uiLocales: ['ar', 'fr'] }));
     expect(languages.current()).toBe('ar');
     expect(languages.hasStoredChoice()).toBe(false);

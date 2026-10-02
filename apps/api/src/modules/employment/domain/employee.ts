@@ -190,10 +190,10 @@ export function employeeActions(
 }
 
 /**
- * Whether a person still has an employment that is not over on `today` (no end date, or an end date on or after
- * today) — `person.hasOpenEmployment` of the detail, which the web uses to offer "Rehire" only once the person is no
- * longer employed.
+ * Whether a person has an employment with no end date — `person.hasOpenEmployment` of the detail, which the web uses
+ * to offer "Rehire". The same rule as the rehire itself (409 `employment-open` only for an employment without an end
+ * date): an employment ending in the future does not block a rehire dated after that end (cleanup 2026-10-02).
  */
-export function hasOpenEmployment(employments: readonly { endDate: string | null }[], today: string): boolean {
-  return employments.some((e) => e.endDate === null || e.endDate >= today);
+export function hasOpenEmployment(employments: readonly { endDate: string | null }[]): boolean {
+  return employments.some((e) => e.endDate === null);
 }

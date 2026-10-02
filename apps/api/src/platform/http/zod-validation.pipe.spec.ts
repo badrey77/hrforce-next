@@ -37,4 +37,23 @@ describe('ZodValidationPipe', () => {
     ]);
     expect(errors.every((e) => e.message.length > 0)).toBe(true);
   });
+
+  it('a refine answers the code it names in params.code (else zod\'s `custom`)', () => {
+    class TimeDto extends createZodDto(
+      z.object({
+        at: z.string().refine((v) => /^\d\d:\d\d$/.test(v), { message: 'HH:MM', params: { code: 'invalid_time' } }),
+        note: z.string().refine((v) => v.length > 0, { message: 'empty' }),
+      }),
+    ) {}
+    let error: unknown;
+    try {
+      pipe.transform({ at: '7h', note: '' }, { type: 'body', metatype: TimeDto });
+    } catch (e) {
+      error = e;
+    }
+    expect((error as ValidationProblemException).errors.map((e) => [e.field, e.code])).toEqual([
+      ['at', 'invalid_time'],
+      ['note', 'custom'],
+    ]);
+  });
 });

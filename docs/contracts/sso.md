@@ -327,6 +327,9 @@ interface SsoInteractionView {
   /** true when the request asks for a fresh sign-in (prompt=login, or max_age older than the caller's HRForce login
    *  instant) AND the caller is signed in with a session that does not satisfy it; false when signed out */
   freshLoginRequired: boolean;
+  /** the app's `ui_locales` reduced to fr/ar/en, preferred first (`[]` when absent); the web applies the first one
+   *  before sending a signed-out user to sign in, unless the device has a chosen language (cleanup 2026-10-02) */
+  uiLocales: ('fr' | 'ar' | 'en')[];
 }
 ```
 
@@ -1018,7 +1021,7 @@ behind `deploy/Caddyfile` (Caddy 2.10, as on staging).
     production without `OIDC_KEY`. Added: the Caddy `@oidc` handle, the CSP exclusion, the log filter (plus
     `resp_headers>Location`, found carrying the code), `OIDC_KEY` in `.env.staging.example`, `init-env.sh`,
     `deploy.sh`'s check, the `api` and `migrate` services, the smoke check and the README.
-- **Not done (noted):** HRForce does not honour `ui_locales`: a user coming from the demo in Arabic sees the sign-in
-  page in French until they switch (same root as the known "first visit" language issue). The demo has no favicon
-  (one 404 per visit).
+- **Done in the cleanup of 2026-10-02:** HRForce honours `ui_locales` (details `uiLocales`, applied by the handoff page
+  before sign-in when no language was chosen on the device; the account locale still applies after sign-in); the demo
+  serves `/assets/favicon.svg`.
 

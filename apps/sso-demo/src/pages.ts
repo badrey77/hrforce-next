@@ -29,6 +29,7 @@ function layout({ lang, title, path, body }: LayoutInput): string {
 <meta name="referrer" content="same-origin">
 <title>${title}</title>
 <link rel="stylesheet" href="/assets/demo.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 </head>
 <body>
 <header class="bar">

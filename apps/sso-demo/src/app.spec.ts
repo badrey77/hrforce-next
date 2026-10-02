@@ -235,5 +235,9 @@ describe('demo app (integration with a fake provider)', () => {
     const css = await request(app).get('/assets/demo.css');
     expect(css.headers['content-type']).toMatch(/^text\/css/);
     expect(css.text).toContain('padding-inline');
+    const icon = await request(app).get('/assets/favicon.svg');
+    expect(icon.status).toBe(200);
+    expect(icon.headers['content-type']).toMatch(/^image\/svg\+xml/);
+    expect((await request(app).get('/')).text).toContain('<link rel="icon" href="/assets/favicon.svg"');
   });
 });

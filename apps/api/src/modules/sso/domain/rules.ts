@@ -109,6 +109,25 @@ export function freshLoginRequired(input: FreshLoginInput): boolean {
 }
 
 /** `max_age` of the stored authorization parameters (a string or a number), undefined when absent or malformed. */
+/** The UI languages HRForce speaks, as an app may name them in `ui_locales`. */
+export const UI_LANGUAGES = ['fr', 'ar', 'en'] as const;
+export type UiLanguage = (typeof UI_LANGUAGES)[number];
+
+/**
+ * The app's `ui_locales` (OIDC: space-separated BCP 47 tags, preferred first) reduced to the languages HRForce speaks,
+ * in order, without duplicates: `"ar-DZ fr"` → `['ar', 'fr']`. Anything else (absent, malformed) → `[]`.
+ */
+export function parseUiLocales(value: unknown): UiLanguage[] {
+  if (typeof value !== 'string' || value.length > 200) return [];
+  const languages: UiLanguage[] = [];
+  for (const tag of value.split(' ')) {
+    const primary = tag.split('-')[0]?.toLowerCase();
+    const known = UI_LANGUAGES.find((l) => l === primary);
+    if (known && !languages.includes(known)) languages.push(known);
+  }
+  return languages;
+}
+
 export function parseMaxAge(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
   if (typeof value === 'string' && /^\d{1,10}$/.test(value)) return Number(value);

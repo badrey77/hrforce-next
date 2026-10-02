@@ -33,7 +33,7 @@
           @let r = s.receipt;
           @if (r.duplicate) {
             <!-- The receipt was already redeemed (a second scan within the gap): nothing to confirm, no button. -->
-            <section class="punch done" [attr.data-direction]="r.direction" data-state="already" role="status">
+            <section class="punch done" [attr.data-direction]="r.direction" data-state="already" role="status" [appRevealAlert]="r">
               <h1 class="direction">{{ t('attendance.direction.' + r.direction) }}</h1>
               <p class="time"><time dir="ltr">{{ r.localTime }}</time></p>
               <p class="badge duplicate" data-state="duplicate">{{ t('attendance.punch.duplicate') }}</p>
@@ -64,7 +64,8 @@
       @if (state(); as s) {
         @if (s.kind === 'done') {
           @let punch = s.result.punch;
-          <section class="punch done" [attr.data-direction]="punch.direction" data-state="done" role="status">
+          <!-- revealed and focused: on a phone the app header and menu otherwise push the card below the fold -->
+          <section class="punch done" [attr.data-direction]="punch.direction" data-state="done" role="status" [appRevealAlert]="s.result">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               @if (punch.direction === 'in') {
                 <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -90,7 +91,7 @@
     @case ('problem') {
       @if (state(); as s) {
         @if (s.kind === 'problem') {
-          <section class="punch problem" [attr.data-problem]="s.problem">
+          <section class="punch problem" [attr.data-problem]="s.problem" [appRevealAlert]="s">
             <h1>{{ t('attendance.punch.problemTitle.' + s.problem) }}</h1>
             <p role="alert">{{ t('attendance.punch.problem.' + s.problem) }}</p>
             @if (s.problem === 'network') {

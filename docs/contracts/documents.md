@@ -842,4 +842,6 @@ interface EmployeeFileView { id: string; employmentId: string; category: { id: s
   fails that render only (503 `document-render-failed`) and the API keeps serving; a timeout kills the process
   (SIGKILL); `PDF_RENDER_MAX_MEMORY_MB` (default 1024) caps a render's memory on Linux. Unit tests: a process killed
   mid-render, a template growing past a 300 MB ceiling, a timed-out process really gone, an empty environment.
+- **Cleanup (2026-10-02):** the timeline hides `issued_document.leave_request_id` / `document_request_id` and
+  `document_request.issued_document_id` (bare ids; the detail pages show those relations).
 

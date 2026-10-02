@@ -16,6 +16,8 @@ export interface SsoInteractionView {
   readonly client: { readonly clientId: string; readonly name: string; readonly nameAr: string | null };
   /** The request asks for a fresh sign-in AND the caller's HRForce session does not satisfy it (false when signed out). */
   readonly freshLoginRequired: boolean;
+  /** The app's `ui_locales` hint, reduced to fr/ar/en (preferred first): applied before sign-in when no language was chosen. */
+  readonly uiLocales: readonly string[];
 }
 
 /** `POST …/complete` and `POST …/abort` → where the browser goes next (`<issuer>/auth/<uid>`). */

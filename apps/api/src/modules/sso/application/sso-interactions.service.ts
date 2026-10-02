@@ -5,7 +5,7 @@ import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { identityOf, RequestIdentityResolver } from '../../../platform/context/request-identity.js';
 import { ProblemException } from '../../../platform/http/problem-details.js';
 import { IdentitySessions } from '../../identity/index.js';
-import { freshLoginRequired, INTERACTION_UID_PATTERN, parseMaxAge } from '../domain/rules.js';
+import { freshLoginRequired, INTERACTION_UID_PATTERN, parseMaxAge, parseUiLocales } from '../domain/rules.js';
 import { ClientDirectory, type ActiveClient } from '../infra/client-directory.js';
 import { OIDC_RUNTIME, type OidcRuntime } from '../infra/oidc-provider.factory.js';
 import { SsoClock } from './sso-clock.js';
@@ -88,7 +88,12 @@ export class SsoInteractionsService {
       const session = await this.identities.ssoSession(identity.sessionId, identity.userId);
       if (session?.live && session.accountStatus === 'active') freshLogin = this.fresh(details, session.authTime);
     }
-    return { uid: details.uid, client: { clientId: client.clientId, name: client.name, nameAr: client.nameAr }, freshLoginRequired: freshLogin };
+    return {
+      uid: details.uid,
+      client: { clientId: client.clientId, name: client.name, nameAr: client.nameAr },
+      freshLoginRequired: freshLogin,
+      uiLocales: parseUiLocales(details.params['ui_locales']),
+    };
   }
 
   async complete(req: Request, res: Response, uid: string): Promise<SsoRedirectView> {

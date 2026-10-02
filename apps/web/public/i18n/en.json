@@ -1092,7 +1092,7 @@
       "hireDateHint": "After the previous employment ended ({{date}}).",
       "stillOpen": "This employment has not ended: end it before rehiring the person.",
       "submit": "Create the new employment",
-      "personEmployed": "This person already has a current employment, or one whose end date has not passed yet: a rehire is not possible for now."
+      "personEmployed": "This person already has a current employment (no end date): a rehire is not possible for now."
     },
     "endReasons": {
       "resignation": "Resignation",
@@ -2407,6 +2407,7 @@
       "title": "Attendance policy",
       "retention": "Retention (months)",
       "retentionHint": "Between {{min}} and {{max}} months after the end of the month.",
+      "outOfRange": "A whole number between {{min}} and {{max}}.",
       "gap": "Duplicate window (seconds)",
       "gapHint": "A second scan within this window returns the first punch ({{min}} to {{max}} s).",
       "saved": "Policy saved.",

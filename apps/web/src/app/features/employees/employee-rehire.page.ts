@@ -16,8 +16,8 @@
  *   "this employment is still open" are the page's states; the form never sees a half-loaded employee.
  * - **Three states from one detail, in a single `@if` / `@else if` chain**: no end date → "still open"; an end date
  *   but `person.hasOpenEmployment` (the API's flag over ALL the person's employments, whatever the viewer's scope)
- *   → "already employed", no form; otherwise the form. The flag is also true while THIS employment's end date is
- *   still in the future, although the API would accept a rehire dated after it: accepted (come back after the end).
+ *   → "already employed", no form; otherwise the form. The flag counts only employments without an end date (the
+ *   API's rehire rule), so an end date in the future shows the form, which refuses a start on or before that end.
  * - **The server keeps the last word**: if the person is rehired between loading and submitting, the API answers
  *   409 `employment-open`, shown above the form.
  */

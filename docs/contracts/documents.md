@@ -266,7 +266,8 @@ No job in Phase A (rendering is synchronous in the API request; ADR 008).
 - `apps/api/assets/pdf/{fonts,templates}` (ADR 008) are copied into the image: `COPY --from=build
   /repo/apps/api/assets ./assets` in `apps/api/Dockerfile`; the platform resolves them relative to the package root
   (env `PDF_ASSETS_DIR` overrides, for tests).
-- Env: `PDF_RENDER_TIMEOUT_MS` (default 15000), `PDF_RENDER_CONCURRENCY` (threads, default 1, max 4).
+- Env: `PDF_RENDER_TIMEOUT_MS` (default 15000), `PDF_RENDER_CONCURRENCY` (render processes, default 1, max 4),
+  `PDF_RENDER_MAX_MEMORY_MB` (default 1024; ADR 008 amendment).
 - `GET /api/health` is unchanged; a unit test renders every template in both languages from a fixture snapshot and
   checks the PDF parses and contains the number (text extraction).
 - Caddy: no change for Phase A (PDF responses are small; the web opens them as blobs, below).
@@ -454,8 +455,9 @@ number; replay with `clientRequestId`.
 
 **Platform, deploy, seed**
 - Env: `PDF_RENDER_TIMEOUT_MS` (1000–120000, default 15000), `PDF_RENDER_CONCURRENCY` (1–4, default 1),
-  `PDF_ASSETS_DIR`. The render threads start at the first render, get no inherited CLI flags, and a thread that times
-  out is terminated and replaced.
+  `PDF_ASSETS_DIR`, `PDF_RENDER_MAX_MEMORY_MB` (256–8192, default 1024). The render processes (ADR 008 amendment,
+  2026-10-02; first threads) start at the first render with no inherited CLI flags and an empty environment; one that
+  times out, grows past the memory ceiling or dies is killed and replaced, and its render answers 503.
 - Image: `apps/api/Dockerfile` copies `apps/api/assets`; measured `node_modules` 82.6 → 132.7 MB (+50 MB, the
   linux-x64-musl binding only), assets 1.1 MB; `docker image ls` 344 → 422 MB, compressed content 77.5 → 101.9 MB.
   A render inside the image (read-only root, `cap_drop: ALL`, user `node`) takes ~85 ms cold, RSS ~115 MB.
@@ -834,3 +836,10 @@ interface EmployeeFileView { id: string; employmentId: string; category: { id: s
   `company_profile` → preview 200 and issue 201 without the logo, API still up. The web does not pre-check pixel sizes
   (the server is authoritative). Residual: a logo within the limits still costs up to ~128 MB per render
   thread while it is decoded; `worker.terminate()` still cannot stop a native render.
+
+**Settled by the render isolation (2026-10-02, ADR 008 amendment)**
+- The PDF-engine point above is closed: renders run in child processes. A crash or an out-of-memory abort inside Typst
+  fails that render only (503 `document-render-failed`) and the API keeps serving; a timeout kills the process
+  (SIGKILL); `PDF_RENDER_MAX_MEMORY_MB` (default 1024) caps a render's memory on Linux. Unit tests: a process killed
+  mid-render, a template growing past a 300 MB ceiling, a timed-out process really gone, an empty environment.
+

@@ -1,16 +1,19 @@
 /**
- * PDF render thread (ADR 008 › Decision 1): the Typst binding's `pdf()` is synchronous native code, so it runs here,
- * in a `worker_threads` thread, never on the API's event loop. One compiler per thread, created once with the vendored
- * fonts passed as in-memory blobs (no directory scan); templates are read from `templatesDir` (the workspace root).
+ * PDF render process (ADR 008 › Decision 1, child-process fallback): the Typst binding's `pdf()` is synchronous native
+ * code, so it runs here, in a child process forked by typst-renderer.ts, never in the API process. A native fault, an
+ * out-of-memory abort or a runaway render therefore ends this process only: the parent fails the job, kills or
+ * replaces the process, and keeps serving. One compiler per process, created once with the vendored fonts passed as
+ * in-memory blobs (no directory scan); templates are read from `templatesDir` (the workspace root).
  *
  * Self-contained on purpose (only node: built-ins and the binding): the same file runs compiled (dist/…/.js) and, in
  * tests, as TypeScript through Node's type stripping — so only erasable TypeScript syntax is allowed here.
  *
- * Protocol: the parent posts {@link RenderJob}; the thread answers {@link RenderReply} with the same id.
+ * Protocol (IPC channel, `serialization: 'advanced'` so bytes travel as Uint8Array): the configuration arrives as the
+ * single argv entry (JSON {@link RenderWorkerData}); the parent sends {@link RenderJob}; this process answers
+ * {@link RenderReply} with the same id. It exits when the parent disconnects.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parentPort, workerData } from 'node:worker_threads';
 import { NodeCompiler } from '@myriaddreamin/typst-ts-node-compiler';
 
 export interface RenderWorkerData {
@@ -43,14 +46,18 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const config = workerData as RenderWorkerData;
+function send(reply: RenderReply): void {
+  process.send?.(reply);
+}
+
+const config = JSON.parse(process.argv[2] ?? '{}') as RenderWorkerData;
 const fontBlobs = readdirSync(config.fontsDir)
   .filter((f) => f.toLowerCase().endsWith('.ttf'))
   .toSorted()
   .map((f) => readFileSync(path.join(config.fontsDir, f)));
 const compiler = NodeCompiler.create({ workspace: config.templatesDir, fontArgs: [{ fontBlobs }] });
 
-parentPort?.on('message', (job: RenderJob) => {
+process.on('message', (job: RenderJob) => {
   const mapped: string[] = [];
   let reply: RenderReply;
   try {
@@ -72,7 +79,8 @@ parentPort?.on('message', (job: RenderJob) => {
     // keep the compiler's memo cache bounded across many documents
     compiler.evictCache(10);
   }
-  // worker_threads MessagePort (not window.postMessage): there is no target origin
-  // oxlint-disable-next-line unicorn/require-post-message-target-origin
-  parentPort?.postMessage(reply);
+  send(reply);
 });
+
+// the parent went away (shutdown, crash): nothing left to serve
+process.on('disconnect', () => process.exit(0));

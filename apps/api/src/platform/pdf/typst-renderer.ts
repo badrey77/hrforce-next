@@ -1,8 +1,8 @@
-import { existsSync } from 'node:fs';
+import { type ChildProcess, fork } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Worker } from 'node:worker_threads';
 import { readImageHeader, withinImageLimits } from './image-header.js';
 import { PdfRenderError, PdfRenderer, type RenderInput } from './pdf-renderer.js';
 import type { RenderJob, RenderReply, RenderWorkerData } from './render-worker.js';
@@ -26,7 +26,7 @@ function bindingVersion(): string {
 export const RENDER_INPUT_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
- * Why an input must not reach Typst, or null. A Typst allocation failure aborts the whole process (ADR 008), so an
+ * Why an input must not reach Typst, or null. A Typst allocation failure aborts the render process (ADR 008), so an
  * image asset is refused when its header is unreadable or declares more pixels than the limits (image-header.ts):
  * the engine would decode all of them. Non-image assets pass (their size still counts).
  */
@@ -49,18 +49,33 @@ export function pdfAssetsDir(override?: string): string {
   return override ? path.resolve(override) : path.join(PACKAGE_ROOT, 'assets', 'pdf');
 }
 
-/** The compiled thread script next to this file (.js), or its TypeScript source under the test runner. */
-function workerScript(): URL {
-  const js = new URL('./render-worker.js', import.meta.url);
-  return existsSync(fileURLToPath(js)) ? js : new URL('./render-worker.ts', import.meta.url);
+/** The compiled render script next to this file (.js), or its TypeScript source under the test runner. */
+function workerScript(): string {
+  const js = fileURLToPath(new URL('./render-worker.js', import.meta.url));
+  return existsSync(js) ? js : fileURLToPath(new URL('./render-worker.ts', import.meta.url));
+}
+
+/** Resident memory of a process in bytes (Linux `/proc`), or null where it cannot be read (other platforms). */
+function residentBytes(pid: number): number | null {
+  try {
+    const match = /^VmRSS:\s+(\d+)\s+kB$/m.exec(readFileSync(`/proc/${pid}/status`, 'utf8'));
+    return match ? Number(match[1]) * 1024 : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface TypstRendererOptions {
   assetsDir?: string;
   /** per render (default 15 s) */
   timeoutMs?: number;
-  /** threads (default 1, max 4) */
+  /** render processes (default 1, max 4) */
   concurrency?: number;
+  /**
+   * Resident memory a render process may reach while rendering (default 1 GiB); above it the process is killed and
+   * the render fails with `PdfRenderError('memory')`. Read from /proc (Linux, as in production); elsewhere unchecked.
+   */
+  maxMemoryBytes?: number;
 }
 
 interface Pending {
@@ -69,22 +84,31 @@ interface Pending {
   reject: (error: Error) => void;
 }
 
-/** One thread and the job it is running. */
+/** One render process and the job it is running. */
 interface Slot {
-  worker: Worker | null;
-  current: (Pending & { timer: NodeJS.Timeout }) | null;
+  child: ChildProcess | null;
+  current: (Pending & { timer: NodeJS.Timeout; watch: NodeJS.Timeout | null }) | null;
 }
 
+/** How often the memory of a busy render process is sampled. */
+const MEMORY_SAMPLE_MS = 50;
+
 /**
- * {@link PdfRenderer} on Typst (ADR 008): a small pool of `worker_threads` threads, each with its own compiler,
- * created at first use; a FIFO queue in front; a hard time limit per render — a render that exceeds it gets its thread
- * terminated (and replaced at the next job) and fails with `PdfRenderError('timeout')`. Engine errors (template or
- * data) fail with `PdfRenderError('error')`. A thread that dies fails its job the same way and is replaced.
+ * {@link PdfRenderer} on Typst (ADR 008): a small pool of child processes (render-worker.ts), each with its own
+ * compiler, started at first use; a FIFO queue in front. The binding is native code, and a fault in it (a crash, an
+ * out-of-memory abort) would end whatever process runs it: in a child, it ends only that child — the job fails with
+ * `PdfRenderError('error')`, the process is replaced at the next job, and the API keeps serving. A render that exceeds
+ * the time limit, or the memory ceiling, gets its process killed (SIGKILL really stops native code, which a thread's
+ * terminate() could not) and fails with `PdfRenderError('timeout' | 'memory')`. Engine errors (template or data) fail
+ * with `PdfRenderError('error')` and keep the process.
+ *
+ * The children get an empty environment: no database URL, key or secret of the API ever reaches the renderer.
  */
 export class TypstPdfRenderer extends PdfRenderer {
   readonly engine = `typst ${TYPST_VERSION} / typst-ts ${bindingVersion()}`;
   private readonly assetsDir: string;
   private readonly timeoutMs: number;
+  private readonly maxMemoryBytes: number;
   private readonly slots: Slot[];
   private readonly queue: Pending[] = [];
   private nextId = 1;
@@ -94,8 +118,9 @@ export class TypstPdfRenderer extends PdfRenderer {
     super();
     this.assetsDir = pdfAssetsDir(options.assetsDir);
     this.timeoutMs = options.timeoutMs ?? 15_000;
+    this.maxMemoryBytes = options.maxMemoryBytes ?? 1024 * 1024 * 1024;
     const concurrency = Math.min(4, Math.max(1, options.concurrency ?? 1));
-    this.slots = Array.from({ length: concurrency }, () => ({ worker: null, current: null }));
+    this.slots = Array.from({ length: concurrency }, () => ({ child: null, current: null }));
   }
 
   render(input: RenderInput): Promise<Buffer> {
@@ -108,7 +133,7 @@ export class TypstPdfRenderer extends PdfRenderer {
       assets: (input.assets ?? []).map((a) => ({ path: a.path, bytes: a.bytes })),
       standard: input.standard === undefined ? 'a-2b' : input.standard,
     };
-    // never hand Typst an input that could exhaust memory: that would abort the process, not fail the render
+    // never hand Typst an input that could exhaust memory: the render would fail, and cost a process restart
     const unsafe = unsafeRenderInput(job);
     if (unsafe) return Promise.reject(new PdfRenderError('error', unsafe));
     return new Promise<Buffer>((resolve, reject) => {
@@ -117,43 +142,66 @@ export class TypstPdfRenderer extends PdfRenderer {
     });
   }
 
+  /** The running render processes (diagnostics and tests). */
+  processIds(): number[] {
+    return this.slots.flatMap((slot) => (slot.child?.pid === undefined ? [] : [slot.child.pid]));
+  }
+
   /** Nest lifecycle (the platform module provides this adapter through a factory). */
   onModuleDestroy(): Promise<void> {
     return this.close();
   }
 
-  /** Stops every thread (Nest shutdown / end of a script). Pending renders fail. */
+  /** Stops every render process (Nest shutdown / end of a script). Pending renders fail. */
   async close(): Promise<void> {
     this.closed = true;
     for (const pending of this.queue.splice(0)) pending.reject(new PdfRenderError('error', 'renderer closed'));
     await Promise.all(
       this.slots.map(async (slot) => {
         if (slot.current) this.finish(slot, new PdfRenderError('error', 'renderer closed'));
-        const worker = slot.worker;
-        slot.worker = null;
-        if (worker) await worker.terminate();
+        const child = slot.child;
+        slot.child = null;
+        if (child && child.exitCode === null && child.signalCode === null) {
+          const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+          child.kill('SIGKILL');
+          await exited;
+        }
       }),
     );
   }
 
-  private spawn(slot: Slot): Worker {
+  private spawn(slot: Slot): ChildProcess {
     const data: RenderWorkerData = { templatesDir: path.join(this.assetsDir, 'templates'), fontsDir: path.join(this.assetsDir, 'fonts') };
-    // no inherited CLI flags (e.g. --input-type, --inspect): the thread only runs the render script
-    const worker = new Worker(workerScript(), { workerData: data, execArgv: [] });
-    worker.on('message', (reply: RenderReply) => {
-      if (!slot.current || slot.current.job.id !== reply.id) return;
+    const child = fork(workerScript(), [JSON.stringify(data)], {
+      // no inherited CLI flags (e.g. --input-type, --inspect) and no environment (no secret reaches the renderer)
+      execArgv: [],
+      // Windows: Node itself needs SystemRoot (not a secret)
+      env: process.platform === 'win32' ? { SystemRoot: process.env['SystemRoot'] ?? 'C:\\Windows' } : {},
+      serialization: 'advanced',
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
+    });
+    child.on('message', (reply: RenderReply) => {
+      if (slot.child !== child || !slot.current || slot.current.job.id !== reply.id) return;
       if (reply.ok) this.finish(slot, null, Buffer.from(reply.pdf.buffer, reply.pdf.byteOffset, reply.pdf.byteLength));
       else this.finish(slot, new PdfRenderError('error', reply.error));
     });
     const onDeath = (reason: string) => {
-      if (slot.worker !== worker) return;
-      slot.worker = null;
-      if (slot.current) this.finish(slot, new PdfRenderError('error', `render thread stopped: ${reason}`));
+      if (slot.child !== child) return;
+      slot.child = null;
+      if (slot.current) this.finish(slot, new PdfRenderError('error', `render process stopped: ${reason}`));
     };
-    worker.on('error', (error) => onDeath(error.message));
-    worker.on('exit', (code) => onDeath(`exit ${code}`));
-    slot.worker = worker;
-    return worker;
+    child.on('error', (error) => onDeath(error.message));
+    child.on('exit', (code, signal) => onDeath(signal ? `signal ${signal}` : `exit ${code}`));
+    slot.child = child;
+    return child;
+  }
+
+  /** Kills the slot's process for a runaway job and fails the job with `reason`. */
+  private abort(slot: Slot, error: PdfRenderError): void {
+    const stuck = slot.child;
+    slot.child = null;
+    this.finish(slot, error);
+    stuck?.kill('SIGKILL');
   }
 
   private pump(): void {
@@ -161,18 +209,20 @@ export class TypstPdfRenderer extends PdfRenderer {
       if (slot.current || this.closed) continue;
       const next = this.queue.shift();
       if (!next) return;
-      const worker = slot.worker ?? this.spawn(slot);
-      const timer = setTimeout(() => {
-        // a runaway render: kill the thread (the only way to stop native code) and fail the job
-        const stuck = slot.worker;
-        slot.worker = null;
-        this.finish(slot, new PdfRenderError('timeout', `render exceeded ${this.timeoutMs} ms`));
-        void stuck?.terminate();
-      }, this.timeoutMs);
-      slot.current = { ...next, timer };
-      // worker_threads Worker (not window.postMessage): there is no target origin
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin
-      worker.postMessage(next.job);
+      const child = slot.child ?? this.spawn(slot);
+      const timer = setTimeout(() => this.abort(slot, new PdfRenderError('timeout', `render exceeded ${this.timeoutMs} ms`)), this.timeoutMs);
+      const pid = child.pid;
+      const watch =
+        pid === undefined
+          ? null
+          : setInterval(() => {
+              const rss = residentBytes(pid);
+              if (rss !== null && rss > this.maxMemoryBytes) {
+                this.abort(slot, new PdfRenderError('memory', `render exceeded ${Math.round(this.maxMemoryBytes / 1048576)} MB`));
+              }
+            }, MEMORY_SAMPLE_MS);
+      slot.current = { ...next, timer, watch };
+      child.send(next.job);
     }
   }
 
@@ -180,6 +230,7 @@ export class TypstPdfRenderer extends PdfRenderer {
     const current = slot.current;
     if (!current) return;
     clearTimeout(current.timer);
+    if (current.watch) clearInterval(current.watch);
     slot.current = null;
     if (error) current.reject(error);
     else current.resolve(pdf ?? Buffer.alloc(0));

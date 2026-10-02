@@ -26,8 +26,11 @@ export interface RenderInput {
   standard?: 'a-2b' | null;
 }
 
-/** Why a render failed: the engine reported an error (bad template / data) or the time limit was hit. */
-export type PdfRenderFailure = 'error' | 'timeout';
+/**
+ * Why a render failed: the engine reported an error (bad template / data) or its process died, the time limit was
+ * hit, or the render process grew past its memory ceiling.
+ */
+export type PdfRenderFailure = 'error' | 'timeout' | 'memory';
 
 export class PdfRenderError extends Error {
   constructor(

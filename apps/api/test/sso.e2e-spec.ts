@@ -373,7 +373,12 @@ describe('SSO: interaction binding and session checks', () => {
     tampered.jar.copyFrom(victim.jar);
     const sig = tampered.jar.find('hrf_op_interaction.sig')[0];
     expect(sig).toBeDefined();
-    tampered.jar.cookies.set(`hrf_op_interaction.sig|${sig?.path}`, { name: 'hrf_op_interaction.sig', value: `x${sig?.value.slice(1)}`, path: sig?.path ?? '/' });
+    // change the first character for real: replacing it with a fixed letter left the signature intact whenever it
+    // already started with that letter (1 run in 64 — the flake on main, d1044a7)
+    const original = sig?.value ?? '';
+    const forged = `${original.startsWith('x') ? 'y' : 'x'}${original.slice(1)}`;
+    expect(forged).not.toBe(original);
+    tampered.jar.cookies.set(`hrf_op_interaction.sig|${sig?.path}`, { name: 'hrf_op_interaction.sig', value: forged, path: sig?.path ?? '/' });
     expect((await tampered.api('GET', `/api/sso/interactions/${p.uid}/details`)).status).toBe(404);
     // the right browser completes, but resuming without hrf_op_resume is an error page
     const done = await complete(victim, p.uid);

@@ -310,7 +310,8 @@ describe('SSO: sign-in round trip', () => {
     const store = await query<{ model: string; payload: string }>(db.superuserUrl, `select model, payload::text as payload from oidc.model_store`);
     const code = callback.searchParams.get('code') ?? '';
     for (const row of store) {
-      expect(row.payload, `${row.model} ${row.payload}`).not.toContain('"jti"');
+      // no `jti` FIELD (the id); its name stays in `__idFields` so that `find` can restore it (oidc-adapter.ts)
+      expect(Object.keys(JSON.parse(row.payload) as object), `${row.model} ${row.payload}`).not.toContain('jti');
       expect(row.payload).not.toContain(code);
       expect(row.payload).not.toContain(tokens.access_token);
     }

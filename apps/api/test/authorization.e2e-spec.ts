@@ -172,7 +172,7 @@ describe('Authorization (e2e, real grants)', () => {
 
     it('admin holds everything except employee.medical.read / update on DG (+); a member without grants holds nothing', async () => {
       const admin = await client('admin').get('/api/me').expect(200);
-      expect(admin.body.permissions).toHaveLength(36);
+      expect(admin.body.permissions).toHaveLength(39);
       expect(admin.body.permissions).not.toContain('employee.medical.read');
       expect(admin.body.permissions).not.toContain('employee.medical.update');
       expect(admin.body.scopes['employee.salary.read']).toEqual([{ unitId: unitA('DG'), includeDescendants: true }]);
@@ -285,6 +285,7 @@ describe('Authorization (e2e, real grants)', () => {
         'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self',
         'employee_file.read', 'employee_file.upload', 'employee_file.delete',
         'attendance.punch_self', 'attendance.read', 'attendance.manage', 'attendance.configure',
+        'sso.read', 'sso.manage_apps', 'sso.assign',
       ]);
       expect(items[0]).toEqual({
         code: 'org_unit.read',
@@ -535,7 +536,7 @@ describe('Authorization (e2e, real grants)', () => {
     });
 
     it('permission is a read-only catalogue; grants are never deleted and only shortened', async () => {
-      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(38);
+      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(41);
       await expect(inTenant(COMPANY_A, `insert into permission values ('x.y', 'x', 'x', 'x', 'access', false, 999)`)).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role_grant')).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role')).rejects.toThrow(/permission denied/);

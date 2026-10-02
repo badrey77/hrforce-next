@@ -209,6 +209,35 @@ const corrOf = (t: Target) => (t === 'est' ? CORR.est : t === 'ouest' ? CORR.oue
 const corrBody = (back: number) => ({ date: attendanceAddDays(algiersDate(Date.now()), -back), reason: 'Oubli de pointage', changes: [{ action: 'add', direction: 'in', time: '08:00' }] });
 const kioskOf = (t: Target) => (t === 'other' ? BETA_KIOSK : DEMO_KIOSKS.cne.id);
 
+// ── SSO (docs/contracts/sso.md › Authorization matrix rows) ─────────────────────────────────────────────────────
+// Targets: est = a company-A resource (app, role, assignment), other = BETA's. Writes need sso.manage_apps /
+// sso.assign over the WHOLE company: admin (A) and beta (B); acces holds them on REG-EST only → 403 forbidden-scope.
+/** A BETA-only member (beta cannot assign a role to itself: sso-assign-self). Inserted in beforeAll. */
+const BETA_MEMBER = '0190a5d0-0000-7000-8000-0000000000bc';
+/** Filled in beforeAll: one app and one role per company, and pools of targets each used once by a success. */
+const SSO = {
+  app: { est: '', other: '' } as Record<Target, string>,
+  role: { est: '', other: '' } as Record<Target, string>,
+  toDisable: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  toEnable: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  rolesToDelete: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  rolesToAssign: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+  toUnassign: { est: [] as string[], ouest: [] as string[], other: [] as string[], '-': [] as string[] },
+};
+/** A well-formed interaction uid (INTERACTION_UID_PATTERN) that no interaction has: the cookie never matches it. */
+const SSO_UID = 'matrixInteractionUid000';
+const ssoKey = (t: Target): Target => (t === 'other' ? 'other' : 'est');
+const SSO_LIST_ROWS: readonly Row[] = [
+  ['admin', '-', 200], ['acces', '-', 200], ['beta', '-', 200],
+  ['est', '-', 403], ['ouest', '-', 403], ['agent', '-', 403], ['chef', '-', 403],
+];
+/** sso.manage_apps / sso.assign writes on an existing resource (app, role, assignment). */
+const SSO_WRITE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'other', 404],
+  ['beta', 'other', ok], ['beta', 'est', 404],
+  ['acces', 'est', 403], ['est', 'est', 403], ['ouest', 'est', 403], ['agent', 'est', 403],
+];
+
 const READERS: readonly Row[] = [
   ['admin', '-', 200],
   ['est', '-', 200],
@@ -941,6 +970,87 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: ATT_CONFIG_ROWS(200),
   },
 
+  // ── sso (docs/contracts/sso.md › Authorization matrix rows) ───────────────────────────────────────────────────
+  'GET /api/sso/clients': { access: 'sso.read', request: () => ({ path: '/api/sso/clients' }), rows: SSO_LIST_ROWS },
+  'GET /api/sso/clients/:id': {
+    access: 'sso.read',
+    request: (t) => ({ path: `/api/sso/clients/${SSO.app[ssoKey(t)]}` }),
+    rows: [
+      ['admin', 'est', 200], ['admin', 'other', 404], ['acces', 'est', 200],
+      ['beta', 'other', 200], ['beta', 'est', 404],
+      ['est', 'est', 403], ['ouest', 'est', 403], ['agent', 'est', 403],
+    ],
+  },
+  'POST /api/sso/clients': {
+    access: 'sso.manage_apps',
+    request: (_t, n) => ({ path: '/api/sso/clients', body: { clientId: `matrix-${n}`, name: `App ${n}`, redirectUris: ['https://app.test/callback'] } }),
+    rows: [['admin', '-', 201], ['beta', '-', 201], ['acces', '-', 403], ['est', '-', 403], ['ouest', '-', 403], ['agent', '-', 403]],
+  },
+  'PATCH /api/sso/clients/:id': {
+    access: 'sso.manage_apps',
+    request: (t, n) => ({ path: `/api/sso/clients/${SSO.app[ssoKey(t)]}`, body: { name: `App ${n}` } }),
+    rows: SSO_WRITE_ROWS(200),
+  },
+  'POST /api/sso/clients/:id/rotate-secret': {
+    access: 'sso.manage_apps',
+    request: (t) => ({ path: `/api/sso/clients/${SSO.app[ssoKey(t)]}/rotate-secret` }),
+    rows: SSO_WRITE_ROWS(200),
+  },
+  'POST /api/sso/clients/:id/disable': {
+    access: 'sso.manage_apps',
+    request: (t) => ({ path: `/api/sso/clients/${next(SSO.toDisable[ssoKey(t)])}/disable`, body: { reason: 'Matrice' } }),
+    rows: SSO_WRITE_ROWS(200),
+  },
+  'POST /api/sso/clients/:id/enable': {
+    access: 'sso.manage_apps',
+    request: (t) => ({ path: `/api/sso/clients/${next(SSO.toEnable[ssoKey(t)])}/enable` }),
+    rows: SSO_WRITE_ROWS(200),
+  },
+  'POST /api/sso/clients/:id/roles': {
+    access: 'sso.manage_apps',
+    request: (t, n) => ({ path: `/api/sso/clients/${SSO.app[ssoKey(t)]}/roles`, body: { code: `matrix_${n}`, names: { fr: `Rôle ${n}`, ar: 'دور', en: `Role ${n}` } } }),
+    rows: SSO_WRITE_ROWS(201),
+  },
+  'PATCH /api/sso/roles/:roleId': {
+    access: 'sso.manage_apps',
+    request: (t, n) => ({ path: `/api/sso/roles/${SSO.role[ssoKey(t)]}`, body: { names: { fr: `Opérateur ${n}`, ar: 'التشغيل', en: 'Operator' } } }),
+    rows: SSO_WRITE_ROWS(200),
+  },
+  'DELETE /api/sso/roles/:roleId': {
+    access: 'sso.manage_apps',
+    request: (t) => ({ path: `/api/sso/roles/${next(SSO.rolesToDelete[ssoKey(t)])}` }),
+    rows: SSO_WRITE_ROWS(204),
+  },
+  'GET /api/sso/assignments': { access: 'sso.read', request: () => ({ path: '/api/sso/assignments' }), rows: SSO_LIST_ROWS },
+  'POST /api/sso/assignments': {
+    access: 'sso.assign',
+    // admin naming BETA's role: 422 (roleId unknown in company A); assigning oneself (409) is covered by sso.e2e-spec.ts
+    request: (t) => ({ path: '/api/sso/assignments', body: { userId: t === 'other' ? BETA_MEMBER : USERS.ouest.id, roleId: next(SSO.rolesToAssign[ssoKey(t)]) } }),
+    rows: [
+      ['admin', 'est', 201], ['admin', 'other', 422], ['beta', 'other', 201],
+      ['acces', 'est', 403], ['est', 'est', 403], ['ouest', 'est', 403], ['agent', 'est', 403],
+    ],
+  },
+  'DELETE /api/sso/assignments/:id': {
+    access: 'sso.assign',
+    request: (t) => ({ path: `/api/sso/assignments/${next(SSO.toUnassign[ssoKey(t)])}` }),
+    rows: SSO_WRITE_ROWS(204),
+  },
+  // the sign-in handoff: without the provider's interaction cookie nothing is found
+  'GET /api/sso/interactions/:uid': {
+    access: 'public',
+    // target '-' = a well-formed uid (handed over to the Angular page), 'est' = a malformed one
+    request: (t) => ({ path: `/api/sso/interactions/${t === '-' ? SSO_UID : 'bad!uid'}` }),
+    rows: [['anon', '-', 303], ['anon', 'est', 404]],
+  },
+  'GET /api/sso/interactions/:uid/details': { access: 'public', request: () => ({ path: `/api/sso/interactions/${SSO_UID}/details` }), rows: [['anon', '-', 404], ['admin', '-', 404]] },
+  'POST /api/sso/interactions/:uid/abort': { access: 'public', request: () => ({ path: `/api/sso/interactions/${SSO_UID}/abort` }), rows: [['anon', '-', 404], ['admin', '-', 404]] },
+  'POST /api/sso/interactions/:uid/complete': {
+    access: 'authenticated',
+    request: () => ({ path: `/api/sso/interactions/${SSO_UID}/complete` }),
+    rows: [['admin', '-', 404], ['est', '-', 404], ['ouest', '-', 404]],
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
     // @Authenticated: audit.read is checked by the handler for every subject type except leave_request (own visibility)
@@ -1117,6 +1227,31 @@ describe('Authorization matrix (e2e, real grants)', () => {
     CORR.ouest = await sqlCorrection(unitCompany, employeeA(36), unitA('AG-ORAN'));
     CORR.other = await sqlCorrection(COMPANY_B, EMPLOYEE_B.employmentId, unitB('BETA-RH'));
     expect(Object.values(CORR).every((v) => v !== ''), JSON.stringify(CORR)).toBe(true);
+    // SSO: a BETA-only member, then per company an app with a role, and pools (apps to disable, disabled apps to
+    // enable, unused roles to delete, roles to assign, assignments to remove), all through the API
+    await query(db.superuserUrl, `insert into auth.user_account (id, email, display_name, locale, status) values ($1, 'membre@beta.dz', 'Membre Beta', 'fr', 'active')`, [BETA_MEMBER]);
+    await query(db.superuserUrl, `insert into auth.user_company (user_id, company_id, is_default) values ($1, $2, true)`, [BETA_MEMBER, COMPANY_B]);
+    let k = 0;
+    for (const [t, actor, member] of [['est', 'admin', USERS.ouest.id], ['other', 'beta', BETA_MEMBER]] as const) {
+      const api = as(app, actor, xsrf);
+      const ssoApp = async () =>
+        ((await api.post('/api/sso/clients').send({ clientId: `pool-${++k}`, name: `Pool ${k}`, redirectUris: ['https://app.test/callback'] }).expect(201)).body as { id: string }).id;
+      const ssoRole = async (client: string) =>
+        ((await api.post(`/api/sso/clients/${client}/roles`).send({ code: `pool_${++k}`, names: { fr: 'Pool', ar: 'دور', en: 'Pool' } }).expect(201)).body as { id: string }).id;
+      SSO.app[t] = await ssoApp();
+      SSO.role[t] = await ssoRole(SSO.app[t]);
+      for (let i = 0; i < 4; i++) {
+        SSO.toDisable[t].push(await ssoApp());
+        const disabled = await ssoApp();
+        await api.post(`/api/sso/clients/${disabled}/disable`).send({ reason: 'Matrice' }).expect(200);
+        SSO.toEnable[t].push(disabled);
+        SSO.rolesToDelete[t].push(await ssoRole(SSO.app[t]));
+        SSO.rolesToAssign[t].push(await ssoRole(SSO.app[t]));
+        const assigned = await ssoRole(SSO.app[t]);
+        SSO.toUnassign[t].push(((await api.post('/api/sso/assignments').send({ userId: member, roleId: assigned }).expect(201)).body as { id: string }).id);
+      }
+    }
+    expect([SSO.app.est, SSO.app.other, SSO.role.est, SSO.role.other].every((v) => v !== ''), JSON.stringify(SSO)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();

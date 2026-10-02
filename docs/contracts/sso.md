@@ -732,7 +732,8 @@ A deliberately small **relying party** that shows what a sister app does with HR
 - `Content-Security-Policy: default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self' <issuer origin>; frame-ancestors 'none'; base-uri 'none'`.
   The issuer origin is needed because the logout form's redirect goes there, and Chrome checks `form-action` on
   redirects.
-- `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on pages.
+- `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` (not `no-referrer`: see *Settled by the
+  verification*), `Cache-Control: no-store` on pages.
 
 ### Pages
 
@@ -814,7 +815,8 @@ fictive » / « تطبيق تجريبي — تطبيق شقيق افتراضي �
   - A handle `@oidc path /oidc /oidc/*` → `reverse_proxy api:3000`, with the dev headers stripped as for `/api`.
   - `@notEmployeeFileContent` also excludes `/oidc /oidc/*`: the API's CSP must reach the browser untouched, while the
     other global headers (`X-Frame-Options: DENY`, HSTS, nosniff, `Referrer-Policy: no-referrer`) still apply.
-  - The access-log filter also deletes the query fields `id_token_hint`, `login_hint`, `code` and `state`.
+  - The access-log filter also deletes the query fields `id_token_hint`, `login_hint`, `code` and `state`, and the
+    response header `Location` (the resume redirect carries the code).
   - `deploy/web/Caddyfile` is unchanged (it never sees `/oidc`).
 - **`deploy/smoke.sh`:** `GET /oidc/.well-known/openid-configuration` → 200 and `issuer` = `https://$STAGING_DOMAIN/oidc`.
 
@@ -908,7 +910,7 @@ the XSRF helper.
 10. **CSP:** every `/oidc` HTML response has the policy above. The resume account-switch page (user A's provider
     session, user B completing) runs: its inline script's hash is in the header.
 11. **Storage:**
-    - no row of `oidc.model_store` contains a `jti`, the code or the access token string;
+    - no row of `oidc.model_store` has a `jti` field (only its name in `__idFields`), the code or the access token string;
     - `sso_client.secret_enc` never equals the secret, and decrypting it with another client id as AAD fails;
     - the `audit.change_log` diff of a rotation shows `secret_enc` masked;
     - no `audit.*` row, and no captured log line (the `mfa-logs` pattern), contains the code, the ID token, the
@@ -990,3 +992,33 @@ the XSRF helper.
 - A throttle on `/oidc/auth`.
 - Running the demo on staging: a compose profile `sso-demo` with its own image and a second Caddy site
   `{$SSO_DEMO_DOMAIN}`; needs owner question (b).
+
+## Settled by the verification (2026-10-01)
+
+Browser run (Chromium; fr + ar; 1280 + 390 px) with the API, the web dev server and the demo, first direct, then
+behind `deploy/Caddyfile` (Caddy 2.10, as on staging).
+
+- **Verified:** agent.annaba → « Opérateur », EMP-0030, Agence Annaba; chef.annaba → « Superviseur » (ar, 390 px);
+  rh.est → the Arabic "no role" notice; the code step in the middle of the handoff; silent second sign-in; sign-out
+  ends the demo and HRForce sessions; the login banner; Access → Applications (create with the secret panel, copy,
+  leave-confirmation, roles, assignments, rotate, disable/enable with the reason check, history, user section) in fr
+  and ar, no page-level horizontal scroll at 390 px.
+- **Probes held:** a non-registered `redirect_uri` (other host, trailing slash, query, case, `..`, host suffix) → 400
+  page without redirect; a replayed callback → `no_pending_sign_in` in the same and another browser; another
+  browser's uid → details/complete 404 and the handoff shows "expired"; `returnUrl` (`//evil`, `https://evil`,
+  `/\evil`, `javascript:`) → home; a logout link with another user's `id_token_hint` lands on the app's page and leaves
+  the signed-in user's session alive; 20 bad client authentications through Caddy → 429 `Retry-After`, the good
+  secret refused too, spoofed `X-Forwarded-For` ignored; framing refused (`frame-ancestors 'none'`, `X-Frame-Options`);
+  no secret, token, code or verifier in the API, demo or Caddy logs.
+- **Fixed:**
+  - The demo's sign-out answered 403: under `Referrer-Policy: no-referrer` Chrome sends `Origin: null` on the form
+    POST, which the foreign-Origin check refuses. The demo now sends `same-origin` (header and `<meta>`); other origins
+    still get no `Referer`.
+  - `deploy/` had none of the wiring above: `/oidc/*` went to the static web server and the API would not start in
+    production without `OIDC_KEY`. Added: the Caddy `@oidc` handle, the CSP exclusion, the log filter (plus
+    `resp_headers>Location`, found carrying the code), `OIDC_KEY` in `.env.staging.example`, `init-env.sh`,
+    `deploy.sh`'s check, the `api` and `migrate` services, the smoke check and the README.
+- **Not done (noted):** HRForce does not honour `ui_locales`: a user coming from the demo in Arabic sees the sign-in
+  page in French until they switch (same root as the known "first visit" language issue). The demo has no favicon
+  (one 404 per visit).
+

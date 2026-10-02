@@ -6,7 +6,8 @@
 #   SMOKE_INSECURE=1 deploy/smoke.sh https://localhost      (self-signed / internal CA, local testing only)
 # Checks: /api/health 200 · the SPA loads (/, a deep link) with its hashed bundle · security headers and CSP ·
 # no inline script in index.html · missing files are 404, not index.html · GET /api/me → 401 problem+json (also
-# with the development identity headers) · /api/* never falls through to the SPA · http:// redirects to https://.
+# with the development identity headers) · /api/* never falls through to the SPA · OIDC discovery and issuer ·
+# http:// redirects to https://.
 # Exit code = number of failed checks (0 = all good).
 set -uo pipefail
 
@@ -97,6 +98,11 @@ expect_status "GET /api/me with X-Dev-* headers (dev identity must be off)" "$s"
 
 s=$(fetch apimissing /api/smoke-no-such-route)
 if grep -q '<app-root' "$work/apimissing.b"; then fail "/api/smoke-no-such-route fell through to the SPA ($s)"; else pass "/api/* is routed to the API ($s)"; fi
+
+# --- SSO (OpenID Connect provider, docs/contracts/sso.md) --------------------------------------------------------
+s=$(fetch oidc /oidc/.well-known/openid-configuration)
+expect_status "GET /oidc/.well-known/openid-configuration" "$s" 200
+if grep -q "\"issuer\":\"$base/oidc\"" "$work/oidc.b"; then pass "OIDC issuer is $base/oidc"; else fail "OIDC issuer: $(grep -Eo '"issuer":"[^"]*"' "$work/oidc.b" || head -c 200 "$work/oidc.b")"; fi
 
 # --- HTTP → HTTPS -----------------------------------------------------------------------------------------------
 if [[ $base == https://* && ${SMOKE_SKIP_HTTP_REDIRECT:-0} != 1 ]]; then

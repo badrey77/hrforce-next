@@ -182,7 +182,7 @@ function page(res: Response, body: string, status = 200): void {
 
 /**
  * Where `/lang/:lang` goes back to: `?next=` when it is one of the demo's pages (the pages send
- * `Referrer-Policy: no-referrer`, so the language link carries it), else a same-origin `Referer` path, else `/`.
+ * no Referer to the language route on every browser, so the link carries it), else a same-origin `Referer` path, else `/`.
  */
 function returnPath(req: Request, baseOrigin: string): string {
   const next = req.query['next'];

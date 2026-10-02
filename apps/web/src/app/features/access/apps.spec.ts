@@ -160,10 +160,16 @@ describe('Access › Applications', () => {
       expect(finish?.disabled).toBe(false);
 
       finish?.click();
-      // The detail page is a lazy chunk: wait for the navigation, however long the import takes under load.
-      for (let i = 0; i < 50 && router.url !== '/access/apps/c-paie'; i++) await settle();
+      // The detail page is a lazy chunk: wait for the navigation AND for the page's own request, however long the
+      // import takes under load (the URL changes a tick before the new page sends its request).
+      let detail = http.match('/api/sso/clients/c-paie');
+      for (let i = 0; i < 50 && detail.length === 0; i++) {
+        await settle();
+        detail = http.match('/api/sso/clients/c-paie');
+      }
       expect(router.url).toBe('/access/apps/c-paie');
-      http.expectOne('/api/sso/clients/c-paie').flush({ ...SSO_DEMO, id: 'c-paie' });
+      expect(detail).toHaveLength(1);
+      detail[0]?.flush({ ...SSO_DEMO, id: 'c-paie' });
       await settle();
       expect(el().textContent).not.toContain(SECRET);
     });

@@ -7,6 +7,7 @@ import type { ActivatedRouteSnapshot } from '@angular/router';
 import { App, chromeOf } from './app';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
+import { MyRecruitment } from './core/recruitment/my-recruitment';
 import { NotificationCenter } from './core/notifications/notification-center';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import type { OpenTask } from './core/tasks/tasks.models';
@@ -24,6 +25,8 @@ interface Answers {
   employment?: object | null;
   /** Unread notifications (`GET /api/me/notifications/unread-count`). */
   unread?: number;
+  /** `GET /api/me/recruitment/summary` (zeros and `false` when absent: a user with nothing). */
+  recruitment?: { canRequestOpening: boolean; openings: number; pendingOpenings: number };
 }
 let answers: Answers = {};
 
@@ -42,6 +45,7 @@ async function settle(fixture: ComponentFixture<App>): Promise<void> {
       else if (req.request.url === '/api/documents/types') req.flush({ items: [] });
       else if (req.request.url === '/api/me/notifications') req.flush({ items: [], nextCursor: null });
       else if (req.request.url === '/api/me/notifications/unread-count') req.flush({ count: answers.unread ?? 0 });
+      else if (req.request.url === '/api/me/recruitment/summary') req.flush(answers.recruitment ?? { canRequestOpening: false, openings: 0, pendingOpenings: 0 });
       else if (req.request.url === '/api/me/employment') {
         if (answers.employment) req.flush(answers.employment);
         else req.flush({ type: 'about:blank', title: 'Not found', status: 404 }, { status: 404, statusText: 'Not Found' });
@@ -225,6 +229,44 @@ describe('App shell', () => {
       await settle(first.fixture);
       http.expectNone('/api/me/employment');
       expect(links(first.el)).not.toContain('/me/leave');
+    });
+  });
+
+  describe('recruitment nav (docs/contracts/recruitment.md › Web › Nav)', () => {
+    it('shows « Recrutement » with recruitment.read, and the settings entry to a configure-only holder', async () => {
+      TestBed.inject(Session).set(meWith(['recruitment.read', 'recruitment.configure']));
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/tasks', '/recruitment', '/settings']);
+      expect(el.querySelector('nav a[href="/recruitment"]')?.textContent?.trim()).toBe('Recrutement');
+
+      TestBed.inject(Session).set(meWith(['recruitment.configure']));
+      await settle(fixture);
+      expect(links(el)).toEqual(['/', '/tasks', '/recruitment/settings', '/settings']);
+    });
+
+    it('shows « Mes recrutements » to a head or a requester without recruitment.read — never to HR, never to a user with nothing', async () => {
+      // A user with nothing: the summary says so.
+      TestBed.inject(Session).set(meWith([]));
+      const nothing = await render();
+      expect(links(nothing.el)).not.toContain('/me/recruitment');
+
+      // A unit head (no permission at all): may request.
+      answers = { recruitment: { canRequestOpening: true, openings: 0, pendingOpenings: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toEqual(['/', '/tasks', '/me/recruitment', '/settings']);
+      expect(nothing.el.querySelector('nav a[href="/me/recruitment"]')?.textContent?.trim()).toBe('Mes recrutements');
+
+      // A former head who still has a request: openings > 0 is enough.
+      answers = { recruitment: { canRequestOpening: false, openings: 1, pendingOpenings: 1 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toContain('/me/recruitment');
+
+      // HR uses « Recrutement ».
+      TestBed.inject(Session).set(meWith(['recruitment.read']));
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toEqual(['/', '/tasks', '/recruitment', '/settings']);
     });
   });
 

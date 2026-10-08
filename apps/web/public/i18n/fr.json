@@ -20,7 +20,10 @@
     "myAttendance": "Pointage",
     "myTeam": "Mon équipe",
     "attendance": "Présence",
-    "attendanceSettings": "Paramètres du pointage"
+    "attendanceSettings": "Paramètres du pointage",
+    "recruitment": "Recrutement",
+    "myRecruitment": "Mes recrutements",
+    "recruitmentSettings": "Paramètres du recrutement"
   },
   "language": {
     "label": "Langue",
@@ -497,7 +500,10 @@
       "attendance_correction_item": "Changement demandé",
       "sso_client": "Application connectée",
       "sso_app_role": "Rôle d'application",
-      "sso_role_assignment": "Attribution d'un rôle d'application"
+      "sso_role_assignment": "Attribution d'un rôle d'application",
+      "recruitment_opening": "Poste à pourvoir",
+      "recruitment_policy": "Politique de recrutement",
+      "recruitment_rejection_reason": "Motif de refus"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -809,6 +815,25 @@
         "user_id": "Utilisateur",
         "assigned_by": "Attribué par",
         "assigned_at": "Attribué le"
+      },
+      "recruitment_opening": {
+        "reference": "Référence",
+        "title": "Intitulé du poste",
+        "org_unit_id": "Unité",
+        "site_id": "Site",
+        "contract_type": "Type de contrat",
+        "posts": "Postes",
+        "hired_count": "Postes pourvus",
+        "justification": "Justification",
+        "target_date": "Date souhaitée",
+        "anem_reference": "Référence de l'offre ANEM",
+        "status": "Statut",
+        "requested_by": "Demandé par",
+        "requested_at": "Demandé le",
+        "opened_at": "Ouvert le",
+        "closed_at": "Clôturé le",
+        "closed_by": "Clôturé par",
+        "close_reason": "Motif de clôture"
       }
     },
     "events": {
@@ -875,6 +900,36 @@
         "client_secret_rotated": "Secret de l'application {{clientId}} régénéré",
         "role_assigned": "Rôle d'application « {{roleCode}} » attribué ({{clientId}})",
         "role_removed": "Rôle d'application « {{roleCode}} » retiré ({{clientId}})"
+      },
+      "recruitment": {
+        "candidate_created": "Fiche de candidature créée",
+        "candidate_updated": "Fiche de candidature modifiée",
+        "candidate_deleted": "Fiche de candidature supprimée",
+        "application_created": "Candidature enregistrée",
+        "application_updated": "Candidature modifiée",
+        "stage_changed": {
+          "received": "Candidature déplacée vers « Reçue »",
+          "shortlisted": "Candidature déplacée vers « Présélection »",
+          "interview": "Candidature déplacée vers « Entretien »",
+          "offer": "Candidature déplacée vers « Offre »",
+          "hired": "Embauche enregistrée",
+          "rejected": "Candidature refusée",
+          "withdrawn": "Désistement enregistré",
+          "unknown": "Étape de la candidature modifiée",
+          "auto_opening_filled": "Candidature clôturée : poste pourvu",
+          "auto_opening_closed": "Candidature clôturée : recrutement clôturé",
+          "auto_hire_undone": "Candidature rétablie : embauche annulée",
+          "auto_opening_reopened": "Candidature rétablie : recrutement rouvert",
+          "auto_interview_scheduled": "Candidature déplacée vers « Entretien » : entretien planifié"
+        },
+        "salary_changed": "Salaire de la candidature modifié",
+        "note_added": "Note ajoutée",
+        "note_deleted": "Note supprimée",
+        "file_added": "Pièce ajoutée",
+        "file_deleted": "Pièce supprimée",
+        "file_downloaded": "Pièce téléchargée",
+        "candidate_erased": "Données effacées à la demande ({{applications}} candidature(s), {{files}} pièce(s))",
+        "purged": "{{applications}} candidature(s) anonymisée(s) (durée de conservation)"
       }
     },
     "values": {
@@ -1444,7 +1499,9 @@
         "escalated": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} passe directement à l’étape RH (aucun responsable disponible).",
         "assigned_document": "Demande « {{documentType}} » à traiter : {{employeeName}}.",
         "assigned_attendance": "Correction de pointage à traiter : {{employeeName}} ({{date}}).",
-        "escalated_attendance": "Votre correction de pointage du {{date}} passe directement à l’étape RH (aucun responsable disponible)."
+        "escalated_attendance": "Votre correction de pointage du {{date}} passe directement à l’étape RH (aucun responsable disponible).",
+        "assigned_recruitment": "Ouverture de poste à approuver : {{title}} ({{reference}}, {{unitName}}).",
+        "escalated_recruitment": "Votre demande d'ouverture de poste {{title}} ({{reference}}) passe directement à l’étape RH (aucun responsable disponible)."
       },
       "leave": {
         "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1460,6 +1517,10 @@
       "attendance": {
         "correction_approved": "Votre correction de pointage du {{date}} a été acceptée.",
         "correction_rejected": "Votre correction de pointage du {{date}} a été refusée."
+      },
+      "recruitment": {
+        "opening_approved": "Votre demande d'ouverture de poste {{title}} ({{reference}}) a été approuvée par {{actorName}}.",
+        "opening_rejected": "Votre demande d'ouverture de poste {{title}} ({{reference}}) a été refusée par {{actorName}}."
       }
     },
     "typesNamed": {
@@ -1490,6 +1551,10 @@
       "attendance": {
         "correction_approved": "Ma correction de pointage est acceptée",
         "correction_rejected": "Ma correction de pointage est refusée"
+      },
+      "recruitment": {
+        "opening_approved": "Ma demande d'ouverture de poste est approuvée",
+        "opening_rejected": "Ma demande d'ouverture de poste est refusée"
       }
     }
   },
@@ -2713,6 +2778,394 @@
       "roleInUse": "Ce rôle est encore attribué : retirez ces attributions avant de le supprimer.",
       "assignSelf": "Personne ne peut s'attribuer ou se retirer un rôle d'application.",
       "assignmentDuplicate": "Cet utilisateur a déjà ce rôle."
+    }
+  },
+  "recruitment": {
+    "status": {
+      "pending": "En attente d'approbation",
+      "open": "Ouvert",
+      "filled": "Pourvu",
+      "closed": "Clôturé",
+      "rejected": "Refusé",
+      "cancelled": "Annulé"
+    },
+    "contractType": {
+      "cdi": "CDI",
+      "cdd": "CDD",
+      "pre_emploi": "Pré-emploi (DAIP / CTA)",
+      "apprentissage": "Apprentissage",
+      "stage": "Stage"
+    },
+    "stage": {
+      "received": "Reçue",
+      "shortlisted": "Présélection",
+      "interview": "Entretien",
+      "offer": "Offre",
+      "hired": "Embauche",
+      "rejected": "Refus",
+      "withdrawn": "Désistement"
+    },
+    "source": {
+      "anem": "ANEM",
+      "spontaneous": "Candidature spontanée",
+      "referral": "Recommandation",
+      "job_board": "Site d'emploi",
+      "social": "Réseaux sociaux",
+      "internal": "Interne",
+      "other": "Autre"
+    },
+    "fileKind": {
+      "cv": "CV",
+      "cover_letter": "Lettre de motivation",
+      "diploma": "Diplôme",
+      "id_document": "Pièce d'identité",
+      "other": "Autre"
+    },
+    "autoCause": {
+      "opening_filled": "Poste pourvu",
+      "opening_closed": "Recrutement clôturé",
+      "hire_undone": "Embauche annulée",
+      "opening_reopened": "Recrutement rouvert",
+      "interview_scheduled": "Entretien planifié"
+    },
+    "fields": {
+      "reference": "Référence",
+      "title": "Intitulé du poste",
+      "unit": "Unité",
+      "site": "Site",
+      "siteOfUnit": "Site de l'unité",
+      "contractType": "Type de contrat",
+      "posts": "Postes",
+      "targetDate": "Date souhaitée",
+      "status": "Statut",
+      "justification": "Justification",
+      "anemReference": "Référence de l'offre ANEM",
+      "requestedBy": "Demandé par",
+      "openedAt": "Ouvert le",
+      "closedAt": "Clôturé le",
+      "filledAt": "Pourvu le",
+      "closeReason": "Motif de clôture",
+      "rejectionComment": "Motif du refus",
+      "source": "Source",
+      "expectedSalary": "Salaire demandé (DZD)",
+      "stage": "Étape",
+      "opening": "Poste à pourvoir"
+    },
+    "openings": {
+      "title": "Recrutement",
+      "back": "Retour aux postes à pourvoir",
+      "filters": "Filtrer les postes à pourvoir",
+      "filter": {
+        "active": "En cours",
+        "pending": "En attente d'approbation",
+        "open": "Ouverts",
+        "filled": "Pourvus",
+        "closed": "Clôturés",
+        "rejected": "Refusés",
+        "cancelled": "Annulés",
+        "all": "Tous"
+      },
+      "searchPlaceholder": "Intitulé ou référence",
+      "allContracts": "Tous les contrats",
+      "total": "{{count}} poste(s) à pourvoir",
+      "hiredOf": "{{hired}} / {{posts}} pourvu(s)",
+      "inProgress": "Candidatures en cours",
+      "noMatch": "Aucun poste ne correspond à ces filtres.",
+      "empty": "Aucun poste à pourvoir pour l’instant.",
+      "loadError": "Impossible de charger les postes à pourvoir."
+    },
+    "request": {
+      "title": "Demander une ouverture de poste",
+      "titleHint": "L'intitulé du poste, tel qu'il figurera dans le recrutement. Il ne pourra plus être modifié.",
+      "unitPlaceholder": "Choisir une unité",
+      "noUnit": "Vous ne dirigez aucune unité : la demande ne peut pas être déposée.",
+      "justificationHint": "Décrivez le besoin, sans nommer de personne.",
+      "approvalHint": "La demande suit le circuit d'approbation avant l'ouverture du poste.",
+      "submit": "Envoyer la demande",
+      "sent": "Demande envoyée : elle attend son approbation."
+    },
+    "opening": {
+      "edit": "Modifier",
+      "close": "Clôturer",
+      "closeTitle": "Clôturer le recrutement",
+      "closeIntro": "Les candidatures encore en cours seront clôturées avec le motif « Recrutement clôturé ».",
+      "reopen": "Rouvrir",
+      "reopenTitle": "Rouvrir le recrutement",
+      "reopenIntro": "Les candidatures clôturées avec le recrutement reviendront à leur étape précédente.",
+      "reopenCount": "{{count}} candidature(s) clôturée(s) avec le recrutement reviendront à leur étape précédente.",
+      "tabs": "Rubriques du poste",
+      "tab": {
+        "pipeline": "Pipeline",
+        "details": "Détails",
+        "history": "Historique"
+      },
+      "target": "Pour le {{date}}",
+      "postsHint": "Le nombre de postes ne peut qu’être réduit ({{max}} au plus) : davantage de postes demande une nouvelle ouverture.",
+      "saved": "Poste mis à jour.",
+      "filledNow": "Poste mis à jour : tous les postes sont pourvus, le recrutement est terminé.",
+      "closedNow": "Recrutement clôturé.",
+      "reopenedNow": "Recrutement rouvert.",
+      "loadError": "Impossible de charger ce poste.",
+      "notFound": "Ce poste est introuvable."
+    },
+    "board": {
+      "title": "Pipeline",
+      "stages": "Étapes",
+      "today": "depuis aujourd'hui",
+      "since": "depuis {{days}} j",
+      "hasCv": "CV joint",
+      "notes": "{{count}} note(s)",
+      "emptyColumn": "Aucune candidature",
+      "final": "Terminées ({{count}})",
+      "purged": "{{count}} candidature(s) anonymisée(s)",
+      "tooMany": "Ce poste compte trop de candidatures pour le tableau : utilisez la liste des candidatures.",
+      "loadError": "Impossible de charger les candidatures."
+    },
+    "move": {
+      "to": "Déplacer vers…",
+      "toFor": "Déplacer la candidature de {{name}} vers…",
+      "reopen": "Rouvrir la candidature",
+      "reopenFor": "Rouvrir la candidature de {{name}}",
+      "rejectTitle": "Refuser la candidature",
+      "withdrawTitle": "Enregistrer un désistement",
+      "reason": "Motif du refus",
+      "reasonPlaceholder": "Choisir un motif",
+      "reasonsError": "Impossible de charger les motifs de refus.",
+      "comment": "Commentaire",
+      "commentHint": "Facultatif. Il est effacé avec les données de la candidature.",
+      "confirmReject": "Refuser",
+      "confirmWithdraw": "Enregistrer le désistement",
+      "done": {
+        "received": "Candidature de {{name}} : étape « Reçue ».",
+        "shortlisted": "Candidature de {{name}} : étape « Présélection ».",
+        "interview": "Candidature de {{name}} : étape « Entretien ».",
+        "offer": "Candidature de {{name}} : étape « Offre ».",
+        "hired": "Candidature de {{name}} : embauche enregistrée.",
+        "rejected": "Candidature de {{name}} refusée.",
+        "withdrawn": "Désistement enregistré pour la candidature de {{name}}."
+      }
+    },
+    "known": {
+      "title": "Déjà employé(e) dans l'entreprise :",
+      "short": "Déjà employé(e)",
+      "matricule": "matricule {{matricule}}",
+      "left": "parti(e) le {{date}}",
+      "since": "en poste depuis le {{date}}",
+      "open": "Ouvrir la fiche employé",
+      "openEmployment": "Un emploi est en cours : cette personne ne pourra pas être embauchée par ce recrutement.",
+      "link": "Lier à cette personne",
+      "unlink": "Délier",
+      "linked": "Fiche liée à cette personne : une embauche sera une réembauche.",
+      "unlinked": "Lien supprimé."
+    },
+    "add": {
+      "title": "Ajouter une candidature",
+      "step": "étape {{step}} sur {{count}}",
+      "identityHint": "Saisissez le NIN, l’e-mail ou le téléphone : une fiche déjà enregistrée est recherchée automatiquement.",
+      "matchesFound": "Candidature existante : {{count}} fiche(s) correspond(ent) à ces informations.",
+      "matchedOn": {
+        "nin": "même NIN",
+        "email": "même e-mail",
+        "phone": "même téléphone",
+        "name_birth": "même nom et date de naissance"
+      },
+      "useExisting": "Utiliser cette fiche",
+      "orNew": "Ou continuez pour créer une nouvelle fiche.",
+      "next": "Continuer",
+      "usingExisting": "Candidature existante :",
+      "newRecord": "Saisir une nouvelle fiche",
+      "back": "Modifier l'identité",
+      "noticeHint": "Date à laquelle la notice d’information a été remise.",
+      "cv": "CV (facultatif)",
+      "saving": "Enregistrement…",
+      "saveAnyway": "Enregistrer quand même",
+      "duplicateContact": "Une autre fiche porte déjà cet e-mail ou ce téléphone. Vérifiez, puis enregistrez quand même si ce sont bien deux personnes.",
+      "created": "Candidature de {{name}} ajoutée.",
+      "createdWithoutCv": "Candidature de {{name}} ajoutée, mais le CV n’a pas pu être enregistré : ajoutez-le depuis la fiche.",
+      "openCandidate": "Ouvrir la fiche"
+    },
+    "candidate": {
+      "identity": "Identité et coordonnées",
+      "edit": "Modifier",
+      "sexUnknown": "Non renseigné",
+      "sex": {
+        "F": "Femme",
+        "M": "Homme"
+      },
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "informedOn": "Notice d’information remise le",
+      "notInformed": "Non renseignée.",
+      "arabicName": "Nom en arabe",
+      "createdAt": "Fiche créée le",
+      "saved": "Fiche mise à jour.",
+      "loadError": "Impossible de charger cette fiche.",
+      "notFound": "Cette fiche est introuvable (elle a peut-être été effacée)."
+    },
+    "candidates": {
+      "title": "Candidatures",
+      "back": "Retour aux candidatures",
+      "filters": "Filtrer les candidatures",
+      "searchPlaceholder": "Nom, e-mail, téléphone ou NIN",
+      "state": "État",
+      "states": {
+        "active": "En cours",
+        "final": "Terminées",
+        "all": "Toutes"
+      },
+      "allStages": "Toutes les étapes",
+      "allOpenings": "Tous les postes",
+      "idle": "Sans mouvement depuis {{months}} mois",
+      "total": "{{count}} candidature(s)",
+      "name": "Nom",
+      "stageSince": "Dans cette étape",
+      "noMatch": "Aucune candidature ne correspond à ces filtres.",
+      "empty": "Aucune candidature en cours.",
+      "loadError": "Impossible de charger les candidatures."
+    },
+    "application": {
+      "title": "Candidature",
+      "choose": "Candidature affichée",
+      "createdAt": "Reçue le",
+      "decidedAt": "Décision le",
+      "salaryHidden": "Salaire masqué",
+      "edit": "Modifier la candidature",
+      "saved": "Candidature mise à jour.",
+      "stages": "Historique des étapes",
+      "created": "Candidature enregistrée",
+      "loadError": "Impossible de charger cette candidature."
+    },
+    "notes": {
+      "title": "Notes RH",
+      "add": "Nouvelle note",
+      "hint": "Visible des RH uniquement. Les notes sont effacées avec les données de la candidature.",
+      "submit": "Ajouter la note",
+      "delete": "Supprimer",
+      "empty": "Aucune note."
+    },
+    "files": {
+      "title": "Pièces",
+      "uploadTitle": "Ajouter une pièce",
+      "kind": "Type de pièce",
+      "hint": "PDF, JPEG ou PNG, {{max}} au plus.",
+      "empty": "Aucune pièce.",
+      "duplicate": "Ce fichier figure déjà parmi les pièces de cette fiche.",
+      "deleteTitle": "Supprimer la pièce",
+      "deleteIntro": "Le fichier est supprimé définitivement."
+    },
+    "erase": {
+      "action": "Effacer les données",
+      "title": "Effacer les données de cette personne",
+      "intro": "L’identité, les coordonnées, les pièces, les notes et les commentaires de toutes ses candidatures seront effacés. Seul un décompte anonyme est conservé.",
+      "warning": "Cette action est définitive : elle ne peut pas être annulée.",
+      "confirm": "Effacer définitivement",
+      "done": "Les données ont été effacées."
+    },
+    "mine": {
+      "title": "Mes recrutements",
+      "loadError": "Impossible de charger vos recrutements.",
+      "empty": "Aucune demande d’ouverture de poste.",
+      "cancel": "Annuler la demande",
+      "cancelled": "Demande annulée.",
+      "headHint": "Les candidatures des postes de vos unités, par étape. Les pièces restent consultables tant que la candidature est en cours.",
+      "noApplications": "Aucune candidature pour l’instant."
+    },
+    "tasks": {
+      "title": "Ouverture de poste",
+      "approveHint": "Approuver transmet la demande à l’étape suivante ; à la dernière étape, le poste est ouvert au recrutement.",
+      "commentHint": "Expliquez le refus : la personne qui a fait la demande verra ce commentaire."
+    },
+    "settings": {
+      "title": "Paramètres du recrutement",
+      "saved": "Paramètres enregistrés.",
+      "loadError": "Impossible de charger les paramètres.",
+      "tab": {
+        "reasons": "Motifs de refus",
+        "policy": "Politique"
+      },
+      "reasons": {
+        "add": "Ajouter un motif",
+        "edit": "Modifier",
+        "editNamed": "Modifier le motif « {{name}} »",
+        "name": "Motif",
+        "code": "Code",
+        "codeHint": "Minuscules, chiffres et « _ », 2 à 40 caractères, en commençant par une lettre. Le code ne peut plus changer.",
+        "codeTaken": "Ce code est déjà utilisé.",
+        "labelFr": "Libellé (français)",
+        "labelAr": "Libellé (arabe)",
+        "labelEn": "Libellé (anglais)",
+        "order": "Ordre",
+        "active": "Proposé lors d’un refus",
+        "system": "Système",
+        "automatic": "Automatique",
+        "isActive": "Actif",
+        "isInactive": "Inactif"
+      },
+      "policy": {
+        "retention": "Conservation des données après la décision (mois)",
+        "retentionHint": "De {{min}} à {{max}} mois. Passé ce délai, les données des candidatures terminées sont effacées.",
+        "workflow": "Circuit d'approbation des ouvertures de poste",
+        "workflowHint": "Le choix s’applique aux nouvelles demandes.",
+        "workflows": {
+          "manager_then_hr": "Responsable puis RH",
+          "hr_only": "RH uniquement"
+        }
+      }
+    },
+    "notice": {
+      "link": "Notice d’information (loi 18-07)",
+      "title": "Notice d’information des candidats",
+      "print": "Imprimer",
+      "hint": "À remettre à chaque personne candidate. Le texte est imprimé en français et en arabe.",
+      "headingFr": "Information sur le traitement de vos données personnelles",
+      "headingAr": "إعلام حول معالجة المعطيات ذات الطابع الشخصي",
+      "textFr": "Les informations de votre candidature (identité, coordonnées, CV et pièces jointes, appréciations des entretiens) sont enregistrées par {{company}} pour la gestion de ce recrutement. Elles ne sont consultées que par le service des ressources humaines et les personnes chargées des entretiens. Si la candidature n'est pas retenue, elles sont effacées {{months}} mois après la décision. En cas d'embauche, elles sont versées au dossier du personnel. Vous pouvez demander à les consulter, à les faire rectifier ou effacer auprès du service des ressources humaines (loi n° 18-07 du 10 juin 2018).",
+      "textAr": "تُسجَّل معلومات ملف الترشح (الهوية، بيانات الاتصال، السيرة الذاتية والوثائق المرفقة، تقييمات المقابلات) من طرف {{company}} لغرض تسيير عملية التوظيف هذه. لا يطّلع عليها إلا مصلحة الموارد البشرية وأعضاء لجنة المقابلة. في حال عدم قبول الترشح، تُحذف هذه المعلومات بعد {{months}} شهرا من تاريخ القرار. وفي حال التوظيف، تُحفظ ضمن ملف المستخدَمين. يمكن طلب الاطلاع عليها أو تصحيحها أو حذفها لدى مصلحة الموارد البشرية (القانون رقم 18-07 المؤرخ في 10 يونيو 2018)."
+    },
+    "home": {
+      "open": "poste(s) ouvert(s)",
+      "stage": {
+        "received": "reçue(s)",
+        "shortlisted": "en présélection",
+        "interview": "en entretien",
+        "offer": "en offre"
+      },
+      "minePending": "{{count}} demande(s) en attente d’approbation"
+    },
+    "errors": {
+      "required": "Ce champ est obligatoire.",
+      "tooShort": "{{requiredLength}} caractères au minimum.",
+      "tooLong": "{{requiredLength}} caractères au maximum.",
+      "range": "Valeur entière entre {{min}} et {{max}}.",
+      "date": "Date invalide.",
+      "past": "La date ne peut pas être dans le passé.",
+      "future": "La date ne peut pas être dans le futur.",
+      "nin": "18 chiffres attendus.",
+      "email": "Adresse e-mail invalide.",
+      "pattern": "Format invalide.",
+      "unitNotFound": "Unité introuvable.",
+      "unitForbidden": "Vous ne pouvez pas demander une ouverture de poste pour cette unité.",
+      "siteNotFound": "Site introuvable.",
+      "postsIncrease": "Le nombre de postes ne peut pas être augmenté : déposez une nouvelle demande.",
+      "postsBelowHired": "Le nombre de postes ne peut pas être inférieur aux embauches déjà faites.",
+      "reasonInactive": "Ce motif n’est plus proposé : choisissez-en un autre.",
+      "ninDuplicate": "Une fiche porte déjà ce NIN : utilisez la fiche existante.",
+      "emailDuplicate": "Une autre fiche porte déjà cet e-mail.",
+      "phoneDuplicate": "Une autre fiche porte déjà ce téléphone.",
+      "candidateGone": "La fiche choisie est introuvable : saisissez une nouvelle fiche.",
+      "personNotFound": "Cette personne est introuvable."
+    },
+    "problems": {
+      "stageChanged": "Cette candidature a été modifiée entre-temps. Veuillez actualiser.",
+      "openingNotOpen": "Ce poste n’est plus ouvert : les candidatures ne peuvent plus être modifiées.",
+      "openingNotClosed": "Ce recrutement n’est pas clôturé.",
+      "notCancellable": "Cette demande ne peut plus être annulée : elle a déjà été traitée.",
+      "noPostLeft": "Tous les postes sont pourvus : le recrutement ne peut pas être rouvert.",
+      "alreadyApplied": "Cette personne a déjà une candidature sur ce poste.",
+      "applicationActive": "Une candidature est encore en cours : enregistrez d’abord un refus ou un désistement.",
+      "fileLimit": "Le nombre maximal de pièces est atteint pour cette fiche.",
+      "salaryForbidden": "Vous n’êtes pas autorisé(e) à saisir le salaire demandé.",
+      "gone": "Cet élément est introuvable : il a peut-être été supprimé entre-temps."
     }
   }
 }

@@ -1,0 +1,127 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('recruitment.openings.title') }}</h1>
+    <div class="page-actions">
+      <a class="btn secondary" routerLink="/recruitment/candidates" data-action="candidates">{{ t('recruitment.candidates.title') }}</a>
+      <a class="btn secondary" routerLink="/recruitment/notice" data-action="notice">{{ t('recruitment.notice.link') }}</a>
+      <a *appCan="'recruitment.configure'" class="btn secondary" routerLink="/recruitment/settings" data-action="settings">{{ t('recruitment.settings.title') }}</a>
+      <a class="btn" routerLink="/recruitment/openings/new" data-action="request">{{ t('recruitment.request.title') }}</a>
+    </div>
+  </header>
+
+  @let current = query();
+  <div class="chips" role="group" [attr.aria-label]="t('recruitment.fields.status')">
+    @for (chip of chips(); track chip.status) {
+      <button type="button" class="chip" [attr.data-chip]="chip.status" [attr.aria-pressed]="current.status === chip.status" (click)="update({ status: chip.status })">
+        {{ t('recruitment.openings.filter.' + chip.status) }}
+        @if (chip.count !== null) {
+          <span class="muted">({{ chip.count }})</span>
+        }
+      </button>
+    }
+  </div>
+
+  <form class="filters" role="search" [attr.aria-label]="t('recruitment.openings.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="rec-q">{{ t('employees.filters.search') }}</label>
+      <input id="rec-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('recruitment.openings.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="rec-unit">{{ t('recruitment.fields.unit') }}</label>
+        <app-org-unit-picker inputId="rec-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="rec-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="rec-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    <div class="field">
+      <label for="rec-contract">{{ t('recruitment.fields.contractType') }}</label>
+      <select id="rec-contract" (change)="onContractType($event)">
+        <option value="" [selected]="current.contractType === null">{{ t('recruitment.openings.allContracts') }}</option>
+        @for (type of contractTypes; track type) {
+          <option [value]="type" [selected]="type === current.contractType">{{ t('recruitment.contractType.' + type) }}</option>
+        }
+      </select>
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('recruitment.openings.total', { count: list.value().total }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data cards" role="table" data-table="openings">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.reference') }}</th>
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('title')">
+                  <button type="button" class="sort" data-sort="title" (click)="sortBy('title')">{{ t('recruitment.fields.title') }}</button>
+                </th>
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('unit')">
+                  <button type="button" class="sort" data-sort="unit" (click)="sortBy('unit')">{{ t('recruitment.fields.unit') }}</button>
+                </th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.contractType') }}</th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.posts') }}</th>
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('targetDate')">
+                  <button type="button" class="sort" data-sort="targetDate" (click)="sortBy('targetDate')">{{ t('recruitment.fields.targetDate') }}</button>
+                </th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.status') }}</th>
+                <th scope="col" role="columnheader">{{ t('recruitment.openings.inProgress') }}</th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup">
+              @for (item of items(); track item.id) {
+                <tr role="row" [attr.data-opening]="item.id">
+                  <td role="cell" class="nowrap" [attr.data-label]="t('recruitment.fields.reference')"><span class="code" dir="ltr">{{ item.reference }}</span></td>
+                  <td role="cell" class="who" [attr.data-label]="t('recruitment.fields.title')">
+                    <a [routerLink]="['/recruitment/openings', item.id]"><bdi>{{ item.title }}</bdi></a>
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.unit')"><bdi>{{ item.unit | displayName: lang() }}</bdi></td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.contractType')">{{ t('recruitment.contractType.' + item.contractType) }}</td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.posts')" data-field="posts">{{ t('recruitment.openings.hiredOf', { hired: item.hiredCount, posts: item.posts }) }}</td>
+                  <td role="cell" class="nowrap" [attr.data-label]="t('recruitment.fields.targetDate')">{{ item.targetDate | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.status')">
+                    <span class="badge" [attr.data-status]="tone(item.status)">{{ t('recruitment.status.' + item.status) }}</span>
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.openings.inProgress')" data-field="in-progress">{{ inProgress(item.counts) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="rec-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="rec-page-size" (change)="onPageSize($event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('recruitment.openings.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('recruitment.openings.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

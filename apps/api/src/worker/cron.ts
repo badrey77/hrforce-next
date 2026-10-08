@@ -19,6 +19,8 @@ export const CRON_ITEMS: readonly CronItem[] = [
   { task: TASKS.attendanceRetention, identifier: TASKS.attendanceRetention, match: '30 2 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
   // docs/contracts/sso.md › Worker: daily, 03:15
   { task: TASKS.oidcCleanup, identifier: TASKS.oidcCleanup, match: '15 3 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
+  // docs/contracts/recruitment.md › Retention, erasure and worker: day 1 of the month, 02:45
+  { task: TASKS.recruitmentRetention, identifier: TASKS.recruitmentRetention, match: '45 2 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
 ];
 
 export function parsedCronItems(): ParsedCronItem[] {

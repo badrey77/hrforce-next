@@ -23,7 +23,8 @@ export interface NotificationMailInput {
   documentTypeLabel?: string | null;
   /**
    * the notification's subject type (`notification.subject_type`): `attendance_correction` words task.escalated and the
-   * correction outcomes for a punch correction (task.assigned reads `data.subjectType` instead: its subject is the task)
+   * correction outcomes for a punch correction, `recruitment_opening` those of an opening request (task.assigned reads
+   * `data.subjectType` instead: its subject is the task)
    */
   subjectType?: string | null;
   /** absolute link (`${WEB_BASE_URL}` + the notification's path) */
@@ -53,6 +54,12 @@ interface Facts {
   correction: boolean;
   /** the corrected work day */
   date: string;
+  /** the subject is a job opening request (docs/contracts/recruitment.md › Workflow, My tasks, notifications) */
+  opening: boolean;
+  /** the opening's job title, reference and unit — never a candidate's name */
+  title: string;
+  reference: string;
+  unit: string;
 }
 
 interface Wording {
@@ -71,13 +78,17 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Bonjour ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `HRForce — ouverture de poste à approuver : ${f.title} (${f.reference})`
+          : f.correction
           ? `HRForce — correction de pointage à traiter : ${f.employee} (${f.date})`
           : f.document
             ? `HRForce — demande ${deFr(f.docType)} à traiter : ${f.employee}`
             : `HRForce — demande de congé à traiter : ${f.employee}`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? 'HRForce — votre demande d’ouverture de poste est transmise aux RH'
+          : f.correction
           ? f.own
             ? 'HRForce — votre correction de pointage est transmise aux RH'
             : `HRForce — correction de pointage de ${f.employee} transmise aux RH`
@@ -92,16 +103,22 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': () => 'HRForce — votre demande de document est refusée',
       'attendance.correction_approved': (f) => `HRForce — votre correction de pointage du ${f.date} a été acceptée`,
       'attendance.correction_rejected': (f) => `HRForce — votre correction de pointage du ${f.date} a été refusée`,
+      'recruitment.opening_approved': (f) => `HRForce — votre demande d’ouverture de poste ${f.title} a été approuvée`,
+      'recruitment.opening_rejected': (f) => `HRForce — votre demande d’ouverture de poste ${f.title} a été refusée`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `Ouverture de poste à approuver : ${f.title} (${f.reference}, ${f.unit}). La demande attend votre décision.`
+          : f.correction
           ? `La correction de pointage de ${f.employee} pour le ${f.date} attend votre décision.`
           : f.document
           ? `La demande ${deFr(f.docType)} de ${f.employee} attend votre décision.`
           : `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? `L’étape du responsable hiérarchique n’a pas pu être attribuée pour votre demande d’ouverture de poste ${f.title} (${f.reference}) : elle est transmise directement aux ressources humaines.`
+          : f.correction
           ? `L’étape du responsable hiérarchique n’a pas pu être attribuée pour ${f.own ? 'votre correction de pointage' : `la correction de pointage de ${f.employee}`} du ${f.date} : elle est transmise directement aux ressources humaines.`
           : `L’étape du responsable hiérarchique n’a pas pu être attribuée pour ${f.own ? 'votre demande' : `la demande de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}) : elle est transmise directement aux ressources humaines.`,
       'leave.approved': (f) => `${f.own ? 'Votre demande de congé' : `La demande de congé de ${f.employee}`} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) a été approuvée par ${f.actor}.`,
@@ -113,6 +130,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': (f) => `Votre demande (${f.docType}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
       'attendance.correction_approved': (f) => `Votre correction de pointage du ${f.date} a été acceptée par ${f.actor}.`,
       'attendance.correction_rejected': (f) => `Votre correction de pointage du ${f.date} a été refusée par ${f.actor}. Le détail est dans l’application.`,
+      'recruitment.opening_approved': (f) => `Votre demande d’ouverture de poste ${f.title} (${f.reference}) a été approuvée par ${f.actor}.`,
+      'recruitment.opening_rejected': (f) => `Votre demande d’ouverture de poste ${f.title} (${f.reference}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
     },
     action: {
       'task.assigned': 'Ouvrir la tâche',
@@ -125,6 +144,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': 'Ouvrir mes documents',
       'attendance.correction_approved': 'Voir mon pointage',
       'attendance.correction_rejected': 'Voir mon pointage',
+      'recruitment.opening_approved': 'Voir la demande',
+      'recruitment.opening_rejected': 'Voir la demande',
     },
     footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
     signature: 'L’équipe HRForce',
@@ -135,13 +156,17 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `مرحبًا ${name}،`,
     subjects: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `HRForce — طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference})`
+          : f.correction
           ? `HRForce — طلب تصحيح تسجيل الحضور للمعالجة: ${f.employee} (${f.date})`
           : f.document
             ? `HRForce — طلب ${f.docType} للمعالجة: ${f.employee}`
             : `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? 'HRForce — تمت إحالة طلب فتح المنصب إلى الموارد البشرية'
+          : f.correction
           ? f.own
             ? 'HRForce — تمت إحالة طلب تصحيح تسجيل الحضور إلى الموارد البشرية'
             : `HRForce — تمت إحالة طلب تصحيح تسجيل الحضور الخاص بـ${f.employee} إلى الموارد البشرية`
@@ -156,16 +181,22 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': () => 'HRForce — تم رفض طلب وثيقتك',
       'attendance.correction_approved': (f) => `HRForce — تم قبول طلب تصحيح تسجيل الحضور ليوم ${f.date}`,
       'attendance.correction_rejected': (f) => `HRForce — تم رفض طلب تصحيح تسجيل الحضور ليوم ${f.date}`,
+      'recruitment.opening_approved': (f) => `HRForce — تمت الموافقة على طلب فتح المنصب ${f.title}`,
+      'recruitment.opening_rejected': (f) => `HRForce — تم رفض طلب فتح المنصب ${f.title}`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference}، ${f.unit}).`
+          : f.correction
           ? `طلب تصحيح تسجيل الحضور الخاص بـ${f.employee} ليوم ${f.date} في انتظار القرار.`
           : f.document
           ? `طلب ${f.docType} من ${f.employee} في انتظار قرارك.`
           : `طلب عطلة ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? `تعذر إسناد خطوة المسؤول المباشر لطلب فتح المنصب ${f.title} (${f.reference})، فأحيل مباشرة إلى الموارد البشرية.`
+          : f.correction
           ? `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلب تصحيح تسجيل الحضور' : `لطلب تصحيح تسجيل الحضور الخاص بـ${f.employee}`} ليوم ${f.date}، فأحيل مباشرة إلى الموارد البشرية.`
           : `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلبك' : `لطلب ${f.employee}`} (${f.type}، من ${f.start} إلى ${f.end})، فأحيل مباشرة إلى الموارد البشرية.`,
       'leave.approved': (f) =>
@@ -178,6 +209,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': (f) => `تم رفض طلبك (${f.docType}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
       'attendance.correction_approved': (f) => `تم قبول طلب تصحيح تسجيل الحضور ليوم ${f.date} من طرف ${f.actor}.`,
       'attendance.correction_rejected': (f) => `تم رفض طلب تصحيح تسجيل الحضور ليوم ${f.date} من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'recruitment.opening_approved': (f) => `تمت الموافقة على طلب فتح المنصب ${f.title} (${f.reference}) من طرف ${f.actor}.`,
+      'recruitment.opening_rejected': (f) => `تم رفض طلب فتح المنصب ${f.title} (${f.reference}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
     },
     action: {
       'task.assigned': 'فتح المهمة',
@@ -190,6 +223,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': 'فتح وثائقي',
       'attendance.correction_approved': 'عرض سجل الحضور',
       'attendance.correction_rejected': 'عرض سجل الحضور',
+      'recruitment.opening_approved': 'عرض الطلب',
+      'recruitment.opening_rejected': 'عرض الطلب',
     },
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
     signature: 'فريق HRForce',
@@ -200,13 +235,17 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Hello ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `HRForce — opening request awaiting approval: ${f.title} (${f.reference})`
+          : f.correction
           ? `HRForce — attendance correction awaiting your decision: ${f.employee} (${f.date})`
           : f.document
             ? `HRForce — ${f.docType} request awaiting your decision: ${f.employee}`
             : `HRForce — leave request awaiting your decision: ${f.employee}`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? 'HRForce — your opening request went straight to HR'
+          : f.correction
           ? f.own
             ? 'HRForce — your attendance correction went straight to HR'
             : `HRForce — ${f.employee}’s attendance correction went straight to HR`
@@ -221,16 +260,22 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': () => 'HRForce — your document request was rejected',
       'attendance.correction_approved': (f) => `HRForce — your attendance correction for ${f.date} was accepted`,
       'attendance.correction_rejected': (f) => `HRForce — your attendance correction for ${f.date} was rejected`,
+      'recruitment.opening_approved': (f) => `HRForce — your opening request ${f.title} was approved`,
+      'recruitment.opening_rejected': (f) => `HRForce — your opening request ${f.title} was rejected`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.correction
+        f.opening
+          ? `Opening request awaiting approval: ${f.title} (${f.reference}, ${f.unit}).`
+          : f.correction
           ? `The attendance correction of ${f.employee} for ${f.date} is awaiting your decision.`
           : f.document
           ? `The ${f.docType} request of ${f.employee} is awaiting your decision.`
           : `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
       'task.escalated': (f) =>
-        f.correction
+        f.opening
+          ? `The line-manager step could not be assigned for your opening request ${f.title} (${f.reference}); it went straight to human resources.`
+          : f.correction
           ? `The line-manager step could not be assigned for ${f.own ? 'your attendance correction' : `the attendance correction of ${f.employee}`} for ${f.date}; it went straight to human resources.`
           : `The line-manager step could not be assigned for ${f.own ? 'your request' : `the request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}); it went straight to human resources.`,
       'leave.approved': (f) => `${f.own ? 'Your leave request' : `The leave request of ${f.employee}`} (${f.type}, ${f.start} to ${f.end}, ${f.days}) was approved by ${f.actor}.`,
@@ -242,6 +287,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': (f) => `Your request (${f.docType}) was rejected by ${f.actor}. The details are in the app.`,
       'attendance.correction_approved': (f) => `Your attendance correction for ${f.date} was accepted by ${f.actor}.`,
       'attendance.correction_rejected': (f) => `Your attendance correction for ${f.date} was rejected by ${f.actor}. The details are in the app.`,
+      'recruitment.opening_approved': (f) => `Your opening request ${f.title} (${f.reference}) was approved by ${f.actor}.`,
+      'recruitment.opening_rejected': (f) => `Your opening request ${f.title} (${f.reference}) was rejected by ${f.actor}. The details are in the app.`,
     },
     action: {
       'task.assigned': 'Open the task',
@@ -254,6 +301,8 @@ const WORDING: Record<MailLocale, Wording> = {
       'document.rejected': 'Open my documents',
       'attendance.correction_approved': 'View my attendance',
       'attendance.correction_rejected': 'View my attendance',
+      'recruitment.opening_approved': 'View the request',
+      'recruitment.opening_rejected': 'View the request',
     },
     footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
     signature: 'The HRForce team',
@@ -325,6 +374,10 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
     number: str(d['number']),
     correction: d['subjectType'] === 'attendance_correction' || input.subjectType === 'attendance_correction',
     date: formatDate(str(d['date']), input.locale),
+    opening: d['subjectType'] === 'recruitment_opening' || input.subjectType === 'recruitment_opening',
+    title: str(d['title']),
+    reference: str(d['reference']),
+    unit: (input.locale === 'ar' && str(d['unitNameAr'])) || str(d['unitName']),
   };
   const subject = w.subjects[input.type](facts);
   const body = w.bodies[input.type](facts);

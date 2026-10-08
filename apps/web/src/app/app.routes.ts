@@ -178,6 +178,18 @@ export const routes: Routes = [
     loadChildren: () => import('./features/attendance/attendance.routes').then((m) => m.ATTENDANCE_ROUTES),
   },
   {
+    path: 'recruitment',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['recruitment.read', 'recruitment.configure'] },
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.RECRUITMENT_ROUTES),
+  },
+  {
+    // The requester's / unit head's view: no permission (the API decides what the caller may see).
+    path: 'me/recruitment',
+    canMatch: signedIn,
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_RECRUITMENT_ROUTES),
+  },
+  {
     // Personal settings (for now: email notification preferences).
     path: 'settings',
     canMatch: signedIn,

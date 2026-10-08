@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -32,6 +32,8 @@ export const PERMISSION_CODES = [
   'employee.nss.update',
   'employee.medical.read',
   'employee.medical.update',
+  'recruitment.salary.read',
+  'recruitment.salary.update',
   'leave.request_self',
   'leave.read',
   'leave.request',
@@ -53,6 +55,12 @@ export const PERMISSION_CODES = [
   'sso.read',
   'sso.manage_apps',
   'sso.assign',
+  'recruitment.read',
+  'recruitment.manage',
+  'recruitment.approve_opening',
+  'recruitment.hire',
+  'recruitment.erase',
+  'recruitment.configure',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -91,6 +99,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'document.read', 'document.issue',
       'employee_file.read', 'employee_file.upload',
       'attendance.read', 'attendance.manage',
+      // the pipeline in its region, without the salaries (docs/contracts/recruitment.md › Permissions)
+      'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire',
     ],
   },
   {

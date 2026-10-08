@@ -13,6 +13,8 @@ export const MEDICAL_READ = 'employee.medical.read';
 export const ATTENDANCE_CONFIGURE = 'attendance.configure';
 export const ATTENDANCE_READ = 'attendance.read';
 export const SSO_READ = 'sso.read';
+export const RECRUITMENT_READ = 'recruitment.read';
+export const RECRUITMENT_SALARY_READ = 'recruitment.salary.read';
 
 function subjectNotFound(): NotFoundException {
   return new NotFoundException('Subject not found');
@@ -37,6 +39,9 @@ function subjectNotFound(): NotFoundException {
  * is visible like GET /attendance/corrections/:id: the employee's linked user, a current candidate of its open task,
  * or attendance.read over the employee's scope unit (no audit.read needed). The employee timeline lists its corrections'
  * events too.
+ * A job opening (its rows, its workflow rows and workflow.* events) and an application (its events and those of its
+ * candidate — events only, without personal payload: docs/contracts/recruitment.md › Audit and timeline) are visible
+ * with recruitment.read over the opening's unit (no audit.read needed).
  * Anything else — unknown, other company, out of scope — is 404.
  */
 @Injectable()
@@ -50,13 +55,14 @@ export class TimelineService {
   async timeline(subject: TimelineSubject, cursor: TimelineCursor | null, limit: number): Promise<TimelineView> {
     const { companyId } = requireContext();
     if (!companyId) throw subjectNotFound();
-    const { medicalFiles } = await this.assertVisible(companyId, subject);
+    const { medicalFiles, recruitmentSalary } = await this.assertVisible(companyId, subject);
 
     const rows = await this.repo.timeline(companyId, subject, {
       cursor,
       limit: limit + 1,
       unitScope: await this.scopes.scopeOf(AUDIT_READ),
       medicalFiles,
+      recruitmentSalary,
     });
     const page = rows.slice(0, limit);
     const last = page.at(-1);
@@ -67,9 +73,13 @@ export class TimelineService {
     return { items: page.map((row) => toEntry(row, names, masked)), nextCursor };
   }
 
-  /** 404 unless the caller may see the subject's history; `medicalFiles`: medical employee-file entries are included. */
-  private async assertVisible(companyId: string, subject: TimelineSubject): Promise<{ medicalFiles: boolean }> {
-    const plain = { medicalFiles: false };
+  /**
+   * 404 unless the caller may see the subject's history; `medicalFiles`: medical employee-file entries are included;
+   * `recruitmentSalary`: an application's `recruitment.salary_changed` events are included (they would tell a reader
+   * without recruitment.salary.read that a salary was entered, which the application view hides).
+   */
+  private async assertVisible(companyId: string, subject: TimelineSubject): Promise<{ medicalFiles: boolean; recruitmentSalary: boolean }> {
+    const plain = { medicalFiles: false, recruitmentSalary: false };
     switch (subject.type) {
       case 'org_unit':
         if (!(await this.scopes.inScope(AUDIT_READ, subject.id))) throw subjectNotFound();
@@ -83,7 +93,7 @@ export class TimelineService {
         // the employee's scope: the unit of its assignment valid today, else its last one (ended), else its first
         const unitId = await this.repo.employeeScopeUnit(companyId, subject.id);
         if (!unitId || !(await this.scopes.inScope(AUDIT_READ, unitId))) throw subjectNotFound();
-        return { medicalFiles: await this.scopes.inScope(MEDICAL_READ, unitId) };
+        return { ...plain, medicalFiles: await this.scopes.inScope(MEDICAL_READ, unitId) };
       }
       case 'leave_request': {
         const request = await this.repo.leaveRequestAccess(companyId, subject.id);
@@ -125,6 +135,12 @@ export class TimelineService {
         if ((await this.scopes.unitIds(SSO_READ)).size === 0 || (await this.scopes.unitIds(AUDIT_READ)).size === 0) throw subjectNotFound();
         if (!(await this.repo.ssoClientKnown(companyId, subject.id))) throw subjectNotFound();
         return plain;
+      }
+      case 'recruitment_opening':
+      case 'recruitment_application': {
+        const unitId = await this.repo.recruitmentUnit(companyId, subject.type, subject.id);
+        if (!unitId || !(await this.scopes.inScope(RECRUITMENT_READ, unitId))) throw subjectNotFound();
+        return { ...plain, recruitmentSalary: await this.scopes.inScope(RECRUITMENT_SALARY_READ, unitId) };
       }
       case 'user': {
         const member = (await this.repo.members(companyId)).some((m) => m.id === subject.id);

@@ -1,0 +1,279 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/recruitment/candidates">{{ t('recruitment.candidates.back') }}</a></p>
+  @if (candidate.hasValue()) {
+    @let c = candidate.value();
+    <app-application-move (moved)="onMoved($event)" (failed)="onMoveFailed($event)" />
+    <header class="page-header">
+      <h1><bdi>{{ c.person | displayName: lang() }}</bdi></h1>
+      <div class="page-actions">
+        @if (c._actions.includes('erase')) {
+          <button class="btn danger" type="button" data-action="erase" (click)="openErase()">{{ t('recruitment.erase.action') }}</button>
+        }
+      </div>
+    </header>
+
+    @if (feedback(); as message) {
+      <p class="feedback" role="status" data-feedback>{{ t(message.key, message.params) }}</p>
+    }
+    @if (actionError(); as key) {
+      <p class="form-error" role="alert" data-error="action" [appRevealAlert]="key">{{ t(key) }}</p>
+    }
+
+    @if (c.knownPerson; as known) {
+      <div class="warning" data-panel="known-person">
+        <app-known-person-note [known]="known" />
+        @if (c._actions.includes('link_person')) {
+          @if (known.linked) {
+            <button class="btn secondary" type="button" data-action="unlink-person" [disabled]="busy()" (click)="link(c, null)">{{ t('recruitment.known.unlink') }}</button>
+          } @else {
+            <button class="btn secondary" type="button" data-action="link-person" [disabled]="busy()" (click)="link(c, known.personId)">{{ t('recruitment.known.link') }}</button>
+          }
+        }
+      </div>
+    }
+
+    <section class="panel" aria-labelledby="cand-identity-title" data-section="identity">
+      <div class="toolbar">
+        <h2 id="cand-identity-title">{{ t('recruitment.candidate.identity') }}</h2>
+        @if (c._actions.includes('update') && editing() !== 'identity') {
+          <button class="btn secondary" type="button" data-action="edit-identity" (click)="editIdentity(c)">{{ t('recruitment.candidate.edit') }}</button>
+        }
+      </div>
+      @if (editing() === 'identity') {
+        <form [formGroup]="identity" (ngSubmit)="saveIdentity(c)" novalidate data-form="candidate-identity">
+          @if (formError(); as error) {
+            <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+          }
+          <app-candidate-fields [form]="identity" idPrefix="edit" />
+          <div class="form-actions">
+            <button class="btn" type="submit" data-action="save-identity" [disabled]="busy()">{{ t('common.save') }}</button>
+            @if (overridable()) {
+              <button class="btn secondary" type="button" data-action="save-anyway" [disabled]="busy()" (click)="saveIdentity(c, true)">{{ t('recruitment.add.saveAnyway') }}</button>
+            }
+            <button class="btn secondary" type="button" (click)="editing.set(null)">{{ t('common.cancel') }}</button>
+          </div>
+        </form>
+      } @else {
+        <dl class="facts" data-panel="identity">
+          <dt>{{ t('employees.fields.lastName') }}</dt>
+          <dd><bdi>{{ c.person.lastName }}</bdi></dd>
+          <dt>{{ t('employees.fields.firstName') }}</dt>
+          <dd><bdi>{{ c.person.firstName }}</bdi></dd>
+          @if (c.person.lastNameAr || c.person.firstNameAr) {
+            <dt>{{ t('recruitment.candidate.arabicName') }}</dt>
+            <dd lang="ar" dir="rtl">{{ c.person.lastNameAr }} {{ c.person.firstNameAr }}</dd>
+          }
+          <dt>{{ t('employees.fields.birthDate') }}</dt>
+          <dd>
+            {{ c.birthDate ? (c.birthDate | date: 'mediumDate' : undefined : locale()) : '—' }}
+            @if (c.birthPlace) {
+              — <bdi>{{ c.birthPlace }}</bdi>
+            }
+          </dd>
+          <dt>{{ t('employees.fields.sex') }}</dt>
+          <dd>{{ c.sex ? t('recruitment.candidate.sex.' + c.sex) : '—' }}</dd>
+          <dt>{{ t('employees.fields.nationality') }}</dt>
+          <dd dir="ltr">{{ c.nationality }}</dd>
+          <dt>{{ t('employees.fields.nin') }}</dt>
+          <dd dir="ltr" class="code" data-field="nin">{{ c.nin ?? '—' }}</dd>
+          <dt>{{ t('recruitment.candidate.email') }}</dt>
+          <dd dir="ltr" data-field="email">{{ c.email ?? '—' }}</dd>
+          <dt>{{ t('recruitment.candidate.phone') }}</dt>
+          <dd dir="ltr" data-field="phone">{{ c.phone ?? '—' }}</dd>
+          <dt>{{ t('recruitment.candidate.informedOn') }}</dt>
+          <dd data-field="informed-on">
+            {{ c.informedOn ? (c.informedOn | date: 'mediumDate' : undefined : locale()) : t('recruitment.candidate.notInformed') }}
+            <a routerLink="/recruitment/notice">{{ t('recruitment.notice.link') }}</a>
+          </dd>
+          <dt>{{ t('recruitment.candidate.createdAt') }}</dt>
+          <dd>
+            {{ c.createdAt | date: 'medium' : undefined : locale() }}
+            @if (c.createdBy; as by) {
+              — <bdi>{{ by.displayName }}</bdi>
+            }
+          </dd>
+        </dl>
+      }
+    </section>
+
+    <app-candidate-files [candidateId]="c.id" [files]="c.files" [canUpload]="c._actions.includes('upload')" (changed)="candidate.reload()" />
+
+    <section aria-labelledby="cand-application-title" data-section="application">
+      <div class="toolbar">
+        <h2 id="cand-application-title">{{ t('recruitment.application.title') }}</h2>
+      </div>
+      @if (c.applications.length > 1) {
+        <div class="field">
+          <label for="cand-application">{{ t('recruitment.application.choose') }}</label>
+          <select id="cand-application" (change)="selectApplication($event)">
+            @for (item of c.applications; track item.id) {
+              <option [value]="item.id" [selected]="item.id === selected()?.id">
+                {{ item.opening.reference }} — {{ item.opening.title }} ({{ t('recruitment.stage.' + item.stage) }})
+              </option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (selected(); as a) {
+        <div class="panel" [attr.data-application]="a.id">
+          <p class="inline-actions">
+            <a [routerLink]="['/recruitment/openings', a.opening.id]"><span class="code" dir="ltr">{{ a.opening.reference }}</span>&ngsp;<bdi>{{ a.opening.title }}</bdi></a>
+            <span class="muted"><bdi>{{ a.opening.unit | displayName: lang() }}</bdi></span>
+            <span class="badge" [attr.data-status]="tone(a.stage)" data-field="stage">{{ t('recruitment.stage.' + a.stage) }}</span>
+            @if (a.rejectionReason) {
+              <span class="muted" data-field="rejection-reason">{{ reasonLabel(a.rejectionReason) }}</span>
+            }
+          </p>
+          <app-stage-menu [targets]="a._actions.includes('move') ? a.moveTargets : []" [canReopen]="a._actions.includes('reopen')"
+            [name]="nameOf(c)" [disabled]="mover().busy()" (pick)="move(c, a, $event)" (reopen)="reopen(c, a)" />
+
+          @if (editing() === 'application') {
+            @let f = applicationForm.controls;
+            <form [formGroup]="applicationForm" (ngSubmit)="saveApplication(a)" novalidate data-form="application">
+              @if (formError(); as error) {
+                <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+              }
+              <div class="grid">
+                <div class="field">
+                  <label for="app-source">{{ t('recruitment.fields.source') }}</label>
+                  <select id="app-source" formControlName="source">
+                    @for (source of sources; track source) {
+                      <option [value]="source">{{ t('recruitment.source.' + source) }}</option>
+                    }
+                  </select>
+                </div>
+                @if (a._actions.includes('update_salary')) {
+                  <div class="field">
+                    <label for="app-salary">{{ t('recruitment.fields.expectedSalary') }}</label>
+                    <input id="app-salary" type="text" inputmode="decimal" formControlName="expectedSalary" dir="ltr" autocomplete="off"
+                      [attr.aria-invalid]="f.expectedSalary.invalid && f.expectedSalary.touched" aria-describedby="app-salary-error" />
+                    <app-control-error [control]="f.expectedSalary" errorId="app-salary-error" [keys]="errorKeys" />
+                  </div>
+                }
+              </div>
+              <div class="form-actions">
+                <button class="btn" type="submit" data-action="save-application" [disabled]="busy()">{{ t('common.save') }}</button>
+                <button class="btn secondary" type="button" (click)="editing.set(null)">{{ t('common.cancel') }}</button>
+              </div>
+            </form>
+          } @else {
+            <dl class="facts" data-panel="application">
+              <dt>{{ t('recruitment.fields.source') }}</dt>
+              <dd>{{ t('recruitment.source.' + a.source) }}</dd>
+              <dt>{{ t('recruitment.application.createdAt') }}</dt>
+              <dd>{{ a.createdAt | date: 'mediumDate' : undefined : locale() }}</dd>
+              @if (a.decidedAt) {
+                <dt>{{ t('recruitment.application.decidedAt') }}</dt>
+                <dd>{{ a.decidedAt | date: 'mediumDate' : undefined : locale() }}</dd>
+              }
+              <dt>{{ t('recruitment.fields.expectedSalary') }}</dt>
+              <dd data-field="salary">
+                @if (a._redacted.includes('salary')) {
+                  <span class="muted" data-state="redacted">{{ t('recruitment.application.salaryHidden') }}</span>
+                } @else if (a.salary?.expected; as amount) {
+                  <bdi>{{ amount | number: '1.2-2' : locale() }} {{ t('employees.pay.currency') }}</bdi>
+                } @else {
+                  —
+                }
+              </dd>
+            </dl>
+            @if (a._actions.includes('update') || a._actions.includes('update_salary')) {
+              <button class="btn secondary" type="button" data-action="edit-application" (click)="editApplication(a)">{{ t('recruitment.application.edit') }}</button>
+            }
+          }
+
+          <h3>{{ t('recruitment.application.stages') }}</h3>
+          <ol class="card-list" data-panel="stages">
+            @for (entry of a.stages; track entry.id) {
+              <li [attr.data-stage-entry]="entry.to">
+                <strong>
+                  @if (entry.from) {
+                    {{ t('recruitment.stage.' + entry.from) }} → {{ t('recruitment.stage.' + entry.to) }}
+                  } @else {
+                    {{ t('recruitment.application.created') }} — {{ t('recruitment.stage.' + entry.to) }}
+                  }
+                </strong>
+                <span class="muted">
+                  · {{ entry.at | date: 'medium' : undefined : locale() }}
+                  @if (entry.by; as by) {
+                    · <bdi>{{ by.displayName }}</bdi>
+                  }
+                </span>
+                @if (entry.autoCause) {
+                  <span class="badge" data-field="auto-cause">{{ t('recruitment.autoCause.' + entry.autoCause) }}</span>
+                } @else if (entry.rejectionReason) {
+                  <span class="badge" data-status="rejected" data-field="reason">{{ reasonLabel(entry.rejectionReason) }}</span>
+                }
+                @if (entry.comment) {
+                  <p class="prose" data-field="comment"><bdi>{{ entry.comment }}</bdi></p>
+                }
+              </li>
+            }
+          </ol>
+
+          <h3>{{ t('recruitment.notes.title') }}</h3>
+          @if (a._actions.includes('add_note')) {
+            @let body = noteForm.controls.body;
+            <form [formGroup]="noteForm" (ngSubmit)="addNote(a)" novalidate data-form="note">
+              @if (noteError(); as error) {
+                <p class="form-error" role="alert">{{ 'key' in error ? t(error.key) : error.text }}</p>
+              }
+              <div class="field">
+                <label for="note-body">{{ t('recruitment.notes.add') }}</label>
+                <textarea id="note-body" formControlName="body" rows="3" dir="auto" [attr.aria-invalid]="body.invalid && body.touched" aria-describedby="note-body-hint note-body-error"></textarea>
+                <p class="field-hint" id="note-body-hint">{{ t('recruitment.notes.hint') }}</p>
+                <app-control-error [control]="body" errorId="note-body-error" [keys]="errorKeys" />
+              </div>
+              <div class="form-actions">
+                <button class="btn" type="submit" data-action="add-note" [disabled]="busy()">{{ t('recruitment.notes.submit') }}</button>
+              </div>
+            </form>
+          }
+          <ul class="card-list" data-panel="notes">
+            @for (note of a.notes; track note.id) {
+              <li [attr.data-note]="note.id">
+                <p class="prose"><bdi>{{ note.body }}</bdi></p>
+                <p class="inline-actions muted">
+                  <span><bdi>{{ note.createdBy.displayName }}</bdi> · {{ note.createdAt | date: 'medium' : undefined : locale() }}</span>
+                  @if (note._actions.includes('delete')) {
+                    <button class="btn secondary" type="button" data-action="delete-note" [disabled]="busy()" (click)="deleteNote(a, note)">{{ t('recruitment.notes.delete') }}</button>
+                  }
+                </p>
+              </li>
+            } @empty {
+              <li class="muted" data-state="no-notes">{{ t('recruitment.notes.empty') }}</li>
+            }
+          </ul>
+        </div>
+      } @else if (detail.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('recruitment.application.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="detail.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    <dialog #eraseDialog class="modal" aria-labelledby="erase-title">
+      <h2 id="erase-title">{{ t('recruitment.erase.title') }}</h2>
+      <p><bdi>{{ c.person | displayName: lang() }}</bdi></p>
+      <p>{{ t('recruitment.erase.intro') }}</p>
+      <p class="warning">{{ t('recruitment.erase.warning') }}</p>
+      <div class="form-actions">
+        <button class="btn danger" type="button" data-action="confirm-erase" [disabled]="busy()" (click)="confirmErase(c)">{{ t('recruitment.erase.confirm') }}</button>
+        <button class="btn secondary" type="button" (click)="closeErase()">{{ t('common.cancel') }}</button>
+      </div>
+    </dialog>
+  } @else if (candidate.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'recruitment.candidate.notFound' : errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="candidate.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

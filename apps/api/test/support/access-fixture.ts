@@ -6,9 +6,11 @@ import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } fr
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave, seedLeaveDefaults } from '../../src/modules/leave/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
+import { seedRecruitmentDefaults } from '../../src/modules/recruitment/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
 import { query, type TestDatabase } from './test-database.js';
 import { seedAttendanceFixture } from './attendance-fixture.js';
+import { seedRecruitmentFixture } from './recruitment-fixture.js';
 import { withXsrf, type XsrfPair } from './xsrf.js';
 
 /*
@@ -147,6 +149,11 @@ export interface FixtureOptions {
    * with known credentials, see attendance-fixture.ts), BETA's defaults, one kiosk and one punch
    */
   attendance?: boolean;
+  /**
+   * + recruitment (docs/contracts/recruitment.md › Seed): the DEMO openings, candidates and applications, and per
+   * matrix target an open opening with pools of rows to consume (see recruitment-fixture.ts). Needs `leave`.
+   */
+  recruitment?: boolean;
 }
 
 /** BETA's company-wide signatory (documents fixture). */
@@ -185,6 +192,10 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
         await seedSignatory(tx, COMPANY_B, { id: BETA_SIGNATORY, orgUnitId: null, nameFr: 'Salima Beta', nameAr: 'سليمة بيتا', titleFr: 'Gérante', titleAr: 'المسيرة' });
       }
       if (options.attendance) await seedAttendanceFixture(tx);
+      // the policy, approval chains and rejection reasons of both companies (created after migration 0019)
+      await seedRecruitmentDefaults(tx, COMPANY_A);
+      await seedRecruitmentDefaults(tx, COMPANY_B);
+      if (options.recruitment) await seedRecruitmentFixture(tx);
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },
       ]);

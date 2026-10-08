@@ -54,6 +54,7 @@ import { filter, map } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
+import { MyRecruitment } from './core/recruitment/my-recruitment';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import { LanguageSwitcher } from './shell/language-switcher';
 import { NotificationBell } from './shell/notification-bell';
@@ -92,6 +93,7 @@ interface NavLink {
 export class App {
   protected readonly session = inject(Session);
   private readonly myEmployment = inject(MyEmployment);
+  private readonly myRecruitment = inject(MyRecruitment);
   protected readonly tasks = inject(TasksBadge);
   private readonly router = inject(Router);
 
@@ -123,6 +125,8 @@ export class App {
     },
     { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: true },
     { path: '/me/team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
+    // Unit heads and requesters (no recruitment permission); HR uses « Recrutement » below.
+    { path: '/me/recruitment', labelKey: 'nav.myRecruitment', exact: false, visible: () => this.myRecruitment.showNav() },
     { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
     { path: '/leave', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
     { path: '/documents', labelKey: 'nav.documents', exact: false, permission: 'document.read' },
@@ -133,6 +137,14 @@ export class App {
       exact: false,
       permission: 'attendance.configure',
       visible: () => !this.session.can('attendance.read'),
+    },
+    { path: '/recruitment', labelKey: 'nav.recruitment', exact: false, permission: 'recruitment.read' },
+    {
+      path: '/recruitment/settings',
+      labelKey: 'nav.recruitmentSettings',
+      exact: false,
+      permission: 'recruitment.configure',
+      visible: () => !this.session.can('recruitment.read'),
     },
     { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     // Access holds users/roles (access.read) and connected apps (sso.read): either one shows the link.

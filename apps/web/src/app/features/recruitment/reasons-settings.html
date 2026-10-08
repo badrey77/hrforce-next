@@ -1,0 +1,110 @@
+<section *transloco="let t" aria-labelledby="rec-reasons-title" data-section="reasons">
+  <div class="toolbar">
+    <h2 id="rec-reasons-title">{{ t('recruitment.settings.tab.reasons') }}</h2>
+    @if (editing() === null) {
+      <button class="btn" type="button" data-action="new-reason" (click)="open(null)">{{ t('recruitment.settings.reasons.add') }}</button>
+    }
+  </div>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+
+  @if (editing(); as target) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate data-form="reason">
+      <h3>{{ t(target === 'new' ? 'recruitment.settings.reasons.add' : 'recruitment.settings.reasons.edit') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="grid">
+        <div class="field">
+          <label for="reason-code">{{ t('recruitment.settings.reasons.code') }}</label>
+          <input id="reason-code" type="text" formControlName="code" dir="ltr" autocomplete="off"
+            [attr.aria-invalid]="c.code.invalid && c.code.touched" aria-describedby="reason-code-hint reason-code-error" />
+          <p class="field-hint" id="reason-code-hint">{{ t('recruitment.settings.reasons.codeHint') }}</p>
+          <app-control-error [control]="c.code" errorId="reason-code-error" [keys]="errorKeys" />
+        </div>
+        <div class="field">
+          <label for="reason-fr">{{ t('recruitment.settings.reasons.labelFr') }}</label>
+          <input id="reason-fr" type="text" formControlName="fr" lang="fr" dir="ltr" [attr.aria-invalid]="c.fr.invalid && c.fr.touched" aria-describedby="reason-fr-error" />
+          <app-control-error [control]="c.fr" errorId="reason-fr-error" [keys]="errorKeys" />
+        </div>
+        <div class="field">
+          <label for="reason-ar">{{ t('recruitment.settings.reasons.labelAr') }}</label>
+          <input id="reason-ar" type="text" formControlName="ar" lang="ar" dir="rtl" [attr.aria-invalid]="c.ar.invalid && c.ar.touched" aria-describedby="reason-ar-error" />
+          <app-control-error [control]="c.ar" errorId="reason-ar-error" [keys]="errorKeys" />
+        </div>
+        <div class="field">
+          <label for="reason-en">{{ t('recruitment.settings.reasons.labelEn') }}</label>
+          <input id="reason-en" type="text" formControlName="en" lang="en" dir="ltr" [attr.aria-invalid]="c.en.invalid && c.en.touched" aria-describedby="reason-en-error" />
+          <app-control-error [control]="c.en" errorId="reason-en-error" [keys]="errorKeys" />
+        </div>
+        @if (target !== 'new') {
+          <div class="field">
+            <label for="reason-order">{{ t('recruitment.settings.reasons.order') }}</label>
+            <input id="reason-order" type="number" min="0" formControlName="sortOrder" [attr.aria-invalid]="c.sortOrder.invalid && c.sortOrder.touched" aria-describedby="reason-order-error" />
+            <app-control-error [control]="c.sortOrder" errorId="reason-order-error" [keys]="errorKeys" />
+          </div>
+          <div class="check">
+            <input id="reason-active" type="checkbox" formControlName="active" />
+            <label for="reason-active">{{ t('recruitment.settings.reasons.active') }}</label>
+          </div>
+        }
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-reason" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="editing.set(null)">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @if (list.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('recruitment.settings.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (list.hasValue()) {
+    <div class="table-scroll">
+      <table class="data cards" role="table" data-table="reasons">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">{{ t('recruitment.settings.reasons.name') }}</th>
+            <th scope="col" role="columnheader">{{ t('recruitment.settings.reasons.code') }}</th>
+            <th scope="col" role="columnheader">{{ t('recruitment.settings.reasons.order') }}</th>
+            <th scope="col" role="columnheader">{{ t('recruitment.fields.status') }}</th>
+            <th scope="col" role="columnheader"><span class="visually-hidden">{{ t('recruitment.settings.reasons.edit') }}</span></th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          @for (reason of items(); track reason.id) {
+            <tr role="row" [attr.data-reason]="reason.code">
+              <td role="cell" class="who" [attr.data-label]="t('recruitment.settings.reasons.name')">
+                <bdi>{{ label(reason) }}</bdi>
+                @if (reason.autoOnly) {
+                  <span class="badge" data-tag="auto">{{ t('recruitment.settings.reasons.automatic') }}</span>
+                } @else if (reason.isSystem) {
+                  <span class="badge" data-tag="system">{{ t('recruitment.settings.reasons.system') }}</span>
+                }
+              </td>
+              <td role="cell" [attr.data-label]="t('recruitment.settings.reasons.code')"><span class="code" dir="ltr">{{ reason.code }}</span></td>
+              <td role="cell" [attr.data-label]="t('recruitment.settings.reasons.order')">{{ reason.sortOrder }}</td>
+              <td role="cell" [attr.data-label]="t('recruitment.fields.status')">
+                <span class="badge" [attr.data-status]="reason.active ? 'approved' : 'cancelled'">{{ t(reason.active ? 'recruitment.settings.reasons.isActive' : 'recruitment.settings.reasons.isInactive') }}</span>
+              </td>
+              <td role="cell" [attr.data-label]="''">
+                <!-- The two automatic reasons are worded by the system: nothing to edit. -->
+                @if (!reason.autoOnly) {
+                  <button class="btn secondary" type="button" data-action="edit-reason" [attr.aria-label]="t('recruitment.settings.reasons.editNamed', { name: label(reason) })" (click)="open(reason)">
+                    {{ t('recruitment.settings.reasons.edit') }}
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

@@ -18,7 +18,7 @@ export type EmployeeFileMime = 'application/pdf' | 'image/jpeg' | 'image/png';
 export const EMPLOYEE_FILE_DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 export const EMPLOYEE_FILE_HARD_MAX_BYTES = 20 * 1024 * 1024;
 
-/** The seeded categories of every company (migration 0015 for existing ones, seedDocumentDefaults for new ones). */
+/** The seeded categories of every company (migrations 0015 and 0019 for existing ones, seedDocumentDefaults for new ones). */
 export const SYSTEM_FILE_CATEGORIES: readonly {
   code: string;
   names: { fr: string; ar: string; en: string };
@@ -30,6 +30,8 @@ export const SYSTEM_FILE_CATEGORIES: readonly {
   { code: 'id_document', names: { fr: "Pièces d'identité", ar: 'وثائق الهوية', en: 'Identity documents' }, accessClass: 'standard', sortOrder: 30 },
   { code: 'medical', names: { fr: 'Médical', ar: 'طبي', en: 'Medical' }, accessClass: 'medical', sortOrder: 40 },
   { code: 'other', names: { fr: 'Autres', ar: 'أخرى', en: 'Other' }, accessClass: 'standard', sortOrder: 50 },
+  // the candidate files a hire copies into the employee file (docs/contracts/recruitment.md › assumption 19, migration 0019)
+  { code: 'recruitment', names: { fr: 'Recrutement', ar: 'التوظيف', en: 'Recruitment' }, accessClass: 'standard', sortOrder: 60 },
 ];
 
 /** Category codes created through the API (lower snake case, 2–40). */

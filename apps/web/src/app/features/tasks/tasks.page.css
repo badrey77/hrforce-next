@@ -71,3 +71,9 @@ h3 {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Free text typed by a requester (an opening's justification): keep its line breaks, never overflow the panel. */
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

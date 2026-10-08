@@ -5,6 +5,7 @@ import { algiersDate, runAttendanceRetention } from '../modules/attendance/index
 import { PgAuditEvents } from '../modules/audit/index.js';
 import { algiersToday, runEmployeeFileRetention } from '../modules/documents/index.js';
 import { runAccruals } from '../modules/leave/index.js';
+import { recruitmentAlgiersDate, runRecruitmentRetention } from '../modules/recruitment/index.js';
 import { cleanupReadNotifications, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
 import { runOidcCleanup } from '../modules/sso/index.js';
 import type { Database } from '../platform/db/database.js';
@@ -38,6 +39,7 @@ export const TASKS = {
   employeeFilesRetention: 'employee_files.retention',
   attendanceRetention: 'attendance.retention',
   oidcCleanup: 'oidc.cleanup',
+  recruitmentRetention: 'recruitment.retention',
 } as const;
 
 const requestIdOf = (task: string, job: JobInfo) => `job:${task}:${job.id}`;
@@ -142,6 +144,23 @@ export async function oidcCleanupTask(deps: WorkerDeps, payload: unknown): Promi
   return { ...result };
 }
 
+/**
+ * `recruitment.retention` (monthly) — company by company, purges the applications decided more than the policy's
+ * retention months ago and the candidates left without any (docs/contracts/recruitment.md › Retention, erasure and
+ * worker), and records one `recruitment.purged` event per company that lost some; `payload.today` (YYYY-MM-DD)
+ * overrides the Algiers date for a manual run or a test.
+ */
+export async function recruitmentRetentionTask(deps: WorkerDeps, payload: unknown, job: JobInfo): Promise<Record<string, unknown>> {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const given = p['today'];
+  if (given !== undefined && (typeof given !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(given))) throw new Error('recruitment.retention: payload.today must be YYYY-MM-DD');
+  const today = typeof given === 'string' ? given : recruitmentAlgiersDate(Date.now());
+  const audit = new PgAuditEvents(deps.db);
+  const results = await forEachCompany(deps.db, requestIdOf(TASKS.recruitmentRetention, job), (tx, companyId) => runRecruitmentRetention(tx, companyId, today, audit));
+  const sum = (pick: (r: { applications: number; candidates: number; files: number }) => number) => results.reduce((n, r) => n + (r.result ? pick(r.result) : 0), 0);
+  return { today, companies: results.length, applications: sum((r) => r.applications), candidates: sum((r) => r.candidates), files: sum((r) => r.files) };
+}
+
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;
 
 const HANDLERS: Record<string, TaskFn> = {
@@ -153,6 +172,7 @@ const HANDLERS: Record<string, TaskFn> = {
   [TASKS.employeeFilesRetention]: employeeFilesRetentionTask,
   [TASKS.attendanceRetention]: attendanceRetentionTask,
   [TASKS.oidcCleanup]: oidcCleanupTask,
+  [TASKS.recruitmentRetention]: recruitmentRetentionTask,
 };
 
 /** Graphile Worker task list: every handler with structured logging (a thrown error = a retry with back-off). */

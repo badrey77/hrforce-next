@@ -117,6 +117,32 @@ describe('notification mails', () => {
     expect(mail.text).toContain('من 12/10/2026 إلى 14/10/2026، 3 أيام)');
   });
 
+  it('opening requests (recruitment.md): task, escalation, outcomes — the post, never the justification or a comment; neutral Arabic', () => {
+    const o = { openingId: 'x', reference: 'REC-2026-0007', title: 'Chargé(e) de clientèle', unitName: 'Agence Annaba', unitNameAr: 'وكالة عنابة', posts: 2, actorName: 'Karim Haddad', justification: 'MUST NOT LEAK', comment: 'MUST NOT LEAK' };
+    const task = (locale: MailLocale) => renderNotificationMail({ type: 'task.assigned', locale, recipientName: 'N', data: { ...o, subjectType: 'recruitment_opening', audience: 'approver' }, leaveTypeLabel: null, link });
+    expect(task('fr').subject).toBe('HRForce — ouverture de poste à approuver : Chargé(e) de clientèle (REC-2026-0007)');
+    expect(task('fr').text).toContain('Ouverture de poste à approuver : Chargé(e) de clientèle (REC-2026-0007, Agence Annaba).');
+    expect(task('ar').text).toContain('طلب فتح منصب في انتظار الموافقة: Chargé(e) de clientèle (REC-2026-0007، وكالة عنابة).');
+    expect(task('en').subject).toBe('HRForce — opening request awaiting approval: Chargé(e) de clientèle (REC-2026-0007)');
+    const outcome = (type: 'recruitment.opening_approved' | 'recruitment.opening_rejected', locale: MailLocale) =>
+      renderNotificationMail({ type, locale, recipientName: 'N', data: { ...o, audience: 'requester' }, leaveTypeLabel: null, subjectType: 'recruitment_opening', link });
+    expect(outcome('recruitment.opening_approved', 'fr').text).toContain('Votre demande d’ouverture de poste Chargé(e) de clientèle (REC-2026-0007) a été approuvée par Karim Haddad.');
+    expect(outcome('recruitment.opening_rejected', 'fr').text).toContain('a été refusée par Karim Haddad. Le détail est dans l’application.');
+    expect(outcome('recruitment.opening_approved', 'ar').text).toContain('تمت الموافقة على طلب فتح المنصب Chargé(e) de clientèle (REC-2026-0007) من طرف Karim Haddad.');
+    expect(outcome('recruitment.opening_rejected', 'ar').text).toContain('تم رفض طلب فتح المنصب Chargé(e) de clientèle (REC-2026-0007) من طرف Karim Haddad.');
+    expect(outcome('recruitment.opening_approved', 'en').text).toContain('Your opening request Chargé(e) de clientèle (REC-2026-0007) was approved by Karim Haddad.');
+    const escalated = (locale: MailLocale) => renderNotificationMail({ type: 'task.escalated', locale, recipientName: 'N', data: { ...o, audience: 'requester' }, leaveTypeLabel: null, subjectType: 'recruitment_opening', link });
+    expect(escalated('fr').subject).toBe('HRForce — votre demande d’ouverture de poste est transmise aux RH');
+    expect(escalated('ar').subject).toBe('HRForce — تمت إحالة طلب فتح المنصب إلى الموارد البشرية');
+    for (const locale of ['fr', 'ar', 'en'] as MailLocale[]) {
+      for (const mail of [task(locale), escalated(locale), outcome('recruitment.opening_approved', locale), outcome('recruitment.opening_rejected', locale)]) {
+        expect(`${mail.subject}${mail.text}${mail.html}`).not.toMatch(/MUST NOT LEAK|congé|عطلة|leave|pointage|attendance/i);
+        // passive / verbal-noun wording in Arabic: no masculine imperative or second-person verb
+        if (locale === 'ar') expect(mail.text).not.toMatch(/قرارك|طلبك|وافق |رفض المسؤول/);
+      }
+    }
+  });
+
   it('punch corrections (attendance.md › Phase B): task, escalation, outcomes — the day, never the reason or times; neutral Arabic', () => {
     const c = { correctionId: 'x', employeeName: 'Walid Mansouri', employeeNameAr: 'وليد منصوري', date: '2026-09-28', changes: 2, actorName: 'Karim Haddad', reason: 'MUST NOT LEAK', time: '08:05' };
     const task = (locale: MailLocale) => renderNotificationMail({ type: 'task.assigned', locale, recipientName: 'N', data: { ...c, subjectType: 'attendance_correction' }, leaveTypeLabel: null, link });

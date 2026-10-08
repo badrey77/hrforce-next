@@ -30,7 +30,13 @@
           @for (task of store.items(); track task.id) {
             <li>
               <button type="button" class="task" [attr.data-task]="task.id" [attr.aria-pressed]="task.id === selectedId()" (click)="select(task)">
-                <span class="who">{{ personOf(task) | displayName: lang() }}</span>
+                <span class="who">
+                  @if (task.subject.type === 'recruitment_opening') {
+                    <bdi>{{ task.subject.title }}</bdi>
+                  } @else {
+                    {{ personOf(task) | displayName: lang() }}
+                  }
+                </span>
                 <!-- The union narrows inside @if: leaveTypeId/startDate exist only on a leave subject. -->
                 @if (task.subject.type === 'attendance_correction') {
                   <span class="what" data-subject="attendance_correction">
@@ -40,6 +46,11 @@
                       {{ t('attendance.corrections.taskTitle', { date: (task.subject.date | date: 'fullDate' : undefined : locale()) }) }}
                       · {{ t('attendance.corrections.changeCount', { count: task.subject.changes.length }) }}
                     }
+                  </span>
+                } @else if (task.subject.type === 'recruitment_opening') {
+                  <span class="what" data-subject="recruitment_opening">
+                    {{ t('recruitment.tasks.title') }} · <span dir="ltr">{{ task.subject.reference }}</span> ·
+                    <bdi>{{ task.subject.unit | displayName: lang() }}</bdi>
                   </span>
                 } @else if (task.subject.type === 'leave_request') {
                   <span class="what">
@@ -72,7 +83,9 @@
     <section class="panel detail" aria-labelledby="task-panel-title">
       @if (selected(); as task) {
         <h2 id="task-panel-title" #panelHeading tabindex="-1">
-          @if (personOf(task); as person) {
+          @if (task.subject.type === 'recruitment_opening') {
+            <bdi>{{ task.subject.title }}</bdi>
+          } @else if (personOf(task); as person) {
             {{ person | displayName: lang() }}
           } @else {
             {{ t('attendance.corrections.purgedTitle') }}
@@ -105,6 +118,28 @@
             }
             <p class="field-hint">{{ t('attendance.corrections.approveHint') }}</p>
           }
+        } @else if (task.subject.type === 'recruitment_opening') {
+          <dl class="facts" data-panel="recruitment-opening">
+            <dt>{{ t('recruitment.fields.reference') }}</dt>
+            <dd data-field="reference"><span class="code" dir="ltr">{{ task.subject.reference }}</span></dd>
+            <dt>{{ t('recruitment.fields.title') }}</dt>
+            <dd data-field="title"><bdi>{{ task.subject.title }}</bdi></dd>
+            <dt>{{ t('recruitment.fields.unit') }}</dt>
+            <dd><bdi>{{ task.subject.unit | displayName: lang() }}</bdi></dd>
+            <dt>{{ t('recruitment.fields.site') }}</dt>
+            <dd><bdi>{{ task.subject.site?.name ?? '—' }}</bdi></dd>
+            <dt>{{ t('recruitment.fields.contractType') }}</dt>
+            <dd>{{ t('recruitment.contractType.' + task.subject.contractType) }}</dd>
+            <dt>{{ t('recruitment.fields.posts') }}</dt>
+            <dd data-field="posts">{{ task.subject.posts }}</dd>
+            <dt>{{ t('recruitment.fields.targetDate') }}</dt>
+            <dd>{{ task.subject.targetDate | date: 'mediumDate' : undefined : locale() }}</dd>
+            <dt>{{ t('recruitment.fields.justification') }}</dt>
+            <dd class="prose" data-field="justification"><bdi>{{ task.subject.justification }}</bdi></dd>
+            <dt>{{ t('recruitment.fields.requestedBy') }}</dt>
+            <dd data-field="requester"><bdi>{{ task.subject.requestedBy.displayName }}</bdi></dd>
+          </dl>
+          <p class="field-hint">{{ t('recruitment.tasks.approveHint') }}</p>
         } @else if (task.subject.type === 'document_request') {
           <dl class="facts" data-panel="document-request">
             <dt>{{ t('documents.fields.employee') }}</dt>
@@ -159,7 +194,9 @@
       <form [formGroup]="rejectForm" (ngSubmit)="submitReject()" novalidate>
         <h2 id="reject-title">{{ t('tasks.rejectTitle') }}</h2>
         <p>
-          {{ personOf(task) | displayName: lang() }} —
+          @if (task.subject.type !== 'recruitment_opening') {
+            {{ personOf(task) | displayName: lang() }} —
+          }
           @if (task.subject.type === 'attendance_correction') {
             {{ t('attendance.corrections.taskTitle', { date: task.subject.purged ? '' : (task.subject.date | date: 'mediumDate' : undefined : locale()) }) }}
           } @else {
@@ -171,7 +208,7 @@
           <label for="reject-comment">{{ t('tasks.comment') }}</label>
           <textarea id="reject-comment" formControlName="comment" rows="3" required dir="auto"
             [attr.aria-invalid]="comment.invalid && comment.touched" aria-describedby="reject-comment-hint reject-comment-error"></textarea>
-          <p class="field-hint" id="reject-comment-hint">{{ t('tasks.commentHint') }}</p>
+          <p class="field-hint" id="reject-comment-hint">{{ t(task.subject.type === 'recruitment_opening' ? 'recruitment.tasks.commentHint' : 'tasks.commentHint') }}</p>
           @if (comment.invalid && comment.touched) {
             <p class="field-error" id="reject-comment-error" data-error="comment">
               {{ comment.hasError('maxlength') ? t('leave.form.errors.tooLong') : t('tasks.commentRequired') }}

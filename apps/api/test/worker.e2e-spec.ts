@@ -181,7 +181,7 @@ describe('notifications.email', () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('cron', () => {
-  it('schedule: the seven contract jobs, parseable by Graphile', () => {
+  it('schedule: the eight contract jobs, parseable by Graphile', () => {
     expect(CRON_ITEMS.map((c) => [c.task, c.match])).toEqual([
       ['audit.ensure_partitions', '10 0 1 * *'],
       ['leave.accruals', '0 1 1 * *'],
@@ -190,8 +190,9 @@ describe('cron', () => {
       ['employee_files.retention', '0 2 1 * *'],
       ['attendance.retention', '30 2 1 * *'],
       ['oidc.cleanup', '15 3 * * *'],
+      ['recruitment.retention', '45 2 1 * *'],
     ]);
-    expect(parsedCronItems()).toHaveLength(7);
+    expect(parsedCronItems()).toHaveLength(8);
     expect(Object.keys(buildTaskList(deps)).toSorted()).toEqual(Object.values(TASKS).toSorted());
   });
 

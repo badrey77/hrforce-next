@@ -170,7 +170,7 @@ describe('company-id / audit: pure evaluation', () => {
     for (const e of entries) expect(created, e.table).toContain(e.table);
     const audit = loadAuditExempt(REPO_ROOT);
     expect(audit.violations).toEqual([]);
-    expect(audit.entries.map((e) => e.table)).toEqual(['org_unit_closure', 'notification', 'document_sequence', 'issued_document_file', 'employee_file_content', 'attendance_device_heartbeat']);
+    expect(audit.entries.map((e) => e.table)).toEqual(['org_unit_closure', 'notification', 'document_sequence', 'issued_document_file', 'employee_file_content', 'attendance_device_heartbeat', 'recruitment_candidate_file_content']);
     for (const e of audit.entries) expect(created, e.table).toContain(e.table);
   });
 });

@@ -1,0 +1,115 @@
+<section *transloco="let t" aria-labelledby="cand-files-title" data-section="files">
+  <div class="toolbar">
+    <h2 id="cand-files-title">{{ t('recruitment.files.title') }}</h2>
+    @if (canUpload() && !adding()) {
+      <button class="btn" type="button" data-action="add-file" (click)="openUpload()">{{ t('documents.file.add') }}</button>
+    }
+  </div>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+
+  @if (adding()) {
+    @let c = form.controls;
+    @let busy = progress() !== null;
+    <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate aria-labelledby="cand-upload-title" data-form="upload-file">
+      <h3 id="cand-upload-title">{{ t('recruitment.files.uploadTitle') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="field drop-zone" data-drop-zone [class.over]="dragOver()" (dragenter)="onDragOver($event)" (dragover)="onDragOver($event)"
+        (dragleave)="dragOver.set(false)" (drop)="onDrop($event)">
+        <label for="cand-file">{{ t('documents.file.fields.file') }}</label>
+        <input id="cand-file" type="file" [accept]="accept" [disabled]="busy" (change)="onFileInput($event)"
+          [attr.aria-invalid]="c.file.invalid && c.file.touched" aria-describedby="cand-file-hint cand-file-error" />
+        <p class="field-hint" id="cand-file-hint">{{ t('documents.file.upload.hint', { max: (maxBytes | fileSize: lang()) }) }}</p>
+        @if (chosen(); as f) {
+          <p class="chosen" data-field="chosen"><bdi>{{ f.name }}</bdi> · {{ f.size | fileSize: lang() }}</p>
+        }
+        @if (onlyFirst()) {
+          <p class="field-hint" data-state="only-first">{{ t('documents.file.upload.onlyFirst') }}</p>
+        }
+        <app-control-error [control]="c.file" errorId="cand-file-error" [keys]="fileKeys" />
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="cand-file-kind">{{ t('recruitment.files.kind') }}</label>
+          <select id="cand-file-kind" formControlName="kind">
+            @for (kind of kinds; track kind) {
+              <option [value]="kind">{{ t('recruitment.fileKind.' + kind) }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label for="cand-file-title">{{ t('documents.file.fields.title') }}</label>
+          <input id="cand-file-title" type="text" formControlName="title" dir="auto"
+            [attr.aria-invalid]="c.title.invalid && c.title.touched" aria-describedby="cand-file-title-error" />
+          <app-control-error [control]="c.title" errorId="cand-file-title-error" [keys]="errorKeys" />
+        </div>
+      </div>
+      @if (progress(); as p) {
+        <div class="upload-progress" data-state="uploading">
+          <label for="cand-file-progress">{{ percent() === 100 ? t('documents.file.upload.checking') : t('documents.file.upload.sending') }}</label>
+          <!-- A <progress> without a value attribute is indeterminate: right while the total is unknown. -->
+          <progress id="cand-file-progress" max="100" [attr.value]="percent()"></progress>
+          <span class="field-hint" data-field="percent">
+            @if (percent() !== null) {
+              {{ t('documents.file.upload.percent', { percent: percent(), loaded: (p.loaded | fileSize: lang()), total: (p.total | fileSize: lang()) }) }}
+            }
+          </span>
+        </div>
+      }
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="upload" [disabled]="busy">{{ busy ? t('documents.file.upload.uploading') : t('documents.file.upload.submit') }}</button>
+        @if (busy) {
+          <button class="btn secondary" type="button" data-action="abort-upload" (click)="abort()">{{ t('documents.file.upload.abort') }}</button>
+        } @else {
+          <button class="btn secondary" type="button" data-action="cancel-upload" (click)="cancelUpload()">{{ t('common.cancel') }}</button>
+        }
+      </div>
+    </form>
+  }
+
+  <ul class="file-list" data-panel="file-list">
+    @for (f of files(); track f.id) {
+      <li class="file-card" [attr.data-file]="f.id">
+        <span class="file-type" [attr.data-kind]="kindOf(f.mime)">{{ badge(f.mime) }}</span>
+        <div class="file-text">
+          <p class="file-title"><span class="badge">{{ t('recruitment.fileKind.' + f.kind) }}</span> <bdi>{{ f.title }}</bdi></p>
+          <p class="file-meta"><bdi class="file-name">{{ f.originalFilename }}</bdi> · {{ f.sizeBytes | fileSize: lang() }}</p>
+          <p class="file-meta">
+            {{ t('documents.file.uploadedBy', { date: (f.uploadedAt | date: 'medium' : undefined : locale()), by: f.uploadedBy?.displayName ?? t('audit.system') }) }}
+          </p>
+          @if (rowError()?.id === f.id) {
+            <p class="form-error" role="alert" data-error="file">{{ t(rowError()?.key ?? 'documents.file.downloadError') }}</p>
+          }
+        </div>
+        <div class="file-actions">
+          <button class="btn secondary" type="button" data-action="download-file" [disabled]="downloading() !== null"
+            [attr.aria-label]="t('documents.file.downloadNamed', { title: f.title })" (click)="download(f)">
+            {{ downloading() === f.id ? t('documents.file.downloading') : t('documents.file.download') }}
+          </button>
+          @if (f._actions.includes('delete')) {
+            <button class="btn secondary" type="button" data-action="delete-file" [attr.aria-label]="t('documents.file.deleteNamed', { title: f.title })" (click)="openDelete(f)">
+              {{ t('documents.file.delete') }}
+            </button>
+          }
+        </div>
+      </li>
+    } @empty {
+      <li class="muted" data-state="empty">{{ t('recruitment.files.empty') }}</li>
+    }
+  </ul>
+
+  <dialog #deleteDialog class="modal" aria-labelledby="cand-file-delete-title" (close)="onDeleteClosed()">
+    @if (deleting(); as f) {
+      <h2 id="cand-file-delete-title">{{ t('recruitment.files.deleteTitle') }}</h2>
+      <p><bdi>{{ f.title }}</bdi></p>
+      <p>{{ t('recruitment.files.deleteIntro') }}</p>
+      <div class="form-actions">
+        <button class="btn danger" type="button" data-action="confirm-delete-file" [disabled]="deleteBusy()" (click)="confirmDelete()">{{ t('documents.file.delete') }}</button>
+        <button class="btn secondary" type="button" (click)="deleteDialog.close()">{{ t('common.cancel') }}</button>
+      </div>
+    }
+  </dialog>
+</section>

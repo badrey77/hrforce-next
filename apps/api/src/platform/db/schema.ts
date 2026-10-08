@@ -586,6 +586,144 @@ export interface PublicHoliday {
   name_fr: string;
 }
 
+export interface RecruitmentApplication {
+  candidate_id: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  decided_at: Timestamp | null;
+  employment_id: string | null;
+  id: Generated<string>;
+  opening_id: string;
+  purged_at: Timestamp | null;
+  source: string;
+  stage: Generated<string>;
+  stage_since: Generated<Timestamp>;
+}
+
+export interface RecruitmentApplicationSalary {
+  application_id: string;
+  company_id: string;
+  expected_salary: Numeric | null;
+  proposed_salary: Numeric | null;
+}
+
+export interface RecruitmentApplicationStage {
+  application_id: string;
+  auto_cause: string | null;
+  comment: string | null;
+  company_id: string;
+  from_stage: string | null;
+  id: Generated<string>;
+  moved_at: Generated<Timestamp>;
+  moved_by: string | null;
+  rejection_reason_id: string | null;
+  seq: Generated<Int8>;
+  to_stage: string;
+}
+
+export interface RecruitmentCandidate {
+  birth_date: Timestamp | null;
+  birth_place: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  email: string | null;
+  first_name: string;
+  first_name_ar: string | null;
+  id: Generated<string>;
+  informed_on: Timestamp | null;
+  last_name: string;
+  last_name_ar: string | null;
+  nationality: Generated<string>;
+  nin: string | null;
+  person_id: string | null;
+  phone: string | null;
+  phone_key: string | null;
+  search_text: Generated<string | null>;
+  sex: string | null;
+  sort_name: Generated<string | null>;
+}
+
+export interface RecruitmentCandidateFile {
+  candidate_id: string;
+  company_id: string;
+  id: Generated<string>;
+  kind: string;
+  mime: string;
+  original_filename: string;
+  sha256: Buffer;
+  size_bytes: number;
+  title: string;
+  uploaded_at: Generated<Timestamp>;
+  uploaded_by: string | null;
+}
+
+export interface RecruitmentCandidateFileContent {
+  company_id: string;
+  content: Buffer;
+  file_id: string;
+}
+
+export interface RecruitmentNote {
+  application_id: string;
+  body: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  id: Generated<string>;
+}
+
+export interface RecruitmentOpening {
+  anem_reference: string | null;
+  close_reason: string | null;
+  closed_at: Timestamp | null;
+  closed_by: string | null;
+  company_id: string;
+  contract_type: string;
+  hired_count: Generated<number>;
+  id: Generated<string>;
+  justification: string;
+  opened_at: Timestamp | null;
+  org_unit_id: string;
+  posts: number;
+  reference: string;
+  requested_at: Generated<Timestamp>;
+  requested_by: string;
+  site_id: string | null;
+  status: Generated<string>;
+  target_date: Timestamp;
+  title: string;
+  workflow_instance_id: string | null;
+}
+
+export interface RecruitmentOpeningSequence {
+  company_id: string;
+  last_value: number;
+  year: number;
+}
+
+export interface RecruitmentPolicy {
+  company_id: string;
+  opening_workflow_code: Generated<string>;
+  retention_months: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RecruitmentRejectionReason {
+  active: Generated<boolean>;
+  auto_only: Generated<boolean>;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_system: Generated<boolean>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  sort_order: Generated<number>;
+}
+
 export interface Role {
   code: string;
   company_id: string;
@@ -776,6 +914,17 @@ export interface DB {
   person: Person;
   person_sensitive: PersonSensitive;
   public_holiday: PublicHoliday;
+  recruitment_application: RecruitmentApplication;
+  recruitment_application_salary: RecruitmentApplicationSalary;
+  recruitment_application_stage: RecruitmentApplicationStage;
+  recruitment_candidate: RecruitmentCandidate;
+  recruitment_candidate_file: RecruitmentCandidateFile;
+  recruitment_candidate_file_content: RecruitmentCandidateFileContent;
+  recruitment_note: RecruitmentNote;
+  recruitment_opening: RecruitmentOpening;
+  recruitment_opening_sequence: RecruitmentOpeningSequence;
+  recruitment_policy: RecruitmentPolicy;
+  recruitment_rejection_reason: RecruitmentRejectionReason;
   role: Role;
   role_grant: RoleGrant;
   role_permission: RolePermission;

@@ -20,7 +20,10 @@
     "myAttendance": "Attendance",
     "myTeam": "My team",
     "attendance": "Presence",
-    "attendanceSettings": "Attendance settings"
+    "attendanceSettings": "Attendance settings",
+    "recruitment": "Recruitment",
+    "myRecruitment": "My openings",
+    "recruitmentSettings": "Recruitment settings"
   },
   "language": {
     "label": "Language",
@@ -497,7 +500,10 @@
       "attendance_correction_item": "Requested change",
       "sso_client": "Connected app",
       "sso_app_role": "App role",
-      "sso_role_assignment": "App role assignment"
+      "sso_role_assignment": "App role assignment",
+      "recruitment_opening": "Opening",
+      "recruitment_policy": "Recruitment policy",
+      "recruitment_rejection_reason": "Rejection reason"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -809,6 +815,25 @@
         "user_id": "User",
         "assigned_by": "Assigned by",
         "assigned_at": "Assigned at"
+      },
+      "recruitment_opening": {
+        "reference": "Reference",
+        "title": "Job title",
+        "org_unit_id": "Unit",
+        "site_id": "Site",
+        "contract_type": "Contract type",
+        "posts": "Posts",
+        "hired_count": "Posts filled",
+        "justification": "Justification",
+        "target_date": "Target date",
+        "anem_reference": "ANEM offer reference",
+        "status": "Status",
+        "requested_by": "Requested by",
+        "requested_at": "Requested on",
+        "opened_at": "Opened on",
+        "closed_at": "Closed on",
+        "closed_by": "Closed by",
+        "close_reason": "Reason for closing"
       }
     },
     "events": {
@@ -875,6 +900,36 @@
         "client_secret_rotated": "Secret of app {{clientId}} regenerated",
         "role_assigned": "App role “{{roleCode}}” assigned ({{clientId}})",
         "role_removed": "App role “{{roleCode}}” removed ({{clientId}})"
+      },
+      "recruitment": {
+        "candidate_created": "Candidate record created",
+        "candidate_updated": "Candidate record changed",
+        "candidate_deleted": "Candidate record deleted",
+        "application_created": "Application recorded",
+        "application_updated": "Application changed",
+        "stage_changed": {
+          "received": "Application moved to \"Received\"",
+          "shortlisted": "Application moved to \"Shortlisted\"",
+          "interview": "Application moved to \"Interview\"",
+          "offer": "Application moved to \"Offer\"",
+          "hired": "Hire recorded",
+          "rejected": "Application rejected",
+          "withdrawn": "Withdrawal recorded",
+          "unknown": "Application stage changed",
+          "auto_opening_filled": "Application closed: post filled",
+          "auto_opening_closed": "Application closed: recruitment closed",
+          "auto_hire_undone": "Application restored: hire undone",
+          "auto_opening_reopened": "Application restored: recruitment reopened",
+          "auto_interview_scheduled": "Application moved to \"Interview\": interview scheduled"
+        },
+        "salary_changed": "Application salary changed",
+        "note_added": "Note added",
+        "note_deleted": "Note deleted",
+        "file_added": "File added",
+        "file_deleted": "File deleted",
+        "file_downloaded": "File downloaded",
+        "candidate_erased": "Data erased on request ({{applications}} application(s), {{files}} file(s))",
+        "purged": "{{applications}} application(s) anonymised (retention period)"
       }
     },
     "values": {
@@ -1444,7 +1499,9 @@
         "escalated": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, went straight to the HR step (no manager available).",
         "assigned_document": "“{{documentType}}” request to handle: {{employeeName}}.",
         "assigned_attendance": "Attendance correction to handle: {{employeeName}} ({{date}}).",
-        "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available)."
+        "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available).",
+        "assigned_recruitment": "Opening request to approve: {{title}} ({{reference}}, {{unitName}}).",
+        "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available)."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1460,6 +1517,10 @@
       "attendance": {
         "correction_approved": "Your attendance correction for {{date}} was approved.",
         "correction_rejected": "Your attendance correction for {{date}} was rejected."
+      },
+      "recruitment": {
+        "opening_approved": "Your opening request {{title}} ({{reference}}) was approved by {{actorName}}.",
+        "opening_rejected": "Your opening request {{title}} ({{reference}}) was rejected by {{actorName}}."
       }
     },
     "typesNamed": {
@@ -1490,6 +1551,10 @@
       "attendance": {
         "correction_approved": "My attendance correction is approved",
         "correction_rejected": "My attendance correction is rejected"
+      },
+      "recruitment": {
+        "opening_approved": "My opening request is approved",
+        "opening_rejected": "My opening request is rejected"
       }
     }
   },
@@ -2713,6 +2778,394 @@
       "roleInUse": "This role is still assigned: remove those assignments before deleting it.",
       "assignSelf": "Nobody can assign or remove their own app role.",
       "assignmentDuplicate": "This user already has this role."
+    }
+  },
+  "recruitment": {
+    "status": {
+      "pending": "Awaiting approval",
+      "open": "Open",
+      "filled": "Filled",
+      "closed": "Closed",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "contractType": {
+      "cdi": "Permanent (CDI)",
+      "cdd": "Fixed-term (CDD)",
+      "pre_emploi": "Pre-employment (DAIP / CTA)",
+      "apprentissage": "Apprenticeship",
+      "stage": "Internship"
+    },
+    "stage": {
+      "received": "Received",
+      "shortlisted": "Shortlisted",
+      "interview": "Interview",
+      "offer": "Offer",
+      "hired": "Hired",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    },
+    "source": {
+      "anem": "ANEM",
+      "spontaneous": "Unsolicited application",
+      "referral": "Referral",
+      "job_board": "Job board",
+      "social": "Social media",
+      "internal": "Internal",
+      "other": "Other"
+    },
+    "fileKind": {
+      "cv": "CV",
+      "cover_letter": "Cover letter",
+      "diploma": "Diploma",
+      "id_document": "Identity document",
+      "other": "Other"
+    },
+    "autoCause": {
+      "opening_filled": "Post filled",
+      "opening_closed": "Recruitment closed",
+      "hire_undone": "Hire undone",
+      "opening_reopened": "Recruitment reopened",
+      "interview_scheduled": "Interview scheduled"
+    },
+    "fields": {
+      "reference": "Reference",
+      "title": "Job title",
+      "unit": "Unit",
+      "site": "Site",
+      "siteOfUnit": "The unit's site",
+      "contractType": "Contract type",
+      "posts": "Posts",
+      "targetDate": "Target date",
+      "status": "Status",
+      "justification": "Justification",
+      "anemReference": "ANEM offer reference",
+      "requestedBy": "Requested by",
+      "openedAt": "Opened on",
+      "closedAt": "Closed on",
+      "filledAt": "Filled on",
+      "closeReason": "Reason for closing",
+      "rejectionComment": "Reason for rejection",
+      "source": "Source",
+      "expectedSalary": "Expected salary (DZD)",
+      "stage": "Stage",
+      "opening": "Opening"
+    },
+    "openings": {
+      "title": "Recruitment",
+      "back": "Back to openings",
+      "filters": "Filter openings",
+      "filter": {
+        "active": "In progress",
+        "pending": "Awaiting approval",
+        "open": "Open",
+        "filled": "Filled",
+        "closed": "Closed",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled",
+        "all": "All"
+      },
+      "searchPlaceholder": "Title or reference",
+      "allContracts": "All contract types",
+      "total": "{{count}} opening(s)",
+      "hiredOf": "{{hired}} / {{posts}} filled",
+      "inProgress": "Applications in progress",
+      "noMatch": "No opening matches these filters.",
+      "empty": "No opening yet.",
+      "loadError": "Could not load the openings."
+    },
+    "request": {
+      "title": "Request an opening",
+      "titleHint": "The job title as it will appear in the recruitment. It cannot be changed afterwards.",
+      "unitPlaceholder": "Choose a unit",
+      "noUnit": "You head no unit: the request cannot be filed.",
+      "justificationHint": "Describe the need without naming anyone.",
+      "approvalHint": "The request goes through the approval chain before the post opens.",
+      "submit": "Send the request",
+      "sent": "Request sent: it is awaiting approval."
+    },
+    "opening": {
+      "edit": "Edit",
+      "close": "Close",
+      "closeTitle": "Close the recruitment",
+      "closeIntro": "Applications still in progress will be closed with the reason \"Recruitment closed\".",
+      "reopen": "Reopen",
+      "reopenTitle": "Reopen the recruitment",
+      "reopenIntro": "Applications closed with the recruitment will return to their previous stage.",
+      "reopenCount": "{{count}} application(s) closed with the recruitment will return to their previous stage.",
+      "tabs": "Opening sections",
+      "tab": {
+        "pipeline": "Pipeline",
+        "details": "Details",
+        "history": "History"
+      },
+      "target": "Needed by {{date}}",
+      "postsHint": "The number of posts can only be lowered ({{max}} at most): more posts need a new request.",
+      "saved": "Opening updated.",
+      "filledNow": "Opening updated: every post is filled, the recruitment is over.",
+      "closedNow": "Recruitment closed.",
+      "reopenedNow": "Recruitment reopened.",
+      "loadError": "Could not load this opening.",
+      "notFound": "This opening was not found."
+    },
+    "board": {
+      "title": "Pipeline",
+      "stages": "Stages",
+      "today": "since today",
+      "since": "for {{days}} d",
+      "hasCv": "CV attached",
+      "notes": "{{count}} note(s)",
+      "emptyColumn": "No application",
+      "final": "Finished ({{count}})",
+      "purged": "{{count}} anonymised application(s)",
+      "tooMany": "This opening has too many applications for the board: use the applications list.",
+      "loadError": "Could not load the applications."
+    },
+    "move": {
+      "to": "Move to…",
+      "toFor": "Move {{name}}'s application to…",
+      "reopen": "Reopen the application",
+      "reopenFor": "Reopen {{name}}'s application",
+      "rejectTitle": "Reject the application",
+      "withdrawTitle": "Record a withdrawal",
+      "reason": "Reason for rejection",
+      "reasonPlaceholder": "Choose a reason",
+      "reasonsError": "Could not load the rejection reasons.",
+      "comment": "Comment",
+      "commentHint": "Optional. It is erased with the application's data.",
+      "confirmReject": "Reject",
+      "confirmWithdraw": "Record the withdrawal",
+      "done": {
+        "received": "{{name}}'s application: stage \"Received\".",
+        "shortlisted": "{{name}}'s application: stage \"Shortlisted\".",
+        "interview": "{{name}}'s application: stage \"Interview\".",
+        "offer": "{{name}}'s application: stage \"Offer\".",
+        "hired": "{{name}}'s application: hire recorded.",
+        "rejected": "{{name}}'s application rejected.",
+        "withdrawn": "Withdrawal recorded for {{name}}'s application."
+      }
+    },
+    "known": {
+      "title": "Already employed by the company:",
+      "short": "Former employee",
+      "matricule": "employee no. {{matricule}}",
+      "left": "left on {{date}}",
+      "since": "employed since {{date}}",
+      "open": "Open the employee record",
+      "openEmployment": "An employment is ongoing: this person cannot be hired through this opening.",
+      "link": "Link to this person",
+      "unlink": "Unlink",
+      "linked": "Record linked to this person: a hire will be a rehire.",
+      "unlinked": "Link removed."
+    },
+    "add": {
+      "title": "Add an application",
+      "step": "step {{step}} of {{count}}",
+      "identityHint": "Enter the NIN, e-mail or phone: an existing record is looked up automatically.",
+      "matchesFound": "Existing application: {{count}} record(s) match these details.",
+      "matchedOn": {
+        "nin": "same NIN",
+        "email": "same e-mail",
+        "phone": "same phone",
+        "name_birth": "same name and birth date"
+      },
+      "useExisting": "Use this record",
+      "orNew": "Or continue to create a new record.",
+      "next": "Continue",
+      "usingExisting": "Existing record:",
+      "newRecord": "Enter a new record",
+      "back": "Edit identity",
+      "noticeHint": "Date the information notice was handed over.",
+      "cv": "CV (optional)",
+      "saving": "Saving…",
+      "saveAnyway": "Save anyway",
+      "duplicateContact": "Another record already has this e-mail or phone. Check, then save anyway if they really are two people.",
+      "created": "{{name}}'s application added.",
+      "createdWithoutCv": "{{name}}'s application added, but the CV could not be stored: add it from the record.",
+      "openCandidate": "Open the record"
+    },
+    "candidate": {
+      "identity": "Identity and contact details",
+      "edit": "Edit",
+      "sexUnknown": "Not specified",
+      "sex": {
+        "F": "Female",
+        "M": "Male"
+      },
+      "email": "E-mail",
+      "phone": "Phone",
+      "informedOn": "Information notice handed over on",
+      "notInformed": "Not recorded.",
+      "arabicName": "Name in Arabic",
+      "createdAt": "Record created on",
+      "saved": "Record updated.",
+      "loadError": "Could not load this record.",
+      "notFound": "This record was not found (it may have been erased)."
+    },
+    "candidates": {
+      "title": "Applications",
+      "back": "Back to applications",
+      "filters": "Filter applications",
+      "searchPlaceholder": "Name, e-mail, phone or NIN",
+      "state": "State",
+      "states": {
+        "active": "In progress",
+        "final": "Finished",
+        "all": "All"
+      },
+      "allStages": "All stages",
+      "allOpenings": "All openings",
+      "idle": "No movement for {{months}} months",
+      "total": "{{count}} application(s)",
+      "name": "Name",
+      "stageSince": "In this stage",
+      "noMatch": "No application matches these filters.",
+      "empty": "No application in progress.",
+      "loadError": "Could not load the applications."
+    },
+    "application": {
+      "title": "Application",
+      "choose": "Application shown",
+      "createdAt": "Received on",
+      "decidedAt": "Decided on",
+      "salaryHidden": "Salary hidden",
+      "edit": "Edit the application",
+      "saved": "Application updated.",
+      "stages": "Stage history",
+      "created": "Application recorded",
+      "loadError": "Could not load this application."
+    },
+    "notes": {
+      "title": "HR notes",
+      "add": "New note",
+      "hint": "Visible to HR only. Notes are erased with the application's data.",
+      "submit": "Add the note",
+      "delete": "Delete",
+      "empty": "No note."
+    },
+    "files": {
+      "title": "Files",
+      "uploadTitle": "Add a file",
+      "kind": "Kind of file",
+      "hint": "PDF, JPEG or PNG, {{max}} at most.",
+      "empty": "No file.",
+      "duplicate": "This file is already attached to this record.",
+      "deleteTitle": "Delete the file",
+      "deleteIntro": "The file is deleted for good."
+    },
+    "erase": {
+      "action": "Erase the data",
+      "title": "Erase this person's data",
+      "intro": "The identity, contact details, files, notes and comments of every application will be erased. Only an anonymous count is kept.",
+      "warning": "This cannot be undone.",
+      "confirm": "Erase permanently",
+      "done": "The data has been erased."
+    },
+    "mine": {
+      "title": "My openings",
+      "loadError": "Could not load your openings.",
+      "empty": "No opening request.",
+      "cancel": "Cancel the request",
+      "cancelled": "Request cancelled.",
+      "headHint": "Applications to your units' openings, by stage. Files stay available while the application is in progress.",
+      "noApplications": "No application yet."
+    },
+    "tasks": {
+      "title": "Opening request",
+      "approveHint": "Approving sends the request to the next step; at the last step the post opens for recruitment.",
+      "commentHint": "Explain the rejection: the person who filed the request will see this comment."
+    },
+    "settings": {
+      "title": "Recruitment settings",
+      "saved": "Settings saved.",
+      "loadError": "Could not load the settings.",
+      "tab": {
+        "reasons": "Rejection reasons",
+        "policy": "Policy"
+      },
+      "reasons": {
+        "add": "Add a reason",
+        "edit": "Edit",
+        "editNamed": "Edit the reason \"{{name}}\"",
+        "name": "Reason",
+        "code": "Code",
+        "codeHint": "Lower-case letters, digits and \"_\", 2 to 40 characters, starting with a letter. The code cannot change afterwards.",
+        "codeTaken": "This code is already used.",
+        "labelFr": "Label (French)",
+        "labelAr": "Label (Arabic)",
+        "labelEn": "Label (English)",
+        "order": "Order",
+        "active": "Offered when rejecting",
+        "system": "System",
+        "automatic": "Automatic",
+        "isActive": "Active",
+        "isInactive": "Inactive"
+      },
+      "policy": {
+        "retention": "Data retention after the decision (months)",
+        "retentionHint": "From {{min}} to {{max}} months. After that, the data of finished applications is erased.",
+        "workflow": "Approval chain for opening requests",
+        "workflowHint": "The choice applies to new requests.",
+        "workflows": {
+          "manager_then_hr": "Manager, then HR",
+          "hr_only": "HR only"
+        }
+      }
+    },
+    "notice": {
+      "link": "Information notice (Law 18-07)",
+      "title": "Information notice for candidates",
+      "print": "Print",
+      "hint": "To hand to every candidate. The text is printed in French and Arabic.",
+      "headingFr": "Information sur le traitement de vos données personnelles",
+      "headingAr": "إعلام حول معالجة المعطيات ذات الطابع الشخصي",
+      "textFr": "Les informations de votre candidature (identité, coordonnées, CV et pièces jointes, appréciations des entretiens) sont enregistrées par {{company}} pour la gestion de ce recrutement. Elles ne sont consultées que par le service des ressources humaines et les personnes chargées des entretiens. Si la candidature n'est pas retenue, elles sont effacées {{months}} mois après la décision. En cas d'embauche, elles sont versées au dossier du personnel. Vous pouvez demander à les consulter, à les faire rectifier ou effacer auprès du service des ressources humaines (loi n° 18-07 du 10 juin 2018).",
+      "textAr": "تُسجَّل معلومات ملف الترشح (الهوية، بيانات الاتصال، السيرة الذاتية والوثائق المرفقة، تقييمات المقابلات) من طرف {{company}} لغرض تسيير عملية التوظيف هذه. لا يطّلع عليها إلا مصلحة الموارد البشرية وأعضاء لجنة المقابلة. في حال عدم قبول الترشح، تُحذف هذه المعلومات بعد {{months}} شهرا من تاريخ القرار. وفي حال التوظيف، تُحفظ ضمن ملف المستخدَمين. يمكن طلب الاطلاع عليها أو تصحيحها أو حذفها لدى مصلحة الموارد البشرية (القانون رقم 18-07 المؤرخ في 10 يونيو 2018)."
+    },
+    "home": {
+      "open": "open opening(s)",
+      "stage": {
+        "received": "received",
+        "shortlisted": "shortlisted",
+        "interview": "in interview",
+        "offer": "at offer"
+      },
+      "minePending": "{{count}} request(s) awaiting approval"
+    },
+    "errors": {
+      "required": "This field is required.",
+      "tooShort": "At least {{requiredLength}} characters.",
+      "tooLong": "At most {{requiredLength}} characters.",
+      "range": "A whole number between {{min}} and {{max}}.",
+      "date": "Invalid date.",
+      "past": "The date cannot be in the past.",
+      "future": "The date cannot be in the future.",
+      "nin": "18 digits expected.",
+      "email": "Invalid e-mail address.",
+      "pattern": "Invalid format.",
+      "unitNotFound": "Unit not found.",
+      "unitForbidden": "You cannot request an opening for this unit.",
+      "siteNotFound": "Site not found.",
+      "postsIncrease": "The number of posts cannot be raised: file a new request.",
+      "postsBelowHired": "The number of posts cannot be lower than the hires already made.",
+      "reasonInactive": "This reason is no longer offered: choose another one.",
+      "ninDuplicate": "A record already has this NIN: use the existing record.",
+      "emailDuplicate": "Another record already has this e-mail.",
+      "phoneDuplicate": "Another record already has this phone.",
+      "candidateGone": "The chosen record was not found: enter a new record.",
+      "personNotFound": "This person was not found."
+    },
+    "problems": {
+      "stageChanged": "This application was changed in the meantime. Please refresh.",
+      "openingNotOpen": "This opening is no longer open: its applications cannot be changed.",
+      "openingNotClosed": "This recruitment is not closed.",
+      "notCancellable": "This request can no longer be cancelled: it has already been handled.",
+      "noPostLeft": "Every post is filled: the recruitment cannot be reopened.",
+      "alreadyApplied": "This person already has an application for this opening.",
+      "applicationActive": "An application is still in progress: record a rejection or a withdrawal first.",
+      "fileLimit": "This record has reached the maximum number of files.",
+      "salaryForbidden": "You are not allowed to enter the expected salary.",
+      "gone": "This item was not found: it may have been deleted in the meantime."
     }
   }
 }

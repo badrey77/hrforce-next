@@ -1,0 +1,83 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/me/recruitment">{{ t('recruitment.mine.title') }}</a></p>
+  @if (opening.hasValue()) {
+    @let o = opening.value();
+    <header class="page-header">
+      <h1>
+        <bdi>{{ o.title }}</bdi>
+        &ngsp;<span class="code muted" dir="ltr">{{ o.reference }}</span>
+      </h1>
+      @if (o._actions.includes('cancel')) {
+        <button class="btn secondary" type="button" data-action="cancel-request" [disabled]="busy()" (click)="cancel(o)">{{ t('recruitment.mine.cancel') }}</button>
+      }
+    </header>
+    @if (created() && o.status === 'pending') {
+      <p class="feedback" role="status" data-feedback="created">{{ t('recruitment.request.sent') }}</p>
+    }
+    @if (feedback(); as key) {
+      <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+    }
+    @if (actionError(); as key) {
+      <p class="form-error" role="alert" data-error="action" [appRevealAlert]="key">{{ t(key) }}</p>
+    }
+
+    @if (o.workflow && (o.status === 'pending' || o.status === 'rejected' || o.status === 'cancelled')) {
+      <section class="panel" aria-labelledby="my-opening-steps-title" data-section="approval">
+        <h2 id="my-opening-steps-title">{{ t('workflow.title') }}</h2>
+        <app-workflow-stepper [progress]="o.workflow" [history]="o.history" />
+      </section>
+    }
+
+    <section class="panel" aria-labelledby="my-opening-facts-title">
+      <h2 id="my-opening-facts-title">{{ t('recruitment.opening.tab.details') }}</h2>
+      <app-opening-facts [opening]="o" [history]="o.history" />
+    </section>
+
+    @if (groups(); as stages) {
+      <section aria-labelledby="my-opening-apps-title" data-section="applications">
+        <h2 id="my-opening-apps-title">{{ t('recruitment.candidates.title') }}</h2>
+        <p class="field-hint">{{ t('recruitment.mine.headHint') }}</p>
+        @for (group of stages; track group.stage) {
+          <h3 [attr.data-stage]="group.stage">{{ t('recruitment.stage.' + group.stage) }} <span class="muted">({{ group.applications.length }})</span></h3>
+          <ul class="card-list">
+            @for (a of group.applications; track a.id) {
+              <li [attr.data-application]="a.id">
+                <p class="inline-actions">
+                  <strong><bdi>{{ a.candidate | displayName: lang() }}</bdi></strong>
+                  @let d = days(a.stageSince);
+                  <span class="muted">{{ d === 0 ? t('recruitment.board.today') : t('recruitment.board.since', { days: d }) }}</span>
+                </p>
+                @if (a.files.length) {
+                  <ul class="inline-actions" [attr.aria-label]="t('recruitment.files.title')">
+                    @for (f of a.files; track f.id) {
+                      <li>
+                        <button class="btn secondary" type="button" data-action="download-file" [disabled]="downloading() !== null"
+                          [attr.aria-label]="t('documents.file.downloadNamed', { title: f.title })" (click)="download(a, f)">
+                          {{ t('recruitment.fileKind.' + f.kind) }} ({{ badge(f.mime) }})
+                        </button>
+                        @if (fileError()?.id === f.id) {
+                          <span class="form-error" role="alert" data-error="file">{{ t(fileError()?.key ?? 'documents.file.downloadError') }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </li>
+            }
+          </ul>
+        } @empty {
+          <p class="muted" data-state="no-applications">{{ t('recruitment.mine.noApplications') }}</p>
+        }
+      </section>
+    }
+  } @else if (opening.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'recruitment.opening.notFound' : errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="opening.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

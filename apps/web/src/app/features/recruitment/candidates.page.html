@@ -1,0 +1,143 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/recruitment">{{ t('recruitment.openings.back') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('recruitment.candidates.title') }}</h1>
+  </header>
+  @if (erased()) {
+    <p class="feedback" role="status" data-feedback="erased">{{ t('recruitment.erase.done') }}</p>
+  }
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('recruitment.candidates.filters')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="cands-q">{{ t('employees.filters.search') }}</label>
+      <input id="cands-q" type="search" autocomplete="off" dir="auto" [value]="current.q"
+        [placeholder]="t('recruitment.candidates.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="cands-state">{{ t('recruitment.candidates.state') }}</label>
+      <select id="cands-state" (change)="onSelect('state', $event)">
+        @for (state of states; track state) {
+          <option [value]="state" [selected]="state === current.state">{{ t('recruitment.candidates.states.' + state) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="cands-stage">{{ t('recruitment.fields.stage') }}</label>
+      <select id="cands-stage" (change)="onSelect('stage', $event)">
+        <option value="" [selected]="current.stage === null">{{ t('recruitment.candidates.allStages') }}</option>
+        @for (stage of stages; track stage) {
+          <option [value]="stage" [selected]="stage === current.stage">{{ t('recruitment.stage.' + stage) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="cands-opening">{{ t('recruitment.fields.opening') }}</label>
+      <select id="cands-opening" (change)="onSelect('openingId', $event)">
+        <option value="" [selected]="current.openingId === null">{{ t('recruitment.candidates.allOpenings') }}</option>
+        @for (opening of openings(); track opening.id) {
+          <option [value]="opening.id" [selected]="opening.id === current.openingId">{{ opening.reference }} — {{ opening.title }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="cands-unit">{{ t('recruitment.fields.unit') }}</label>
+        <app-org-unit-picker inputId="cands-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="cands-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onCheck('includeSubUnits', $event)" />
+          <label for="cands-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    <div class="check">
+      <input id="cands-idle" type="checkbox" [checked]="current.idle" (change)="onCheck('idle', $event)" />
+      <label for="cands-idle">{{ t('recruitment.candidates.idle', { months: idleMonths }) }}</label>
+    </div>
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('recruitment.candidates.total', { count: list.value().total }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data cards" role="table" data-table="candidates">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('name')">
+                  <button type="button" class="sort" data-sort="name" (click)="sortBy('name')">{{ t('recruitment.candidates.name') }}</button>
+                </th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.opening') }}</th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.stage') }}</th>
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('stageSince')">
+                  <button type="button" class="sort" data-sort="stageSince" (click)="sortBy('stageSince')">{{ t('recruitment.candidates.stageSince') }}</button>
+                </th>
+                <th scope="col" role="columnheader">{{ t('recruitment.fields.source') }}</th>
+                <th scope="col" role="columnheader" [attr.aria-sort]="ariaSort('createdAt')">
+                  <button type="button" class="sort" data-sort="createdAt" (click)="sortBy('createdAt')">{{ t('recruitment.application.createdAt') }}</button>
+                </th>
+              </tr>
+            </thead>
+            <tbody role="rowgroup">
+              @for (item of items(); track item.id) {
+                <tr role="row" [attr.data-application]="item.id">
+                  <td role="cell" class="who" [attr.data-label]="t('recruitment.candidates.name')">
+                    <a [routerLink]="['/recruitment/candidates', item.candidate.id]" [queryParams]="{ application: item.id }"><bdi>{{ item.candidate | displayName: lang() }}</bdi></a>
+                    @if (item.hasCv) {
+                      <span class="badge" [attr.title]="t('recruitment.board.hasCv')">{{ t('recruitment.fileKind.cv') }}</span>
+                    }
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.opening')">
+                    <a [routerLink]="['/recruitment/openings', item.opening.id]"><bdi>{{ item.opening.title }}</bdi></a>
+                    &ngsp;<span class="code muted" dir="ltr">{{ item.opening.reference }}</span>
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.stage')">
+                    <span class="badge" [attr.data-status]="tone(item.stage)">{{ t('recruitment.stage.' + item.stage) }}</span>
+                    @if (item.rejectionReason) {
+                      <span class="muted"> {{ reasonOf(item) }}</span>
+                    }
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.candidates.stageSince')">
+                    @let d = days(item.stageSince);
+                    {{ d === 0 ? t('recruitment.board.today') : t('recruitment.board.since', { days: d }) }}
+                  </td>
+                  <td role="cell" [attr.data-label]="t('recruitment.fields.source')">{{ t('recruitment.source.' + item.source) }}</td>
+                  <td role="cell" class="nowrap" [attr.data-label]="t('recruitment.application.createdAt')">{{ item.createdAt | date: 'mediumDate' : undefined : locale() }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">
+            {{ t('employees.pager.previous') }}
+          </button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">
+            {{ t('employees.pager.next') }}
+          </button>
+          <label for="cands-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="cands-page-size" (change)="onSelect('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else if (filtered()) {
+        <p class="muted" data-state="no-match">{{ t('recruitment.candidates.noMatch') }}</p>
+      } @else {
+        <p class="muted" data-state="empty">{{ t('recruitment.candidates.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

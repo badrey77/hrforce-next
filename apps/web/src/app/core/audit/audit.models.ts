@@ -22,7 +22,10 @@ export type AuditSubjectType =
   /** Attendance Phase B: a correction request's rows, items, workflow tasks and `workflow.*` events. */
   | 'attendance_correction'
   /** SSO: a connected app's rows, its roles' rows, its assignments' rows and its `sso.*` events (`sso.read` + `audit.read`). */
-  | 'sso_client';
+  | 'sso_client'
+  /** Recruitment: an opening's rows, workflow rows and events; an application's events and its candidate's. */
+  | 'recruitment_opening'
+  | 'recruitment_application';
 
 /**
  * `"<type>:<uuid>"`, e.g. `org_unit:0190…` (type one of `AuditSubjectType`). A plain `string`, not the template

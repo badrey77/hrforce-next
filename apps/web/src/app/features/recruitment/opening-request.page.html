@@ -1,0 +1,89 @@
+<ng-container *transloco="let t">
+  <p><a [routerLink]="backLink">{{ t(personal ? 'recruitment.mine.title' : 'recruitment.openings.back') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('recruitment.request.title') }}</h1>
+  </header>
+
+  @let c = form.controls;
+  <form class="panel" [formGroup]="form" (ngSubmit)="submit()" novalidate data-form="opening-request">
+    @if (formError(); as error) {
+      <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+    }
+
+    <div class="field">
+      <label for="open-title">{{ t('recruitment.fields.title') }}</label>
+      <input id="open-title" type="text" formControlName="title" dir="auto" required
+        [attr.aria-invalid]="c.title.invalid && c.title.touched" aria-describedby="open-title-hint open-title-error" />
+      <p class="field-hint" id="open-title-hint">{{ t('recruitment.request.titleHint') }}</p>
+      <app-control-error [control]="c.title" errorId="open-title-error" [keys]="errorKeys" />
+    </div>
+
+    <div class="field">
+      <label for="open-unit">{{ t('recruitment.fields.unit') }}</label>
+      @if (usePicker) {
+        <app-org-unit-picker inputId="open-unit" formControlName="orgUnitId" [invalid]="c.orgUnitId.invalid && c.orgUnitId.touched" describedBy="open-unit-error" />
+      } @else {
+        <select id="open-unit" formControlName="orgUnitId" required [attr.aria-invalid]="c.orgUnitId.invalid && c.orgUnitId.touched" aria-describedby="open-unit-error open-unit-hint">
+          <option [ngValue]="null" disabled>{{ t('recruitment.request.unitPlaceholder') }}</option>
+          @for (unit of unitOptions(); track unit.id) {
+            <option [ngValue]="unit.id">{{ unitLabel(unit) }}</option>
+          }
+        </select>
+        @if (unitsReady() && !unitOptions().length) {
+          <p class="field-hint" id="open-unit-hint" data-state="no-unit">{{ t('recruitment.request.noUnit') }}</p>
+        }
+      }
+      <app-control-error [control]="c.orgUnitId" errorId="open-unit-error" [keys]="errorKeys" />
+    </div>
+
+    @if (sites.hasValue()) {
+      <div class="field">
+        <label for="open-site">{{ t('recruitment.fields.site') }}</label>
+        <select id="open-site" formControlName="siteId" aria-describedby="open-site-error">
+          <option value="">{{ t('recruitment.fields.siteOfUnit') }}</option>
+          @for (site of sites.value().items; track site.id) {
+            <option [value]="site.id">{{ site.name }} ({{ site.code }})</option>
+          }
+        </select>
+        <app-control-error [control]="c.siteId" errorId="open-site-error" [keys]="errorKeys" />
+      </div>
+    }
+
+    <div class="grid">
+      <div class="field">
+        <label for="open-contract">{{ t('recruitment.fields.contractType') }}</label>
+        <select id="open-contract" formControlName="contractType">
+          @for (type of contractTypes; track type) {
+            <option [value]="type">{{ t('recruitment.contractType.' + type) }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="open-posts">{{ t('recruitment.fields.posts') }}</label>
+        <input id="open-posts" type="number" formControlName="posts" [min]="bounds.postsMin" [max]="bounds.postsMax" required
+          [attr.aria-invalid]="c.posts.invalid && c.posts.touched" aria-describedby="open-posts-error" />
+        <app-control-error [control]="c.posts" errorId="open-posts-error" [keys]="errorKeys" />
+      </div>
+      <div class="field">
+        <label for="open-target">{{ t('recruitment.fields.targetDate') }}</label>
+        <input id="open-target" type="date" formControlName="targetDate" required
+          [attr.aria-invalid]="c.targetDate.invalid && c.targetDate.touched" aria-describedby="open-target-error" />
+        <app-control-error [control]="c.targetDate" errorId="open-target-error" [keys]="errorKeys" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="open-justification">{{ t('recruitment.fields.justification') }}</label>
+      <textarea id="open-justification" formControlName="justification" rows="5" dir="auto" required
+        [attr.aria-invalid]="c.justification.invalid && c.justification.touched" aria-describedby="open-justification-hint open-justification-error"></textarea>
+      <p class="field-hint" id="open-justification-hint">{{ t('recruitment.request.justificationHint') }}</p>
+      <app-control-error [control]="c.justification" errorId="open-justification-error" [keys]="errorKeys" />
+    </div>
+
+    <p class="field-hint">{{ t('recruitment.request.approvalHint') }}</p>
+    <div class="form-actions">
+      <button class="btn" type="submit" data-action="submit-request" [disabled]="saving()">{{ t('recruitment.request.submit') }}</button>
+      <a class="btn secondary" [routerLink]="backLink">{{ t('common.cancel') }}</a>
+    </div>
+  </form>
+</ng-container>

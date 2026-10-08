@@ -18,6 +18,8 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'document.rejected': true,
   'attendance.correction_approved': false,
   'attendance.correction_rejected': true,
+  'recruitment.opening_approved': true,
+  'recruitment.opening_rejected': true,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -44,6 +46,8 @@ export interface LinkSource {
  *   document.ready           → /me/documents?document=<issued document id>
  *   document.rejected        → /me/documents?request=<document request id>
  *   attendance_correction    → /me/attendance?correction=<id> (approved / rejected / escalated: the employee's own)
+ *   recruitment_opening      → /me/recruitment/openings/<id> (approved / rejected / escalated: the requester's view,
+ *                              which every requester reaches, HR included)
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
@@ -53,6 +57,7 @@ export function linkOf(n: LinkSource): string {
   if (n.subjectType === 'issued_document') return `/me/documents?document=${id}`;
   if (n.subjectType === 'document_request') return `/me/documents?request=${id}`;
   if (n.subjectType === 'attendance_correction') return `/me/attendance?correction=${id}`;
+  if (n.subjectType === 'recruitment_opening') return `/me/recruitment/openings/${id}`;
   return '/notifications';
 }
 

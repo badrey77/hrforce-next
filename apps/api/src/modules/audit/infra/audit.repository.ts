@@ -139,6 +139,19 @@ export class AuditRepository {
     return rows[0];
   }
 
+  /** The unit of a job opening, or of an application's opening (decides who may see its history). undefined = unknown id. */
+  async recruitmentUnit(companyId: string, type: 'recruitment_opening' | 'recruitment_application', id: string): Promise<string | undefined> {
+    const { rows } =
+      type === 'recruitment_opening'
+        ? await sql<{ unitId: string }>`select o.org_unit_id as "unitId" from recruitment_opening o where o.company_id = ${companyId}::uuid and o.id = ${id}::uuid`.execute(currentTx())
+        : await sql<{ unitId: string }>`
+            select o.org_unit_id as "unitId"
+              from recruitment_application a
+              join recruitment_opening o on o.company_id = a.company_id and o.id = a.opening_id
+             where a.company_id = ${companyId}::uuid and a.id = ${id}::uuid`.execute(currentTx());
+    return rows[0]?.unitId;
+  }
+
   /** Columns currently masked, per table. */
   async maskedColumns(): Promise<Map<string, Set<string>>> {
     const rows = await currentTx().selectFrom('audit.masked_column').select(['table_name', 'column_name']).execute();
@@ -154,7 +167,7 @@ export class AuditRepository {
   async timeline(
     companyId: string,
     subject: TimelineSubject,
-    options: { cursor: TimelineCursor | null; limit: number; unitScope: UnitIdQuery; medicalFiles?: boolean },
+    options: { cursor: TimelineCursor | null; limit: number; unitScope: UnitIdQuery; medicalFiles?: boolean; recruitmentSalary?: boolean },
   ): Promise<TimelineRow[]> {
     const changes = this.changeFilter(companyId, subject, options.unitScope, options.medicalFiles ?? false);
     const after = options.cursor
@@ -184,7 +197,7 @@ export class AuditRepository {
         select 1 as kind, e.id, e.at, ${AT_MICROS('e.at')} as at_micros, e.actor_user_id, e.request_id,
                null, null, null, null, null, e.type, e.data
           from audit.event e
-         where e.company_id = ${companyId}::uuid and (${this.eventSubject(companyId, subject, options.medicalFiles ?? false)})
+         where e.company_id = ${companyId}::uuid and (${this.eventSubject(companyId, subject, options.medicalFiles ?? false, options.recruitmentSalary ?? false)})
            and (${this.eventFilter(options.unitScope)})
       ) x
       where ${after}
@@ -222,7 +235,7 @@ export class AuditRepository {
    * Which events belong to the subject (alias `e`): those about it, plus (employee) those about its leave requests,
    * its issued documents, its self-service document requests and its employee files (medical ones per `medicalFiles`).
    */
-  private eventSubject(companyId: string, subject: TimelineSubject, medicalFiles: boolean): RawBuilder<boolean> {
+  private eventSubject(companyId: string, subject: TimelineSubject, medicalFiles: boolean, recruitmentSalary = false): RawBuilder<boolean> {
     const own = sql<boolean>`(e.subject_type = ${subject.type} and e.subject_id = ${subject.id}::uuid)`;
     if (subject.type === 'attendance_correction') {
       // its own events (correction and item events, workflow.*) + the events of the punches it added or voided
@@ -234,6 +247,14 @@ export class AuditRepository {
       // its own events (secret rotations) + the sso.* events naming its client id (sign-ins, role assignments)
       return sql<boolean>`(${own} or (e.type like 'sso.%' and e.data ->> 'clientId' = (
         select c.client_id from sso_client c where c.company_id = ${companyId}::uuid and c.id = ${subject.id}::uuid)))`;
+    }
+    if (subject.type === 'recruitment_application') {
+      // its own events (created, stage changes, notes, salary) + those of its candidate (identity edits, files) while
+      // the application still has one: a purged application keeps its own events only. Without recruitment.salary.read
+      // the salary events are left out (their existence says a salary was entered).
+      const salary = recruitmentSalary ? sql`` : sql`and e.type <> 'recruitment.salary_changed'`;
+      return sql<boolean>`((${own} or (e.subject_type = 'recruitment_candidate' and e.subject_id = (
+        select a.candidate_id from recruitment_application a where a.company_id = ${companyId}::uuid and a.id = ${subject.id}::uuid))) ${salary})`;
     }
     if (subject.type !== 'employee') return own;
     return sql<boolean>`(${own} or (e.subject_type = 'leave_request' and e.subject_id in (
@@ -319,6 +340,19 @@ export class AuditRepository {
                 select t.id from workflow_task t
                   join workflow_instance i on i.company_id = t.company_id and i.id = t.instance_id
                  where t.company_id = ${companyId}::uuid and i.subject_type = 'attendance_correction' and i.subject_id = ${id}::uuid))`;
+      case 'recruitment_opening':
+        // the opening's rows, its workflow instance and that instance's tasks
+        return sql<boolean>`(c.table_name = 'recruitment_opening' and c.row_id = ${id}::uuid)
+          or (c.table_name = 'workflow_instance' and c.row_id in (
+                select i.id from workflow_instance i
+                 where i.company_id = ${companyId}::uuid and i.subject_type = 'recruitment_opening' and i.subject_id = ${id}::uuid))
+          or (c.table_name = 'workflow_task' and c.row_id in (
+                select t.id from workflow_task t
+                  join workflow_instance i on i.company_id = t.company_id and i.id = t.instance_id
+                 where t.company_id = ${companyId}::uuid and i.subject_type = 'recruitment_opening' and i.subject_id = ${id}::uuid))`;
+      case 'recruitment_application':
+        // candidate data is audited as events only (migration 0019): no change rows
+        return sql<boolean>`false`;
       case 'attendance_device':
         // the kiosk's rows (the heartbeat is audit-exempt; the credential and pairing-code hashes are masked)
         return sql<boolean>`c.table_name = 'attendance_device' and c.row_id = ${id}::uuid`;

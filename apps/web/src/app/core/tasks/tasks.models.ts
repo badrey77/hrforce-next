@@ -17,6 +17,7 @@ import type { CorrectionChange, DayStatus, PunchTime } from '../attendance/atten
 import type { NamePair } from '../employees/employees.models';
 import type { DocumentLanguage } from '../documents/documents.models';
 import type { Labels, LeaveEmployee } from '../leave/leave.models';
+import type { OpeningTaskSummary } from '../recruitment/recruitment.models';
 
 export interface DocumentTaskSubject {
   readonly type: 'document_request';
@@ -50,7 +51,7 @@ export interface PurgedCorrectionTaskSubject {
   readonly id?: string;
 }
 
-export type TaskSubject = LeaveTaskSubject | DocumentTaskSubject | CorrectionTaskSubject | PurgedCorrectionTaskSubject;
+export type TaskSubject = LeaveTaskSubject | DocumentTaskSubject | CorrectionTaskSubject | PurgedCorrectionTaskSubject | OpeningTaskSummary;
 
 /** The person a task is about, or `null` for a purged subject (the only kind without one). */
 export function subjectPerson(subject: TaskSubject): NamePair | null {

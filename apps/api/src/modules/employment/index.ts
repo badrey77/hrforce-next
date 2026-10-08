@@ -2,7 +2,7 @@
 export { EmploymentModule } from './employment.module.js';
 export { EmployeesService, EMPLOYEE_PERMISSIONS } from './application/employees.service.js';
 export { EmploymentClock } from './application/employment-clock.js';
-export type { EmployeeDetail, EmployeeListItem, EmployeeListView } from './application/employee-views.js';
+export type { EmployeeDetail, EmployeeListItem, EmployeeListView, KnownPerson, NamePair, SiteRef, UnitRef } from './application/employee-views.js';
 export {
   demoEmployees,
   seedDemoEmployees,

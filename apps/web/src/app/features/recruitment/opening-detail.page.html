@@ -1,0 +1,160 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/recruitment">{{ t('recruitment.openings.back') }}</a></p>
+  @if (opening.hasValue()) {
+    @let o = opening.value();
+    <header class="page-header">
+      <h1>
+        <bdi>{{ o.title }}</bdi>
+        &ngsp;<span class="code muted" dir="ltr">{{ o.reference }}</span>
+      </h1>
+      <div class="page-actions">
+        @if (can(o, 'update')) {
+          <button class="btn secondary" type="button" data-action="edit" (click)="openEdit(o)">{{ t('recruitment.opening.edit') }}</button>
+        }
+        @if (can(o, 'close')) {
+          <button class="btn secondary" type="button" data-action="close" (click)="openClose()">{{ t('recruitment.opening.close') }}</button>
+        }
+        @if (can(o, 'reopen')) {
+          <button class="btn secondary" type="button" data-action="reopen" (click)="openReopen(o)">{{ t('recruitment.opening.reopen') }}</button>
+        }
+      </div>
+    </header>
+
+    <p class="inline-actions" data-panel="summary">
+      <span class="badge" [attr.data-status]="tone(o.status)" data-field="status">{{ t('recruitment.status.' + o.status) }}</span>
+      <span><bdi>{{ o.unit | displayName: lang() }}</bdi></span>
+      <span data-field="posts">{{ t('recruitment.openings.hiredOf', { hired: o.hiredCount, posts: o.posts }) }}</span>
+      <span>{{ t('recruitment.opening.target', { date: (o.targetDate | date: 'mediumDate' : undefined : locale()) }) }}</span>
+    </p>
+
+    @if (created() && o.status === 'pending') {
+      <p class="feedback" role="status" data-feedback="created">{{ t('recruitment.request.sent') }}</p>
+    }
+    @if (feedback(); as key) {
+      <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+    }
+    @if (actionError(); as key) {
+      <p class="form-error" role="alert" data-error="action" [appRevealAlert]="key">{{ t(key) }}</p>
+    }
+
+    @if ((o.status === 'pending' || o.status === 'rejected') && o.workflow) {
+      <section class="panel" aria-labelledby="opening-steps-title" data-section="approval">
+        <h2 id="opening-steps-title">{{ t('workflow.title') }}</h2>
+        <app-workflow-stepper [progress]="o.workflow" [history]="o.history" />
+        @if (o.rejectionComment) {
+          <p class="warning" data-field="rejection-comment"><bdi>{{ o.rejectionComment }}</bdi></p>
+        }
+      </section>
+    }
+
+    <div class="tabs" role="tablist" [attr.aria-label]="t('recruitment.opening.tabs')">
+      @for (name of tabs(); track name) {
+        <button type="button" role="tab" [id]="'opening-tab-' + name" [attr.data-tab]="name" [attr.aria-selected]="active() === name" aria-controls="opening-panel" (click)="selectTab(name)">
+          {{ t('recruitment.opening.tab.' + name) }}
+        </button>
+      }
+    </div>
+    <div id="opening-panel" role="tabpanel" [attr.aria-labelledby]="'opening-tab-' + active()">
+      @switch (active()) {
+        @case ('pipeline') {
+          <app-pipeline-board [openingId]="o.id" [canAdd]="can(o, 'add_application')" (changed)="opening.reload()" />
+        }
+        @case ('details') {
+          <app-opening-facts [opening]="o" [history]="o.history" />
+        }
+        @case ('history') {
+          <app-timeline [subject]="'recruitment_opening:' + o.id" [resolver]="auditNames" />
+        }
+      }
+    </div>
+
+    <dialog #dialog class="modal" aria-labelledby="opening-dialog-title" (close)="onDialogClosed()">
+      @switch (dialogKind()) {
+        @case ('edit') {
+          @let c = editForm.controls;
+          <form [formGroup]="editForm" (ngSubmit)="saveEdit(o)" novalidate data-form="edit-opening">
+            <h2 id="opening-dialog-title">{{ t('recruitment.opening.edit') }}</h2>
+            @if (formError(); as error) {
+              <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+            }
+            <div class="field">
+              <label for="edit-target">{{ t('recruitment.fields.targetDate') }}</label>
+              <input id="edit-target" type="date" formControlName="targetDate" required [attr.aria-invalid]="c.targetDate.invalid && c.targetDate.touched" aria-describedby="edit-target-error" />
+              <app-control-error [control]="c.targetDate" errorId="edit-target-error" [keys]="errorKeys" />
+            </div>
+            @if (sites.hasValue()) {
+              <div class="field">
+                <label for="edit-site">{{ t('recruitment.fields.site') }}</label>
+                <select id="edit-site" formControlName="siteId" aria-describedby="edit-site-error">
+                  <option value="">{{ t('recruitment.fields.siteOfUnit') }}</option>
+                  @for (site of sites.value().items; track site.id) {
+                    <option [value]="site.id">{{ site.name }} ({{ site.code }})</option>
+                  }
+                </select>
+                <app-control-error [control]="c.siteId" errorId="edit-site-error" [keys]="errorKeys" />
+              </div>
+            }
+            <div class="field">
+              <label for="edit-anem">{{ t('recruitment.fields.anemReference') }}</label>
+              <input id="edit-anem" type="text" formControlName="anemReference" dir="ltr" autocomplete="off" [attr.aria-invalid]="c.anemReference.invalid && c.anemReference.touched" aria-describedby="edit-anem-error" />
+              <app-control-error [control]="c.anemReference" errorId="edit-anem-error" [keys]="errorKeys" />
+            </div>
+            <div class="field">
+              <label for="edit-posts">{{ t('recruitment.fields.posts') }}</label>
+              <input id="edit-posts" type="number" formControlName="posts" [min]="postsBounds().min" [max]="postsBounds().max" required
+                [attr.aria-invalid]="c.posts.invalid && c.posts.touched" aria-describedby="edit-posts-hint edit-posts-error" />
+              <p class="field-hint" id="edit-posts-hint">{{ t('recruitment.opening.postsHint', { max: postsBounds().max }) }}</p>
+              <app-control-error [control]="c.posts" errorId="edit-posts-error" [keys]="errorKeys" />
+            </div>
+            <div class="form-actions">
+              <button class="btn" type="submit" data-action="save-opening" [disabled]="saving()">{{ t('common.save') }}</button>
+              <button class="btn secondary" type="button" (click)="closeDialog()">{{ t('common.cancel') }}</button>
+            </div>
+          </form>
+        }
+        @case ('close') {
+          @let reason = closeForm.controls.reason;
+          <form [formGroup]="closeForm" (ngSubmit)="saveClose(o)" novalidate data-form="close-opening">
+            <h2 id="opening-dialog-title">{{ t('recruitment.opening.closeTitle') }}</h2>
+            <p>{{ t('recruitment.opening.closeIntro') }}</p>
+            @if (formError(); as error) {
+              <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+            }
+            <div class="field">
+              <label for="close-reason">{{ t('recruitment.fields.closeReason') }}</label>
+              <textarea id="close-reason" formControlName="reason" rows="3" dir="auto" required [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="close-reason-error"></textarea>
+              <app-control-error [control]="reason" errorId="close-reason-error" [keys]="errorKeys" />
+            </div>
+            <div class="form-actions">
+              <button class="btn danger" type="submit" data-action="confirm-close" [disabled]="saving()">{{ t('recruitment.opening.close') }}</button>
+              <button class="btn secondary" type="button" (click)="closeDialog()">{{ t('common.cancel') }}</button>
+            </div>
+          </form>
+        }
+        @case ('reopen') {
+          <h2 id="opening-dialog-title">{{ t('recruitment.opening.reopenTitle') }}</h2>
+          <p data-field="restorable" aria-live="polite">
+            @if (restorable() === null) {
+              {{ t('recruitment.opening.reopenIntro') }}
+            } @else {
+              {{ t('recruitment.opening.reopenCount', { count: restorable() }) }}
+            }
+          </p>
+          <div class="form-actions">
+            <button class="btn" type="button" data-action="confirm-reopen" [disabled]="saving()" (click)="confirmReopen(o)">{{ t('recruitment.opening.reopen') }}</button>
+            <button class="btn secondary" type="button" (click)="closeDialog()">{{ t('common.cancel') }}</button>
+          </div>
+        }
+      }
+    </dialog>
+  } @else if (opening.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'recruitment.opening.notFound' : errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="opening.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

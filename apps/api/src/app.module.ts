@@ -8,6 +8,7 @@ import { IdentityModule } from './modules/identity/index.js';
 import { LeaveModule } from './modules/leave/index.js';
 import { NotificationsModule } from './modules/notifications/index.js';
 import { OrganizationModule } from './modules/organization/index.js';
+import { RecruitmentModule } from './modules/recruitment/index.js';
 import { SsoModule } from './modules/sso/index.js';
 import { StaffingModule } from './modules/staffing/index.js';
 import { WorkflowModule } from './modules/workflow/index.js';
@@ -28,6 +29,7 @@ import { PlatformModule } from './platform/platform.module.js';
     DocumentsModule,
     AttendanceModule,
     SsoModule,
+    RecruitmentModule,
   ],
 })
 export class AppModule {}

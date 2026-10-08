@@ -372,6 +372,8 @@ describe('endpoints', () => {
       { type: 'document.rejected', email: true, default: true },
       { type: 'attendance.correction_approved', email: false, default: false },
       { type: 'attendance.correction_rejected', email: true, default: true },
+      { type: 'recruitment.opening_approved', email: true, default: true },
+      { type: 'recruitment.opening_rejected', email: true, default: true },
     ]);
     const put = await client('agent').put('/api/me/notification-preferences').send([{ type: 'leave.approved', email: false }, { type: 'task.escalated', email: true }]).expect(200);
     expect(put.body).toEqual(expect.arrayContaining([{ type: 'leave.approved', email: false, default: true }, { type: 'task.escalated', email: true, default: false }]));

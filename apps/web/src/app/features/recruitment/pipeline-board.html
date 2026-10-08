@@ -1,0 +1,104 @@
+<ng-container *transloco="let t">
+  <app-application-move (moved)="onMoved($event)" (failed)="onFailed($event)" />
+
+  <div class="toolbar">
+    <h2 id="board-title">{{ t('recruitment.board.title') }}</h2>
+    @if (canAdd() && !adding()) {
+      <button class="btn" type="button" data-action="add-application" (click)="feedback.set(null); adding.set(true)">{{ t('recruitment.add.title') }}</button>
+    }
+  </div>
+
+  @if (feedback(); as message) {
+    <p [class]="message.kind === 'ok' ? 'feedback' : 'warning'" role="status" data-feedback>
+      {{ t(message.key, message.params) }}
+      @if (message.candidateId) {
+        <a [routerLink]="['/recruitment/candidates', message.candidateId]" [queryParams]="{ application: message.applicationId }">{{ t('recruitment.add.openCandidate') }}</a>
+      }
+    </p>
+  }
+
+  @if (adding()) {
+    <app-add-application [openingId]="openingId()" (added)="onAdded($event)" (cancelled)="adding.set(false)" />
+  }
+
+  @let current = data();
+  @if (board.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(errorKey()) }}</p>
+      <button class="btn secondary" type="button" (click)="board.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (current) {
+    <!-- Phone: one stage at a time behind these tabs (hidden on wider screens, where every active column shows). -->
+    <div class="stage-tabs" role="tablist" [attr.aria-label]="t('recruitment.board.stages')">
+      @for (stage of stages; track stage) {
+        <button type="button" role="tab" [attr.data-stage-tab]="stage" [attr.aria-selected]="selected() === stage" (click)="selectStage(stage)">
+          {{ t('recruitment.stage.' + stage) }} <span class="count">{{ counts().get(stage) ?? 0 }}</span>
+        </button>
+      }
+    </div>
+
+    <ng-template #cards let-column>
+      <ul class="cards">
+        @for (card of column.cards; track card.id) {
+          <li class="card" [attr.data-card]="card.id" [attr.draggable]="canDrag && card._actions.includes('move') ? 'true' : null"
+            (dragstart)="onDragStart($event, card)" (dragend)="onDragEnd()">
+            <a class="name" [routerLink]="['/recruitment/candidates', card.candidate.id]" [queryParams]="{ application: card.id }"><bdi>{{ card.candidate | displayName: lang() }}</bdi></a>
+            <p class="meta">
+              @let d = days(card.stageSince);
+              <span data-field="since">{{ d === 0 ? t('recruitment.board.today') : t('recruitment.board.since', { days: d }) }}</span>
+              · {{ t('recruitment.source.' + card.source) }}
+            </p>
+            <p class="tags">
+              @if (card.hasCv) {
+                <span class="badge" data-tag="cv" [attr.title]="t('recruitment.board.hasCv')">{{ t('recruitment.fileKind.cv') }}</span>
+              }
+              @if (card.notes) {
+                <span class="badge" data-tag="notes">{{ t('recruitment.board.notes', { count: card.notes }) }}</span>
+              }
+              @if (card.formerEmployee) {
+                <span class="badge" data-status="pending" data-tag="former">{{ t('recruitment.known.short') }}</span>
+              }
+              @if (card.rejectionReason) {
+                <span class="muted" data-field="reason">{{ reasonOf(card) }}</span>
+              }
+            </p>
+            <app-stage-menu [targets]="card._actions.includes('move') ? card.moveTargets : []" [canReopen]="card._actions.includes('reopen')"
+              [name]="nameOf(card)" [disabled]="mover().busy()" (pick)="move(card, $event)" (reopen)="reopen(card)" />
+          </li>
+        } @empty {
+          <li class="muted" data-state="empty-column">{{ column.count ? t('common.loading') : t('recruitment.board.emptyColumn') }}</li>
+        }
+      </ul>
+    </ng-template>
+
+    <div class="board" [attr.aria-busy]="board.isLoading()" aria-labelledby="board-title">
+      @for (column of activeColumns(); track column.stage) {
+        <section class="column" [class.selected]="selected() === column.stage" [class.over]="dropStage() === column.stage" [attr.data-stage]="column.stage"
+          [attr.aria-label]="t('recruitment.stage.' + column.stage)" (dragover)="onDragOver($event, column.stage)" (drop)="onDrop($event, column.stage)">
+          <h3>{{ t('recruitment.stage.' + column.stage) }} <span class="count">{{ column.count }}</span></h3>
+          <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: column }" />
+        </section>
+      }
+    </div>
+
+    <button type="button" class="btn secondary final-toggle" data-action="toggle-final" [attr.aria-expanded]="showFinal()" (click)="showFinal.set(!showFinal())">
+      {{ t('recruitment.board.final', { count: finalCount() }) }}
+    </button>
+    @if (showFinal()) {
+      <div class="board final" data-group="final">
+        @for (column of finalColumns(); track column.stage) {
+          <section class="column" [class.selected]="selected() === column.stage" [attr.data-stage]="column.stage" [attr.aria-label]="t('recruitment.stage.' + column.stage)">
+            <h3>{{ t('recruitment.stage.' + column.stage) }} <span class="count">{{ column.count }}</span></h3>
+            <ng-container [ngTemplateOutlet]="cards" [ngTemplateOutletContext]="{ $implicit: column }" />
+          </section>
+        }
+      </div>
+    }
+
+    @if (current.purged > 0) {
+      <p class="muted" data-field="purged">{{ t('recruitment.board.purged', { count: current.purged }) }}</p>
+    }
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

@@ -62,14 +62,19 @@ export function notificationKey(
     const subjectType = notification.data?.['subjectType'];
     if (subjectType === 'document_request') suffix = '_document';
     else if (subjectType === 'attendance_correction') suffix = '_attendance';
+    else if (subjectType === 'recruitment_opening') suffix = '_recruitment';
   } else if (notification.type === 'task.escalated' && notification.subject?.type === 'attendance_correction') {
     suffix = '_attendance';
+  } else if (notification.type === 'task.escalated' && notification.subject?.type === 'recruitment_opening') {
+    suffix = '_recruitment';
   }
-  return `notifications.${aboutSomeoneElse ? 'typesNamed' : 'types'}.${notification.type}${suffix}`;
+  // An opening request is about a post, not an employee: one wording whoever reads it.
+  const named = aboutSomeoneElse && suffix !== '_recruitment';
+  return `notifications.${named ? 'typesNamed' : 'types'}.${notification.type}${suffix}`;
 }
 
 /** Every placeholder a sentence may use; missing data shows as an ellipsis rather than a raw `{{placeholder}}`. */
-const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number', 'date', 'changes'] as const;
+const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number', 'date', 'changes', 'reference', 'title', 'unitName', 'posts'] as const;
 const MISSING = '…';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -88,6 +93,8 @@ export function notificationMessage(
   }
   const arabicName = notification.data?.['employeeNameAr'];
   if (format.arabic && typeof arabicName === 'string' && arabicName.trim()) params['employeeName'] = arabicName;
+  const arabicUnit = notification.data?.['unitNameAr'];
+  if (format.arabic && typeof arabicUnit === 'string' && arabicUnit.trim()) params['unitName'] = arabicUnit;
   const documentType = notification.data?.['documentType'];
   const message = { key: notificationKey(notification), params };
   return typeof documentType === 'string' && documentType ? { ...message, documentTypeKey: `documents.typeNames.${documentType}` } : message;

@@ -351,6 +351,13 @@ export class EmployeeRepository {
     return (await query.executeTakeFirst()) !== undefined;
   }
 
+  /** nin → person id, for the NINs that belong to a person of the company. */
+  async personIdsByNin(companyId: string, nins: readonly string[]): Promise<Map<string, string>> {
+    if (nins.length === 0) return new Map();
+    const rows = await currentTx().selectFrom('person').select(['id', 'nin']).where('company_id', '=', companyId).where('nin', 'in', [...nins]).execute();
+    return new Map(rows.flatMap((r) => (r.nin ? [[r.nin, r.id] as const] : [])));
+  }
+
   // ── writes ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   async insertPerson(companyId: string, person: Omit<PersonRow, 'id'>): Promise<string> {

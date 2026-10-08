@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { filter, map, type Observable } from 'rxjs';
 import { UPLOAD_HTTP_CLIENT } from '../http/upload-http';
 import type { AppLanguage } from '../i18n/languages';
+import type { CreateEmployee } from '../employees/employees.models';
 import type { Labels } from '../leave/leave.models';
 import {
   type ApplicationDetailView,
@@ -15,16 +16,30 @@ import {
   type CandidateUploadEvent,
   type CandidateView,
   candidateParams,
+  type ComparisonView,
+  type CriterionList,
+  type CriterionPatch,
+  type CriterionView,
+  type EvaluationInput,
   type FileKind,
+  type HirePrefillView,
+  type HireResult,
+  type InterviewerOption,
+  type InterviewInput,
+  type InterviewView,
   type MatchQuery,
   type MatchResult,
   type MoveInput,
+  type MyInterviewFilter,
+  type MyInterviewList,
+  type MyInterviewView,
   type MyOpeningDetailView,
   type MyOpeningList,
   type MySummaryView,
   type NewApplication,
   type NewOpening,
   type NoteView,
+  type OfferInput,
   type OpeningDetailView,
   type OpeningPage,
   type OpeningPatch,
@@ -35,6 +50,7 @@ import {
   type ReasonList,
   type ReasonPatch,
   type ReasonView,
+  type RequestableUnitList,
   type Stage,
   type SummaryView,
 } from './recruitment.models';
@@ -76,6 +92,10 @@ export class RecruitmentApi {
       const value = id();
       return value ? `${RECRUITMENT_API_BASE}/openings/${enc(value)}` : undefined;
     });
+  }
+
+  opening(id: string): Observable<OpeningDetailView> {
+    return this.http.get<OpeningDetailView>(`${RECRUITMENT_API_BASE}/openings/${enc(id)}`);
   }
 
   summaryResource(enabled: () => boolean): HttpResourceRef<SummaryView | undefined> {
@@ -253,5 +273,112 @@ export class RecruitmentApi {
 
   updateReason(id: string, body: ReasonPatch): Observable<ReasonView> {
     return this.http.put<ReasonView>(`${RECRUITMENT_API_BASE}/rejection-reasons/${enc(id)}`, body);
+  }
+
+  // --- Evaluation criteria ---
+
+  criteriaResource(enabled: () => boolean = () => true): HttpResourceRef<CriterionList | undefined> {
+    return httpResource<CriterionList>(() => (enabled() ? `${RECRUITMENT_API_BASE}/criteria` : undefined));
+  }
+
+  createCriterion(body: { readonly code: string; readonly labels: Labels }): Observable<CriterionView> {
+    return this.http.post<CriterionView>(`${RECRUITMENT_API_BASE}/criteria`, body);
+  }
+
+  updateCriterion(id: string, body: CriterionPatch): Observable<CriterionView> {
+    return this.http.put<CriterionView>(`${RECRUITMENT_API_BASE}/criteria/${enc(id)}`, body);
+  }
+
+  setOpeningCriteria(openingId: string, criterionIds: readonly string[]): Observable<OpeningDetailView> {
+    return this.http.put<OpeningDetailView>(`${RECRUITMENT_API_BASE}/openings/${enc(openingId)}/criteria`, { criterionIds });
+  }
+
+  // --- Interviews (HR) ---
+
+  interviewers(q: string): Observable<readonly InterviewerOption[]> {
+    return this.http
+      .get<{ readonly items: readonly InterviewerOption[] }>(`${RECRUITMENT_API_BASE}/interviewers`, { params: { q } })
+      .pipe(map((answer) => answer.items));
+  }
+
+  scheduleInterview(applicationId: string, body: InterviewInput): Observable<InterviewView> {
+    return this.http.post<InterviewView>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/interviews`, body);
+  }
+
+  updateInterview(id: string, body: Partial<InterviewInput>): Observable<InterviewView> {
+    return this.http.patch<InterviewView>(`${RECRUITMENT_API_BASE}/interviews/${enc(id)}`, body);
+  }
+
+  cancelInterview(id: string, reason: string): Observable<InterviewView> {
+    return this.http.post<InterviewView>(`${RECRUITMENT_API_BASE}/interviews/${enc(id)}/cancel`, { reason });
+  }
+
+  // --- Comparison ---
+
+  /** `personal`: the unit head's route (`/me/…`, no permission), else the HR one. */
+  comparisonResource(openingId: () => string | undefined, personal: () => boolean = () => false): HttpResourceRef<ComparisonView | undefined> {
+    return httpResource<ComparisonView>(() => {
+      const value = openingId();
+      return value ? `${personal() ? ME_RECRUITMENT_BASE : RECRUITMENT_API_BASE}/openings/${enc(value)}/comparison` : undefined;
+    });
+  }
+
+  // --- The caller's interviews (an interviewer needs no permission) ---
+
+  myInterviewsResource(filterBy: () => MyInterviewFilter): HttpResourceRef<MyInterviewList | undefined> {
+    return httpResource<MyInterviewList>(() => ({ url: `${ME_RECRUITMENT_BASE}/interviews`, params: { filter: filterBy() } }));
+  }
+
+  myInterviewResource(id: () => string | undefined): HttpResourceRef<MyInterviewView | undefined> {
+    return httpResource<MyInterviewView>(() => {
+      const value = id();
+      return value ? `${ME_RECRUITMENT_BASE}/interviews/${enc(value)}` : undefined;
+    });
+  }
+
+  submitEvaluation(interviewId: string, body: EvaluationInput): Observable<MyInterviewView> {
+    return this.http.put<MyInterviewView>(`${ME_RECRUITMENT_BASE}/interviews/${enc(interviewId)}/evaluation`, body);
+  }
+
+  // --- Offers ---
+
+  makeOffer(applicationId: string, body: OfferInput & { readonly expectedStage: Stage }): Observable<ApplicationDetailView> {
+    return this.http.post<ApplicationDetailView>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/offer`, body);
+  }
+
+  updateOffer(applicationId: string, body: OfferInput): Observable<ApplicationDetailView> {
+    return this.http.put<ApplicationDetailView>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/offer`, body);
+  }
+
+  /** `decline`: the person turned the offer down (→ withdrawn). `cancel`: HR takes it back (→ interview). */
+  endOffer(applicationId: string, how: 'decline' | 'cancel', comment: string | null): Observable<ApplicationDetailView> {
+    return this.http.post<ApplicationDetailView>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/offer/${how}`, {
+      expectedStage: 'offer',
+      ...(comment ? { comment } : {}),
+    });
+  }
+
+  // --- Hire ---
+
+  hirePrefillResource(applicationId: () => string | undefined): HttpResourceRef<HirePrefillView | undefined> {
+    return httpResource<HirePrefillView>(() => {
+      const value = applicationId();
+      return value ? `${RECRUITMENT_API_BASE}/applications/${enc(value)}/hire-prefill` : undefined;
+    });
+  }
+
+  /** The body of `POST /employees` plus the stage on screen and the candidate files to copy into the employee file. */
+  hire(applicationId: string, body: CreateEmployee & { readonly expectedStage: 'offer'; readonly copyFileIds: readonly string[] }): Observable<HireResult> {
+    return this.http.post<HireResult>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/hire`, body);
+  }
+
+  undoHire(applicationId: string, reason: string): Observable<ApplicationDetailView> {
+    return this.http.post<ApplicationDetailView>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/undo-hire`, { reason });
+  }
+
+  // --- Units a head may request an opening for ---
+
+  myUnitsResource(enabled: () => boolean): HttpResourceRef<RequestableUnitList | undefined> {
+    return httpResource<RequestableUnitList>(() => (enabled() ? `${ME_RECRUITMENT_BASE}/units` : undefined));
   }
 }

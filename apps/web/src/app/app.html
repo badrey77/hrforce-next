@@ -24,10 +24,10 @@
                 routerLinkActive="active"
                 ariaCurrentWhenActive="page"
                 [routerLinkActiveOptions]="{ exact: link.exact }"
-                [attr.aria-label]="link.badge && tasks.count() ? t('nav.tasksWithCount', { count: tasks.count() }) : null"
+                [attr.aria-label]="link.badge && link.badge.count() ? t(link.badge.labelKey, { count: link.badge.count() }) : null"
                 >{{ t(link.labelKey) }}
-                @if (link.badge && tasks.count()) {
-                  <span class="count" aria-hidden="true" data-badge="tasks">{{ tasks.count() }}</span>
+                @if (link.badge && link.badge.count()) {
+                  <span class="count" aria-hidden="true" [attr.data-badge]="link.badge.name">{{ link.badge.count() }}</span>
                 }</a
               >
             </li>

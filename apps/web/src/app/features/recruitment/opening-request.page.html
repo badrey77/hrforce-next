@@ -29,8 +29,12 @@
             <option [ngValue]="unit.id">{{ unitLabel(unit) }}</option>
           }
         </select>
-        @if (unitsReady() && !unitOptions().length) {
+        @if (myUnits.error()) {
+          <p class="field-error" id="open-unit-hint" data-state="units-error">{{ t('recruitment.request.unitsError') }}</p>
+        } @else if (myUnits.hasValue() && !unitOptions().length) {
           <p class="field-hint" id="open-unit-hint" data-state="no-unit">{{ t('recruitment.request.noUnit') }}</p>
+        } @else {
+          <p class="field-hint" id="open-unit-hint">{{ t('recruitment.request.unitHint') }}</p>
         }
       }
       <app-control-error [control]="c.orgUnitId" errorId="open-unit-error" [keys]="errorKeys" />

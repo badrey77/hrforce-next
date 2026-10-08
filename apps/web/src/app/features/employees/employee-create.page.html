@@ -7,8 +7,11 @@
   turn "85000,50" into nothing).
 -->
 <ng-container *transloco="let t">
-  <p><a routerLink="/employees">{{ t('employees.detail.back') }}</a></p>
-  <h1>{{ t('employees.create.title') }}</h1>
+  @let hire = this.hire();
+  @if (!hire) {
+    <p><a routerLink="/employees">{{ t('employees.detail.back') }}</a></p>
+    <h1>{{ t('employees.create.title') }}</h1>
+  }
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     @if (formError(); as error) {
@@ -211,11 +214,18 @@
       </fieldset>
     }
 
+    <!-- Hire mode: the hire page adds its own section here (the candidate files to copy). -->
+    <ng-content />
+
     <div class="form-actions">
-      <button class="btn" type="submit" [disabled]="submitting()">
-        {{ submitting() ? t('employees.form.saving') : t('employees.create.submit') }}
+      <button class="btn" type="submit" data-action="submit-employee" [disabled]="submitting()">
+        {{ submitting() ? t('employees.form.saving') : t(hire ? 'recruitment.hire.submit' : 'employees.create.submit') }}
       </button>
-      <a class="btn secondary" routerLink="/employees">{{ t('common.cancel') }}</a>
+      @if (hire) {
+        <a class="btn secondary" [routerLink]="hire.cancelLink" [queryParams]="hire.cancelQuery">{{ t('common.cancel') }}</a>
+      } @else {
+        <a class="btn secondary" routerLink="/employees">{{ t('common.cancel') }}</a>
+      }
     </div>
   </form>
 </ng-container>

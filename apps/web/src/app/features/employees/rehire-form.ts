@@ -26,10 +26,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import type { Observable } from 'rxjs';
 import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
 import { EmployeesApi } from '../../core/employees/employees-api';
-import type { CreateEmployee, EmployeeDetail } from '../../core/employees/employees.models';
+import type { CreateEmployee } from '../../core/employees/employees.models';
 import { isApiProblemError } from '../../core/http/api-problem';
 import type { FormMessage } from '../../core/http/problem-form';
 import { OrgApi } from '../../core/org/org-api';
@@ -51,11 +52,21 @@ import {
   REHIRE_SLUGS,
 } from './employee-forms';
 import { FieldError } from './field-error';
+import type { HireMode } from './hire-mode';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** True when the problem is the API's 422 on `personId` (the person is unknown or out of the caller's scope). */
 function isPersonNotFound(error: unknown): boolean {
   return isApiProblemError(error) && error.status === 422 && (error.problem.errors ?? []).some((e) => e.field === 'personId');
+}
+
+/** What the form needs of the employment the person last held (an `EmployeeDetail` has it all). */
+export interface RehirePrevious {
+  readonly id: string;
+  readonly endDate: string | null;
+  readonly unit: { readonly id: string };
+  readonly jobTitle: string;
+  readonly person: { readonly id: string };
 }
 
 @Component({
@@ -72,7 +83,9 @@ export class RehireForm implements OnInit {
   private readonly fb = inject(NonNullableFormBuilder);
 
   /** The ended employment the page was opened from (its person is rehired). */
-  readonly previous = input.required<EmployeeDetail>();
+  readonly previous = input.required<RehirePrevious>();
+  /** Set by the hire page of a recruitment: the values start from the offer and the body goes to the hire endpoint. */
+  readonly hire = input<HireMode>();
 
   /** First allowed hire date: the day after the previous employment ended. */
   protected readonly minHireDate = computed(() => {
@@ -116,9 +129,12 @@ export class RehireForm implements OnInit {
     const previous = this.previous();
     const today = todayIso();
     const min = this.minHireDate();
+    const prefill = this.hire()?.prefill;
+    const wanted = prefill?.hireDate ?? today;
     this.form.patchValue({
-      employment: { hireDate: min && min > today ? min : today },
-      assignment: { orgUnitId: previous.unit.id, jobTitle: previous.jobTitle },
+      employment: { hireDate: min && min > wanted ? min : wanted },
+      assignment: { orgUnitId: prefill?.orgUnitId ?? previous.unit.id, siteId: prefill?.siteId ?? null, jobTitle: prefill?.jobTitle ?? previous.jobTitle },
+      salary: { baseSalary: prefill?.salary?.baseSalary ?? '' },
     });
   }
 
@@ -135,18 +151,22 @@ export class RehireForm implements OnInit {
       return;
     }
     this.submitting.set(true);
-    this.api.create(this.body()).subscribe({
+    const hire = this.hire();
+    const request$: Observable<{ readonly id: string }> = hire ? hire.submit(this.body()) : this.api.create(this.body());
+    request$.subscribe({
       next: (created) => {
         this.submitting.set(false);
         void this.router.navigate(['/employees', created.id]);
       },
       error: (error: unknown) => {
+        this.submitting.set(false);
+        // The recruitment's own refusals are shown by the hire page; everything else is an employee problem.
+        if (hire?.failed(error)) return;
         this.formError.set(
           isPersonNotFound(error)
             ? { key: 'employees.problems.notFound' }
             : employeeProblemToForm(this.form, error, REHIRE_SLUGS, CREATE_FIELD_PATHS),
         );
-        this.submitting.set(false);
       },
     });
   }

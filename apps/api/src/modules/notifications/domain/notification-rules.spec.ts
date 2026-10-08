@@ -6,7 +6,7 @@ const ID = '0190a5d0-0000-7000-8000-000000000abc';
 describe('notification rules', () => {
   it('has an e-mail default for every type (contract table)', () => {
     expect(Object.keys(EMAIL_DEFAULTS).toSorted()).toEqual([...NOTIFICATION_TYPES].toSorted());
-    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['attendance.correction_rejected', 'document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'recruitment.opening_approved', 'recruitment.opening_rejected', 'task.assigned']);
+    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['attendance.correction_rejected', 'document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'recruitment.interview_assigned', 'recruitment.interview_cancelled', 'recruitment.opening_approved', 'recruitment.opening_rejected', 'task.assigned']);
     expect(emailDefault('unknown.type')).toBe(false);
   });
 
@@ -21,6 +21,12 @@ describe('notification rules', () => {
     for (const type of ['attendance.correction_approved', 'attendance.correction_rejected', 'task.escalated']) {
       expect(linkOf({ type, subjectType: 'attendance_correction', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/attendance?correction=${ID}`);
     }
+    // an interview (recruitment.md › Notifications (Phase B)): the interviewer's page, their list once it is cancelled,
+    // and — for the HR user who scheduled it — the candidate page by ids only
+    expect(linkOf({ type: 'recruitment.interview_assigned', subjectType: 'recruitment_interview', subjectId: ID, data: {} })).toBe(`/me/interviews/${ID}`);
+    expect(linkOf({ type: 'recruitment.interview_cancelled', subjectType: 'recruitment_interview', subjectId: ID, data: {} })).toBe('/me/interviews');
+    expect(linkOf({ type: 'recruitment.evaluations_complete', subjectType: 'recruitment_interview', subjectId: ID, data: { candidateId: 'c-1', applicationId: 'a-1' } })).toBe('/recruitment/candidates/c-1?application=a-1');
+    expect(linkOf({ type: 'recruitment.evaluations_complete', subjectType: 'recruitment_interview', subjectId: ID, data: {} })).toBe('/recruitment');
     // an opening request: the requester's view, which every requester reaches (HR included)
     for (const type of ['recruitment.opening_approved', 'recruitment.opening_rejected', 'task.escalated']) {
       expect(linkOf({ type, subjectType: 'recruitment_opening', subjectId: ID, data: { audience: 'requester' } })).toBe(`/me/recruitment/openings/${ID}`);

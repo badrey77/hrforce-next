@@ -9,6 +9,8 @@ import { OpeningsService } from '../application/openings.service.js';
 import { RecruitmentSettingsService } from '../application/recruitment-settings.service.js';
 import type {
   ApplicationDetailView,
+  CriterionView,
+  RequestableUnit,
   ApplicationPage,
   BoardView,
   CandidateFileView,
@@ -30,24 +32,27 @@ import {
   CandidatesQueryDto,
   CloseOpeningDto,
   CreateApplicationDto,
+  CreateCriterionDto,
   CreateReasonDto,
   isUuid,
   LinkPersonDto,
   MatchCandidatesDto,
   MoveApplicationDto,
   NoteDto,
+  OpeningCriteriaDto,
   OpeningsQueryDto,
   PolicyDto,
   ReopenApplicationDto,
   RequestOpeningDto,
   UpdateApplicationDto,
   UpdateCandidateDto,
+  UpdateCriterionDto,
   UpdateOpeningDto,
   UpdateReasonDto,
   UploadCandidateFileDto,
 } from './recruitment.dto.js';
 
-function idParam(id: string, what: string): string {
+export function idParam(id: string, what: string): string {
   if (!isUuid(id)) throw new NotFoundException(`${what} not found`);
   return id.toLowerCase();
 }
@@ -106,6 +111,13 @@ export class RecruitmentOpeningsController {
   @RequirePermission('recruitment.manage')
   update(@Param('id') id: string, @Body() body: UpdateOpeningDto): Promise<OpeningDetailView> {
     return this.openings.update(idParam(id, 'Opening'), body);
+  }
+
+  /** The criteria interviewers score (while open, until the first evaluation). */
+  @Put('openings/:id/criteria')
+  @RequirePermission('recruitment.manage')
+  setCriteria(@Param('id') id: string, @Body() body: OpeningCriteriaDto): Promise<OpeningDetailView> {
+    return this.openings.setCriteria(idParam(id, 'Opening'), body.criterionIds);
   }
 
   @Post('openings/:id/close')
@@ -262,6 +274,24 @@ export class RecruitmentSettingsController {
     return this.settings.savePolicy(body);
   }
 
+  @Get('criteria')
+  @RequirePermission('recruitment.read')
+  criteria(): Promise<{ items: CriterionView[] }> {
+    return this.settings.criteria();
+  }
+
+  @Post('criteria')
+  @RequirePermission('recruitment.configure')
+  createCriterion(@Body() body: CreateCriterionDto): Promise<CriterionView> {
+    return this.settings.createCriterion(body);
+  }
+
+  @Put('criteria/:id')
+  @RequirePermission('recruitment.configure')
+  updateCriterion(@Param('id') id: string, @Body() body: UpdateCriterionDto): Promise<CriterionView> {
+    return this.settings.updateCriterion(idParam(id, 'Criterion'), body);
+  }
+
   @Get('rejection-reasons')
   @RequirePermission('recruitment.read')
   reasons(): Promise<{ items: ReasonView[] }> {
@@ -283,7 +313,8 @@ export class RecruitmentSettingsController {
 
 /**
  * The requester's and the unit heads' side (docs/contracts/recruitment.md › Scope › Head view): no permission — the
- * use cases answer 404 to anyone who neither requested the opening nor heads its unit (or a unit above it).
+ * use cases answer 404 to anyone who neither requested the opening nor heads its unit (or a unit above it). The file
+ * download also serves the interviewers of the application (Phase B).
  */
 @Controller('me/recruitment')
 export class MyRecruitmentController {
@@ -296,6 +327,13 @@ export class MyRecruitmentController {
   @Authenticated()
   summary(): Promise<MySummaryView> {
     return this.openings.mySummary();
+  }
+
+  /** The units the caller heads and their sub-units: what the request form offers a head (whatever org_unit.read). */
+  @Get('units')
+  @Authenticated()
+  units(): Promise<{ items: RequestableUnit[] }> {
+    return this.openings.myUnits();
   }
 
   @Get('openings')

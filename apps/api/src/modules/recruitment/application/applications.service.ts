@@ -3,11 +3,12 @@ import { AuditEvents } from '../../../platform/audit/audit-events.js';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { currentTx } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException, type FieldError } from '../../../platform/http/problem-details.js';
-import { EmployeesService } from '../../employment/index.js';
+import { EMPLOYEE_PERMISSIONS, EmployeesService } from '../../employment/index.js';
 import {
   BOARD_MAX_APPLICATIONS,
   isActiveStage,
   isFinalStage,
+  isPreOfferStage,
   moveTargets,
   phoneKey,
   RECRUITMENT_PERMISSIONS as P,
@@ -26,7 +27,9 @@ import {
   type ListedApplicationRow,
   type MatchInput,
 } from '../infra/candidates.repository.js';
+import { InterviewsRepository, type OfferRow } from '../infra/interviews.repository.js';
 import { constraintOf, emptyCounts, RecruitmentRepository } from '../infra/recruitment.repository.js';
+import { InterviewNotices, InterviewReads } from './interview-support.js';
 import { OpeningsService } from './openings.service.js';
 import { caller, RecruitmentAccess, RecruitmentClock } from './recruitment-access.js';
 import type {
@@ -40,6 +43,7 @@ import type {
   CandidateView,
   KnownPersonView,
   NoteView,
+  OfferView,
   StageEntry,
 } from './recruitment-views.js';
 import { fileView, namePair, reasonRef } from './view-helpers.js';
@@ -133,6 +137,9 @@ export class ApplicationsService {
   constructor(
     private readonly repo: CandidatesRepository,
     private readonly settings: RecruitmentRepository,
+    private readonly interviews: InterviewsRepository,
+    private readonly interviewReads: InterviewReads,
+    private readonly notices: InterviewNotices,
     private readonly openings: OpeningsService,
     private readonly access: RecruitmentAccess,
     private readonly scopes: ScopeService,
@@ -169,15 +176,20 @@ export class ApplicationsService {
   }
 
   /** An unpurged application the caller can read (else 404). */
-  private async readable(companyId: string, id: string, options: { lock?: boolean } = {}): Promise<ApplicationRow> {
+  async readable(companyId: string, id: string, options: { lock?: boolean } = {}): Promise<ApplicationRow> {
     const row = await this.repo.application(companyId, id, options);
     if (!row || row.purgedAt !== null || row.candidateId === null || !(await this.access.can(P.read, row.unitId))) throw applicationNotFound();
     return row;
   }
 
-  private async manageable(companyId: string, id: string, options: { lock?: boolean } = {}): Promise<ApplicationRow> {
+  async manageable(companyId: string, id: string, options: { lock?: boolean } = {}): Promise<ApplicationRow> {
+    return this.writable(companyId, id, P.manage, options);
+  }
+
+  /** {@link readable} + `permission` over the opening's unit (else 403 forbidden-scope). */
+  async writable(companyId: string, id: string, permission: string, options: { lock?: boolean } = {}): Promise<ApplicationRow> {
     const row = await this.readable(companyId, id, options);
-    if (!(await this.access.can(P.manage, row.unitId))) throw forbiddenScope(P.manage);
+    if (!(await this.access.can(permission, row.unitId))) throw forbiddenScope(permission);
     return row;
   }
 
@@ -216,7 +228,7 @@ export class ApplicationsService {
   }
 
   /** The former employee behind a candidate: the linked person, else a person with the candidate's NIN — when visible. */
-  private async knownPerson(candidate: Pick<CandidateRow, 'personId' | 'nin'>): Promise<KnownPersonView | null> {
+  async knownPerson(candidate: Pick<CandidateRow, 'personId' | 'nin'>): Promise<KnownPersonView | null> {
     if (candidate.personId) {
       const known = await this.employees.knownPerson({ personId: candidate.personId });
       return known ? { ...known, linked: true } : null;
@@ -418,6 +430,8 @@ export class ApplicationsService {
     }
     await this.repo.setStage(companyId, id, input.toStage, isFinalStage(input.toStage));
     await this.repo.insertStage(companyId, { applicationId: id, from: row.stage, to: input.toStage, reasonId, comment: input.comment ?? null, movedBy: userId });
+    // an application that leaves the pipeline: its offer in progress and its interviews to come are cancelled
+    if (isFinalStage(input.toStage)) await this.notices.applicationsClosed(companyId, [id], input.toStage === 'rejected' ? 'Candidature refusée' : 'Désistement');
     return this.detailOf(companyId, id);
   }
 
@@ -506,11 +520,20 @@ export class ApplicationsService {
     const notes = await this.repo.noteCounts(companyId, rows.map((r) => r.id));
     const former = await this.formerEmployees(companyId, rows);
     const open = opening.status === 'open';
+    const { userId } = caller();
+    const interviews = await this.interviewReads.load(companyId, rows.map((r) => r.id));
+    const offerable = open && (await this.access.can(P.hire, opening.orgUnitId)) && opening.hiredCount + (await this.interviews.proposedCount(companyId, openingId)) < opening.posts;
+    // « Embaucher » on a card under offer: recruitment.hire here and employee.create somewhere (the unit is checked at submit)
+    const hirable = open && (await this.access.can(P.hire, opening.orgUnitId)) && (await this.scopes.unitIds(EMPLOYEE_PERMISSIONS.create)).size > 0;
     const cards: BoardCard[] = rows.map((r) => {
       const targets = manage && open ? moveTargets(r.stage) : [];
       const actions: BoardCard['_actions'] = [];
       if (targets.length > 0) actions.push('move');
       if (manage && open && (r.stage === 'rejected' || r.stage === 'withdrawn')) actions.push('reopen');
+      if (manage && open && isPreOfferStage(r.stage)) actions.push('schedule_interview');
+      if (offerable && isPreOfferStage(r.stage)) actions.push('make_offer');
+      if (hirable && r.stage === 'offer') actions.push('hire');
+      const stats = this.interviewReads.stats(interviews.get(r.id) ?? [], userId);
       return {
         id: r.id,
         candidate: { id: r.candidateId ?? '', ...namePair(r) },
@@ -522,6 +545,9 @@ export class ApplicationsService {
         formerEmployee: r.candidateId !== null && former.has(r.candidateId),
         rejectionReason: reasonRef(r),
         moveTargets: targets,
+        nextInterviewAt: stats.nextInterviewAt ? stats.nextInterviewAt.toISOString() : null,
+        average: stats.average,
+        pendingEvaluations: stats.pendingEvaluations,
         _actions: actions,
       };
     });
@@ -586,11 +612,29 @@ export class ApplicationsService {
     };
   }
 
-  private async detailOf(companyId: string, id: string): Promise<ApplicationDetailView> {
+  async offerView(o: OfferRow): Promise<OfferView> {
+    const [org, ref] = await Promise.all([this.access.org(), this.access.userRefs()]);
+    return {
+      id: o.id,
+      jobTitle: o.jobTitle,
+      unit: org.unitRef(o.orgUnitId),
+      site: org.siteRef(o.siteId ?? org.effectiveSite(o.orgUnitId)),
+      contractType: o.contractType,
+      startDate: o.startDate,
+      note: o.note,
+      status: o.status,
+      decidedAt: o.decidedAt ? o.decidedAt.toISOString() : null,
+      createdAt: o.createdAt.toISOString(),
+      createdBy: ref(o.createdBy),
+    };
+  }
+
+  /** The ApplicationDetailView of an unpurged application (the caller's access was checked by the use case). */
+  async detailOf(companyId: string, id: string): Promise<ApplicationDetailView> {
     const { userId } = caller();
     const row = await this.repo.application(companyId, id);
     if (!row || row.candidateId === null) throw applicationNotFound();
-    const [loaded, stages, notes, ref, manage, erase, salaryRead, salaryUpdate] = await Promise.all([
+    const [loaded, stages, notes, ref, manage, erase, salaryRead, salaryUpdate, hire, opening, offers, interviews, criteria] = await Promise.all([
       this.candidate(companyId, row.candidateId),
       this.repo.stages(companyId, id),
       this.repo.notes(companyId, id),
@@ -599,14 +643,32 @@ export class ApplicationsService {
       this.access.can(P.erase, row.unitId),
       this.access.can(P.salaryRead, row.unitId),
       this.access.can(P.salaryUpdate, row.unitId),
+      this.access.can(P.hire, row.unitId),
+      this.settings.opening(companyId, row.openingId),
+      this.interviews.latestOffers(companyId, [id]),
+      this.interviewReads.load(companyId, [id]),
+      this.interviews.openingCriteria(companyId, [row.openingId]),
     ]);
     const open = row.openingStatus === 'open';
     const targets = manage && open ? moveTargets(row.stage) : [];
+    const offer = offers.get(id) ?? null;
+    const proposed = offer?.status === 'proposed';
     const actions: ApplicationDetailView['_actions'] = [];
     if (targets.length > 0) actions.push('move');
     if (manage && open && (row.stage === 'rejected' || row.stage === 'withdrawn')) actions.push('reopen');
     if (manage) actions.push('add_note', 'update');
     if (manage && salaryUpdate) actions.push('update_salary');
+    if (manage && open && isPreOfferStage(row.stage)) actions.push('schedule_interview');
+    if (hire && open && isPreOfferStage(row.stage) && opening && opening.hiredCount + (await this.interviews.proposedCount(companyId, row.openingId)) < opening.posts) actions.push('make_offer');
+    if (hire && row.stage === 'offer' && proposed) {
+      actions.push('update_offer', 'decline_offer', 'cancel_offer');
+      // the hire also needs employee.create over the unit the person is hired into (POST /employees' own rule)
+      if (open && (await this.scopes.unitIds(EMPLOYEE_PERMISSIONS.create)).size > 0) actions.push('hire');
+    }
+    if (hire && row.stage === 'hired' && row.employmentId && row.openingStatus !== 'closed') actions.push('undo_hire');
+    const mine = interviews.get(id) ?? [];
+    const order = criteria.map((c) => c.id);
+    const editable = manage && open && isActiveStage(row.stage);
     const view: ApplicationDetailView = {
       ...(await this.summary(row)),
       candidate: await this.candidateView(companyId, loaded),
@@ -631,9 +693,13 @@ export class ApplicationsService {
       })),
       _redacted: salaryRead ? [] : ['salary'],
       moveTargets: targets,
+      interviews: mine.map((i) => this.interviewReads.view(i, ref, userId, order, editable && i.row.status === 'scheduled' ? ['update', 'cancel'] : [])),
+      offer: offer ? await this.offerView(offer) : null,
+      average: this.interviewReads.stats(mine, userId).average,
+      employment: row.employmentId ? await this.employees.visibleEmployment(row.employmentId) : null,
       _actions: actions,
     };
-    if (salaryRead) view.salary = { expected: await this.repo.expectedSalary(companyId, id) };
+    if (salaryRead) view.salary = await this.interviews.salary(companyId, id);
     return view;
   }
 }

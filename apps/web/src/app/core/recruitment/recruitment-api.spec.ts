@@ -107,4 +107,28 @@ describe('MyRecruitment', () => {
     expect(mine.showNav()).toBe(false);
     http.verify();
   });
+
+  it('« Mes entretiens » shows to anyone with an interview — HR included — with the evaluations left to enter', async () => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    const http = TestBed.inject(HttpTestingController);
+    const session = TestBed.inject(Session);
+    const mine = TestBed.inject(MyRecruitment);
+
+    session.set(meWith(['recruitment.read']));
+    await settle();
+    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 1 });
+    await settle();
+    expect(mine.showNav()).toBe(false);
+    expect(mine.showInterviewsNav()).toBe(true);
+    expect(mine.evaluationsTodo()).toBe(1);
+
+    mine.reload();
+    await settle();
+    // An older answer without the Phase B fields reads as "no interview".
+    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0 });
+    await settle();
+    expect(mine.showInterviewsNav()).toBe(false);
+    expect(mine.evaluationsTodo()).toBe(0);
+    http.verify();
+  });
 });

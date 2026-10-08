@@ -17,6 +17,7 @@ import {
 import { ControlError } from '../../shared/attendance/control-error';
 import { CanDirective } from '../../shared/can/can.directive';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
+import { CriteriaSettings } from './criteria-settings';
 import { ERROR_KEYS, recruitmentProblemToForm, text, wholeNumber } from './recruitment-forms';
 
 const LABEL_MAX = 120;
@@ -201,12 +202,12 @@ export class PolicySettings {
   }
 }
 
-export type RecruitmentSettingsTab = 'reasons' | 'policy';
-export const RECRUITMENT_SETTINGS_TABS: readonly RecruitmentSettingsTab[] = ['reasons', 'policy'];
+export type RecruitmentSettingsTab = 'reasons' | 'criteria' | 'policy';
+export const RECRUITMENT_SETTINGS_TABS: readonly RecruitmentSettingsTab[] = ['reasons', 'criteria', 'policy'];
 
 @Component({
   selector: 'app-recruitment-settings-page',
-  imports: [TranslocoDirective, RouterLink, CanDirective, ReasonsSettings, PolicySettings],
+  imports: [TranslocoDirective, RouterLink, CanDirective, ReasonsSettings, CriteriaSettings, PolicySettings],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './recruitment.css',
   template: `
@@ -227,6 +228,9 @@ export const RECRUITMENT_SETTINGS_TABS: readonly RecruitmentSettingsTab[] = ['re
         @switch (active()) {
           @case ('reasons') {
             <app-recruitment-reasons-settings />
+          }
+          @case ('criteria') {
+            <app-recruitment-criteria-settings />
           }
           @case ('policy') {
             <app-recruitment-policy-settings />

@@ -1,4 +1,6 @@
+import { DecimalPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { BlobFiles } from '../../core/browser/blob-files';
@@ -17,6 +19,7 @@ import {
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 import { WorkflowStepper } from '../../shared/workflow-stepper/workflow-stepper';
+import { OpeningComparison } from './opening-comparison';
 import { OpeningFacts } from './opening-facts';
 import { actionErrorKey, downloadErrorKey, isNotFound, loadErrorKey } from './recruitment-view';
 
@@ -36,7 +39,7 @@ export function groupByStage(applications: readonly HeadApplicationView[]): Stag
  */
 @Component({
   selector: 'app-my-opening-detail-page',
-  imports: [TranslocoDirective, RouterLink, DisplayNamePipe, WorkflowStepper, OpeningFacts, RevealAlert],
+  imports: [TranslocoDirective, RouterLink, DecimalPipe, DisplayNamePipe, WorkflowStepper, OpeningFacts, OpeningComparison, RevealAlert],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [BlobFiles],
   templateUrl: './my-opening-detail.page.html',
@@ -47,6 +50,7 @@ export class MyOpeningDetailPage {
   private readonly blobs = inject(BlobFiles);
   private readonly mine = inject(MyRecruitment);
   protected readonly lang = inject(LanguageService).current;
+  protected readonly locale = computed(() => dateLocaleOf(this.lang()));
 
   readonly id = input.required<string>();
   readonly created = input<string>();

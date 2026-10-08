@@ -15,6 +15,8 @@ import {
   ANEM_MAX,
   CLOSE_REASON_MAX,
   CLOSE_REASON_MIN,
+  type CriterionRef,
+  OPENING_CRITERIA_MAX,
   type OpeningAction,
   type OpeningDetailView,
   type OpeningPatch,
@@ -27,18 +29,19 @@ import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 import { Timeline } from '../../shared/timeline/timeline';
 import { WorkflowStepper } from '../../shared/workflow-stepper/workflow-stepper';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
+import { OpeningComparison } from './opening-comparison';
 import { OpeningFacts } from './opening-facts';
 import { PipelineBoard } from './pipeline-board';
 import { ERROR_KEYS, isoDate, notBeforeDay, recruitmentProblemToForm, text, wholeNumber } from './recruitment-forms';
 import { actionErrorKey, isNotFound, loadErrorKey, statusTone } from './recruitment-view';
 
-export type OpeningTab = 'pipeline' | 'details' | 'history';
+export type OpeningTab = 'pipeline' | 'comparison' | 'details' | 'history';
 
-type Dialog = 'edit' | 'close' | 'reopen';
+type Dialog = 'edit' | 'close' | 'reopen' | 'criteria';
 
 @Component({
   selector: 'app-opening-detail-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, DatePipe, DisplayNamePipe, ControlError, RevealAlert, Timeline, WorkflowStepper, OpeningFacts, PipelineBoard],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, DatePipe, DisplayNamePipe, ControlError, RevealAlert, Timeline, WorkflowStepper, OpeningFacts, PipelineBoard, OpeningComparison],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './opening-detail.page.html',
   styleUrl: './recruitment.css',
@@ -65,7 +68,7 @@ export class OpeningDetailPage {
     const status = this.opening.hasValue() ? this.opening.value().status : undefined;
     return status === 'open' || status === 'filled' || status === 'closed';
   });
-  protected readonly tabs = computed<readonly OpeningTab[]>(() => (this.hasPipeline() ? ['pipeline', 'details', 'history'] : ['details', 'history']));
+  protected readonly tabs = computed<readonly OpeningTab[]>(() => (this.hasPipeline() ? ['pipeline', 'comparison', 'details', 'history'] : ['details', 'history']));
   protected readonly active = computed<OpeningTab>(() => {
     const tabs = this.tabs();
     const wanted = this.tab() as OpeningTab | undefined;
@@ -210,6 +213,69 @@ export class OpeningDetailPage {
         this.closeDialog();
         this.actionError.set(actionErrorKey(error));
         this.refresh();
+      },
+    });
+  }
+
+  // --- Criteria of this opening: 1–8 of the company's active ones, in the order interviewers will see ---
+
+  private readonly wantCriteria = signal(false);
+  protected readonly companyCriteria = this.api.criteriaResource(this.wantCriteria);
+  protected readonly picked = signal<readonly CriterionRef[]>([]);
+  protected readonly criteriaMax = OPENING_CRITERIA_MAX;
+  protected readonly addable = computed<readonly CriterionRef[]>(() => {
+    const taken = new Set(this.picked().map((c) => c.id));
+    return this.companyCriteria.hasValue() ? this.companyCriteria.value().items.filter((c) => c.active && !taken.has(c.id)) : [];
+  });
+
+  protected criterionLabel(criterion: CriterionRef): string {
+    return this.catalog.labelOf(criterion.labels);
+  }
+
+  protected openCriteria(o: OpeningDetailView): void {
+    this.wantCriteria.set(true);
+    this.picked.set(o.criteria);
+    this.show('criteria');
+  }
+
+  protected addCriterion(criterion: CriterionRef): void {
+    if (this.picked().length < OPENING_CRITERIA_MAX) this.picked.update((list) => [...list, { id: criterion.id, labels: criterion.labels }]);
+  }
+
+  protected removeCriterion(criterion: CriterionRef): void {
+    this.picked.update((list) => list.filter((c) => c.id !== criterion.id));
+  }
+
+  protected moveCriterion(index: number, by: -1 | 1): void {
+    this.picked.update((list) => {
+      const target = index + by;
+      const moved = list[index];
+      const other = list[target];
+      if (!moved || !other) return list;
+      const next = [...list];
+      next[index] = other;
+      next[target] = moved;
+      return next;
+    });
+  }
+
+  protected saveCriteria(o: OpeningDetailView): void {
+    this.formError.set(null);
+    const ids = this.picked().map((c) => c.id);
+    if (ids.length === 0) {
+      this.formError.set({ key: 'recruitment.criteria.atLeastOne' });
+      return;
+    }
+    if (ids.join() === o.criteria.map((c) => c.id).join()) {
+      this.closeDialog();
+      return;
+    }
+    this.saving.set(true);
+    this.api.setOpeningCriteria(o.id, ids).subscribe({
+      next: () => this.done('recruitment.criteria.saved'),
+      error: (error: unknown) => {
+        this.saving.set(false);
+        this.formError.set({ key: actionErrorKey(error) });
       },
     });
   }

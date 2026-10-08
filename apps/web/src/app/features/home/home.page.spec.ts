@@ -67,4 +67,18 @@ describe('HomePage — recruitment counts (docs/contracts/recruitment.md › Web
     expect(el.querySelector('[data-card="my-recruitment"]')).toBeNull();
     expect(el.querySelector('[data-card="recruitment"]')).toBeNull();
   });
+
+  it('Phase B: interviews in the next 7 days and offers in progress for HR; « Mes entretiens à évaluer (n) » for an interviewer', async () => {
+    const el = await create(['recruitment.read']);
+    http.expectOne('/api/recruitment/summary').flush(SUMMARY);
+    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 1 });
+    await settle();
+    expect(el.querySelector('[data-count="interviews-next"]')?.textContent).toContain('3');
+    const offers = el.querySelector('[data-count="offers-pending"]') as HTMLAnchorElement;
+    expect(offers.getAttribute('href')).toBe('/recruitment/candidates?stage=offer');
+    expect(offers.textContent).toContain('1');
+    const mine = el.querySelector('[data-card="my-interviews"] a') as HTMLAnchorElement;
+    expect(mine.getAttribute('href')).toBe('/me/interviews');
+    expect(mine.textContent?.trim()).toBe('Mes entretiens à évaluer (1)');
+  });
 });

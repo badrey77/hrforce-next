@@ -71,7 +71,7 @@ const AUDITED_TABLES = [
   'employment', 'employment_salary',
   'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
-  'recruitment_opening', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
+  'recruitment_criterion', 'recruitment_opening', 'recruitment_opening_criterion', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'sso_app_role', 'sso_client', 'sso_role_assignment',
   'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
 ];
@@ -409,10 +409,22 @@ describe('exit criterion: every write through the API produces an audit row with
     'POST /api/recruitment/candidates/:id/files': 'recruitment.file_added',
     'DELETE /api/recruitment/candidates/:id/files/:fileId': 'recruitment.file_deleted',
     'POST /api/recruitment/candidates/:id/erase': 'recruitment.candidate_erased',
+    // Phase B (migration 0020): interviews, evaluations and offers are events without personal payload too; the hire
+    // and its undo add an event on the EMPLOYEE (and the employee's own audited rows)
+    'POST /api/recruitment/applications/:id/interviews': 'recruitment.interview_scheduled',
+    'PATCH /api/recruitment/interviews/:id': 'recruitment.interview_updated',
+    'POST /api/recruitment/interviews/:id/cancel': 'recruitment.interview_cancelled',
+    'PUT /api/me/recruitment/interviews/:id/evaluation': 'recruitment.evaluation_submitted',
+    'POST /api/recruitment/applications/:id/offer': 'recruitment.offer_made',
+    'PUT /api/recruitment/applications/:id/offer': 'recruitment.offer_updated',
+    'POST /api/recruitment/applications/:id/offer/decline': 'recruitment.offer_declined',
+    'POST /api/recruitment/applications/:id/offer/cancel': 'recruitment.offer_cancelled',
+    'POST /api/recruitment/applications/:id/hire': 'recruitment.hired',
+    'POST /api/recruitment/applications/:id/undo-hire': 'recruitment.hire_undone',
   };
   const WEEK = weekOf('08:00', '16:30', '12:00', '12:30');
   const LV = { annual: '', recovery: '', holiday: '', holidayToDelete: '', ownRequest: '', approveTask: '', rejectTask: '', titreType: '', toVoid: '', ownDocRequest: '', fileCategory: '', diploma: '', fileToDelete: '', overrideToDelete: '', assignmentToDelete: '', kioskToRevoke: '',
-    ssoClient: '', ssoToDisable: '', ssoToEnable: '', ssoRole: '', ssoRoleToDelete: '', ssoAssignmentToDelete: '', ownOpening: '', reason: '' };
+    ssoClient: '', ssoToDisable: '', ssoToEnable: '', ssoRole: '', ssoRoleToDelete: '', ssoAssignmentToDelete: '', ownOpening: '', reason: '', criterion: '', criteria: [] as string[] };
 
   beforeAll(async () => {
     const types = await query<{ id: string; code: string }>(db.superuserUrl, 'select id, code from leave_type where company_id = $1', [COMPANY_A]);
@@ -472,6 +484,8 @@ describe('exit criterion: every write through the API produces an audit row with
     // recruitment: rh.admin's own pending opening request (cancelled below), a rejection reason to edit
     LV.ownOpening = (await client('admin').post('/api/recruitment/openings').send({ title: 'À annuler', orgUnitId: unitA('AG-ORAN'), contractType: 'cdd', posts: 1, justification: 'Besoin de test.', targetDate: '2031-01-01' }).expect(201)).body.id;
     LV.reason = (await query<{ id: string }>(db.superuserUrl, `select id from recruitment_rejection_reason where company_id = $1 and code = 'other'`, [COMPANY_A]))[0]?.id ?? '';
+    LV.criteria = (await query<{ id: string }>(db.superuserUrl, `select id from recruitment_criterion where company_id = $1 and is_system order by sort_order`, [COMPANY_A])).map((r) => r.id);
+    LV.criterion = LV.criteria.at(-1) ?? '';
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
   });
 
@@ -702,6 +716,16 @@ describe('exit criterion: every write through the API produces an audit row with
       tables: ['recruitment_rejection_reason'],
     },
     'PUT /api/recruitment/rejection-reasons/:id': { request: () => ({ path: `/api/recruitment/rejection-reasons/${LV.reason}`, body: { sortOrder: 85 } }), tables: ['recruitment_rejection_reason'] },
+    // Phase B: the criteria are settings, an opening's criteria describe the post — row diffs
+    'POST /api/recruitment/criteria': {
+      request: () => ({ path: '/api/recruitment/criteria', body: { code: 'aud_criterion', labels: { fr: 'Audit', ar: 'تدقيق', en: 'Audit' } } }),
+      tables: ['recruitment_criterion'],
+    },
+    'PUT /api/recruitment/criteria/:id': { request: () => ({ path: `/api/recruitment/criteria/${LV.criterion}`, body: { sortOrder: 55 } }), tables: ['recruitment_criterion'] },
+    'PUT /api/recruitment/openings/:id/criteria': {
+      request: () => ({ path: `/api/recruitment/openings/${REC_FX.opening.ouest}/criteria`, body: { criterionIds: [LV.criterion, LV.criteria[0]] } }),
+      tables: ['recruitment_opening_criterion'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -746,19 +770,42 @@ describe('exit criterion: every write through the API produces an audit row with
     );
     await run('DELETE /api/recruitment/candidates/:id/files/:fileId', (id) => admin.delete(`/api/recruitment/candidates/${candidate}/files/${file.res.body.id}`).set('X-Request-Id', id));
     await run('POST /api/recruitment/candidates/:id/erase', (id) => admin.post(`/api/recruitment/candidates/${REC_FX.toErase.est[0]}/erase`).set('X-Request-Id', id));
+    // Phase B: an interview with rh.admin as its own interviewer (held), its evaluation, an offer and its ends, the hire
+    const interview = await run('POST /api/recruitment/applications/:id/interviews', (id) =>
+      admin.post(`/api/recruitment/applications/${application}/interviews`).set('X-Request-Id', id).send({ date: '2026-02-03', time: '09:00', mode: 'on_site', location: 'Salle Confidentielle', label: 'Entretien Confidentiel', interviewerIds: [USERS.admin.id] }),
+    );
+    await run('PATCH /api/recruitment/interviews/:id', (id) => admin.patch(`/api/recruitment/interviews/${interview.res.body.id}`).set('X-Request-Id', id).send({ time: '09:45' }));
+    await run('PUT /api/me/recruitment/interviews/:id/evaluation', (id) =>
+      admin.put(`/api/me/recruitment/interviews/${interview.res.body.id}/evaluation`).set('X-Request-Id', id).send({ scores: LV.criteria.map((criterionId) => ({ criterionId, score: 5 })), recommendation: 'strong_yes', comment: 'Avis Confidentiel' }),
+    );
+    await run('POST /api/recruitment/interviews/:id/cancel', (id) => admin.post(`/api/recruitment/interviews/${interview.res.body.id}/cancel`).set('X-Request-Id', id).send({ reason: 'Motif Confidentiel' }));
+    const offer = { expectedStage: 'received', jobTitle: 'Poste Confidentiel', orgUnitId: unitA('AG-CNE'), contractType: 'cdi', startDate: '2026-12-01', proposedSalary: '61999' };
+    await run('POST /api/recruitment/applications/:id/offer', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toOffer.est[0]}/offer`).set('X-Request-Id', id).send(offer));
+    await run('PUT /api/recruitment/applications/:id/offer', (id) => admin.put(`/api/recruitment/applications/${REC_FX.toOffer.est[0]}/offer`).set('X-Request-Id', id).send({ note: 'Note Confidentielle' }));
+    await run('POST /api/recruitment/applications/:id/offer/cancel', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toOffer.est[0]}/offer/cancel`).set('X-Request-Id', id).send({ expectedStage: 'offer', comment: 'Confidentiel' }));
+    await run('POST /api/recruitment/applications/:id/offer/decline', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toDecline.est[0]}/offer/decline`).set('X-Request-Id', id).send({ expectedStage: 'offer', comment: 'Confidentiel' }));
+    const hired = await run('POST /api/recruitment/applications/:id/hire', (id) =>
+      admin.post(`/api/recruitment/applications/${REC_FX.toHire.est[0]}/hire`).set('X-Request-Id', id).send({ lastName: 'Auditée', firstName: 'Embauchée', matricule: 'AUD-HIRE', hireDate: '2026-11-01', orgUnitId: unitA('AG-CNE'), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [] }),
+    );
+    await run('POST /api/recruitment/applications/:id/undo-hire', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toUndo.est[0]}/undo-hire`).set('X-Request-Id', id).send({ reason: 'Motif Confidentiel' }));
+    // the hire wrote the employee's audited rows in the same request, and its event is on the employee
+    expect((await changes('request_id = $1', [hired.requestId])).map((c) => c.table_name).toSorted()).toEqual(['assignment', 'employment', 'person', 'recruitment_opening']);
+    expect((await events('request_id = $1 and type = $2', [hired.requestId, 'recruitment.hired']))[0]).toMatchObject({ subject_type: 'employee', subject_id: hired.res.body.employee.id });
     expect(runs.map(([key]) => key).toSorted()).toEqual(Object.keys(RECRUITMENT_EVENT_WRITES).toSorted());
     for (const [key, r] of runs) {
       const rows = await events('request_id = $1', [r.requestId]);
       expect(rows.map((e) => e.type), key).toContain(RECRUITMENT_EVENT_WRITES[key]);
       for (const e of rows) {
         expect(e, key).toMatchObject({ company_id: COMPANY_A, actor_user_id: USERS.admin.id });
-        expect(['recruitment_application', 'recruitment_candidate'], key).toContain(e.subject_type);
-        // only field names, kinds, stages, codes and counts
-        expect(Object.keys(e.data).every((k) => ['fields', 'kind', 'from', 'to', 'reasonCode', 'autoCause', 'openingId', 'source', 'applications', 'files'].includes(k)), `${key} ${JSON.stringify(e.data)}`).toBe(true);
+        expect(['recruitment_application', 'recruitment_candidate', 'employee'], key).toContain(e.subject_type);
+        // only field names, kinds, stages, codes, counts and ids (an interview, an HRForce user, the opening's reference)
+        const allowed = ['fields', 'kind', 'from', 'to', 'reasonCode', 'autoCause', 'openingId', 'source', 'applications', 'files', 'interviewId', 'userId', 'applicationId', 'reference'];
+        expect(Object.keys(e.data).every((k) => allowed.includes(k)), `${key} ${JSON.stringify(e.data)}`).toBe(true);
       }
+      // no change row of a personal table (the opening's own row — its hire count — is audited normally)
       const tables = (await changes('request_id = $1', [r.requestId])).map((c) => c.table_name);
-      expect(tables.filter((t) => t.startsWith('recruitment_')), key).toEqual([]);
-      expect(JSON.stringify(rows), key).not.toMatch(/Auditée|31337|audit\.personne|61000|Confidentiel|confidentielle|Guelma|cv-audit/);
+      expect(tables.filter((t) => t.startsWith('recruitment_') && t !== 'recruitment_opening'), key).toEqual([]);
+      expect(JSON.stringify(rows), key).not.toMatch(/Auditée|Embauchée|31337|audit\.personne|61000|61999|Confidentiel|confidentielle|Guelma|cv-audit|09:45|strong_yes/);
     }
   });
 

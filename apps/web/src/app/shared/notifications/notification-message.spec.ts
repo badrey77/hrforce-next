@@ -150,4 +150,26 @@ describe('recruitment notifications (docs/contracts/recruitment.md › Workflow,
       expect(typeof at(file, 'notifications.typeLabels.recruitment.opening_rejected')).toBe('string');
     }
   });
+
+  it('interview notifications: date and time, the opening, never a candidate; a changed interview has its own sentence', () => {
+    const interview = { interviewId: 'i-1', openingId: 'o-1', reference: 'REC-2026-0001', title: 'Chargé(e) de clientèle', date: '2026-10-12', time: '10:00', mode: 'on_site', actorName: 'Amina Benali' };
+    const assigned = notificationMessage({ type: 'recruitment.interview_assigned', data: interview }, FORMAT);
+    expect(assigned.key).toBe('notifications.types.recruitment.interview_assigned');
+    expect(assigned.params).toMatchObject({ time: '10:00', reference: 'REC-2026-0001', title: 'Chargé(e) de clientèle' });
+    expect(assigned.params['date']).toBe(FORMAT.date('2026-10-12'));
+    expect(notificationKey({ type: 'recruitment.interview_assigned', data: { ...interview, rescheduled: 1 } })).toBe('notifications.types.recruitment.interview_assigned_rescheduled');
+    const keys = [
+      assigned.key,
+      'notifications.types.recruitment.interview_assigned_rescheduled',
+      notificationKey({ type: 'recruitment.interview_cancelled', data: interview }),
+      notificationKey({ type: 'recruitment.evaluations_complete', data: interview }),
+    ];
+    for (const file of [fr, ar, en]) {
+      for (const key of keys) {
+        for (const placeholder of ['{{date}}', '{{title}}', '{{reference}}']) expect(at(file, key)).toContain(placeholder);
+        expect(at(file, key)).not.toContain('Name}}');
+      }
+      for (const type of ['interview_assigned', 'interview_cancelled', 'evaluations_complete']) expect(typeof at(file, `notifications.typeLabels.recruitment.${type}`)).toBe('string');
+    }
+  });
 });

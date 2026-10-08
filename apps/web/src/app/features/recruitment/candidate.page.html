@@ -183,6 +183,9 @@
             }
           }
 
+          <app-application-interviews [application]="a" [name]="nameOf(c)" (saved)="onInterviewSaved($event)" (failed)="onMoveFailed($event)" />
+          <app-application-offer [application]="a" [name]="nameOf(c)" (changed)="onOfferChanged($event)" (failed)="onMoveFailed($event)" />
+
           <h3>{{ t('recruitment.application.stages') }}</h3>
           <ol class="card-list" data-panel="stages">
             @for (entry of a.stages; track entry.id) {

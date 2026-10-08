@@ -20,6 +20,9 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'attendance.correction_rejected': true,
   'recruitment.opening_approved': true,
   'recruitment.opening_rejected': true,
+  'recruitment.interview_assigned': true,
+  'recruitment.interview_cancelled': true,
+  'recruitment.evaluations_complete': false,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -48,6 +51,9 @@ export interface LinkSource {
  *   attendance_correction    → /me/attendance?correction=<id> (approved / rejected / escalated: the employee's own)
  *   recruitment_opening      → /me/recruitment/openings/<id> (approved / rejected / escalated: the requester's view,
  *                              which every requester reaches, HR included)
+ *   recruitment_interview    → /me/interviews/<id> (assigned), /me/interviews (cancelled: the interview is gone from the
+ *                              interviewer's list), /recruitment/candidates/<candidate id>?application=<id> (evaluations
+ *                              complete, to the HR user who scheduled it — ids only, never a name)
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
@@ -58,6 +64,15 @@ export function linkOf(n: LinkSource): string {
   if (n.subjectType === 'document_request') return `/me/documents?request=${id}`;
   if (n.subjectType === 'attendance_correction') return `/me/attendance?correction=${id}`;
   if (n.subjectType === 'recruitment_opening') return `/me/recruitment/openings/${id}`;
+  if (n.subjectType === 'recruitment_interview') {
+    if (n.type === 'recruitment.interview_assigned') return `/me/interviews/${id}`;
+    if (n.type === 'recruitment.interview_cancelled') return '/me/interviews';
+    const candidateId = n.data['candidateId'];
+    const applicationId = n.data['applicationId'];
+    return typeof candidateId === 'string' && typeof applicationId === 'string'
+      ? `/recruitment/candidates/${encodeURIComponent(candidateId)}?application=${encodeURIComponent(applicationId)}`
+      : '/recruitment';
+  }
   return '/notifications';
 }
 

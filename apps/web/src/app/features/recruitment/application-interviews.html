@@ -1,0 +1,90 @@
+<ng-container *transloco="let t">
+  @let a = application();
+  <app-interview-dialog (saved)="saved.emit($event)" (failed)="failed.emit($event)" />
+  <div class="toolbar">
+    <h3 id="interviews-title">
+      {{ t('recruitment.interviews.title') }}
+      @if (a.average !== null) {
+        <span class="badge" data-field="application-average">{{ t('recruitment.interviews.average', { value: (a.average | number: '1.1-1' : locale()) }) }}</span>
+      }
+    </h3>
+    @if (a._actions.includes('schedule_interview')) {
+      <button class="btn secondary" type="button" data-action="schedule-interview" [disabled]="dialog().busy()" (click)="schedule()">{{ t('recruitment.interviews.schedule') }}</button>
+    }
+  </div>
+  <ul class="card-list" data-panel="interviews" aria-labelledby="interviews-title">
+    @for (i of a.interviews; track i.id) {
+      <li [attr.data-interview]="i.id">
+        <p class="inline-actions">
+          <strong>
+            @if (i.label) {
+              <bdi>{{ i.label }}</bdi> —
+            }
+            {{ i.date | date: 'fullDate' : undefined : locale() }}, <span dir="ltr">{{ i.time }}</span>
+          </strong>
+          <span class="badge" [attr.data-status]="tone(i.state)" data-field="interview-state">{{ t('recruitment.interviews.state.' + i.state) }}</span>
+          @if (i.average !== null) {
+            <span class="badge" data-field="interview-average">{{ t('recruitment.interviews.average', { value: (i.average | number: '1.1-1' : locale()) }) }}</span>
+          }
+        </p>
+        <p class="muted">
+          {{ t('recruitment.interviews.modes.' + i.mode) }} · {{ t('recruitment.interviews.minutes', { count: i.durationMinutes }) }}
+          @if (i.location) {
+            · <bdi>{{ i.location }}</bdi>
+          }
+        </p>
+        @if (i.cancelReason) {
+          <p class="prose" data-field="cancel-reason">{{ t('recruitment.interviews.cancelledBecause') }} <bdi>{{ i.cancelReason }}</bdi></p>
+        }
+        @if (i.evaluationsHidden) {
+          <p class="field-hint" data-state="evaluations-hidden">{{ t('recruitment.interviews.hidden') }}</p>
+        }
+        <ul class="card-list" [attr.aria-label]="t('recruitment.interviews.evaluations')">
+          @for (e of i.evaluations; track e.interviewer.id) {
+            <li [attr.data-evaluation]="e.interviewer.id">
+              <p class="inline-actions">
+                <strong><bdi>{{ e.interviewer.displayName }}</bdi></strong>
+                @if (e.submittedAt) {
+                  @if (e.overall !== null) {
+                    <span class="badge" data-field="overall">{{ e.overall | number: '1.1-1' : locale() }} / 5</span>
+                  }
+                  @if (e.recommendation) {
+                    <span class="badge" [attr.data-status]="e.recommendation === 'yes' || e.recommendation === 'strong_yes' ? 'approved' : 'rejected'" data-field="recommendation">
+                      {{ t('recruitment.recommendation.' + e.recommendation) }}
+                    </span>
+                  }
+                  <span class="muted">{{ e.submittedAt | date: 'medium' : undefined : locale() }}</span>
+                } @else if (i.status === 'scheduled') {
+                  <span class="muted" data-state="evaluation-pending">{{ t('recruitment.interviews.pending') }}</span>
+                }
+              </p>
+              @if (e.scores.length) {
+                <dl class="facts" data-panel="scores">
+                  @for (s of e.scores; track s.criterionId) {
+                    <dt>{{ criterionLabel(s.criterionId) }}</dt>
+                    <dd>{{ s.score }} / 5</dd>
+                  }
+                </dl>
+              }
+              @if (e.comment) {
+                <p class="prose" data-field="evaluation-comment"><bdi>{{ e.comment }}</bdi></p>
+              }
+            </li>
+          }
+        </ul>
+        @if (i._actions.length) {
+          <p class="inline-actions">
+            @if (i._actions.includes('update')) {
+              <button class="btn secondary" type="button" data-action="edit-interview" [disabled]="dialog().busy()" (click)="edit(i)">{{ t('recruitment.interviews.edit') }}</button>
+            }
+            @if (i._actions.includes('cancel')) {
+              <button class="btn secondary" type="button" data-action="cancel-interview" [disabled]="dialog().busy()" (click)="cancel(i)">{{ t('recruitment.interviews.cancel') }}</button>
+            }
+          </p>
+        }
+      </li>
+    } @empty {
+      <li class="muted" data-state="no-interviews">{{ t('recruitment.interviews.empty') }}</li>
+    }
+  </ul>
+</ng-container>

@@ -8,6 +8,7 @@ import { ProblemException, ValidationProblemException, type FieldError } from '.
 import { attachmentDisposition, downloadFilename, sanitizeFilename, sniffFileType, type EmployeeFileMime, type UploadedFile } from '../../documents/index.js';
 import { isActiveStage, MAX_FILES_PER_CANDIDATE, type FileKind } from '../domain/rules.js';
 import { CandidatesRepository, type FileRow } from '../infra/candidates.repository.js';
+import { InterviewsRepository } from '../infra/interviews.repository.js';
 import { constraintOf } from '../infra/recruitment.repository.js';
 import { ApplicationsService } from './applications.service.js';
 import { caller, RecruitmentAccess } from './recruitment-access.js';
@@ -38,6 +39,7 @@ const duplicate = () =>
 export class CandidateFilesService {
   constructor(
     private readonly repo: CandidatesRepository,
+    private readonly interviews: InterviewsRepository,
     private readonly applications: ApplicationsService,
     private readonly access: RecruitmentAccess,
     private readonly audit: AuditEvents,
@@ -94,7 +96,7 @@ export class CandidateFilesService {
     return fileView(row, await this.access.userRefs(), true);
   }
 
-  private async download(companyId: string, file: FileRow, via: 'hr' | 'head'): Promise<FileDownload> {
+  private async download(companyId: string, file: FileRow, via: 'hr' | 'head' | 'interviewer'): Promise<FileDownload> {
     const bytes = await this.repo.content(companyId, file.id);
     if (!bytes) throw fileNotFound();
     await this.audit.record({ type: 'recruitment.file_downloaded', subject: { type: 'recruitment_candidate', id: file.candidateId }, data: { kind: file.kind, via } });
@@ -112,16 +114,18 @@ export class CandidateFilesService {
 
   /**
    * GET /me/recruitment/applications/:id/files/:fileId/content: a head of the opening's unit (or of a unit above it),
-   * while the application is in an ACTIVE stage, for a file of its candidate — anything else is 404.
+   * or an interviewer of a scheduled interview of the application — while the application is in an ACTIVE stage, for a
+   * file of its candidate; anything else is 404.
    */
   async headContent(applicationId: string, fileId: string): Promise<FileDownload> {
-    const { companyId } = caller();
+    const { companyId, userId } = caller();
     const application = await this.repo.application(companyId, applicationId);
     if (!application || application.candidateId === null || !isActiveStage(application.stage)) throw fileNotFound();
-    if (!(await this.access.headUnits()).has(application.unitId)) throw fileNotFound();
+    const head = (await this.access.headUnits()).has(application.unitId);
+    if (!head && !(await this.interviews.isInterviewerOf(companyId, applicationId, userId))) throw fileNotFound();
     const file = await this.repo.file(companyId, fileId);
     if (!file || file.candidateId !== application.candidateId) throw fileNotFound();
-    return this.download(companyId, file, 'head');
+    return this.download(companyId, file, head ? 'head' : 'interviewer');
   }
 
   /** DELETE /recruitment/candidates/:id/files/:fileId → the row and its bytes are gone. */

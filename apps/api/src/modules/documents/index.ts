@@ -18,6 +18,7 @@ export {
 // the bounded multipart reader of the employee-file upload, reused as is by the candidate files (recruitment.md › Module boundaries)
 export { EmployeeFileUploadInterceptor } from './api/employee-files.controller.js';
 export type { UploadedFile } from './application/employee-files.service.js';
+export { EmployeeFileImporter, RECRUITMENT_FILE_CATEGORY, type ImportedFile } from './application/employee-file-importer.js';
 export {
   DEMO_SIGNATORIES,
   DOCUMENT_DEFINITION,

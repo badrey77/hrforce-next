@@ -1055,3 +1055,251 @@ that the text above did not state.
 - **Money input (web).** As on the employee pages: digits with an optional `,` or `.` and at most two decimals, no
   thousands separator (« 85 000,50 » is refused in the form).
 - **Future birth date.** Refused by the web form only; the API accepts it (as `POST /employees`).
+
+### Settled by the build (Phase B API)
+
+**The head's sub-units (owner decision 2026-10-08: the opening request form offers a head's sub-units).**
+
+`GET /api/me/recruitment/units` — `@Authenticated`, no permission, never 404 → `{items: RequestableUnit[]}`:
+
+```ts
+interface RequestableUnit {
+  id: string; code: string; kind: string;      // UnitRef fields
+  name: string; nameAr: string | null;
+  site: SiteRef | null;                        // the unit's EFFECTIVE site (its own, else the nearest ancestor's)
+  parentId: string | null;                     // null for a top unit of the list (its parent is not in it)
+  depth: number;                               // 0 for the top units: indentation of a select
+}
+```
+
+The units the caller's linked employment **heads today and all their sub-units**, whatever the caller's
+`org_unit.read` — exactly the set `POST /recruitment/openings` accepts from a head (`RecruitmentAccess.headUnits`).
+Tree order: a unit before its sub-units, siblings by code. `[]` for a user who heads nothing (employees, `lecture`,
+and HR who are not heads: HR holding `recruitment.manage` keeps using the org-unit picker — the units of their manage
+scope are **not** listed here). Example: chef.annaba → `AG-ANNABA` (depth 0), `SRV-CLI-ANB` (depth 1); rh.est →
+`REG-EST` (0), its agencies (1), their services (2).
+
+**Shape changes and additions the web must know (everything else is as specified in Phase B).**
+
+- `InterviewView` gains **`evaluationsHidden: boolean`**; `ComparisonView.rows[]` gains **`hidden: boolean`** (rule
+  below). `BoardCard._actions` is `('move' | 'reopen' | 'schedule_interview' | 'make_offer' | 'hire')[]` (`hire`: a
+  card under offer, for a holder of `recruitment.hire` over the unit and of `employee.create` somewhere).
+  `HirePrefillView` gains **`candidateId`** (the candidate page to go back to).
+- `GET /recruitment/interviewers?q=` answers `{items: InterviewerOption[]}` (not a bare array); `q` shorter than 2
+  characters → 422 `q` `too_small`; matching is on the display name (accents and case ignored) and the e-mail.
+- `HirePrefillView.person` holds `personId` + the nine person fields + `email`, `phone`, `informedOn` (all present,
+  null when empty). `salary` is present only with `recruitment.salary.read` over the opening's unit **and**
+  `employee.salary.update` over the **offer's** unit; `siteId` is the offer's own site (null = the unit's).
+- `PUT …/offer` is a **partial** replace: every field is optional, what is sent replaces the stored value (`siteId` /
+  `note` / `proposedSalary` `null` clears it), what is absent stays — so the web's full body works as well.
+  `expectedStage` is accepted and ignored. `proposedSalary` absent = unchanged; present (a string or null) needs
+  `recruitment.salary.update`. On `POST …/offer`, `proposedSalary: null` = no salary (no permission needed).
+- `POST …/interviews`: `durationMinutes` optional (60); `location` / `label` may be null or blank. `PATCH` takes any
+  subset; `date` and `time` may be sent one without the other.
+- `PUT …/evaluation`: `comment` may be absent, null or blank (stored null).
+- `POST …/hire`: `copyFileIds` optional (`[]`); `expectedStage` must be `offer`.
+- `MySummaryView.interviews` = the interviews the caller sees as an interviewer (scheduled, application in an active
+  stage, evaluated or not); **`evaluationsTodo`** = those they can evaluate **now** and have not (interview time
+  reached, application in `interview`) — i.e. the items of `GET /me/recruitment/interviews` whose `_actions` holds
+  `evaluate`. The `todo` list itself also holds interviews to come (`_actions: []`).
+- `BoardCard.pendingEvaluations` = evaluations not yet submitted of scheduled interviews **already held**;
+  `nextInterviewAt` = the next scheduled interview that has not started. `HeadApplicationView.interviews` and
+  `ComparisonRow.interviews` count non-cancelled interviews.
+- `SummaryView.interviewsNext7Days` = scheduled interviews of applications in an active stage from now to now + 7
+  days; `offersPending` = proposed offers of open openings — both in the caller's `recruitment.read` scope.
+- `OpeningView.criteria` is `[]` for a pending / rejected-before-opening request. `_actions` holds `set_criteria`
+  while the opening is open, the caller manages it and no evaluation of it is submitted.
+- `ApplicationDetailView._actions`: `schedule_interview` (manage, opening open, stage `received` / `shortlisted` /
+  `interview`); `make_offer` (`recruitment.hire`, same stages, and a post left: hires + proposed offers < posts);
+  `update_offer`, `decline_offer`, `cancel_offer` (`recruitment.hire`, stage `offer` with a proposed offer); `hire`
+  (the same **and** the opening open **and** the caller holds `employee.create` somewhere — the unit is checked at
+  submit); `undo_hire` (`recruitment.hire`, stage `hired`, opening not `closed`). `InterviewView._actions` is
+  `['update', 'cancel']` for a manager while the interview is scheduled, the opening open and the application in an
+  active stage, else `[]`.
+- Notification `data` of the three interview types: `{interviewId, openingId, reference, title, date, time, mode,
+  actorName}` + `rescheduled: 1` on a changed appointment; `recruitment.evaluations_complete` also carries
+  `applicationId` and `candidateId` (ids only — its link). Links: `/me/interviews/<id>`, `/me/interviews`,
+  `/recruitment/candidates/<candidateId>?application=<applicationId>`.
+- `recruitment.hired` / `recruitment.hire_undone` (subject `employee:<employment id>`) carry `{openingId,
+  applicationId, reference}` — the reference is there so the employee's History can say « Recruté(e) via REC-… »
+  without reading the opening.
+
+**An interviewer who has not submitted sees no other evaluation — by any route.** `MyInterviewView` never holds
+another evaluation (the contract). In addition, a caller who is an interviewer of a scheduled interview of an
+application and has **not yet submitted** gets, through the HR and head routes too: `InterviewView.evaluationsHidden:
+true` with the other evaluations listed as `{interviewer, submittedAt, scores: [], overall: null, recommendation:
+null, comment: null}` and `average: null`; `ApplicationDetailView.average`, `BoardCard.average` and
+`HeadApplicationView.average` null; the application's `ComparisonView` row `hidden: true` with every average null,
+`recommendations` all 0 and `comments: []` (`evaluations.submitted / expected` stay). Once they submit, nothing is
+hidden. (rh.est and chef.annaba are both HR-or-head **and** interviewers in the demo.)
+
+**The comparison for a head** (`GET /me/recruitment/openings/:id/comparison`) has the same shape as HR's: names,
+stage, counts, averages, recommendations and the interviewers' comments — it holds no NIN, birth data, contact
+detail, salary, note, file or stage history for anyone. A requester who is not a head → 404. Purged applications are
+absent; an application appears from its first non-cancelled interview on, whatever its stage (final ones included).
+
+**Problem codes the contract left open.**
+
+- Criteria: `POST /recruitment/criteria` taken code → 409 `recruitment-criterion-code-taken` `errors[{field: 'code',
+  code: 'taken'}]`; `sortOrder` 0–9999, a new criterion gets the last position + 10. `PUT
+  /recruitment/openings/:id/criteria`: `criterionIds.<i>` `not_found` / `inactive` / `duplicate` (422); an opening
+  that is not open → 409 `recruitment-opening-not-open`; then 409 `recruitment-criteria-locked`. A deactivated
+  criterion stays on the openings that hold it.
+- Interviews: `time` not `HH:MM` → 422 `time` `invalid_time`; `interviewerIds.<i>` `not_found` (unknown, another
+  company's, or not an **active** account), `duplicate`, `self`; more than 5 or none → the DTO's 422 on
+  `interviewerIds`. Order: 404 / 403 → 409 `recruitment-interview-stage` → 409 `recruitment-opening-not-open` → the
+  interviewer 422s. `PATCH`: 404 / 403 → 409 `recruitment-interview-cancelled` → 409 `recruitment-interview-stage`
+  (the application is no longer in an active stage) → 422s → 409 `recruitment-evaluation-exists`
+  (`errors[{field: 'interviewerIds', code: 'evaluation_exists'}]`). `cancel` works whatever the application's stage;
+  an already cancelled interview → 409 `recruitment-interview-cancelled`.
+- Evaluations: a score outside 1–5 or not whole → the DTO's 422 (`scores.<i>.score`); then 404 (not an interviewer /
+  not visible) → 422 `scores` `unknown` (a criterion that is not the opening's, or named twice) / `incomplete` → 409
+  `recruitment-evaluation-closed` (the application is in another active stage) → 409 `recruitment-interview-not-held`.
+  An opening without any criterion accepts `scores: []` (overall null).
+- Offers: `expectedStage` not `received` / `shortlisted` / `interview` on make, not `offer` on decline / cancel → 422
+  `expectedStage` `not_allowed` (static, before the 404). `orgUnitId` `not_found` / `outside_opening`, `siteId`
+  `not_found` (422) come before the 409s. 403 `forbidden-field` names `proposedSalary`. `PUT` without a proposed
+  offer → 409 `recruitment-no-offer`; decline / cancel on a stage that is not `offer` → 409
+  `recruitment-stage-changed`.
+- Hire: `expectedStage` ≠ `offer` → 422 `expectedStage` `not_allowed`; `personId` → 422 `required` (the candidate is
+  linked and the body carries person fields), `mismatch` (another person's id), `not_linked` (the candidate is not
+  linked); `copyFileIds.<i>` `not_found` / `duplicate`; more than 5 → the DTO's 422. 409
+  `recruitment-person-employed` carries `errors[{field: 'personId', code: 'employed'}]` and is raised when the linked
+  person's latest employment has **no end date** (an employment ending in the future falls to POST /employees' own
+  `hire-date`). Order: the body's 422s → 404 / 403 (`recruitment.hire`) → 409 `recruitment-stage-changed` /
+  `-opening-not-open` / `-no-post-left` → the `personId` and `copyFileIds` 422s → everything `POST /employees`
+  answers. A copy that fails is a 500 — and, like every other failure, leaves nothing.
+- Undo: `reason` 3–500 (422); not `hired` → 409 `recruitment-stage-changed`; a **closed** opening → 409
+  `recruitment-opening-not-open` (reopen it first); then 409 `recruitment-employment-open`. A purged application → 404.
+  A hire that has no accepted offer (imported data) comes back as `interview` instead of `offer`.
+- `PATCH /recruitment/openings/:id` `posts`: new code **`below_offers`** (422) when the new value is above the hires
+  but below hires + offers in progress (lowering to exactly the hires still fills the opening and cancels the offers).
+
+**Behaviour.**
+
+- **An application that leaves the pipeline** — rejected or withdrawn by hand, an offer declined, an opening filled
+  or closed — has its proposed offer cancelled and its scheduled interviews **that have not started** cancelled
+  (`cancelReason` « Candidature refusée » / « Désistement » / « Offre déclinée » / « Poste pourvu » / « Recrutement
+  clôturé »), with `recruitment.interview_cancelled` to their interviewers. Interviews already held are kept (their
+  evaluations stay in the averages). Reopening or restoring the application brings back neither the offer nor the
+  cancelled interviews.
+- **Rejecting an application under offer** through `POST …/move` (`moveTargets` from `offer` is `['rejected']`)
+  cancels its offer and frees the post.
+- **Notifications.** The acting user is never told (the scheduler who is also an interviewer gets none);
+  `interview_assigned` goes to the added interviewers, and — with `rescheduled: 1` — to those who stay when the date,
+  time, mode or place changes (a label or a duration tells nobody); `interview_cancelled` to removed interviewers
+  and, on a cancellation, to all. `evaluations_complete` is sent once, when the last expected evaluation is first
+  submitted (a re-submission tells nobody). E-mail defaults: on, on, off. Migration 0020 takes the two interview
+  types out of `notification_once_uk` (now a partial unique index) so an interviewer can be told again about the same
+  interview; every other type keeps the once-per-subject rule.
+- **Evaluations.** One row per interviewer and interview; a re-submission replaces the scores, the recommendation
+  and the comment and moves `submittedAt`. Averages: an evaluator's overall is the mean of their scores, the
+  interview's and the application's average the mean of the submitted evaluators' **unrounded** overalls, rounded
+  once to one decimal, half up; cancelled interviews are left out.
+- **Hire.** `EmployeesService.create` is called unchanged with the body minus `expectedStage` / `copyFileIds`; its
+  Zod shape and rule are exported by the Employment module and reused by the hire DTO, so the 422s are the same
+  objects. `employee.create` is asked over the body's `orgUnitId` (not restricted to the offer's unit). The candidate
+  is linked to the created person (`person_id`), so a later undo + hire is a rehire. Files are copied with
+  `EmployeeFileImporter` (Documents): same title, name, type and bytes, category `recruitment`, `uploaded_by` the
+  caller; bytes already live in that employee's file are skipped.
+- **Undo.** The application returns to `offer` with its accepted offer proposed again and `employment` null; the
+  reason is the comment of the `hire_undone` stage row (blanked by the purge); a filled opening reopens and the
+  applications closed by that fill return to their stage with `auto_cause` `hire_undone`.
+
+**Data (migration `0020_recruitment_interviews_hire.sql`).**
+
+- Tables as specified; `recruitment_interviewer.comment` requires a submission; guards: a cancelled interview never
+  changes, the application / interview / user / creation columns are immutable; `recruitment_criterion` is never
+  deleted by `hrforce_app`. The worker holds `DELETE` on the four personal tables and nothing else on them.
+- Audit events beyond the contract's list: `recruitment.interviewer_added` / `_removed {interviewId, userId}` (so a
+  change of interviewers alone is audited), `recruitment.interview_deleted` and `recruitment.offer_deleted` (the
+  erasure on request, as Phase A's `note_deleted`), `recruitment.offer_reopened` (a hire undone). Interview events
+  carry `{interviewId}` (+ `fields`); score rows write no event of their own.
+- The criteria are copied to an opening when its approval opens it; the migration and the seeds copy them to every
+  opening whose status is not `pending`.
+- Purge order: notes, salary, scores, interviewers, interviews, offers, stage comments, then the application.
+
+**Module boundaries.** Employment exports `createEmployeeShape`, `refineCreateEmployee`, `CreateEmployeeInput` and the
+read-only `EmployeesService.visibleEmployment(id)` (id + matricule when the caller can read it). Documents exports
+`EmployeeFileImporter` (`copy(employmentId, files)`), `RECRUITMENT_FILE_CATEGORY`. Notifications: three types, the
+subject type `recruitment_interview`, `linkOf`, the fr / ar / en mails (Arabic in verbal nouns and passives).
+
+**Seed and fixtures.**
+
+- DEMO: `demoInterview(1)` (application 4, held three days ago, rh.est 4.4 and chef.annaba 4.0 → 4.2),
+  `demoInterview(2)` (application 5, in two days, chef.annaba and rh.admin, nothing submitted), `demoInterview(3)`
+  (the hired application 8, evaluated by rh.est → 4.4); `demoOffer(1)` (application 3: `shortlisted → offer`,
+  proposed, start in 30 days, proposed salary 66 000 — REC-2026-0001 now counts 2 received, 0 shortlisted, 2
+  interview, 1 offer), `demoOffer(8)` (accepted, the hire of EMP-0028).
+- e2e fixture (`test/support/recruitment-fixture.ts`), per target: `interview` + `interviewsToCancel` on the main
+  application; `offerOpening` (99 posts) with `offered` (+ its candidate and CV), `toOffer`, `toDecline`,
+  `toCancelOffer`, `toHire`; `undoOpening` with four hired applications whose employments (`REC_UNDO_EMPLOYMENT`,
+  matricules `UNDO-<t><k>`) are ended; Est only: `chefInterview` / `chefApplication` / `chefFile` (chef.annaba as the
+  only interviewer of an AG-CNE application).
+- Matrix: every Phase B route has its rows (`REC_HIRE` = the shape of `REC_MANAGE`); the « `recruitment.hire`
+  without `employee.create` → 403 `forbidden-scope` » case is in `recruitment-hire.e2e-spec.ts` (a custom role), as
+  are the per-role comparison and the interviewer isolation.
+
+### Settled by the verification (Phase B, 2026-10-08)
+
+Behaviour observed by the independent verification (full gate, browser fr/ar/en at 1280 and 390 px, security probes)
+that the text above did not state.
+
+- **Web alignment with the API.** The board's « Embaucher » link is shown from `BoardCard._actions` (`hire`), no
+  longer from the session's permissions. The hire page takes « back » and « cancel » from
+  `HirePrefillView.candidateId`; the `?candidate=` query the links still carry is only used while the prefill is not
+  there (a load error). The interviewer picker reads `{items}` only.
+- **Interviewer without any permission.** Every `/recruitment/*` route answers 403 (the guard), the application
+  timeline 404; `/me/recruitment/openings/:id` and its comparison 404. Through the `/me` content route they download
+  only the files of the candidate they evaluate (another candidate's file id under their application → 404). Access
+  ends — detail, evaluation and files all 404, the interview leaves both « À évaluer » and « Évalués » — as soon as
+  the interview is cancelled or the application is final (rejected, withdrawn, **hired**), and comes back if the
+  application is reopened or the hire undone.
+- **Evaluation window.** While the application sits in another active stage (e.g. moved back to `shortlisted`) the
+  interviewer still reads the interview but `_actions` is `[]` and a submission answers 409
+  `recruitment-evaluation-closed`. A re-submission keeps one row per interviewer (scores replaced). A user who is
+  neither an interviewer of the interview nor in its company gets 404 on `PUT …/evaluation`, HR included.
+- **Hidden evaluations, verified route by route** for an HR user who is also an interviewer and a head (rh.est)
+  before submitting: application detail, candidate, board, both comparisons, the head's opening view, the candidates
+  list, the application timeline, the notifications and the summaries hold neither the other interviewer's scores,
+  recommendation or comment nor any average; all of it appears once their own evaluation is in.
+- **Salary.** For a caller without `recruitment.salary.read` no response holds an amount or a salary key: application
+  (the offer included), candidate, board, comparisons, lists, both timelines, notifications, `hire-prefill` (no
+  `salary`) and the 201 of the hire. `PUT …/offer` with `proposedSalary: null` also needs
+  `recruitment.salary.update` (403 `forbidden-field`); an edit by regional HR leaves the stored amount untouched. The
+  hire form of central HR starts its base salary from the proposed salary.
+- **Offers and posts.** With hires + proposed offers = posts, `make_offer` is absent from every other application
+  (page and board menu) and `POST …/offer` answers 409 `recruitment-no-post-left`; cancelling or declining an offer
+  frees the post at once. A declined offer shows as « Déclinée » and the application as « Désistement ».
+- **Hire, concurrency.** Two hires of the same application sent together (two HR users, two matricules) give one 201
+  and one 409 `recruitment-stage-changed`, one person, one employment and one file copy. Two different applications
+  hired together on an opening with two posts both succeed and the opening is filled with a count of 2. A refused
+  hire (`matricule-taken`, `nin-taken`, 403 `forbidden-scope` for a unit outside `employee.create`, 403
+  `forbidden-field` for a salary block, 422s) leaves the person, employment, assignment and employee-file counts, the
+  opening's count, the stage and the offer exactly as they were. The 409s of `POST /employees` carry
+  `errors[{field: 'matricule', code: 'matricule_taken'}]` / `[{field: 'nin', code: 'nin_taken'}]`, which the hire form
+  shows on those fields.
+- **Fill and undo.** The hire of the last post rejects the applications in progress (`position_filled`) and cancels
+  their interviews to come (`cancelReason` « Poste pourvu », stored in French whatever the user's language);
+  applications decided by hand are untouched. The undo (after the employment has an end date, a future one included)
+  returns the application under offer, reopens the opening and restores those applications to their stage; their
+  cancelled interviews stay cancelled. The reason of the undo is the comment of the `hire_undone` stage row.
+- **Retention and erasure.** A run with today's date purges nothing decided inside the period; a run pinned 13 months
+  later purges every decided application, hired ones included, with their interviews, interviewers, scores, offers,
+  salary rows, notes and stage comments, writes one `recruitment.purged` and is a no-op when repeated. After it, a
+  dump of the whole database (every schema) holds the probe candidates' names, NIN, e-mail, phone, comments,
+  evaluation comments, amounts and file names **only** where the hired person's employee record keeps them: `person`,
+  `employee_file` (+ content) and their own audit rows. Free text of applications still in progress (a cancel reason,
+  an undo reason) stays until those are decided and purged. Erasure on request also deletes the offers and
+  interviews (`recruitment.offer_deleted`, `recruitment.interview_deleted`).
+- **Database guards as `hrforce_app`.** Refused: changing a cancelled interview, moving an interview / evaluation /
+  offer to another application, interview or user, their creation columns, a cancellation without reason, a second
+  interviewer row or a second proposed offer, a recommendation without `submitted_at`, a score outside 1–5, deleting a
+  criterion or changing its code. `hrforce_worker` can only delete on the four personal tables. Not guarded (app-role
+  trust question of HANDOFF): the app role may rewrite a submitted evaluation's scores and comment or an offer's
+  fields.
+- **Web.** The opening's tabs are *Pipeline · Comparaison · Détails · Historique* (« المقارنة »). The timeline labels
+  cover the build's extra events (`interviewer_added` / `_removed`, `interview_deleted`, `offer_deleted`,
+  `offer_reopened`). The comparison lists an application from its first non-cancelled interview on, withdrawn ones
+  included. The interviewer picker searches after a short pause: the list shown just before may be the previous
+  search's. A head's request form lists the headed unit and its sub-units indented with « — ».

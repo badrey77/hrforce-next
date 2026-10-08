@@ -551,7 +551,8 @@ export interface PurgeResult {
 
 /**
  * Purges applications (docs/contracts/recruitment.md › Retention, erasure and worker), in this order: their notes and
- * salary rows are deleted, the comments of their stage rows blanked, then `purged_at = now()` and `candidate_id = null`;
+ * salary rows are deleted, then their evaluation scores, interviewers, interviews and offers (Phase B), the comments of
+ * their stage rows blanked, then `purged_at = now()` and `candidate_id = null`;
  * then every candidate of the company left with NO application loses its files (bytes by FK cascade) and its row.
  * What remains of an application is anonymous: opening, source, final stage, dates, employment, its stage rows.
  * Only decided, not yet purged applications are touched (the caller chose them; the database guard refuses the rest).
@@ -561,6 +562,15 @@ export async function purgeApplications(tx: Transaction<DB>, companyId: string, 
   const list = ids(applicationIds);
   await sql`delete from recruitment_note where company_id = ${companyId}::uuid and application_id in (${list})`.execute(tx);
   await sql`delete from recruitment_application_salary where company_id = ${companyId}::uuid and application_id in (${list})`.execute(tx);
+  // Phase B: evaluation scores → interviewers (recommendations, comments) → interviews → offers
+  const interviews = sql`select i.id from recruitment_interview i where i.company_id = ${companyId}::uuid and i.application_id in (${list})`;
+  await sql`
+    delete from recruitment_evaluation_score
+     where company_id = ${companyId}::uuid
+       and interviewer_id in (select w.id from recruitment_interviewer w where w.company_id = ${companyId}::uuid and w.interview_id in (${interviews}))`.execute(tx);
+  await sql`delete from recruitment_interviewer where company_id = ${companyId}::uuid and interview_id in (${interviews})`.execute(tx);
+  await sql`delete from recruitment_interview where company_id = ${companyId}::uuid and application_id in (${list})`.execute(tx);
+  await sql`delete from recruitment_offer where company_id = ${companyId}::uuid and application_id in (${list})`.execute(tx);
   await sql`
     update recruitment_application_stage set comment = null
      where company_id = ${companyId}::uuid and application_id in (${list}) and comment is not null`.execute(tx);

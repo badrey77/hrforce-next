@@ -1,11 +1,11 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
 import { LeaveCatalog } from '../../core/leave/leave-catalog';
 import type { WorkflowTaskHistory } from '../../core/leave/leave.models';
-import type { MyOpeningView, OpeningView } from '../../core/recruitment/recruitment.models';
+import type { CriterionRef, MyOpeningView, OpeningView } from '../../core/recruitment/recruitment.models';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { statusTone } from './recruitment-view';
 
@@ -77,6 +77,20 @@ import { statusTone } from './recruitment-view';
         }
       </dl>
 
+      @if (o.criteria.length || canEditCriteria()) {
+        <div class="toolbar">
+          <h3 id="opening-criteria-title">{{ t('recruitment.criteria.title') }}</h3>
+          @if (canEditCriteria()) {
+            <button class="btn secondary" type="button" data-action="edit-criteria" (click)="editCriteria.emit()">{{ t('recruitment.criteria.edit') }}</button>
+          }
+        </div>
+        <ol data-panel="criteria" aria-labelledby="opening-criteria-title">
+          @for (criterion of o.criteria; track criterion.id) {
+            <li><bdi>{{ criterionLabel(criterion) }}</bdi></li>
+          }
+        </ol>
+      }
+
       @if (history().length) {
         <h3>{{ t('workflow.history.title') }}</h3>
         <div class="table-scroll">
@@ -118,6 +132,13 @@ export class OpeningFacts {
 
   readonly opening = input.required<OpeningView | MyOpeningView>();
   readonly history = input<readonly WorkflowTaskHistory[]>([]);
+  /** « Modifier » next to the criteria (the opening's `set_criteria` action). */
+  readonly canEditCriteria = input(false);
+  readonly editCriteria = output<void>();
+
+  protected criterionLabel(criterion: CriterionRef): string {
+    return this.catalog.labelOf(criterion.labels);
+  }
 
   protected stepName(index: number): string {
     const step = this.opening().workflow?.steps[index];

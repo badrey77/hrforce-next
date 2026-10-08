@@ -26,7 +26,7 @@ interface Answers {
   /** Unread notifications (`GET /api/me/notifications/unread-count`). */
   unread?: number;
   /** `GET /api/me/recruitment/summary` (zeros and `false` when absent: a user with nothing). */
-  recruitment?: { canRequestOpening: boolean; openings: number; pendingOpenings: number };
+  recruitment?: { canRequestOpening: boolean; openings: number; pendingOpenings: number; interviews?: number; evaluationsTodo?: number };
 }
 let answers: Answers = {};
 
@@ -267,6 +267,31 @@ describe('App shell', () => {
       TestBed.inject(Session).set(meWith(['recruitment.read']));
       await settle(nothing.fixture);
       expect(links(nothing.el)).toEqual(['/', '/tasks', '/recruitment', '/settings']);
+    });
+  });
+
+  describe('« Mes entretiens » nav (docs/contracts/recruitment.md › Web (Phase B))', () => {
+    it('shows to an interviewer without any permission, with the evaluations to enter as a badge; gone when they have none', async () => {
+      TestBed.inject(Session).set(meWith([]));
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 1 } };
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/tasks', '/me/interviews', '/settings']);
+      const link = el.querySelector('nav a[href="/me/interviews"]');
+      expect(link?.textContent).toContain('Mes entretiens');
+      expect(link?.querySelector('[data-badge="interviews"]')?.textContent?.trim()).toBe('1');
+      expect(link?.getAttribute('aria-label')).toBe('Mes entretiens, 1 évaluation(s) à saisir');
+
+      // Everything evaluated: the entry stays (the interviews are still theirs), without a badge.
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(fixture);
+      expect(el.querySelector('nav a[href="/me/interviews"] [data-badge]')).toBeNull();
+      expect(el.querySelector('nav a[href="/me/interviews"]')?.getAttribute('aria-label')).toBeNull();
+
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(fixture);
+      expect(links(el)).not.toContain('/me/interviews');
     });
   });
 

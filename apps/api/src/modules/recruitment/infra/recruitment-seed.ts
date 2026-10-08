@@ -13,7 +13,19 @@ import { DEMO_USERS } from '../../identity/index.js';
 import { LEAVE_DEMO } from '../../leave/index.js';
 import { DEMO_ORGANIZATION } from '../../organization/index.js';
 import { seedWorkflowDefinitions, type SeedDefinition } from '../../workflow/index.js';
-import { isFinalStage, phoneKey, type AutoCause, type ContractType, type FileKind, type OpeningStatus, type Source, type Stage } from '../domain/rules.js';
+import {
+  isFinalStage,
+  phoneKey,
+  type AutoCause,
+  type ContractType,
+  type FileKind,
+  type InterviewMode,
+  type OfferStatus,
+  type OpeningStatus,
+  type Recommendation,
+  type Source,
+  type Stage,
+} from '../domain/rules.js';
 
 type Executor = Kysely<DB> | Transaction<DB>;
 
@@ -45,9 +57,18 @@ export const SYSTEM_REJECTION_REASONS: readonly { code: string; names: { fr: str
   { code: 'opening_closed', names: { fr: 'Recrutement clôturé', ar: 'تم إغلاق عملية التوظيف', en: 'Recruitment closed' }, sortOrder: 910, autoOnly: true },
 ];
 
+/** The seeded evaluation criteria of every company (Phase B; migration 0020 did existing companies). */
+export const SYSTEM_CRITERIA: readonly { code: string; names: { fr: string; ar: string; en: string }; sortOrder: number }[] = [
+  { code: 'skills', names: { fr: 'Compétences techniques', ar: 'الكفاءات التقنية', en: 'Technical skills' }, sortOrder: 10 },
+  { code: 'experience', names: { fr: 'Expérience', ar: 'الخبرة المهنية', en: 'Experience' }, sortOrder: 20 },
+  { code: 'communication', names: { fr: 'Communication', ar: 'التواصل', en: 'Communication' }, sortOrder: 30 },
+  { code: 'motivation', names: { fr: 'Motivation', ar: 'الحافز', en: 'Motivation' }, sortOrder: 40 },
+  { code: 'fit', names: { fr: 'Adéquation au poste', ar: 'الملاءمة للمنصب', en: 'Fit for the position' }, sortOrder: 50 },
+];
+
 /**
- * The policy row, the two approval chains and the rejection reasons (the same defaults migration 0019 gave existing
- * companies). The system employee-file category `recruitment` comes with seedDocumentDefaults (SYSTEM_FILE_CATEGORIES).
+ * The policy row, the two approval chains, the rejection reasons and the evaluation criteria (the same defaults
+ * migrations 0019 and 0020 gave existing companies). The system employee-file category `recruitment` comes with seedDocumentDefaults (SYSTEM_FILE_CATEGORIES).
  */
 export async function seedRecruitmentDefaults(db: Executor, companyId: string): Promise<void> {
   await seedWorkflowDefinitions(db, companyId, RECRUITMENT_DEFINITIONS);
@@ -56,6 +77,12 @@ export async function seedRecruitmentDefaults(db: Executor, companyId: string): 
     await sql`
       insert into recruitment_rejection_reason (company_id, code, name_fr, name_ar, name_en, sort_order, is_system, auto_only)
       values (${companyId}::uuid, ${r.code}, ${r.names.fr}, ${r.names.ar}, ${r.names.en}, ${r.sortOrder}, true, ${r.autoOnly})
+      on conflict (company_id, code) do nothing`.execute(db);
+  }
+  for (const c of SYSTEM_CRITERIA) {
+    await sql`
+      insert into recruitment_criterion (company_id, code, name_fr, name_ar, name_en, sort_order, is_system)
+      values (${companyId}::uuid, ${c.code}, ${c.names.fr}, ${c.names.ar}, ${c.names.en}, ${c.sortOrder}, true)
       on conflict (company_id, code) do nothing`.execute(db);
   }
 }
@@ -132,6 +159,38 @@ export interface SeedTransition {
   autoCause?: AutoCause;
 }
 
+export interface SeedInterview {
+  id: string;
+  label?: string;
+  at: string;
+  durationMinutes?: number;
+  mode: InterviewMode;
+  location?: string;
+  /** the HR user who scheduled it */
+  by: string;
+  cancelReason?: string;
+  interviewers: {
+    user: string;
+    /** scores in the order of the opening's criteria (repeated when shorter) */
+    evaluation?: { scores: number[]; recommendation: Recommendation; comment?: string; at: string };
+  }[];
+}
+
+export interface SeedOffer {
+  id: string;
+  jobTitle: string;
+  orgUnitId: string;
+  contractType: ContractType;
+  startDate: string;
+  status: OfferStatus;
+  by: string;
+  at: string;
+  /** required unless `proposed` */
+  decidedAt?: string;
+  note?: string;
+  proposedSalary?: string;
+}
+
 export interface SeedApplication {
   id: string;
   openingId: string;
@@ -145,6 +204,8 @@ export interface SeedApplication {
   notes?: { id: string; body: string; by: string; at: string }[];
   employmentId?: string;
   purgedAt?: string;
+  interviews?: SeedInterview[];
+  offer?: SeedOffer;
 }
 
 export interface SeedRecruitment {
@@ -181,6 +242,16 @@ export async function seedRecruitment(db: Executor, companyId: string, data: See
       await sql`
         insert into recruitment_opening_sequence (company_id, year, last_value) values (${companyId}::uuid, ${Number(year)}, ${Number(seq)})
         on conflict (company_id, year) do update set last_value = greatest(recruitment_opening_sequence.last_value, excluded.last_value)`.execute(db);
+    }
+    // an opening that is not pending holds the company's active criteria (as migration 0020 and the approval do)
+    if (o.status !== 'pending') {
+      await sql`
+        insert into recruitment_opening_criterion (company_id, opening_id, criterion_id, position)
+        select ${companyId}::uuid, ${o.id}::uuid, x.id, x.n
+          from (select k.id, row_number() over (order by k.sort_order, k.code) as n
+                  from recruitment_criterion k where k.company_id = ${companyId}::uuid and k.active) x
+         where x.n <= 8
+        on conflict do nothing`.execute(db);
     }
     if (!o.workflow) continue;
     const definitionId = definitions.get(o.workflow.definition);
@@ -244,10 +315,41 @@ export async function seedRecruitment(db: Executor, companyId: string, data: See
       from = t.to;
     }
     if (a.purgedAt) continue;
-    if (a.expectedSalary) {
+    if (a.expectedSalary || a.offer?.proposedSalary) {
       await sql`
-        insert into recruitment_application_salary (application_id, company_id, expected_salary)
-        values (${a.id}::uuid, ${companyId}::uuid, ${a.expectedSalary}::numeric)`.execute(db);
+        insert into recruitment_application_salary (application_id, company_id, expected_salary, proposed_salary)
+        values (${a.id}::uuid, ${companyId}::uuid, ${a.expectedSalary ?? null}::numeric, ${a.offer?.proposedSalary ?? null}::numeric)`.execute(db);
+    }
+    if (a.offer) {
+      const f = a.offer;
+      await sql`
+        insert into recruitment_offer (id, company_id, application_id, job_title, org_unit_id, contract_type, start_date, note, status, decided_at, created_by, created_at)
+        values (${f.id}::uuid, ${companyId}::uuid, ${a.id}::uuid, ${f.jobTitle}, ${f.orgUnitId}::uuid, ${f.contractType}, ${f.startDate}::date, ${f.note ?? null},
+                ${f.status}, ${f.status === 'proposed' ? null : (f.decidedAt ?? f.at)}::timestamptz, ${f.by}::uuid, ${f.at}::timestamptz)`.execute(db);
+    }
+    if (a.interviews?.length) {
+      const criteria = await sql<{ id: string }>`
+        select criterion_id as id from recruitment_opening_criterion where company_id = ${companyId}::uuid and opening_id = ${a.openingId}::uuid order by position`.execute(db);
+      for (const i of a.interviews) {
+        await sql`
+          insert into recruitment_interview (id, company_id, application_id, label, scheduled_at, duration_minutes, mode, location, status, cancel_reason, created_by, created_at)
+          values (${i.id}::uuid, ${companyId}::uuid, ${a.id}::uuid, ${i.label ?? null}, ${i.at}::timestamptz, ${i.durationMinutes ?? 60}, ${i.mode}, ${i.location ?? null},
+                  ${i.cancelReason ? 'cancelled' : 'scheduled'}, ${i.cancelReason ?? null}, ${i.by}::uuid, ${first.at}::timestamptz)`.execute(db);
+        for (const [k, w] of i.interviewers.entries()) {
+          const interviewerId = childId(i.id, 'interviewer', k);
+          const e = w.evaluation;
+          await sql`
+            insert into recruitment_interviewer (id, company_id, interview_id, user_id, recommendation, comment, submitted_at)
+            values (${interviewerId}::uuid, ${companyId}::uuid, ${i.id}::uuid, ${w.user}::uuid, ${e?.recommendation ?? null}, ${e?.comment ?? null},
+                    ${e?.at ?? null}::timestamptz)`.execute(db);
+          if (!e || e.scores.length === 0) continue;
+          for (const [n, criterion] of criteria.rows.entries()) {
+            await sql`
+              insert into recruitment_evaluation_score (company_id, interviewer_id, criterion_id, score)
+              values (${companyId}::uuid, ${interviewerId}::uuid, ${criterion.id}::uuid, ${e.scores[n % e.scores.length] ?? 3})`.execute(db);
+          }
+        }
+      }
     }
     for (const n of a.notes ?? []) {
       await sql`
@@ -293,6 +395,10 @@ export const DEMO_OPENINGS = {
   /** REC-2025-0001, Agence Tlemcen, closed 14 months ago, three purged applications */
   tlemcen: fixed(1, 7),
 } as const;
+
+/** Fixed ids of the demo interviews (1: held, both evaluations in; 2: in two days, nothing submitted; 3: of the hired application) and offers. */
+export const demoInterview = (n: number): string => fixed(7, n);
+export const demoOffer = (n: number): string => fixed(8, n);
 
 /** Fixed ids of the demo candidates: 1–7 on REC-2026-0001, 8–10 on 0003, 11–12 on 0004 (11 also on 0006), 13–14 on 0006. */
 export const demoCandidate = (n: number): string => fixed(2, n);
@@ -466,18 +572,34 @@ export function demoRecruitment(nowMs: number): SeedRecruitment {
     { id: demoApplication(2), openingId: A, candidateId: demoCandidate(2), source: 'spontaneous', createdBy: karim, transitions: [received(33, karim)] },
     {
       id: demoApplication(3), openingId: A, candidateId: demoCandidate(3), source: 'referral', createdBy: karim, expectedSalary: '68000.00',
-      transitions: [received(32, karim), { to: 'shortlisted', at: at(26, 10), by: karim }],
+      // Phase B: shortlisted, then an offer in progress (start next month, a proposed salary)
+      transitions: [received(32, karim), { to: 'shortlisted', at: at(26, 10), by: karim }, { to: 'offer', at: at(1, 15), by: admin }],
       notes: [{ id: fixed(6, 3), body: 'Bon dossier, cinq ans en agence bancaire. À recevoir rapidement.', by: karim, at: at(26, 11) }],
+      offer: { id: demoOffer(1), jobTitle: 'Chargé(e) de clientèle', orgUnitId: unitId('AG-ANNABA'), contractType: 'cdi', startDate: date(30), status: 'proposed', by: admin, at: at(1, 15), proposedSalary: '66000.00' },
     },
     {
       id: demoApplication(4), openingId: A, candidateId: demoCandidate(4), source: 'internal', createdBy: karim,
       transitions: [received(30, karim), { to: 'shortlisted', at: at(27, 9), by: karim }, { to: 'interview', at: at(20, 14), by: karim }],
       notes: [{ id: fixed(6, 4), body: 'Ancien salarié de l’agence de Constantine : vérifier les conditions de départ.', by: admin, at: at(20, 15) }],
+      // held three days ago, both evaluations in: the comparison has data
+      interviews: [
+        {
+          id: demoInterview(1), label: 'Entretien RH', at: at(3, 9), mode: 'on_site', location: 'Agence Annaba, salle de réunion', by: karim,
+          interviewers: [
+            { user: karim, evaluation: { scores: [4, 5, 4, 4, 5], recommendation: 'yes', comment: 'Connaît déjà nos procédures ; bonne présentation.', at: at(3, 11) } },
+            { user: chef, evaluation: { scores: [4, 4, 3, 5, 4], recommendation: 'strong_yes', comment: 'Opérationnel rapidement au guichet.', at: at(2, 9) } },
+          ],
+        },
+      ],
     },
     {
       id: demoApplication(5), openingId: A, candidateId: demoCandidate(5), source: 'job_board', createdBy: karim,
       transitions: [received(30, karim), { to: 'interview', at: at(18, 10), by: karim }],
       notes: [{ id: fixed(6, 5), body: 'Disponible sous un mois.', by: karim, at: at(18, 11) }],
+      // in two days, nothing submitted: chef.annaba's « À évaluer »
+      interviews: [
+        { id: demoInterview(2), label: 'Entretien technique', at: at(-2, 13), durationMinutes: 45, mode: 'video', location: 'https://visio.example.test/rec-0001', by: karim, interviewers: [{ user: chef }, { user: admin }] },
+      ],
     },
     {
       id: demoApplication(6), openingId: A, candidateId: demoCandidate(6), source: 'anem', createdBy: karim,
@@ -493,6 +615,13 @@ export function demoRecruitment(nowMs: number): SeedRecruitment {
       transitions: [
         received(100, karim), { to: 'shortlisted', at: at(90), by: karim }, { to: 'interview', at: at(70), by: karim },
         { to: 'offer', at: at(40), by: karim }, { to: 'hired', at: at(25, 15), by: karim },
+      ],
+      offer: { id: demoOffer(8), jobTitle: 'Technicien réseau', orgUnitId: unitId('AG-CNE'), contractType: 'cdi', startDate: hired.hireDate, status: 'accepted', by: karim, at: at(40), decidedAt: at(25, 15) },
+      interviews: [
+        {
+          id: demoInterview(3), label: 'Entretien technique', at: at(60, 9), mode: 'on_site', by: karim,
+          interviewers: [{ user: karim, evaluation: { scores: [5, 4, 4, 4, 5], recommendation: 'strong_yes', comment: 'Très bon niveau réseau.', at: at(60, 12) } }],
+        },
       ],
     },
     {

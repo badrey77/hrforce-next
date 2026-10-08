@@ -38,7 +38,7 @@ export type FileKind = (typeof FILE_KINDS)[number];
 export const WORKFLOW_CODES = ['recruitment.manager_then_hr', 'recruitment.hr_only'] as const;
 export type OpeningWorkflowCode = (typeof WORKFLOW_CODES)[number];
 
-export type AutoCause = 'opening_filled' | 'opening_closed' | 'hire_undone' | 'opening_reopened';
+export type AutoCause = 'opening_filled' | 'opening_closed' | 'hire_undone' | 'opening_reopened' | 'interview_scheduled';
 
 /** Policy defaults: a missing recruitment_policy row means these. */
 export const DEFAULT_RETENTION_MONTHS = 12;
@@ -136,4 +136,69 @@ export function isPositiveMoney(value: string): boolean {
 /** `%q%` with LIKE wildcards escaped (the search columns are normalised by search_normalize()). */
 export function likeContains(q: string): string {
   return `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+// ── Phase B: criteria, interviews, evaluations, offers ─────────────────────────────────────────────────────────────
+
+export const RECOMMENDATIONS = ['strong_yes', 'yes', 'no', 'strong_no'] as const;
+export type Recommendation = (typeof RECOMMENDATIONS)[number];
+
+export const INTERVIEW_MODES = ['on_site', 'video', 'phone'] as const;
+export type InterviewMode = (typeof INTERVIEW_MODES)[number];
+
+export type InterviewState = 'upcoming' | 'awaiting_evaluations' | 'complete' | 'cancelled';
+export type OfferStatus = 'proposed' | 'accepted' | 'declined' | 'cancelled';
+
+/** An opening holds 1–8 criteria; an interview 1–5 interviewers; a hire copies at most 5 candidate files. */
+export const OPENING_CRITERIA_MAX = 8;
+export const INTERVIEWERS_MAX = 5;
+export const COPY_FILES_MAX = 5;
+export const INTERVIEWER_PICKER_MAX = 20;
+
+/** The stages an interview can be scheduled from, and an offer made from. */
+export const PRE_OFFER_STAGES: readonly Stage[] = ['received', 'shortlisted', 'interview'];
+
+export function isPreOfferStage(stage: string): boolean {
+  return (PRE_OFFER_STAGES as readonly string[]).includes(stage);
+}
+
+export function isClockTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+/** An Algiers local date and `HH:MM` (UTC+1, no daylight saving) as an instant. */
+export function algiersInstant(date: string, time: string): Date {
+  return new Date(Date.parse(`${date}T${time}:00Z`) - ALGIERS_OFFSET_MS);
+}
+
+/** The Algiers local date and `HH:MM` of an instant. */
+export function algiersDateTime(at: Date): { date: string; time: string } {
+  const iso = new Date(at.getTime() + ALGIERS_OFFSET_MS).toISOString();
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+}
+
+/** One decimal, half up (3.25 → 3.3); null for nothing to average. */
+export function mean(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sum = values.reduce((a, b) => a + b, 0);
+  return Math.round((sum / values.length) * 10 + 1e-9) / 10;
+}
+
+/** The unrounded mean (an average of evaluators' overalls is rounded once, at the end). */
+export function rawMean(values: readonly number[]): number | null {
+  return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+export function round1(value: number | null): number | null {
+  return value === null ? null : Math.round(value * 10 + 1e-9) / 10;
+}
+
+/**
+ * The state of an interview: cancelled; upcoming before its time; complete once every interviewer submitted; else
+ * awaiting evaluations.
+ */
+export function interviewState(i: { status: 'scheduled' | 'cancelled'; scheduledAt: Date }, submitted: number, expected: number, nowMs: number): InterviewState {
+  if (i.status === 'cancelled') return 'cancelled';
+  if (i.scheduledAt.getTime() > nowMs) return 'upcoming';
+  return expected > 0 && submitted >= expected ? 'complete' : 'awaiting_evaluations';
 }

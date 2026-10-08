@@ -1,5 +1,7 @@
 <ng-container *transloco="let t">
   <app-application-move (moved)="onMoved($event)" (failed)="onFailed($event)" />
+  <app-interview-dialog (saved)="onInterview($event)" (failed)="onFailed($event)" />
+  <app-offer-dialog (saved)="onOffer($event)" (failed)="onFailed($event)" />
 
   <div class="toolbar">
     <h2 id="board-title">{{ t('recruitment.board.title') }}</h2>
@@ -62,8 +64,25 @@
                 <span class="muted" data-field="reason">{{ reasonOf(card) }}</span>
               }
             </p>
-            <app-stage-menu [targets]="card._actions.includes('move') ? card.moveTargets : []" [canReopen]="card._actions.includes('reopen')"
-              [name]="nameOf(card)" [disabled]="mover().busy()" (pick)="move(card, $event)" (reopen)="reopen(card)" />
+            @if (card.nextInterviewAt || card.average !== null || card.pendingEvaluations) {
+              <p class="tags" data-panel="interview-facts">
+                @if (card.nextInterviewAt; as at) {
+                  <span data-field="next-interview">{{ t('recruitment.board.nextInterview', { date: (at | date: 'short' : undefined : locale()) }) }}</span>
+                }
+                @if (card.average !== null) {
+                  <span class="badge" data-field="average">{{ t('recruitment.interviews.average', { value: (card.average | number: '1.1-1' : locale()) }) }}</span>
+                }
+                @if (card.pendingEvaluations) {
+                  <span class="badge" data-status="pending" data-field="pending-evaluations">{{ t('recruitment.board.pendingEvaluations', { count: card.pendingEvaluations }) }}</span>
+                }
+              </p>
+            }
+            <app-stage-menu [targets]="card._actions.includes('move') ? card.moveTargets : []" [canReopen]="card._actions.includes('reopen')" [extras]="extrasOf(card)"
+              [name]="nameOf(card)" [disabled]="mover().busy()" (pick)="move(card, $event)" (reopen)="reopen(card)" (extra)="openExtra(card, $event)" />
+            <!-- `hire`: the API's word that this caller may open the hire page for this card. -->
+            @if (card._actions.includes('hire')) {
+              <a class="btn" [routerLink]="['/recruitment/applications', card.id, 'hire']" [queryParams]="{ candidate: card.candidate.id }" data-action="hire">{{ t('recruitment.hire.action') }}</a>
+            }
           </li>
         } @empty {
           <li class="muted" data-state="empty-column">{{ column.count ? t('common.loading') : t('recruitment.board.emptyColumn') }}</li>

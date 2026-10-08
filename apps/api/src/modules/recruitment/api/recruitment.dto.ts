@@ -1,11 +1,18 @@
 import { z } from 'zod';
 import { createZodDto } from '../../../platform/http/zod-validation.pipe.js';
+import { createEmployeeShape, refineCreateEmployee } from '../../employment/index.js';
 import {
   CONTRACT_TYPES,
+  COPY_FILES_MAX,
   FILE_KINDS,
+  INTERVIEW_MODES,
+  INTERVIEWERS_MAX,
+  isClockTime,
   isIsoDate,
   isPositiveMoney,
+  OPENING_CRITERIA_MAX,
   OPENING_STATUSES,
+  RECOMMENDATIONS,
   RETENTION_MONTHS_MAX,
   RETENTION_MONTHS_MIN,
   SOURCES,
@@ -260,3 +267,106 @@ export class UpdateReasonDto extends createZodDto(
     sortOrder: z.number().int().min(0).max(899, { message: 'Between 0 and 899' }).optional(),
   }),
 ) {}
+
+// ── Phase B: criteria, interviews, evaluations, offers, hire ─────────────────────────────────────────────────────
+
+const code = z
+  .string()
+  .trim()
+  .regex(/^[a-z][a-z0-9_]{1,39}$/, { message: 'Lower-case letters, digits and _, starting with a letter (2–40)' });
+
+export class CreateCriterionDto extends createZodDto(z.object({ code, labels })) {}
+
+export class UpdateCriterionDto extends createZodDto(
+  z.object({ labels: labels.optional(), active: z.boolean().optional(), sortOrder: z.number().int().min(0).max(9999, { message: 'Between 0 and 9999' }).optional() }),
+) {}
+
+/** 1–8 criteria, in order. */
+export class OpeningCriteriaDto extends createZodDto(
+  z.object({ criterionIds: z.array(uuid).min(1, { message: 'At least one criterion' }).max(OPENING_CRITERIA_MAX, { message: `At most ${OPENING_CRITERIA_MAX} criteria` }) }),
+) {}
+
+export class InterviewersQueryDto extends createZodDto(z.object({ q: z.string().trim().min(2, { message: 'At least 2 characters' }).max(100) })) {}
+
+const clockTime = z.string().refine(isClockTime, { message: 'Must be a time written HH:MM', params: { code: 'invalid_time' } });
+const duration = z.number().int().min(15, { message: 'Between 15 and 480 minutes' }).max(480, { message: 'Between 15 and 480 minutes' });
+const interviewerIds = z.array(uuid).min(1, { message: 'At least one interviewer' }).max(INTERVIEWERS_MAX, { message: `At most ${INTERVIEWERS_MAX} interviewers` });
+
+/** Algiers local date and time; a past date is allowed (an interview already held). */
+export class ScheduleInterviewDto extends createZodDto(
+  z.object({
+    date: isoDate,
+    time: clockTime,
+    durationMinutes: duration.optional(),
+    mode: z.enum(INTERVIEW_MODES),
+    location: optionalText(200).optional(),
+    label: optionalText(120).optional(),
+    interviewerIds,
+  }),
+) {}
+
+export class UpdateInterviewDto extends createZodDto(
+  z.object({
+    date: isoDate.optional(),
+    time: clockTime.optional(),
+    durationMinutes: duration.optional(),
+    mode: z.enum(INTERVIEW_MODES).optional(),
+    location: optionalText(200).optional(),
+    label: optionalText(120).optional(),
+    interviewerIds: interviewerIds.optional(),
+  }),
+) {}
+
+export class CancelInterviewDto extends createZodDto(z.object({ reason: text(3, 500) })) {}
+
+export class MyInterviewsQueryDto extends createZodDto(z.object({ filter: z.enum(['todo', 'done']).default('todo') })) {}
+
+/** Whole scores 1–5; the use case checks they cover every criterion of the opening. */
+export class EvaluationDto extends createZodDto(
+  z.object({
+    scores: z.array(z.object({ criterionId: uuid, score: z.number().int().min(1, { message: 'Between 1 and 5' }).max(5, { message: 'Between 1 and 5' }) })).max(OPENING_CRITERIA_MAX),
+    recommendation: z.enum(RECOMMENDATIONS),
+    comment: optionalText(4000).optional(),
+  }),
+) {}
+
+const offerFields = {
+  jobTitle: text(1, 120),
+  orgUnitId: uuid,
+  siteId: uuid.nullable().optional(),
+  contractType: z.enum(CONTRACT_TYPES),
+  startDate: isoDate,
+  note: optionalText(1000).optional(),
+  proposedSalary: money.nullable().optional(),
+};
+
+export class MakeOfferDto extends createZodDto(z.object({ expectedStage: stage, ...offerFields })) {}
+
+/** What is sent replaces the offer's value (a full body works as well as a partial one); `expectedStage` is ignored. */
+export class UpdateOfferDto extends createZodDto(
+  z.object({
+    expectedStage: stage.optional(),
+    jobTitle: offerFields.jobTitle.optional(),
+    orgUnitId: uuid.optional(),
+    siteId: offerFields.siteId,
+    contractType: offerFields.contractType.optional(),
+    startDate: isoDate.optional(),
+    note: offerFields.note,
+    proposedSalary: offerFields.proposedSalary,
+  }),
+) {}
+
+export class EndOfferDto extends createZodDto(z.object({ expectedStage: stage, comment: comment(1000) })) {}
+
+/** The body of POST /employees (the Employment module's own shape and rule) + the stage on screen + the files to copy. */
+export class HireDto extends createZodDto(
+  z
+    .object({
+      ...createEmployeeShape,
+      expectedStage: stage,
+      copyFileIds: z.array(uuid).max(COPY_FILES_MAX, { message: `At most ${COPY_FILES_MAX} files` }).default([]),
+    })
+    .superRefine(refineCreateEmployee),
+) {}
+
+export class UndoHireDto extends createZodDto(z.object({ reason: text(3, 500) })) {}

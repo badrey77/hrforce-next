@@ -45,6 +45,19 @@ export const RECRUITMENT_ROUTES: Routes = [
   NOT_FOUND_ROUTE,
 ];
 
+/** `/me/interviews` — « Mes entretiens »: signed in, no permission (an interviewer is chosen by HR; the API decides). */
+export const MY_INTERVIEWS_ROUTES: Routes = [
+  {
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () => import('./my-interviews.page').then((m) => m.MyInterviewsPage),
+  },
+  {
+    path: ':id',
+    loadComponent: () => import('./my-interview.page').then((m) => m.MyInterviewPage),
+  },
+];
+
 /** `/me/recruitment` — the requester's / unit head's view: signed in, no permission (the API decides). */
 export const MY_RECRUITMENT_ROUTES: Routes = [
   {

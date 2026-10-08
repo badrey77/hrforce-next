@@ -1,13 +1,15 @@
-import { boardCard, boardView, stageCounts } from '../../../testing/recruitment-fixtures';
+import { boardCard, boardView, comparisonView, CRITERIA, stageCounts } from '../../../testing/recruitment-fixtures';
 import {
   activeCount,
   candidateParams,
+  completeScores,
   daysSince,
   DEFAULT_CANDIDATE_QUERY,
   DEFAULT_OPENING_QUERY,
   matchQueryOf,
   openingParams,
   restorableCount,
+  sortByAverage,
 } from './recruitment.models';
 
 describe('recruitment models', () => {
@@ -75,5 +77,23 @@ describe('recruitment models', () => {
         birthDate: '1995-04-12',
       });
     });
+  });
+
+  it('sortByAverage: best first or last, and an application without any score always last', () => {
+    const { rows } = comparisonView();
+    expect(sortByAverage(rows, 'desc').map((r) => r.applicationId)).toEqual(['a-3', 'a-1', 'a-2']);
+    expect(sortByAverage(rows, 'asc').map((r) => r.applicationId)).toEqual(['a-1', 'a-3', 'a-2']);
+    expect(rows.map((r) => r.applicationId)).toEqual(['a-1', 'a-2', 'a-3']); // the answer itself is left as it came
+  });
+
+  it('completeScores: whole scores 1–5 for every criterion, in the opening\'s order; null while one is missing', () => {
+    expect(completeScores(CRITERIA, { 'cr-fit': 5, 'cr-skills': 4 })).toEqual([
+      { criterionId: 'cr-skills', score: 4 },
+      { criterionId: 'cr-fit', score: 5 },
+    ]);
+    expect(completeScores(CRITERIA, { 'cr-skills': 4, 'cr-fit': null })).toBeNull();
+    expect(completeScores(CRITERIA, { 'cr-skills': 4 })).toBeNull();
+    expect(completeScores(CRITERIA, { 'cr-skills': 6, 'cr-fit': 2 })).toBeNull();
+    expect(completeScores(CRITERIA, { 'cr-skills': 2.5, 'cr-fit': 2 })).toBeNull();
   });
 });

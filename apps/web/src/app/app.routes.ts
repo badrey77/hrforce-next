@@ -178,6 +178,19 @@ export const routes: Routes = [
     loadChildren: () => import('./features/attendance/attendance.routes').then((m) => m.ATTENDANCE_ROUTES),
   },
   {
+    // The hire of a candidate IS the create-employee form (or the rehire form) in hire mode, so its page lives with
+    // the Employees feature. It needs both permissions; refused, the URL falls through to "not found" below.
+    path: 'recruitment/applications/:id/hire',
+    canMatch: [...signedIn, permissionGuard('recruitment.hire'), permissionGuard('employee.create')],
+    loadComponent: () => import('./features/employees/employee-hire.page').then((m) => m.EmployeeHirePage),
+  },
+  {
+    // Mes entretiens: an interviewer needs no permission (the API decides which interviews are theirs).
+    path: 'me/interviews',
+    canMatch: signedIn,
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_INTERVIEWS_ROUTES),
+  },
+  {
     path: 'recruitment',
     canMatch: [...signedIn, permissionGuard()],
     data: { permission: ['recruitment.read', 'recruitment.configure'] },

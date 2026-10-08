@@ -1,8 +1,9 @@
-import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
+import { DatePipe, DecimalPipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { isApiProblemError } from '../../core/http/api-problem';
+import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
 import { pickLabel } from '../../core/leave/leave-catalog';
 import { RecruitmentApi } from '../../core/recruitment/recruitment-api';
@@ -19,8 +20,12 @@ import {
 } from '../../core/recruitment/recruitment.models';
 import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { AddApplication, type AddedApplication } from './add-application';
+import { InterviewDialog, type InterviewOutcome } from './interview-dialog';
+import { OfferDialog, type OfferOutcome } from './offer-dialog';
 import { loadErrorKey } from './recruitment-view';
-import { ApplicationMove, type MoveFailure, type MoveOutcome, StageMenu } from './stage-move';
+import { ApplicationMove, type MenuExtra, type MoveFailure, type MoveOutcome, StageMenu } from './stage-move';
+
+const MENU_EXTRAS: readonly MenuExtra[] = ['schedule_interview', 'make_offer'];
 
 interface Feedback {
   readonly key: string;
@@ -33,7 +38,7 @@ interface Feedback {
 /** The pipeline of one opening: a column per stage, cards moved with « Déplacer vers… » (and by drag on a desktop). */
 @Component({
   selector: 'app-pipeline-board',
-  imports: [TranslocoDirective, RouterLink, NgTemplateOutlet, DisplayNamePipe, StageMenu, ApplicationMove, AddApplication],
+  imports: [TranslocoDirective, RouterLink, NgTemplateOutlet, DatePipe, DecimalPipe, DisplayNamePipe, StageMenu, ApplicationMove, AddApplication, InterviewDialog, OfferDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './pipeline-board.html',
   styleUrl: './pipeline-board.css',
@@ -115,6 +120,38 @@ export class PipelineBoard {
     this.feedback.set({ key: failure.key, params: {}, kind: 'warning' });
     // Someone else moved the card (or the opening closed): show what is true now.
     if (failure.reload) this.refresh();
+  }
+
+  // --- Phase B entries of the move menu: they open their own dialog, then the board is reloaded like after a move ---
+
+  protected readonly locale = computed(() => dateLocaleOf(this.lang()));
+  private readonly interviewDialog = viewChild.required(InterviewDialog);
+  private readonly offerDialog = viewChild.required(OfferDialog);
+
+  protected extrasOf(card: BoardCard): readonly MenuExtra[] {
+    // oxlint-disable-next-line no-underscore-dangle -- `_actions` is the contract's field name
+    return MENU_EXTRAS.filter((extra) => card._actions.includes(extra));
+  }
+
+  protected openExtra(card: BoardCard, extra: MenuExtra): void {
+    this.feedback.set(null);
+    const name = this.nameOf(card);
+    if (extra === 'schedule_interview') {
+      this.interviewDialog().schedule({ applicationId: card.id, name });
+      return;
+    }
+    const opening = this.data()?.opening;
+    this.offerDialog().make({ applicationId: card.id, stage: card.stage, name, openingId: this.openingId(), ...(opening ? { opening } : {}) });
+  }
+
+  protected onInterview(outcome: InterviewOutcome): void {
+    this.feedback.set({ key: `recruitment.interviews.done.${outcome.kind}`, params: { name: outcome.name }, kind: 'ok' });
+    this.refresh();
+  }
+
+  protected onOffer(outcome: OfferOutcome): void {
+    this.feedback.set({ key: `recruitment.offer.done.${outcome.kind}`, params: { name: outcome.name }, kind: 'ok' });
+    this.refresh();
   }
 
   protected onAdded(added: AddedApplication): void {

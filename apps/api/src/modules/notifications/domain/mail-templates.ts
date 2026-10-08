@@ -60,6 +60,10 @@ interface Facts {
   title: string;
   reference: string;
   unit: string;
+  /** an interview's time (docs/contracts/recruitment.md › Notifications (Phase B)); its date is `date` */
+  time: string;
+  /** the appointment changed (date, time or place) */
+  rescheduled: boolean;
 }
 
 interface Wording {
@@ -105,6 +109,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `HRForce — votre correction de pointage du ${f.date} a été refusée`,
       'recruitment.opening_approved': (f) => `HRForce — votre demande d’ouverture de poste ${f.title} a été approuvée`,
       'recruitment.opening_rejected': (f) => `HRForce — votre demande d’ouverture de poste ${f.title} a été refusée`,
+      'recruitment.interview_assigned': (f) => `HRForce — entretien ${f.rescheduled ? 'modifié' : 'à mener'} le ${f.date} à ${f.time} : ${f.title}`,
+      'recruitment.interview_cancelled': (f) => `HRForce — entretien du ${f.date} annulé : ${f.title}`,
+      'recruitment.evaluations_complete': (f) => `HRForce — évaluations de l’entretien du ${f.date} saisies : ${f.title}`,
     },
     bodies: {
       'task.assigned': (f) =>
@@ -132,6 +139,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `Votre correction de pointage du ${f.date} a été refusée par ${f.actor}. Le détail est dans l’application.`,
       'recruitment.opening_approved': (f) => `Votre demande d’ouverture de poste ${f.title} (${f.reference}) a été approuvée par ${f.actor}.`,
       'recruitment.opening_rejected': (f) => `Votre demande d’ouverture de poste ${f.title} (${f.reference}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
+      'recruitment.interview_assigned': (f) =>
+        f.rescheduled
+          ? `Entretien modifié : désormais le ${f.date} à ${f.time} — ${f.title} (${f.reference}). Le détail est dans l’application.`
+          : `Entretien à mener le ${f.date} à ${f.time} — ${f.title} (${f.reference}). Le dossier et la grille d’évaluation sont dans l’application.`,
+      'recruitment.interview_cancelled': (f) => `Entretien du ${f.date} annulé — ${f.title} (${f.reference}).`,
+      'recruitment.evaluations_complete': (f) => `Toutes les évaluations de l’entretien du ${f.date} sont saisies — ${f.title} (${f.reference}).`,
     },
     action: {
       'task.assigned': 'Ouvrir la tâche',
@@ -146,6 +159,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': 'Voir mon pointage',
       'recruitment.opening_approved': 'Voir la demande',
       'recruitment.opening_rejected': 'Voir la demande',
+      'recruitment.interview_assigned': 'Voir l’entretien',
+      'recruitment.interview_cancelled': 'Voir mes entretiens',
+      'recruitment.evaluations_complete': 'Voir les évaluations',
     },
     footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
     signature: 'L’équipe HRForce',
@@ -183,6 +199,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `HRForce — تم رفض طلب تصحيح تسجيل الحضور ليوم ${f.date}`,
       'recruitment.opening_approved': (f) => `HRForce — تمت الموافقة على طلب فتح المنصب ${f.title}`,
       'recruitment.opening_rejected': (f) => `HRForce — تم رفض طلب فتح المنصب ${f.title}`,
+      'recruitment.interview_assigned': (f) => `HRForce — ${f.rescheduled ? 'تم تعديل موعد مقابلة' : 'مقابلة مبرمجة'} يوم ${f.date} على الساعة ${f.time}: ${f.title}`,
+      'recruitment.interview_cancelled': (f) => `HRForce — تم إلغاء مقابلة يوم ${f.date}: ${f.title}`,
+      'recruitment.evaluations_complete': (f) => `HRForce — تم إدخال تقييمات مقابلة يوم ${f.date}: ${f.title}`,
     },
     bodies: {
       'task.assigned': (f) =>
@@ -211,6 +230,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `تم رفض طلب تصحيح تسجيل الحضور ليوم ${f.date} من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
       'recruitment.opening_approved': (f) => `تمت الموافقة على طلب فتح المنصب ${f.title} (${f.reference}) من طرف ${f.actor}.`,
       'recruitment.opening_rejected': (f) => `تم رفض طلب فتح المنصب ${f.title} (${f.reference}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'recruitment.interview_assigned': (f) =>
+        f.rescheduled
+          ? `تم تعديل موعد المقابلة: يوم ${f.date} على الساعة ${f.time} — ${f.title} (${f.reference}). التفاصيل متاحة في التطبيق.`
+          : `مقابلة مبرمجة يوم ${f.date} على الساعة ${f.time} — ${f.title} (${f.reference}). الملف وشبكة التقييم متاحان في التطبيق.`,
+      'recruitment.interview_cancelled': (f) => `تم إلغاء مقابلة يوم ${f.date} — ${f.title} (${f.reference}).`,
+      'recruitment.evaluations_complete': (f) => `تم إدخال جميع تقييمات مقابلة يوم ${f.date} — ${f.title} (${f.reference}).`,
     },
     action: {
       'task.assigned': 'فتح المهمة',
@@ -225,6 +250,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': 'عرض سجل الحضور',
       'recruitment.opening_approved': 'عرض الطلب',
       'recruitment.opening_rejected': 'عرض الطلب',
+      'recruitment.interview_assigned': 'عرض المقابلة',
+      'recruitment.interview_cancelled': 'عرض مقابلاتي',
+      'recruitment.evaluations_complete': 'عرض التقييمات',
     },
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
     signature: 'فريق HRForce',
@@ -262,6 +290,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `HRForce — your attendance correction for ${f.date} was rejected`,
       'recruitment.opening_approved': (f) => `HRForce — your opening request ${f.title} was approved`,
       'recruitment.opening_rejected': (f) => `HRForce — your opening request ${f.title} was rejected`,
+      'recruitment.interview_assigned': (f) => `HRForce — interview ${f.rescheduled ? 'rescheduled to' : 'to conduct on'} ${f.date} at ${f.time}: ${f.title}`,
+      'recruitment.interview_cancelled': (f) => `HRForce — interview of ${f.date} cancelled: ${f.title}`,
+      'recruitment.evaluations_complete': (f) => `HRForce — evaluations of the interview of ${f.date} are in: ${f.title}`,
     },
     bodies: {
       'task.assigned': (f) =>
@@ -289,6 +320,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': (f) => `Your attendance correction for ${f.date} was rejected by ${f.actor}. The details are in the app.`,
       'recruitment.opening_approved': (f) => `Your opening request ${f.title} (${f.reference}) was approved by ${f.actor}.`,
       'recruitment.opening_rejected': (f) => `Your opening request ${f.title} (${f.reference}) was rejected by ${f.actor}. The details are in the app.`,
+      'recruitment.interview_assigned': (f) =>
+        f.rescheduled
+          ? `Interview rescheduled: now on ${f.date} at ${f.time} — ${f.title} (${f.reference}). The details are in the app.`
+          : `Interview to conduct on ${f.date} at ${f.time} — ${f.title} (${f.reference}). The file and the evaluation form are in the app.`,
+      'recruitment.interview_cancelled': (f) => `The interview of ${f.date} is cancelled — ${f.title} (${f.reference}).`,
+      'recruitment.evaluations_complete': (f) => `All evaluations of the interview of ${f.date} are in — ${f.title} (${f.reference}).`,
     },
     action: {
       'task.assigned': 'Open the task',
@@ -303,6 +340,9 @@ const WORDING: Record<MailLocale, Wording> = {
       'attendance.correction_rejected': 'View my attendance',
       'recruitment.opening_approved': 'View the request',
       'recruitment.opening_rejected': 'View the request',
+      'recruitment.interview_assigned': 'View the interview',
+      'recruitment.interview_cancelled': 'View my interviews',
+      'recruitment.evaluations_complete': 'View the evaluations',
     },
     footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
     signature: 'The HRForce team',
@@ -378,6 +418,8 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
     title: str(d['title']),
     reference: str(d['reference']),
     unit: (input.locale === 'ar' && str(d['unitNameAr'])) || str(d['unitName']),
+    time: str(d['time']),
+    rescheduled: d['rescheduled'] === 1,
   };
   const subject = w.subjects[input.type](facts);
   const body = w.bodies[input.type](facts);

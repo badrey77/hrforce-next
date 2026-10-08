@@ -32,6 +32,10 @@ import { ACTIVE_STAGES } from '../../core/recruitment/recruitment.models';
                 <a routerLink="/recruitment/candidates" [queryParams]="{ stage: stage }" [attr.data-count]="stage"><strong>{{ s.applications[stage] }}</strong> {{ t('recruitment.home.stage.' + stage) }}</a>
               </li>
             }
+            <li data-count="interviews-next"><strong>{{ s.interviewsNext7Days }}</strong> {{ t('recruitment.home.interviewsNext7Days') }}</li>
+            <li>
+              <a routerLink="/recruitment/candidates" [queryParams]="{ stage: 'offer' }" data-count="offers-pending"><strong>{{ s.offersPending }}</strong> {{ t('recruitment.home.offersPending') }}</a>
+            </li>
           </ul>
         </section>
       }
@@ -39,6 +43,11 @@ import { ACTIVE_STAGES } from '../../core/recruitment/recruitment.models';
         <p class="panel" data-card="my-recruitment">
           <a routerLink="/me/recruitment">{{ t('nav.myRecruitment') }}</a> —
           {{ t('recruitment.home.minePending', { count: pending() }) }}
+        </p>
+      }
+      @if (mine.showInterviewsNav()) {
+        <p class="panel" data-card="my-interviews">
+          <a routerLink="/me/interviews">{{ t('recruitment.home.interviewsTodo', { count: mine.evaluationsTodo() }) }}</a>
         </p>
       }
     </ng-container>

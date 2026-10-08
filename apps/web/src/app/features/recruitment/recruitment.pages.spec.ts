@@ -13,6 +13,7 @@ import {
   candidateFile,
   candidateView,
   CANDIDATE_NAME,
+  comparisonView,
   KNOWN_PERSON,
   myOpeningDetail,
   OPENING_PROGRESS,
@@ -22,7 +23,6 @@ import {
   REASONS,
   recruitmentProblem,
   SUMMARY,
-  UNIT_ANNABA,
 } from '../../../testing/recruitment-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
@@ -164,13 +164,21 @@ describe('Recruitment pages (Phase A)', () => {
 
   // --- Request form (a unit head, no permission) ---
 
-  it('request form for a head: units they head, 403 forbidden-scope lands on the unit, 422 past on the date, then the request is sent', async () => {
+  it('request form for a head: the units they head and their sub-units, 403 forbidden-scope lands on the unit, 422 past on the date, then the request is sent', async () => {
     await start([]);
     await go('/me/recruitment/new');
-    (await one('GET', '/api/me/employment')).flush({ id: 'e-1', matricule: 'EMP-1', headOf: [UNIT_ANNABA] });
+    // The API lists them (a head may not read the org tree): no employment or tree request.
+    (await one('GET', '/api/me/recruitment/units')).flush({
+      items: [
+        { id: 'u-annaba', code: 'AG-ANNABA', kind: 'agency', name: 'Agence Annaba', nameAr: 'وكالة عنابة', site: null, parentId: null, depth: 0 },
+        { id: 'u-cli', code: 'SRV-CLI-ANB', kind: 'service', name: 'Service clientèle', nameAr: null, site: null, parentId: 'u-annaba', depth: 1 },
+      ],
+    });
     await settle();
+    http.expectNone('/api/me/employment');
+    http.expectNone((r) => r.url === '/api/org/tree');
     const unit = el().querySelector('#open-unit') as HTMLSelectElement;
-    expect([...unit.options].map((o) => o.textContent?.trim())).toEqual(['Choisir une unité', 'Agence Annaba (AG-ANNABA)']);
+    expect([...unit.options].map((o) => o.textContent?.trim())).toEqual(['Choisir une unité', 'Agence Annaba (AG-ANNABA)', '— Service clientèle (SRV-CLI-ANB)']);
     expect(text('#open-justification-hint')).toBe('Décrivez le besoin, sans nommer de personne.');
 
     // Nothing is sent while the form is invalid.
@@ -751,14 +759,19 @@ describe('Recruitment pages (Phase A)', () => {
     (await one('GET', '/api/me/recruitment/openings/o-1')).flush(
       myOpeningDetail({
         applications: [
-          { id: 'a-1', candidate: CANDIDATE_NAME, stage: 'interview', stageSince: '2026-10-03T10:00:00Z', files: [candidateFile({ _actions: [] })] },
-          { id: 'a-2', candidate: { lastName: 'AUTRE', firstName: 'Test', lastNameAr: null, firstNameAr: null }, stage: 'rejected', stageSince: '2026-10-04T10:00:00Z', files: [] },
+          { id: 'a-1', candidate: CANDIDATE_NAME, stage: 'interview', stageSince: '2026-10-03T10:00:00Z', files: [candidateFile({ _actions: [] })], average: 4.2, interviews: 1 },
+          { id: 'a-2', candidate: { lastName: 'AUTRE', firstName: 'Test', lastNameAr: null, firstNameAr: null }, stage: 'rejected', stageSince: '2026-10-04T10:00:00Z', files: [], average: null, interviews: 0 },
         ],
       }),
     );
     await settle();
+    // A head also gets the comparison of the opening, through the /me route.
+    (await one('GET', '/api/me/recruitment/openings/o-1/comparison')).flush(comparisonView());
+    await settle();
     expect([...el().querySelectorAll('[data-section="applications"] h3')].map((h) => h.getAttribute('data-stage'))).toEqual(['interview', 'rejected']);
     expect(text('[data-application="a-1"]')).toContain('TESTEUR Nadia');
+    expect(text('[data-application="a-1"] [data-field="average"]')).toBe('Moyenne 4,2 / 5');
+    expect(el().querySelector('[data-section="comparison"] [data-row="a-1"] a')).toBeNull();
     expect(el().querySelector('app-stage-menu')).toBeNull();
     expect(el().querySelector('[data-panel="notes"]')).toBeNull();
     expect(el().querySelector('[data-field="nin"]')).toBeNull();

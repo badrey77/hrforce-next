@@ -1,5 +1,5 @@
-/** Shapes of docs/contracts/recruitment.md (Phase A). */
-import type { NamePair, UnitRef } from '../employees/employees.models';
+/** Shapes of docs/contracts/recruitment.md (Phases A and B). */
+import type { EmployeeDetail, NamePair, UnitRef } from '../employees/employees.models';
 import type { AppLanguage } from '../i18n/languages';
 import type { Labels, WorkflowProgress, WorkflowTaskHistory } from '../leave/leave.models';
 import type { SiteRef } from '../org/org.models';
@@ -38,6 +38,23 @@ export const RETENTION_MIN = 1;
 export const RETENTION_MAX = 60;
 export const REASON_CODE_PATTERN = /^[a-z][a-z0-9_]{1,39}$/;
 export const IDLE_MONTHS = 6;
+export const LABEL_MAX = 120;
+export const LOCATION_MAX = 200;
+export const DURATION_MIN = 15;
+export const DURATION_MAX = 480;
+export const DURATION_DEFAULT = 60;
+export const INTERVIEWERS_MAX = 5;
+export const CANCEL_REASON_MIN = 3;
+export const CANCEL_REASON_MAX = 500;
+export const EVALUATION_COMMENT_MAX = 4000;
+export const OFFER_NOTE_MAX = 1000;
+export const OPENING_CRITERIA_MAX = 8;
+export const COPY_FILES_MAX = 5;
+export const SCORES = [1, 2, 3, 4, 5] as const;
+export const RECOMMENDATIONS = ['strong_yes', 'yes', 'no', 'strong_no'] as const;
+export type Recommendation = (typeof RECOMMENDATIONS)[number];
+export const INTERVIEW_MODES = ['on_site', 'video', 'phone'] as const;
+export type InterviewMode = (typeof INTERVIEW_MODES)[number];
 
 export function isActiveStage(stage: Stage): stage is ActiveStage {
   return (ACTIVE_STAGES as readonly string[]).includes(stage);
@@ -50,7 +67,12 @@ export interface UserRef {
 
 export type StageCounts = Readonly<Record<Stage, number>> & { readonly total: number };
 
-export type OpeningAction = 'update' | 'close' | 'reopen' | 'add_application';
+export type OpeningAction = 'update' | 'close' | 'reopen' | 'add_application' | 'set_criteria';
+
+export interface CriterionRef {
+  readonly id: string;
+  readonly labels: Labels;
+}
 
 interface OpeningBase {
   readonly id: string;
@@ -73,6 +95,8 @@ interface OpeningBase {
   readonly closed: { readonly at: string; readonly by: UserRef | null; readonly reason: string | null } | null;
   readonly workflow: WorkflowProgress | null;
   readonly rejectionComment: string | null;
+  /** The criteria interviewers score on this opening, in order (empty while the request is pending). */
+  readonly criteria: readonly CriterionRef[];
 }
 
 export interface OpeningView extends OpeningBase {
@@ -100,6 +124,9 @@ export interface HeadApplicationView {
   readonly stageSince: string;
   /** Empty once the stage is final. */
   readonly files: readonly CandidateFileView[];
+  readonly average: number | null;
+  /** Non-cancelled interviews. */
+  readonly interviews: number;
 }
 
 export interface MyOpeningDetailView extends MyOpeningView {
@@ -122,12 +149,17 @@ export interface MyOpeningList {
 export interface SummaryView {
   readonly openings: Readonly<Record<OpeningStatus, number>>;
   readonly applications: Readonly<Record<ActiveStage, number>>;
+  readonly interviewsNext7Days: number;
+  readonly offersPending: number;
 }
 
 export interface MySummaryView {
   readonly canRequestOpening: boolean;
   readonly openings: number;
   readonly pendingOpenings: number;
+  /** Interviews the caller can see as an interviewer, and those still waiting for their evaluation. */
+  readonly interviews: number;
+  readonly evaluationsTodo: number;
 }
 
 export interface NewOpening {
@@ -294,15 +326,34 @@ export interface NoteView {
   readonly _actions: readonly 'delete'[];
 }
 
-export type ApplicationAction = 'move' | 'reopen' | 'add_note' | 'update' | 'update_salary';
+export type ApplicationAction =
+  | 'move'
+  | 'reopen'
+  | 'add_note'
+  | 'update'
+  | 'update_salary'
+  | 'schedule_interview'
+  | 'make_offer'
+  | 'update_offer'
+  | 'decline_offer'
+  | 'cancel_offer'
+  | 'hire'
+  | 'undo_hire';
 
 export interface ApplicationDetailView extends ApplicationSummary {
   readonly candidate: CandidateView;
   readonly stages: readonly StageEntry[];
   readonly notes: readonly NoteView[];
-  readonly salary?: { readonly expected: string | null };
+  readonly salary?: { readonly expected: string | null; readonly proposed: string | null };
   readonly _redacted: readonly 'salary'[];
   readonly moveTargets: readonly Stage[];
+  /** Soonest last. */
+  readonly interviews: readonly InterviewView[];
+  /** The latest offer, whatever its status. */
+  readonly offer: OfferView | null;
+  readonly average: number | null;
+  /** The employment a hire created; null when the caller cannot read it. */
+  readonly employment: { readonly id: string; readonly matricule: string } | null;
   readonly _actions: readonly ApplicationAction[];
 }
 
@@ -317,7 +368,11 @@ export interface BoardCard {
   readonly formerEmployee: boolean;
   readonly rejectionReason: ReasonRef | null;
   readonly moveTargets: readonly Stage[];
-  readonly _actions: readonly ('move' | 'reopen')[];
+  readonly nextInterviewAt: string | null;
+  readonly average: number | null;
+  readonly pendingEvaluations: number;
+  /** `move` / `reopen`, plus the Phase B actions the caller may take from the board. */
+  readonly _actions: readonly ApplicationAction[];
 }
 
 export interface BoardColumn {
@@ -401,6 +456,241 @@ export interface OpeningTaskSummary {
   readonly justification: string;
   readonly targetDate: string;
   readonly requestedBy: UserRef;
+}
+
+// --- Phase B: criteria, interviews, evaluations, comparison, offers, hire ----------------------------------------
+
+export interface CriterionView {
+  readonly id: string;
+  readonly code: string;
+  readonly labels: Labels;
+  readonly active: boolean;
+  readonly sortOrder: number;
+  readonly isSystem: boolean;
+}
+
+export interface CriterionList {
+  readonly items: readonly CriterionView[];
+}
+
+export interface CriterionPatch {
+  readonly labels?: Labels;
+  readonly active?: boolean;
+  readonly sortOrder?: number;
+}
+
+export interface ScoreEntry {
+  readonly criterionId: string;
+  readonly score: number;
+}
+
+export interface EvaluationView {
+  readonly interviewer: UserRef;
+  readonly submittedAt: string | null;
+  readonly scores: readonly ScoreEntry[];
+  readonly overall: number | null;
+  readonly recommendation: Recommendation | null;
+  readonly comment: string | null;
+}
+
+export type InterviewState = 'upcoming' | 'awaiting_evaluations' | 'complete' | 'cancelled';
+
+export interface InterviewView {
+  readonly id: string;
+  readonly applicationId: string;
+  readonly label: string | null;
+  readonly scheduledAt: string;
+  /** Algiers local date and time, as entered. */
+  readonly date: string;
+  readonly time: string;
+  readonly durationMinutes: number;
+  readonly mode: InterviewMode;
+  readonly location: string | null;
+  readonly status: 'scheduled' | 'cancelled';
+  readonly state: InterviewState;
+  readonly cancelReason: string | null;
+  readonly createdBy: UserRef | null;
+  /** One per interviewer, submitted or not. */
+  readonly evaluations: readonly EvaluationView[];
+  readonly average: number | null;
+  /**
+   * True while the caller is an interviewer of this interview who has not submitted yet: the other evaluations then
+   * come without scores, recommendation and comment, and `average` is null.
+   */
+  readonly evaluationsHidden: boolean;
+  readonly _actions: readonly ('update' | 'cancel')[];
+}
+
+export interface InterviewInput {
+  readonly date: string;
+  readonly time: string;
+  readonly durationMinutes: number;
+  readonly mode: InterviewMode;
+  readonly location: string | null;
+  readonly label: string | null;
+  readonly interviewerIds: readonly string[];
+}
+
+/** `GET /recruitment/interviewers?q=`: an active user of the company. */
+export interface InterviewerOption {
+  readonly id: string;
+  readonly displayName: string;
+  readonly employee: { readonly matricule: string; readonly unit: UnitRef } | null;
+}
+
+export interface MyInterviewView {
+  readonly id: string;
+  readonly label: string | null;
+  readonly scheduledAt: string;
+  readonly date: string;
+  readonly time: string;
+  readonly durationMinutes: number;
+  readonly mode: InterviewMode;
+  readonly location: string | null;
+  readonly opening: { readonly id: string; readonly reference: string; readonly title: string; readonly unit: UnitRef };
+  readonly applicationId: string;
+  readonly candidate: NamePair;
+  readonly files: readonly CandidateFileView[];
+  readonly criteria: readonly CriterionRef[];
+  readonly evaluation: Omit<EvaluationView, 'interviewer'>;
+  readonly _actions: readonly 'evaluate'[];
+}
+
+export interface MyInterviewList {
+  readonly items: readonly MyInterviewView[];
+}
+
+export const MY_INTERVIEW_FILTERS = ['todo', 'done'] as const;
+export type MyInterviewFilter = (typeof MY_INTERVIEW_FILTERS)[number];
+
+export interface EvaluationInput {
+  readonly scores: readonly ScoreEntry[];
+  readonly recommendation: Recommendation;
+  readonly comment?: string;
+}
+
+export type OfferStatus = 'proposed' | 'accepted' | 'declined' | 'cancelled';
+
+export interface OfferView {
+  readonly id: string;
+  readonly jobTitle: string;
+  readonly unit: UnitRef;
+  readonly site: SiteRef | null;
+  readonly contractType: ContractType;
+  readonly startDate: string;
+  readonly note: string | null;
+  readonly status: OfferStatus;
+  readonly decidedAt: string | null;
+  readonly createdAt: string;
+  readonly createdBy: UserRef | null;
+}
+
+export interface OfferInput {
+  readonly jobTitle: string;
+  readonly orgUnitId: string;
+  readonly siteId: string | null;
+  readonly contractType: ContractType;
+  readonly startDate: string;
+  readonly note: string | null;
+  /** Only sent by a holder of `recruitment.salary.update`; null on an edit that removes it. */
+  readonly proposedSalary?: string | null;
+}
+
+export interface ComparisonComment {
+  readonly interviewer: UserRef;
+  readonly interviewLabel: string | null;
+  readonly recommendation: Recommendation;
+  readonly comment: string | null;
+}
+
+export interface ComparisonRow {
+  readonly applicationId: string;
+  readonly candidate: NamePair & { readonly id: string };
+  readonly stage: Stage;
+  readonly interviews: number;
+  readonly evaluations: { readonly submitted: number; readonly expected: number };
+  readonly criteria: readonly { readonly criterionId: string; readonly average: number | null }[];
+  readonly average: number | null;
+  readonly recommendations: Readonly<Record<Recommendation, number>>;
+  readonly comments: readonly ComparisonComment[];
+  /** True while the caller still owes an evaluation of this application: averages null, counts 0, no comment. */
+  readonly hidden: boolean;
+}
+
+export interface ComparisonView {
+  readonly opening: OpeningRef;
+  readonly criteria: readonly CriterionRef[];
+  /** Best average first (null last), then name. */
+  readonly rows: readonly ComparisonRow[];
+}
+
+export interface HirePrefillView {
+  /** `personId` set = a rehire: the identity is shown read-only and only `personId` is sent. */
+  readonly person: { readonly personId: string | null } & CandidateInput;
+  readonly knownPerson: KnownPersonView | null;
+  readonly orgUnitId: string;
+  readonly siteId: string | null;
+  readonly jobTitle: string;
+  readonly hireDate: string;
+  /** Only with `recruitment.salary.read` and `employee.salary.update` over the unit. */
+  readonly salary?: { readonly baseSalary: string | null };
+  readonly files: readonly CandidateFileView[];
+  readonly defaultCopyFileIds: readonly string[];
+  readonly opening: OpeningRef;
+  /** The candidate page « back » and « cancel » lead to. */
+  readonly candidateId: string;
+  readonly expectedStage: 'offer';
+}
+
+/** `POST …/hire` → 201. */
+export interface HireResult {
+  readonly employee: EmployeeDetail;
+  readonly application: ApplicationDetailView;
+  readonly opening: OpeningView;
+}
+
+/** A unit the caller may request an opening for: one they head, or a sub-unit of it (`GET /me/recruitment/units`). */
+export interface RequestableUnit {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly nameAr: string | null;
+  /** The unit's effective site. */
+  readonly site: SiteRef | null;
+  /** Null for a top unit of the list. */
+  readonly parentId: string | null;
+  /** 0 for the units the caller heads, then one more per level below. */
+  readonly depth: number;
+}
+
+export interface RequestableUnitList {
+  readonly items: readonly RequestableUnit[];
+}
+
+/** Comparison rows by overall average; applications without any score stay last in both directions. */
+export function sortByAverage(rows: readonly ComparisonRow[], dir: SortDir): ComparisonRow[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .toSorted((a, b) => {
+      const x = a.row.average;
+      const y = b.row.average;
+      if (x === y) return a.index - b.index;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return dir === 'desc' ? y - x : x - y;
+    })
+    .map(({ row }) => row);
+}
+
+/** The scores of a form (criterion id → 1–5, or null while not chosen) as the API takes them; null while one is missing. */
+export function completeScores(criteria: readonly CriterionRef[], values: Readonly<Record<string, number | null>>): ScoreEntry[] | null {
+  const scores: ScoreEntry[] = [];
+  for (const criterion of criteria) {
+    const score = values[criterion.id];
+    if (typeof score !== 'number' || !Number.isInteger(score) || score < 1 || score > 5) return null;
+    scores.push({ criterionId: criterion.id, score });
+  }
+  return scores;
 }
 
 // --- List queries -----------------------------------------------------------------------------------------------

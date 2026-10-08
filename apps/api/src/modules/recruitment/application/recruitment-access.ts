@@ -62,6 +62,25 @@ export class OrgLookup {
     return null;
   }
 
+  /**
+   * The units of `unitIds` as a forest: a unit before its sub-units, siblings by code; `parentId` is null and `depth`
+   * 0 for a unit whose parent is not in the set.
+   */
+  tree(unitIds: ReadonlySet<string>): { unit: UnitRef; parentId: string | null; depth: number }[] {
+    const out: { unit: UnitRef; parentId: string | null; depth: number }[] = [];
+    const byCode = (a: string, b: string) => (this.units.get(a)?.code ?? '').localeCompare(this.units.get(b)?.code ?? '');
+    const visit = (id: string, parentId: string | null, depth: number) => {
+      out.push({ unit: this.unitRef(id), parentId, depth });
+      for (const child of (this.children.get(id) ?? []).filter((c) => unitIds.has(c)).toSorted(byCode)) visit(child, id, depth + 1);
+    };
+    const tops = [...unitIds].filter((id) => {
+      const parent = this.units.get(id)?.parentId;
+      return this.units.has(id) && !(parent && unitIds.has(parent));
+    });
+    for (const id of tops.toSorted(byCode)) visit(id, null, 0);
+    return out;
+  }
+
   /** The units and all their sub-units. */
   subtree(unitIds: readonly string[]): Set<string> {
     const out = new Set<string>();

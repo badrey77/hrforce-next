@@ -79,8 +79,8 @@ interface NavLink {
   readonly permission?: string;
   /** A rule beyond one permission (reads signals: evaluated inside `visibleLinks`). */
   readonly visible?: () => boolean;
-  /** Show the open-task count. */
-  readonly badge?: boolean;
+  /** A count shown after the label (open tasks, evaluations to enter); nothing at zero. */
+  readonly badge?: { readonly name: string; readonly count: () => number; readonly labelKey: string };
 }
 
 @Component({
@@ -123,10 +123,18 @@ export class App {
       permission: 'attendance.punch_self',
       visible: () => this.myEmployment.linked() === true,
     },
-    { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: true },
+    { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: { name: 'tasks', count: () => this.tasks.count(), labelKey: 'nav.tasksWithCount' } },
     { path: '/me/team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
     // Unit heads and requesters (no recruitment permission); HR uses « Recrutement » below.
     { path: '/me/recruitment', labelKey: 'nav.myRecruitment', exact: false, visible: () => this.myRecruitment.showNav() },
+    // Interviewers (chosen by HR, no permission needed): shown while they have an interview, with what is left to evaluate.
+    {
+      path: '/me/interviews',
+      labelKey: 'nav.myInterviews',
+      exact: false,
+      visible: () => this.myRecruitment.showInterviewsNav(),
+      badge: { name: 'interviews', count: () => this.myRecruitment.evaluationsTodo(), labelKey: 'nav.myInterviewsWithCount' },
+    },
     { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
     { path: '/leave', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
     { path: '/documents', labelKey: 'nav.documents', exact: false, permission: 'document.read' },

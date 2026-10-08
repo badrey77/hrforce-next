@@ -22,6 +22,9 @@ import { ControlError } from '../../shared/attendance/control-error';
 import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 import { duplicateFields } from './add-application';
+import { ApplicationInterviews } from './application-interviews';
+import { ApplicationOffer, type OfferChange } from './application-offer';
+import type { InterviewOutcome } from './interview-dialog';
 import { CandidateFields, candidateForm, candidateFormValue } from './candidate-fields';
 import { CandidateFiles } from './candidate-files';
 import { KnownPersonNote } from './known-person-note';
@@ -47,6 +50,8 @@ type Editing = 'identity' | 'application' | null;
     KnownPersonNote,
     StageMenu,
     ApplicationMove,
+    ApplicationInterviews,
+    ApplicationOffer,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './candidate.page.html',
@@ -185,6 +190,18 @@ export class CandidatePage {
   protected onMoveFailed(failure: MoveFailure): void {
     this.actionError.set(failure.key);
     if (failure.reload) this.reloadAll();
+  }
+
+  protected onInterviewSaved(outcome: InterviewOutcome): void {
+    this.actionError.set(null);
+    this.feedback.set({ key: `recruitment.interviews.done.${outcome.kind}`, params: { name: outcome.name } });
+    this.reloadAll();
+  }
+
+  protected onOfferChanged(change: OfferChange): void {
+    this.actionError.set(null);
+    this.feedback.set({ key: `recruitment.offer.done.${change.kind}`, params: { name: change.name } });
+    this.reloadAll();
   }
 
   protected readonly applicationForm = this.fb.group({

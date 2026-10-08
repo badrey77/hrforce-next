@@ -6,8 +6,16 @@ import type {
   BoardView,
   CandidateFileView,
   CandidateView,
+  ComparisonView,
+  CriterionRef,
+  CriterionView,
+  EvaluationView,
+  HirePrefillView,
+  InterviewView,
   KnownPersonView,
+  MyInterviewView,
   MyOpeningDetailView,
+  OfferView,
   OpeningDetailView,
   OpeningRef,
   OpeningTaskSummary,
@@ -28,6 +36,11 @@ export const OPENING_PROGRESS: WorkflowProgress = {
     { key: 'hr', kind: 'permission', permission: 'recruitment.approve_opening', labels: { fr: 'RH', ar: 'الموارد البشرية', en: 'HR' }, state: 'pending' },
   ],
 };
+
+export const CRITERIA: readonly CriterionRef[] = [
+  { id: 'cr-skills', labels: { fr: 'Compétences techniques', ar: 'الكفاءات التقنية', en: 'Technical skills' } },
+  { id: 'cr-fit', labels: { fr: 'Adéquation au poste', ar: 'الملاءمة للمنصب', en: 'Fit for the post' } },
+];
 
 export function stageCounts(counts: Partial<Record<Stage, number>> = {}): StageCounts {
   const full = { received: 0, shortlisted: 0, interview: 0, offer: 0, hired: 0, rejected: 0, withdrawn: 0, ...counts };
@@ -55,6 +68,7 @@ export function openingView(overrides: Partial<OpeningView> = {}): OpeningView {
     closed: null,
     workflow: { ...OPENING_PROGRESS, status: 'approved', currentStep: null },
     rejectionComment: null,
+    criteria: CRITERIA,
     counts: stageCounts({ received: 2, shortlisted: 1, interview: 2, rejected: 1 }),
     _actions: ['update', 'close', 'add_application'],
     ...overrides,
@@ -98,6 +112,9 @@ export function boardCard(overrides: Partial<BoardCard> = {}): BoardCard {
     formerEmployee: false,
     rejectionReason: null,
     moveTargets: ['shortlisted', 'interview', 'rejected', 'withdrawn'],
+    nextInterviewAt: null,
+    average: null,
+    pendingEvaluations: 0,
     _actions: ['move'],
     ...overrides,
   };
@@ -163,9 +180,13 @@ export function applicationDetail(overrides: Partial<ApplicationDetailView> = {}
     candidate: candidateView(),
     stages: [{ id: 'st-1', from: null, to: 'received', at: '2026-10-03T10:00:00Z', by: { id: 'u-amina', displayName: 'Amina Benali' }, rejectionReason: null, comment: null, autoCause: null }],
     notes: [{ id: 'n-1', body: 'Bon contact au téléphone.', createdAt: '2026-10-04T09:00:00Z', createdBy: { id: 'u-amina', displayName: 'Amina Benali' }, _actions: ['delete'] }],
-    salary: { expected: '65000.00' },
+    salary: { expected: '65000.00', proposed: null },
     _redacted: [],
     moveTargets: ['shortlisted', 'interview', 'rejected', 'withdrawn'],
+    interviews: [],
+    offer: null,
+    average: null,
+    employment: null,
     _actions: ['move', 'add_note', 'update', 'update_salary'],
     ...overrides,
   };
@@ -193,6 +214,8 @@ export const REASONS: readonly ReasonView[] = [
 export const SUMMARY: SummaryView = {
   openings: { pending: 1, open: 2, filled: 1, closed: 1, rejected: 1, cancelled: 0 },
   applications: { received: 4, shortlisted: 1, interview: 2, offer: 0 },
+  interviewsNext7Days: 3,
+  offersPending: 1,
 };
 
 export function openingTaskSummary(): OpeningTaskSummary {
@@ -208,6 +231,166 @@ export function openingTaskSummary(): OpeningTaskSummary {
     justification: 'Remplacement.\nSaison haute.',
     targetDate: '2026-11-15',
     requestedBy: { id: 'u-chef', displayName: 'Chef Annaba' },
+  };
+}
+
+// --- Phase B ---
+
+export const COMPANY_CRITERIA: readonly CriterionView[] = [
+  { id: 'cr-skills', code: 'skills', labels: CRITERIA[0]?.labels ?? { fr: '', ar: '', en: '' }, active: true, sortOrder: 10, isSystem: true },
+  { id: 'cr-fit', code: 'fit', labels: CRITERIA[1]?.labels ?? { fr: '', ar: '', en: '' }, active: true, sortOrder: 20, isSystem: true },
+  { id: 'cr-motivation', code: 'motivation', labels: { fr: 'Motivation', ar: 'الحافز', en: 'Motivation' }, active: true, sortOrder: 30, isSystem: true },
+  { id: 'cr-old', code: 'old_one', labels: { fr: 'Ancien critère', ar: 'معيار قديم', en: 'Old criterion' }, active: false, sortOrder: 40, isSystem: false },
+];
+
+export function evaluationView(overrides: Partial<EvaluationView> = {}): EvaluationView {
+  return { interviewer: { id: 'u-chef', displayName: 'Chef Annaba' }, submittedAt: null, scores: [], overall: null, recommendation: null, comment: null, ...overrides };
+}
+
+export function interviewView(overrides: Partial<InterviewView> = {}): InterviewView {
+  return {
+    id: 'i-1',
+    applicationId: 'a-1',
+    label: 'Entretien technique',
+    scheduledAt: '2026-10-12T09:00:00Z',
+    date: '2026-10-12',
+    time: '10:00',
+    durationMinutes: 60,
+    mode: 'on_site',
+    location: 'Salle 2',
+    status: 'scheduled',
+    state: 'upcoming',
+    cancelReason: null,
+    createdBy: { id: 'u-amina', displayName: 'Amina Benali' },
+    evaluations: [evaluationView()],
+    average: null,
+    evaluationsHidden: false,
+    _actions: ['update', 'cancel'],
+    ...overrides,
+  };
+}
+
+export function myInterviewView(overrides: Partial<MyInterviewView> = {}): MyInterviewView {
+  return {
+    id: 'i-1',
+    label: 'Entretien technique',
+    scheduledAt: '2026-10-05T09:00:00Z',
+    date: '2026-10-05',
+    time: '10:00',
+    durationMinutes: 60,
+    mode: 'on_site',
+    location: 'Salle 2',
+    opening: { id: 'o-1', reference: 'REC-2026-0001', title: 'Chargé(e) de clientèle', unit: UNIT_ANNABA },
+    applicationId: 'a-1',
+    candidate: CANDIDATE_NAME,
+    files: [candidateFile({ _actions: [] })],
+    criteria: CRITERIA,
+    evaluation: { submittedAt: null, scores: [], overall: null, recommendation: null, comment: null },
+    _actions: ['evaluate'],
+    ...overrides,
+  };
+}
+
+export function offerView(overrides: Partial<OfferView> = {}): OfferView {
+  return {
+    id: 'of-1',
+    jobTitle: 'Chargé(e) de clientèle',
+    unit: UNIT_ANNABA,
+    site: null,
+    contractType: 'cdi',
+    startDate: '2026-11-02',
+    note: null,
+    status: 'proposed',
+    decidedAt: null,
+    createdAt: '2026-10-07T10:00:00Z',
+    createdBy: { id: 'u-amina', displayName: 'Amina Benali' },
+    ...overrides,
+  };
+}
+
+export function comparisonView(overrides: Partial<ComparisonView> = {}): ComparisonView {
+  return {
+    opening: OPENING_REF,
+    criteria: CRITERIA,
+    rows: [
+      {
+        applicationId: 'a-1',
+        candidate: { id: 'cand-1', ...CANDIDATE_NAME },
+        stage: 'interview',
+        interviews: 1,
+        evaluations: { submitted: 2, expected: 2 },
+        criteria: [
+          { criterionId: 'cr-skills', average: 4.5 },
+          { criterionId: 'cr-fit', average: 3 },
+        ],
+        average: 3.8,
+        recommendations: { strong_yes: 1, yes: 1, no: 0, strong_no: 0 },
+        comments: [{ interviewer: { id: 'u-chef', displayName: 'Chef Annaba' }, interviewLabel: 'Entretien technique', recommendation: 'yes', comment: 'Bonne maîtrise du métier.' }],
+        hidden: false,
+      },
+      {
+        applicationId: 'a-2',
+        candidate: { id: 'cand-2', lastName: 'AUTRE', firstName: 'Test', lastNameAr: null, firstNameAr: null },
+        stage: 'interview',
+        interviews: 1,
+        evaluations: { submitted: 0, expected: 2 },
+        criteria: [
+          { criterionId: 'cr-skills', average: null },
+          { criterionId: 'cr-fit', average: null },
+        ],
+        average: null,
+        recommendations: { strong_yes: 0, yes: 0, no: 0, strong_no: 0 },
+        comments: [],
+        hidden: false,
+      },
+      {
+        applicationId: 'a-3',
+        candidate: { id: 'cand-3', lastName: 'TROIS', firstName: 'Test', lastNameAr: null, firstNameAr: null },
+        stage: 'offer',
+        interviews: 2,
+        evaluations: { submitted: 1, expected: 1 },
+        criteria: [
+          { criterionId: 'cr-skills', average: 5 },
+          { criterionId: 'cr-fit', average: 4 },
+        ],
+        average: 4.5,
+        recommendations: { strong_yes: 1, yes: 0, no: 0, strong_no: 0 },
+        comments: [],
+        hidden: false,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+export function hirePrefill(overrides: Partial<HirePrefillView> = {}): HirePrefillView {
+  return {
+    person: {
+      personId: null,
+      lastName: 'TESTEUR',
+      firstName: 'Nadia',
+      lastNameAr: 'تستور',
+      firstNameAr: 'نادية',
+      birthDate: '1995-04-12',
+      birthPlace: 'Annaba',
+      sex: 'F',
+      nationality: 'DZ',
+      nin: '199504120000000017',
+      email: 'nadia.testeur@example.test',
+      phone: '0555 00 00 01',
+      informedOn: null,
+    },
+    knownPerson: null,
+    orgUnitId: 'u-annaba',
+    siteId: null,
+    jobTitle: 'Chargé(e) de clientèle',
+    hireDate: '2026-11-02',
+    files: [candidateFile({ _actions: [] }), candidateFile({ id: 'f-2', kind: 'diploma', title: 'Diplôme', originalFilename: 'diplome.png', mime: 'image/png', _actions: [] })],
+    defaultCopyFileIds: ['f-1'],
+    opening: OPENING_REF,
+    candidateId: 'cand-1',
+    expectedStage: 'offer',
+    ...overrides,
   };
 }
 

@@ -5,7 +5,7 @@
     <header class="page-header">
       <h1>
         <bdi>{{ o.title }}</bdi>
-        &ngsp;<span class="code muted" dir="ltr">{{ o.reference }}</span>
+        &ngsp;<span class="code muted nowrap" dir="ltr">{{ o.reference }}</span>
       </h1>
       @if (o._actions.includes('cancel')) {
         <button class="btn secondary" type="button" data-action="cancel-request" [disabled]="busy()" (click)="cancel(o)">{{ t('recruitment.mine.cancel') }}</button>
@@ -46,6 +46,12 @@
                   <strong><bdi>{{ a.candidate | displayName: lang() }}</bdi></strong>
                   @let d = days(a.stageSince);
                   <span class="muted">{{ d === 0 ? t('recruitment.board.today') : t('recruitment.board.since', { days: d }) }}</span>
+                  @if (a.interviews) {
+                    <span class="muted" data-field="interviews">{{ t('recruitment.comparison.interviews', { count: a.interviews }) }}</span>
+                  }
+                  @if (a.average !== null && a.average !== undefined) {
+                    <span class="badge" data-field="average">{{ t('recruitment.interviews.average', { value: (a.average | number: '1.1-1' : locale()) }) }}</span>
+                  }
                 </p>
                 @if (a.files.length) {
                   <ul class="inline-actions" [attr.aria-label]="t('recruitment.files.title')">
@@ -69,6 +75,9 @@
           <p class="muted" data-state="no-applications">{{ t('recruitment.mine.noApplications') }}</p>
         }
       </section>
+      @if (o.status === 'open' || o.status === 'filled' || o.status === 'closed') {
+        <app-opening-comparison [openingId]="o.id" [personal]="true" />
+      }
     }
   } @else if (opening.error()) {
     <div class="form-error" role="alert">

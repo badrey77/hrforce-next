@@ -665,6 +665,51 @@ export interface RecruitmentCandidateFileContent {
   file_id: string;
 }
 
+export interface RecruitmentCriterion {
+  active: Generated<boolean>;
+  code: string;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  is_system: Generated<boolean>;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  sort_order: Generated<number>;
+}
+
+export interface RecruitmentEvaluationScore {
+  company_id: string;
+  criterion_id: string;
+  interviewer_id: string;
+  score: number;
+}
+
+export interface RecruitmentInterview {
+  application_id: string;
+  cancel_reason: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  duration_minutes: Generated<number>;
+  id: Generated<string>;
+  label: string | null;
+  location: string | null;
+  mode: string;
+  scheduled_at: Timestamp;
+  status: Generated<string>;
+}
+
+export interface RecruitmentInterviewer {
+  comment: string | null;
+  company_id: string;
+  id: Generated<string>;
+  interview_id: string;
+  recommendation: string | null;
+  submitted_at: Timestamp | null;
+  user_id: string;
+}
+
 export interface RecruitmentNote {
   application_id: string;
   body: string;
@@ -672,6 +717,22 @@ export interface RecruitmentNote {
   created_at: Generated<Timestamp>;
   created_by: string;
   id: Generated<string>;
+}
+
+export interface RecruitmentOffer {
+  application_id: string;
+  company_id: string;
+  contract_type: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  decided_at: Timestamp | null;
+  id: Generated<string>;
+  job_title: string;
+  note: string | null;
+  org_unit_id: string;
+  site_id: string | null;
+  start_date: Timestamp;
+  status: Generated<string>;
 }
 
 export interface RecruitmentOpening {
@@ -695,6 +756,13 @@ export interface RecruitmentOpening {
   target_date: Timestamp;
   title: string;
   workflow_instance_id: string | null;
+}
+
+export interface RecruitmentOpeningCriterion {
+  company_id: string;
+  criterion_id: string;
+  opening_id: string;
+  position: number;
 }
 
 export interface RecruitmentOpeningSequence {
@@ -920,8 +988,14 @@ export interface DB {
   recruitment_candidate: RecruitmentCandidate;
   recruitment_candidate_file: RecruitmentCandidateFile;
   recruitment_candidate_file_content: RecruitmentCandidateFileContent;
+  recruitment_criterion: RecruitmentCriterion;
+  recruitment_evaluation_score: RecruitmentEvaluationScore;
+  recruitment_interview: RecruitmentInterview;
+  recruitment_interviewer: RecruitmentInterviewer;
   recruitment_note: RecruitmentNote;
+  recruitment_offer: RecruitmentOffer;
   recruitment_opening: RecruitmentOpening;
+  recruitment_opening_criterion: RecruitmentOpeningCriterion;
   recruitment_opening_sequence: RecruitmentOpeningSequence;
   recruitment_policy: RecruitmentPolicy;
   recruitment_rejection_reason: RecruitmentRejectionReason;

@@ -1,0 +1,112 @@
+<section *transloco="let t" aria-labelledby="comparison-title" data-section="comparison">
+  <div class="toolbar">
+    <h2 id="comparison-title">{{ t('recruitment.comparison.title') }}</h2>
+  </div>
+  @if (comparison.hasValue()) {
+    @let view = comparison.value();
+    @if (rows().length) {
+      <p class="field-hint">{{ t('recruitment.comparison.hint') }}</p>
+      <div class="table-scroll">
+        <table class="data cards" role="table" data-table="comparison">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">{{ t('recruitment.comparison.candidate') }}</th>
+              @for (criterion of view.criteria; track criterion.id) {
+                <th scope="col" role="columnheader">{{ label(criterion.labels) }}</th>
+              }
+              <th scope="col" role="columnheader" [attr.aria-sort]="dir() === 'desc' ? 'descending' : 'ascending'">
+                <button type="button" class="sort" data-action="sort-average" (click)="toggleSort()">
+                  {{ t('recruitment.comparison.average') }} <span aria-hidden="true">{{ dir() === 'desc' ? '↓' : '↑' }}</span>
+                </button>
+              </th>
+              <th scope="col" role="columnheader">{{ t('recruitment.comparison.recommendations') }}</th>
+              <th scope="col" role="columnheader">{{ t('recruitment.comparison.evaluations') }}</th>
+              <th scope="col" role="columnheader"><span class="visually-hidden">{{ t('recruitment.comparison.comments') }}</span></th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            @for (row of rows(); track row.applicationId) {
+              @let open = expanded().has(row.applicationId);
+              <tr role="row" [attr.data-row]="row.applicationId">
+                <td role="cell" class="who" [attr.data-label]="t('recruitment.comparison.candidate')">
+                  @if (personal()) {
+                    <strong><bdi>{{ row.candidate | displayName: lang() }}</bdi></strong>
+                  } @else {
+                    <a [routerLink]="['/recruitment/candidates', row.candidate.id]" [queryParams]="{ application: row.applicationId }"><bdi>{{ row.candidate | displayName: lang() }}</bdi></a>
+                  }
+                  <span class="badge" [attr.data-status]="tone(row.stage)">{{ t('recruitment.stage.' + row.stage) }}</span>
+                  @if (row.hidden) {
+                    <span class="field-hint" data-state="row-hidden">{{ t('recruitment.comparison.hidden') }}</span>
+                  }
+                </td>
+                @for (criterion of view.criteria; track criterion.id) {
+                  @let value = averageOf(row, criterion.id);
+                  <td role="cell" [attr.data-label]="label(criterion.labels)" [attr.data-criterion]="criterion.id">{{ value === null ? '—' : (value | number: '1.1-1' : locale()) }}</td>
+                }
+                <td role="cell" [attr.data-label]="t('recruitment.comparison.average')" data-field="average">
+                  <strong>{{ row.average === null ? '—' : (row.average | number: '1.1-1' : locale()) }}</strong>
+                </td>
+                <td role="cell" [attr.data-label]="t('recruitment.comparison.recommendations')" data-field="recommendations">
+                  <span class="inline-actions">
+                    @for (r of recommendations; track r) {
+                      @if (row.recommendations[r]) {
+                        <span class="badge" [attr.data-status]="r === 'yes' || r === 'strong_yes' ? 'approved' : 'rejected'" [attr.data-recommendation]="r">
+                          {{ t('recruitment.recommendation.' + r) }} × {{ row.recommendations[r] }}
+                        </span>
+                      }
+                    }
+                  </span>
+                </td>
+                <td role="cell" [attr.data-label]="t('recruitment.comparison.evaluations')" data-field="evaluations">
+                  <span dir="ltr">{{ row.evaluations.submitted }} / {{ row.evaluations.expected }}</span>
+                  <span class="muted">· {{ t('recruitment.comparison.interviews', { count: row.interviews }) }}</span>
+                </td>
+                <td role="cell" [attr.data-label]="''">
+                  @if (row.comments.length) {
+                    <button type="button" class="btn secondary" data-action="toggle-comments" [attr.aria-expanded]="open" [attr.aria-controls]="'comments-' + row.applicationId"
+                      [attr.aria-label]="t('recruitment.comparison.commentsOf', { name: (row.candidate | displayName: lang()) })" (click)="toggle(row.applicationId)">
+                      {{ t('recruitment.comparison.comments') }} ({{ row.comments.length }})
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (open) {
+                <tr role="row" class="detail" [id]="'comments-' + row.applicationId" [attr.data-comments]="row.applicationId">
+                  <td role="cell" [attr.colspan]="view.criteria.length + 5" [attr.data-label]="''">
+                    <ul class="card-list">
+                      @for (comment of row.comments; track $index) {
+                        <li>
+                          <p class="inline-actions">
+                            <strong><bdi>{{ comment.interviewer.displayName }}</bdi></strong>
+                            @if (comment.interviewLabel) {
+                              <span class="muted"><bdi>{{ comment.interviewLabel }}</bdi></span>
+                            }
+                            <span class="badge" [attr.data-status]="comment.recommendation === 'yes' || comment.recommendation === 'strong_yes' ? 'approved' : 'rejected'">{{ t('recruitment.recommendation.' + comment.recommendation) }}</span>
+                          </p>
+                          @if (comment.comment) {
+                            <p class="prose"><bdi>{{ comment.comment }}</bdi></p>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="muted" data-state="no-comparison">{{ t('recruitment.comparison.empty') }}</p>
+    }
+  } @else if (comparison.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'recruitment.opening.notFound' : errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="comparison.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

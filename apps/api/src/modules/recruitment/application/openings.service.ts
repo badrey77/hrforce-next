@@ -8,6 +8,7 @@ import {
   AUTO_REASON,
   isActiveStage,
   MY_OPENINGS_MAX,
+  OPENING_CRITERIA_MAX,
   openingReference,
   RECRUITMENT_PERMISSIONS as P,
   restoredStage,
@@ -16,9 +17,12 @@ import {
   type OpeningStatus,
 } from '../domain/rules.js';
 import { CandidatesRepository } from '../infra/candidates.repository.js';
+import { InterviewsRepository } from '../infra/interviews.repository.js';
+import { criterionRef, InterviewNotices, InterviewReads } from './interview-support.js';
 import { emptyCounts, RecruitmentRepository, type OpeningRow, type OpeningSort } from '../infra/recruitment.repository.js';
 import { caller, RecruitmentAccess, RecruitmentClock } from './recruitment-access.js';
 import type {
+  CriterionRef,
   HeadApplicationView,
   MyOpeningDetailView,
   MyOpeningView,
@@ -28,6 +32,7 @@ import type {
   OpeningPage,
   OpeningRef,
   OpeningView,
+  RequestableUnit,
   StageCounts,
   SummaryView,
 } from './recruitment-views.js';
@@ -82,6 +87,9 @@ export class OpeningsService implements OnModuleInit {
   constructor(
     private readonly repo: RecruitmentRepository,
     private readonly candidates: CandidatesRepository,
+    private readonly interviews: InterviewsRepository,
+    private readonly interviewReads: InterviewReads,
+    private readonly notices: InterviewNotices,
     private readonly access: RecruitmentAccess,
     private readonly scopes: ScopeService,
     private readonly staffing: StaffingService,
@@ -198,7 +206,13 @@ export class OpeningsService implements OnModuleInit {
   async summary(): Promise<SummaryView> {
     const { companyId } = caller();
     const scope = await this.scopes.scopeOf(P.read);
-    return { openings: await this.repo.statusCounts(companyId, scope), applications: await this.repo.activeStageCounts(companyId, scope) };
+    const now = this.clock.nowMs();
+    return {
+      openings: await this.repo.statusCounts(companyId, scope),
+      applications: await this.repo.activeStageCounts(companyId, scope),
+      interviewsNext7Days: await this.interviews.interviewsBetween(companyId, scope, new Date(now), new Date(now + 7 * 86_400_000)),
+      offersPending: await this.interviews.offersPending(companyId, scope),
+    };
   }
 
   // ── HR writes ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -220,6 +234,10 @@ export class OpeningsService implements OnModuleInit {
     if (input.posts !== undefined && input.posts < Math.max(1, row.hiredCount)) {
       throw new ValidationProblemException([{ field: 'posts', code: 'below_hired', message: `At least ${Math.max(1, row.hiredCount)}.` }]);
     }
+    // offers in progress + hires never exceed the posts (lowering to the hires fills the opening and cancels the offers)
+    if (input.posts !== undefined && input.posts !== row.hiredCount && input.posts < row.hiredCount + (await this.interviews.proposedCount(companyId, id))) {
+      throw new ValidationProblemException([{ field: 'posts', code: 'below_offers', message: 'Offers in progress would exceed the posts: cancel one first.' }]);
+    }
     const patch: { targetDate?: string; siteId?: string | null; anemReference?: string | null; posts?: number } = {};
     if (input.targetDate !== undefined) patch.targetDate = input.targetDate;
     if (input.siteId !== undefined) patch.siteId = input.siteId;
@@ -227,6 +245,30 @@ export class OpeningsService implements OnModuleInit {
     if (input.posts !== undefined) patch.posts = input.posts;
     await this.repo.updateOpening(companyId, id, patch);
     if (input.posts !== undefined && row.hiredCount > 0 && input.posts === row.hiredCount) await this.fill(companyId, id, userId);
+    return this.detailOf(companyId, id);
+  }
+
+  /**
+   * PUT /recruitment/openings/:id/criteria: the criteria interviewers score (1–8 active ones, in order), while the
+   * opening is open and none of its evaluations is submitted.
+   */
+  async setCriteria(id: string, criterionIds: readonly string[]): Promise<OpeningDetailView> {
+    const { companyId } = caller();
+    const row = await this.writable(companyId, id, P.manage, { lock: true });
+    if (row.status !== 'open') throw notOpen();
+    const known = new Map((await this.interviews.criteria(companyId)).map((c) => [c.id, c]));
+    const errors: { field: string; code: string; message: string }[] = [];
+    for (const [k, criterionId] of criterionIds.entries()) {
+      const criterion = known.get(criterionId);
+      if (criterionIds.indexOf(criterionId) !== k) errors.push({ field: `criterionIds.${k}`, code: 'duplicate', message: 'This criterion is listed twice.' });
+      else if (!criterion) errors.push({ field: `criterionIds.${k}`, code: 'not_found', message: 'No such criterion.' });
+      else if (!criterion.active) errors.push({ field: `criterionIds.${k}`, code: 'inactive', message: 'This criterion is no longer used.' });
+    }
+    if (errors.length > 0) throw new ValidationProblemException(errors);
+    if ((await this.interviews.openingsWithEvaluations(companyId, [id])).has(id)) {
+      throw new ProblemException(409, 'recruitment-criteria-locked', 'An evaluation of this opening is already submitted: its criteria no longer change.');
+    }
+    await this.interviews.replaceOpeningCriteria(companyId, id, criterionIds.slice(0, OPENING_CRITERIA_MAX));
     return this.detailOf(companyId, id);
   }
 
@@ -270,6 +312,8 @@ export class OpeningsService implements OnModuleInit {
       await this.candidates.setStage(companyId, a.id, 'rejected', true);
       await this.candidates.insertStage(companyId, { applicationId: a.id, from: a.stage, to: 'rejected', reasonId: reason.id, autoCause: cause, movedBy: actorUserId });
     }
+    // their offers in progress and their interviews to come are cancelled, the interviewers told
+    await this.notices.applicationsClosed(companyId, active.map((a) => a.id), reason.nameFr);
   }
 
   /**
@@ -291,11 +335,26 @@ export class OpeningsService implements OnModuleInit {
     const { companyId, userId } = caller();
     const headUnits = await this.access.headUnits();
     const counts = await this.repo.myOpeningCounts(companyId, userId, [...headUnits]);
+    const mine = await this.interviews.interviewsOfUser(companyId, userId);
+    const own = new Map((await this.interviews.interviewers(companyId, mine.map((i) => i.id))).filter((w) => w.userId === userId).map((w) => [w.interviewId, w]));
+    const now = this.clock.nowMs();
     return {
       canRequestOpening: headUnits.size > 0 || (await this.scopes.unitIds(P.manage)).size > 0,
       openings: counts.openings,
       pendingOpenings: counts.pending,
+      interviews: mine.length,
+      evaluationsTodo: mine.filter((i) => i.stage === 'interview' && i.scheduledAt.getTime() <= now && own.get(i.id)?.submittedAt === null).length,
     };
+  }
+
+  /**
+   * GET /me/recruitment/units: the units the caller may request an opening for AS A HEAD — the units their linked
+   * employment heads today and all their sub-units — whatever their org_unit.read (owner decision 2026-10-08: the
+   * request form offers a head's sub-units). Tree order: a unit before its sub-units, siblings by code.
+   */
+  async myUnits(): Promise<{ items: RequestableUnit[] }> {
+    const [headUnits, org] = await Promise.all([this.access.headUnits(), this.access.org()]);
+    return { items: org.tree(headUnits).map(({ unit, parentId, depth }) => ({ ...unit, site: org.siteRef(org.effectiveSite(unit.id)), parentId, depth })) };
   }
 
   /** GET /me/recruitment/openings: the openings the caller requested or heads, newest first. */
@@ -307,7 +366,7 @@ export class OpeningsService implements OnModuleInit {
   }
 
   /** The opening when the caller requested it or heads its unit (or one above), else 404. */
-  private async own(companyId: string, id: string): Promise<{ row: OpeningRow; head: boolean; requester: boolean }> {
+  async own(companyId: string, id: string): Promise<{ row: OpeningRow; head: boolean; requester: boolean }> {
     const { userId } = caller();
     const row = await this.repo.opening(companyId, id);
     if (!row) throw openingNotFound();
@@ -336,13 +395,20 @@ export class OpeningsService implements OnModuleInit {
     const active = rows.filter((r) => isActiveStage(r.stage) && r.candidateId !== null);
     const files = await this.candidates.files(companyId, [...new Set(active.map((r) => r.candidateId as string))]);
     const ref = await this.access.userRefs();
-    return rows.map((r) => ({
-      id: r.id,
-      candidate: { lastName: r.lastName, firstName: r.firstName, lastNameAr: r.lastNameAr, firstNameAr: r.firstNameAr },
-      stage: r.stage,
-      stageSince: r.stageSince.toISOString(),
-      files: isActiveStage(r.stage) ? files.filter((f) => f.candidateId === r.candidateId).map((f) => fileView(f, ref, false)) : [],
-    }));
+    const { userId } = caller();
+    const interviews = await this.interviewReads.load(companyId, rows.map((r) => r.id));
+    return rows.map((r) => {
+      const stats = this.interviewReads.stats(interviews.get(r.id) ?? [], userId);
+      return {
+        id: r.id,
+        candidate: { lastName: r.lastName, firstName: r.firstName, lastNameAr: r.lastNameAr, firstNameAr: r.firstNameAr },
+        stage: r.stage,
+        stageSince: r.stageSince.toISOString(),
+        files: isActiveStage(r.stage) ? files.filter((f) => f.candidateId === r.candidateId).map((f) => fileView(f, ref, false)) : [],
+        average: stats.average,
+        interviews: stats.interviews,
+      };
+    });
   }
 
   /** POST /me/recruitment/openings/:id/cancel: the requester, while pending. */
@@ -368,6 +434,9 @@ export class OpeningsService implements OnModuleInit {
     if (rows.length === 0) return out;
     const withWorkflow = options.withWorkflow !== false;
     const instanceIds = rows.flatMap((r) => (r.workflowInstanceId ? [r.workflowInstanceId] : []));
+    const { companyId } = caller();
+    const criteria = new Map<string, CriterionRef[]>();
+    for (const c of await this.interviews.openingCriteria(companyId, rows.map((r) => r.id))) criteria.set(c.openingId, [...(criteria.get(c.openingId) ?? []), criterionRef(c)]);
     const [org, ref, progress, history] = await Promise.all([
       this.access.org(),
       this.access.userRefs(),
@@ -397,24 +466,29 @@ export class OpeningsService implements OnModuleInit {
         closed: r.closedAt ? { at: r.closedAt.toISOString(), by: ref(r.closedBy), reason: r.closeReason } : null,
         workflow: r.workflowInstanceId ? (progressById.get(r.workflowInstanceId) ?? null) : null,
         rejectionComment: rejection?.comment ?? null,
+        criteria: criteria.get(r.id) ?? [],
       });
     }
     return out;
   }
 
   /** `_actions` of the HR view: what recruitment.manage over the unit allows in the opening's status. */
-  private async actions(row: OpeningRow): Promise<OpeningAction[]> {
+  private async actions(row: OpeningRow, evaluated: ReadonlySet<string>): Promise<OpeningAction[]> {
     if (!(await this.access.can(P.manage, row.orgUnitId))) return [];
-    if (row.status === 'open') return ['update', 'close', 'add_application'];
+    if (row.status === 'open') return ['update', 'close', 'add_application', ...(evaluated.has(row.id) ? [] : (['set_criteria'] as const))];
     return row.status === 'closed' && row.hiredCount < row.posts ? ['reopen'] : [];
   }
 
   async openingViews(companyId: string, rows: readonly OpeningRow[]): Promise<OpeningView[]> {
-    const [bases, counts] = await Promise.all([this.bases(rows), this.repo.stageCounts(companyId, rows.map((r) => r.id))]);
+    const [bases, counts, evaluated] = await Promise.all([
+      this.bases(rows),
+      this.repo.stageCounts(companyId, rows.map((r) => r.id)),
+      this.interviews.openingsWithEvaluations(companyId, rows.filter((r) => r.status === 'open').map((r) => r.id)),
+    ]);
     const out: OpeningView[] = [];
     for (const r of rows) {
       const base = bases.get(r.id);
-      if (base) out.push({ ...base, counts: counts.get(r.id) ?? emptyCounts(), _actions: await this.actions(r) });
+      if (base) out.push({ ...base, counts: counts.get(r.id) ?? emptyCounts(), _actions: await this.actions(r, evaluated) });
     }
     return out;
   }
@@ -466,6 +540,8 @@ export class OpeningsService implements OnModuleInit {
   private async onApproved(context: HookContext): Promise<void> {
     const { companyId } = caller();
     await this.repo.markOpen(companyId, context.subjectId);
+    // the company's active criteria become the opening's (adjustable until the first evaluation)
+    await this.interviews.copyActiveCriteria(companyId, context.subjectId);
     await this.notifyOutcome('recruitment.opening_approved', context);
   }
 

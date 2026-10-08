@@ -85,10 +85,18 @@
     </fieldset>
   }
 
+  <!-- Hire mode: the hire page adds its own section here (the candidate files to copy). -->
+  <ng-content />
+
+  @let hire = this.hire();
   <div class="form-actions">
-    <button class="btn" type="submit" [disabled]="submitting()">
-      {{ submitting() ? t('employees.form.saving') : t('employees.rehire.submit') }}
+    <button class="btn" type="submit" data-action="submit-employee" [disabled]="submitting()">
+      {{ submitting() ? t('employees.form.saving') : t(hire ? 'recruitment.hire.submit' : 'employees.rehire.submit') }}
     </button>
-    <a class="btn secondary" [routerLink]="['/employees', previous().id]">{{ t('common.cancel') }}</a>
+    @if (hire) {
+      <a class="btn secondary" [routerLink]="hire.cancelLink" [queryParams]="hire.cancelQuery">{{ t('common.cancel') }}</a>
+    } @else {
+      <a class="btn secondary" [routerLink]="['/employees', previous().id]">{{ t('common.cancel') }}</a>
+    }
   </div>
 </form>

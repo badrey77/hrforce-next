@@ -281,7 +281,8 @@ describe('opening request and approval chain', () => {
     expect(mine.openedAt).not.toBeNull();
     expect(mine.history.map((t: Body) => [t.stepKey, t.outcome])).toEqual([['manager', 'approve'], ['hr', 'approve']]);
     const hr = await ok('admin', 'get', `/api/recruitment/openings/${opening.id}`);
-    expect(hr).toMatchObject({ status: 'open', _actions: ['update', 'close', 'add_application'] });
+    expect(hr).toMatchObject({ status: 'open' });
+    expect(hr['_actions']).toEqual(['update', 'close', 'add_application', 'set_criteria']);
 
     const [approved] = await query<{ id: string; user_id: string; data: Body; subject_type: string }>(db.superuserUrl, `select id, user_id, data, subject_type from notification where type = 'recruitment.opening_approved' and subject_id = $1`, [opening.id]);
     expect(approved).toMatchObject({ user_id: USERS.chef.id, subject_type: 'recruitment_opening', data: { openingId: opening.id, reference: opening.reference, title: 'Guichetier polyvalent', unitName: 'Agence Annaba', posts: 2, actorName: USERS.admin.displayName } });
@@ -398,7 +399,7 @@ describe('openings: lists, edits, the posts rule, close and reopen', () => {
     expect((await call('beta', 'get', `/api/recruitment/openings/${DEMO_OPENINGS.annaba}`)).status).toBe(404);
     expect((await call('admin', 'get', '/api/recruitment/openings/nope')).status).toBe(404);
     const detail = await ok('est', 'get', `/api/recruitment/openings/${DEMO_OPENINGS.annaba}`);
-    expect(detail).toMatchObject({ reference: 'REC-2026-0001', anemReference: 'ANEM-23-2026-0417', counts: { received: 2, shortlisted: 1, interview: 2, rejected: 1, withdrawn: 1, total: 7 } });
+    expect(detail).toMatchObject({ reference: 'REC-2026-0001', anemReference: 'ANEM-23-2026-0417', counts: { received: 2, shortlisted: 0, interview: 2, offer: 1, rejected: 1, withdrawn: 1, total: 7 } });
     expect(detail.history.map((t: Body) => [t.stepKey, t.outcome, t.actedBy?.id])).toEqual([['manager', 'approve', USERS.est.id], ['hr', 'approve', USERS.admin.id]]);
   });
 
@@ -498,7 +499,7 @@ describe('candidates and applications', () => {
       candidate: { person: { lastName: 'Benkhaled', firstName: 'Rym', lastNameAr: 'بن خالد', firstNameAr: null }, birthDate: '1995-04-12', nationality: 'DZ', nin: '295990000000000777', email: 'rym.benkhaled@example.test', phone: '+213 555 10 20 30', informedOn: '2026-10-01', createdBy: { id: USERS.est.id }, knownPerson: null, files: [] },
       moveTargets: ['shortlisted', 'interview', 'rejected', 'withdrawn'], notes: [],
       // rh_regional runs the pipeline without the salaries
-      _redacted: ['salary'], _actions: ['move', 'add_note', 'update'],
+      _redacted: ['salary'], _actions: ['move', 'add_note', 'update', 'schedule_interview', 'make_offer'],
     });
     expect('salary' in view).toBe(false);
     expect(view.stages).toHaveLength(1);
@@ -515,17 +516,17 @@ describe('candidates and applications', () => {
 
     // central HR reads and writes it; money is a decimal string
     const asAdmin = await ok('admin', 'get', `/api/recruitment/applications/${view.id}`);
-    expect(asAdmin).toMatchObject({ salary: { expected: null }, _redacted: [], _actions: ['move', 'add_note', 'update', 'update_salary'] });
+    expect(asAdmin).toMatchObject({ salary: { expected: null, proposed: null }, _redacted: [], _actions: ['move', 'add_note', 'update', 'update_salary', 'schedule_interview', 'make_offer'] });
     expect(asAdmin.candidate['_actions']).toEqual(['update', 'upload', 'link_person', 'erase']);
-    expect((await ok('admin', 'patch', `/api/recruitment/applications/${view.id}`, { expectedSalary: '72000', source: 'referral' })).salary).toEqual({ expected: '72000.00' });
+    expect((await ok('admin', 'patch', `/api/recruitment/applications/${view.id}`, { expectedSalary: '72000', source: 'referral' })).salary).toEqual({ expected: '72000.00', proposed: null });
     expect((await ok('est', 'patch', `/api/recruitment/applications/${view.id}`, { source: 'job_board' }))).toMatchObject({ source: 'job_board', _redacted: ['salary'] });
     expect(errorsOf(await problem('admin', 'patch', `/api/recruitment/applications/${view.id}`, { expectedSalary: '-5' }, 422, 'validation-error'))).toEqual([['expectedSalary', 'custom']]);
-    expect((await ok('admin', 'patch', `/api/recruitment/applications/${view.id}`, { expectedSalary: null })).salary).toEqual({ expected: null });
+    expect((await ok('admin', 'patch', `/api/recruitment/applications/${view.id}`, { expectedSalary: null })).salary).toEqual({ expected: null, proposed: null });
     expect(await query(db.superuserUrl, 'select 1 from recruitment_application_salary where application_id = $1', [view.id])).toEqual([]);
     const created = await apply(DEMO_OPENINGS.annaba, {}, 'admin', { expectedSalary: '65000.50' });
-    expect(created.salary).toEqual({ expected: '65000.50' });
+    expect(created.salary).toEqual({ expected: '65000.50', proposed: null });
     // the seeded one: visible to central HR only
-    expect((await ok('admin', 'get', `/api/recruitment/applications/${demoApplication(3)}`)).salary).toEqual({ expected: '68000.00' });
+    expect((await ok('admin', 'get', `/api/recruitment/applications/${demoApplication(3)}`)).salary).toEqual({ expected: '68000.00', proposed: '66000.00' });
     const seededAsEst = await ok('est', 'get', `/api/recruitment/applications/${demoApplication(3)}`);
     expect(seededAsEst['_redacted']).toEqual(['salary']);
     expect(JSON.stringify(seededAsEst)).not.toContain('68000');
@@ -767,9 +768,9 @@ describe('stage moves, notes, the board and the list', () => {
     expect(column(board, 'withdrawn')).toMatchObject({ count: 1, cards: [] });
     const interview = column(board, 'interview').cards as Body[];
     expect(interview.map((c) => c.id)).toEqual([demoApplication(4), demoApplication(5)]); // oldest stageSince first
-    expect(interview[0]).toMatchObject({ stage: 'interview', source: 'internal', hasCv: true, notes: 1, formerEmployee: true, rejectionReason: null, moveTargets: ['received', 'shortlisted', 'rejected', 'withdrawn'], _actions: ['move'] });
+    expect(interview[0]).toMatchObject({ stage: 'interview', source: 'internal', hasCv: true, notes: 1, formerEmployee: true, rejectionReason: null, moveTargets: ['received', 'shortlisted', 'rejected', 'withdrawn'], _actions: ['move', 'schedule_interview', 'make_offer'] });
     expect(interview[1]).toMatchObject({ formerEmployee: false, notes: 1 });
-    expect(Object.keys(interview[0]).toSorted()).toEqual(['_actions', 'candidate', 'formerEmployee', 'hasCv', 'id', 'moveTargets', 'notes', 'rejectionReason', 'source', 'stage', 'stageSince']);
+    expect(Object.keys(interview[0]).toSorted()).toEqual(['_actions', 'average', 'candidate', 'formerEmployee', 'hasCv', 'id', 'moveTargets', 'nextInterviewAt', 'notes', 'pendingEvaluations', 'rejectionReason', 'source', 'stage', 'stageSince']);
     expect(Object.keys(interview[0].candidate).toSorted()).toEqual(['firstName', 'firstNameAr', 'id', 'lastName', 'lastNameAr']);
     const full = await ok('est', 'get', `/api/recruitment/openings/${DEMO_OPENINGS.annaba}/board?includeFinal=true`);
     expect(column(full, 'rejected').cards[0]).toMatchObject({ id: demoApplication(6), rejectionReason: { code: 'experience' }, moveTargets: [], _actions: ['reopen'] });
@@ -958,6 +959,9 @@ describe('the heads’ restricted view and the home counts', () => {
       stage: 'interview',
       stageSince: expect.any(String),
       files: [expect.objectContaining({ id: demoCandidateFile(4), kind: 'cv', _actions: [] })],
+      // Phase B: the scores (rh.est 4.4 and chef 4.0 → 4.2), never who said what
+      average: 4.2,
+      interviews: 1,
     });
     // asserted BY KEY over the whole answer: nothing of the HR view leaks
     const keys = keysOf(detail);
@@ -1001,7 +1005,7 @@ describe('the heads’ restricted view and the home counts', () => {
     await ok('est', 'post', `/api/recruitment/applications/${a.id}/move`, { toStage: 'withdrawn', expectedStage: 'received' });
     expect((await download('chef', url)).status).toBe(404);
     const after = await ok('chef', 'get', `/api/me/recruitment/openings/${opening.id}`);
-    expect(after.applications).toEqual([{ id: a.id, candidate: { lastName: 'Visible', firstName: 'Chef', lastNameAr: null, firstNameAr: null }, stage: 'withdrawn', stageSince: expect.any(String), files: [] }]);
+    expect(after.applications).toEqual([{ id: a.id, candidate: { lastName: 'Visible', firstName: 'Chef', lastNameAr: null, firstNameAr: null }, stage: 'withdrawn', stageSince: expect.any(String), files: [], average: null, interviews: 0 }]);
   });
 
   it('GET /me/recruitment/summary: never 404; who may request, how many openings, how many pending', async () => {
@@ -1009,8 +1013,8 @@ describe('the heads’ restricted view and the home counts', () => {
     expect(chef.canRequestOpening).toBe(true);
     expect(chef.openings).toBeGreaterThanOrEqual(3);
     expect(chef.pendingOpenings).toBeGreaterThanOrEqual(1);
-    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0 });
-    expect(await ok('ouest', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0 });
+    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 });
+    expect(await ok('ouest', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 });
     expect(await ok('acces', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: false });
     expect(await ok('admin', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: true }); // recruitment.manage
     expect((await ok('est', 'get', '/api/me/recruitment/summary')).canRequestOpening).toBe(true);

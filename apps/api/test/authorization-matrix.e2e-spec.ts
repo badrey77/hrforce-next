@@ -249,6 +249,13 @@ const rt = (t: Target): RecTarget => (t === 'ouest' ? 'ouest' : t === 'other' ? 
 const recNext = (pool: Record<RecTarget, string[]>, t: Target): string => pool[rt(t)].shift() ?? MISSING;
 /** A rejection reason of each company (filled in beforeAll): est = company A's, other = BETA's. */
 const REC_REASON = { est: '', other: '' };
+/** Evaluation criteria (filled in beforeAll): one editable criterion per company, and company A's five in order. */
+const REC_CRIT = { est: '', other: '', estAll: [] as string[] };
+/** recruitment.hire: admin_rh_central everywhere, rh_regional in REG-EST — the shape of recruitment.manage. */
+const REC_HIRE_ROWS = (ok: number): readonly Row[] => REC_MANAGE_ROWS(ok);
+/** chef.annaba's interview on an application of AG-CNE (he heads nothing there): its interviewers only. */
+const REC_INTERVIEWER_ROWS: readonly Row[] = [['chef', '-', 200], ['est', '-', 404], ['admin', '-', 404], ['agent', '-', 404], ['ouest', '-', 404], ['beta', '-', 404]];
+const recOfferBody = (t: Target) => ({ expectedStage: 'received', jobTitle: 'Poste matrice', orgUnitId: unitOf(t), contractType: 'cdd', startDate: '2031-02-01' });
 const REC_READ_ROWS: readonly Row[] = [
   ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
   ['est', 'est', 200], ['est', 'ouest', 404],
@@ -1217,10 +1224,111 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: REC_MANAGE_ROWS(204),
   },
   'GET /api/me/recruitment/applications/:id/files/:fileId/content': {
-    // an application (in progress) of chef.annaba's opening: the heads of its unit and of the units above, nobody else
+    // `-`: an application (in progress) of chef.annaba's opening — the heads of its unit and of the units above, nobody
+    // else. `est`: an application of AG-CNE where chef is only an INTERVIEWER (Phase B)
     access: 'authenticated',
-    request: () => ({ path: `/api/me/recruitment/applications/${demoApplication(1)}/files/${demoCandidateFile(1)}/content` }),
-    rows: [['chef', '-', 200], ['est', '-', 200], ['admin', '-', 404], ['agent', '-', 404], ['ouest', '-', 404], ['beta', '-', 404]],
+    request: (t) => ({
+      path: t === 'est' ? `/api/me/recruitment/applications/${REC_FX.chefApplication}/files/${REC_FX.chefFile}/content` : `/api/me/recruitment/applications/${demoApplication(1)}/files/${demoCandidateFile(1)}/content`,
+    }),
+    rows: [['chef', '-', 200], ['est', '-', 200], ['admin', '-', 404], ['agent', '-', 404], ['ouest', '-', 404], ['beta', '-', 404], ['chef', 'est', 200], ['agent', 'est', 404]],
+  },
+  // ── recruitment, Phase B (docs/contracts/recruitment.md › Authorization matrix rows (Phase B)) ─────────────────
+  'GET /api/recruitment/criteria': { access: 'recruitment.read', request: () => ({ path: '/api/recruitment/criteria' }), rows: REC_LIST_ROWS },
+  'POST /api/recruitment/criteria': {
+    access: 'recruitment.configure',
+    request: (_t, n) => ({ path: '/api/recruitment/criteria', body: { code: `mxc_${n}`, labels: NAMES } }),
+    rows: CONFIG_ROWS(201),
+  },
+  'PUT /api/recruitment/criteria/:id': {
+    access: 'recruitment.configure',
+    request: (t, n) => ({ path: `/api/recruitment/criteria/${t === 'other' ? REC_CRIT.other : REC_CRIT.est}`, body: { sortOrder: 50 + (n % 9) } }),
+    rows: REC_CONFIG_ROWS(200),
+  },
+  'PUT /api/recruitment/openings/:id/criteria': {
+    access: 'recruitment.manage',
+    request: (t) => ({ path: `/api/recruitment/openings/${recOpening(t)}/criteria`, body: { criterionIds: [t === 'other' ? REC_CRIT.other : REC_CRIT.est] } }),
+    rows: REC_MANAGE_ROWS(200),
+  },
+  'GET /api/recruitment/interviewers': {
+    access: 'recruitment.manage',
+    request: () => ({ path: '/api/recruitment/interviewers?q=admin' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]],
+  },
+  'POST /api/recruitment/applications/:id/interviews': {
+    access: 'recruitment.manage',
+    request: (t) => ({
+      path: `/api/recruitment/applications/${recApplication(t)}/interviews`,
+      body: { date: '2031-04-01', time: '10:00', mode: 'phone', interviewerIds: [t === 'other' ? USERS.beta.id : USERS.est.id] },
+    }),
+    rows: REC_MANAGE_ROWS(201),
+  },
+  'PATCH /api/recruitment/interviews/:id': {
+    access: 'recruitment.manage',
+    request: (t, n) => ({ path: `/api/recruitment/interviews/${REC_FX.interview[rt(t)]}`, body: { durationMinutes: 30 + (n % 5) * 15 } }),
+    rows: REC_MANAGE_ROWS(200),
+  },
+  'POST /api/recruitment/interviews/:id/cancel': {
+    access: 'recruitment.manage',
+    request: (t) => ({ path: `/api/recruitment/interviews/${recNext(REC_FX.interviewsToCancel, t)}/cancel`, body: { reason: 'Matrice' } }),
+    rows: REC_MANAGE_ROWS(200),
+  },
+  'GET /api/recruitment/openings/:id/comparison': { access: 'recruitment.read', request: (t) => ({ path: `/api/recruitment/openings/${recOpening(t)}/comparison` }), rows: REC_READ_ROWS },
+  'GET /api/me/recruitment/openings/:id/comparison': {
+    // REC-2026-0001: the heads of its unit (chef.annaba) and of the units above (rh.est, Région Est) — no grant needed
+    access: 'authenticated',
+    request: () => ({ path: `/api/me/recruitment/openings/${DEMO_OPENINGS.annaba}/comparison` }),
+    rows: [['chef', '-', 200], ['est', '-', 200], ['admin', '-', 404], ['ouest', '-', 404], ['acces', '-', 404], ['agent', '-', 404], ['beta', '-', 404]],
+  },
+  'GET /api/me/recruitment/units': { access: 'authenticated', request: () => ({ path: '/api/me/recruitment/units' }), rows: EVERYONE },
+  'GET /api/me/recruitment/interviews': { access: 'authenticated', request: () => ({ path: '/api/me/recruitment/interviews' }), rows: EVERYONE },
+  'GET /api/me/recruitment/interviews/:id': { access: 'authenticated', request: () => ({ path: `/api/me/recruitment/interviews/${REC_FX.chefInterview}` }), rows: REC_INTERVIEWER_ROWS },
+  'PUT /api/me/recruitment/interviews/:id/evaluation': {
+    access: 'authenticated',
+    request: () => ({
+      path: `/api/me/recruitment/interviews/${REC_FX.chefInterview}/evaluation`,
+      body: { scores: REC_CRIT.estAll.map((criterionId) => ({ criterionId, score: 4 })), recommendation: 'yes' },
+    }),
+    rows: REC_INTERVIEWER_ROWS,
+  },
+  'POST /api/recruitment/applications/:id/offer': {
+    access: 'recruitment.hire',
+    request: (t) => ({ path: `/api/recruitment/applications/${recNext(REC_FX.toOffer, t)}/offer`, body: recOfferBody(t) }),
+    rows: REC_HIRE_ROWS(201),
+  },
+  'PUT /api/recruitment/applications/:id/offer': {
+    access: 'recruitment.hire',
+    request: (t, n) => ({ path: `/api/recruitment/applications/${REC_FX.offered[rt(t)]}/offer`, body: { note: `Note matrice ${n}` } }),
+    rows: REC_HIRE_ROWS(200),
+  },
+  'POST /api/recruitment/applications/:id/offer/decline': {
+    access: 'recruitment.hire',
+    request: (t) => ({ path: `/api/recruitment/applications/${recNext(REC_FX.toDecline, t)}/offer/decline`, body: { expectedStage: 'offer' } }),
+    rows: REC_HIRE_ROWS(200),
+  },
+  'POST /api/recruitment/applications/:id/offer/cancel': {
+    access: 'recruitment.hire',
+    request: (t) => ({ path: `/api/recruitment/applications/${recNext(REC_FX.toCancelOffer, t)}/offer/cancel`, body: { expectedStage: 'offer' } }),
+    rows: REC_HIRE_ROWS(200),
+  },
+  'GET /api/recruitment/applications/:id/hire-prefill': {
+    access: 'recruitment.hire',
+    request: (t) => ({ path: `/api/recruitment/applications/${REC_FX.offered[rt(t)]}/hire-prefill` }),
+    rows: REC_HIRE_ROWS(200),
+  },
+  'POST /api/recruitment/applications/:id/hire': {
+    // + employee.create over the hire unit (POST /employees' own rule): both roles hold it where they hold recruitment.hire
+    access: 'recruitment.hire',
+    request: (t, n) => ({
+      path: `/api/recruitment/applications/${recNext(REC_FX.toHire, t)}/hire`,
+      body: { lastName: 'Matrice', firstName: `Embauche ${n}`, matricule: `MXH-${n}`, hireDate: '2026-11-01', orgUnitId: unitOf(t), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [] },
+    }),
+    rows: REC_HIRE_ROWS(201),
+  },
+  'POST /api/recruitment/applications/:id/undo-hire': {
+    // hired applications whose employment is ended (4 per target: the anonymous row and a refused one take one each)
+    access: 'recruitment.hire',
+    request: (t) => ({ path: `/api/recruitment/applications/${recNext(REC_FX.toUndo, t)}/undo-hire`, body: { reason: 'Matrice' } }),
+    rows: REC_HIRE_ROWS(200),
   },
   'GET /api/recruitment/policy': { access: 'recruitment.read', request: () => ({ path: '/api/recruitment/policy' }), rows: REC_LIST_ROWS },
   'GET /api/recruitment/rejection-reasons': { access: 'recruitment.read', request: () => ({ path: '/api/recruitment/rejection-reasons' }), rows: REC_LIST_ROWS },
@@ -1442,6 +1550,11 @@ describe('Authorization matrix (e2e, real grants)', () => {
       (await query<{ id: string }>(db.superuserUrl, `select id from recruitment_rejection_reason where company_id = $1 and code = 'other'`, [company]))[0]?.id ?? '';
     Object.assign(REC_REASON, { est: await reason(unitCompany), other: await reason(COMPANY_B) });
     expect(Object.values(REC_REASON).every((v) => v !== ''), JSON.stringify(REC_REASON)).toBe(true);
+    const criteriaOf = async (company: string) =>
+      (await query<{ id: string }>(db.superuserUrl, `select id from recruitment_criterion where company_id = $1 and is_system order by sort_order`, [company])).map((r) => r.id);
+    const [criteriaA, criteriaB] = [await criteriaOf(unitCompany), await criteriaOf(COMPANY_B)];
+    Object.assign(REC_CRIT, { est: criteriaA.at(-1) ?? '', other: criteriaB.at(-1) ?? '', estAll: criteriaA });
+    expect([criteriaA.length, criteriaB.length]).toEqual([5, 5]);
   });
   afterAll(async () => {
     await app?.close();

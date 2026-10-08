@@ -52,7 +52,30 @@ const PROBLEM_KEYS: Readonly<Record<string, string>> = {
   'recruitment-application-active': 'recruitment.problems.applicationActive',
   'recruitment-file-limit': 'recruitment.problems.fileLimit',
   'forbidden-field': 'recruitment.problems.salaryForbidden',
+  'recruitment-criteria-locked': 'recruitment.problems.criteriaLocked',
+  'recruitment-interview-stage': 'recruitment.problems.interviewStage',
+  'recruitment-interview-cancelled': 'recruitment.problems.interviewCancelled',
+  'recruitment-evaluation-exists': 'recruitment.problems.evaluationExists',
+  'recruitment-evaluation-closed': 'recruitment.problems.evaluationClosed',
+  'recruitment-interview-not-held': 'recruitment.problems.interviewNotHeld',
+  'recruitment-no-offer': 'recruitment.problems.noOffer',
+  'recruitment-employment-open': 'recruitment.problems.employmentOpen',
+  'recruitment-person-employed': 'recruitment.problems.personEmployed',
 };
+
+/** Answers that mean the screen is out of date (someone else acted meanwhile): the host reloads what it shows. */
+export const STALE_SLUGS: ReadonlySet<string> = new Set([
+  'recruitment-stage-changed',
+  'recruitment-opening-not-open',
+  'recruitment-interview-stage',
+  'recruitment-interview-cancelled',
+  'recruitment-no-offer',
+]);
+
+export function isStale(error: unknown): boolean {
+  const slug = slugOf(error);
+  return (slug !== undefined && STALE_SLUGS.has(slug)) || isNotFound(error);
+}
 
 /** A message key for an action that failed outside a form (move, reopen, cancel, erase, delete…). */
 export function actionErrorKey(error: unknown, notFoundKey = 'recruitment.problems.gone'): string {

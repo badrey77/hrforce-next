@@ -143,6 +143,33 @@ describe('notification mails', () => {
     }
   });
 
+  it('interviews (recruitment.md › Notifications (Phase B)): assigned, rescheduled, cancelled, evaluations complete — the post and the appointment, never a candidate; neutral Arabic', () => {
+    const i = { interviewId: 'x', openingId: 'o', reference: 'REC-2026-0007', title: 'Chargé(e) de clientèle', date: '2026-10-12', time: '09:30', mode: 'on_site', actorName: 'Karim Haddad', candidateId: 'c', applicationId: 'a', candidateName: 'MUST NOT LEAK', comment: 'MUST NOT LEAK' };
+    const mail = (type: 'recruitment.interview_assigned' | 'recruitment.interview_cancelled' | 'recruitment.evaluations_complete', locale: MailLocale, extra: object = {}) =>
+      renderNotificationMail({ type, locale, recipientName: 'N', data: { ...i, ...extra, audience: 'approver' }, leaveTypeLabel: null, subjectType: 'recruitment_interview', link });
+    expect(mail('recruitment.interview_assigned', 'fr').text).toContain('Entretien à mener le 12/10/2026 à 09:30 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_assigned', 'fr').subject).toBe('HRForce — entretien à mener le 12/10/2026 à 09:30 : Chargé(e) de clientèle');
+    expect(mail('recruitment.interview_assigned', 'fr', { rescheduled: 1 }).text).toContain('Entretien modifié : désormais le 12/10/2026 à 09:30 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_cancelled', 'fr').text).toContain('Entretien du 12/10/2026 annulé — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.evaluations_complete', 'fr').text).toContain('Toutes les évaluations de l’entretien du 12/10/2026 sont saisies — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_assigned', 'ar').text).toContain('مقابلة مبرمجة يوم 12/10/2026 على الساعة 09:30 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_assigned', 'ar', { rescheduled: 1 }).subject).toBe('HRForce — تم تعديل موعد مقابلة يوم 12/10/2026 على الساعة 09:30: Chargé(e) de clientèle');
+    expect(mail('recruitment.interview_cancelled', 'ar').text).toContain('تم إلغاء مقابلة يوم 12/10/2026 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.evaluations_complete', 'ar').text).toContain('تم إدخال جميع تقييمات مقابلة يوم 12/10/2026 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_assigned', 'en').text).toContain('Interview to conduct on 2026-10-12 at 09:30 — Chargé(e) de clientèle (REC-2026-0007).');
+    expect(mail('recruitment.interview_cancelled', 'en').subject).toBe('HRForce — interview of 2026-10-12 cancelled: Chargé(e) de clientèle');
+    expect(mail('recruitment.interview_assigned', 'ar').html).toContain('dir="rtl"');
+    for (const locale of ['fr', 'ar', 'en'] as MailLocale[]) {
+      for (const type of ['recruitment.interview_assigned', 'recruitment.interview_cancelled', 'recruitment.evaluations_complete'] as const) {
+        const m = mail(type, locale);
+        expect(`${m.subject}${m.text}${m.html}`).not.toMatch(/MUST NOT LEAK|congé|عطلة|leave|pointage/i);
+        expect(m.text).toContain(link);
+        // verbal nouns and passives in Arabic: nothing addressed to a man or a woman
+        if (locale === 'ar') expect(m.text).not.toMatch(/قرارك|طلبك|عليك|قم ب/);
+      }
+    }
+  });
+
   it('punch corrections (attendance.md › Phase B): task, escalation, outcomes — the day, never the reason or times; neutral Arabic', () => {
     const c = { correctionId: 'x', employeeName: 'Walid Mansouri', employeeNameAr: 'وليد منصوري', date: '2026-09-28', changes: 2, actorName: 'Karim Haddad', reason: 'MUST NOT LEAK', time: '08:05' };
     const task = (locale: MailLocale) => renderNotificationMail({ type: 'task.assigned', locale, recipientName: 'N', data: { ...c, subjectType: 'attendance_correction' }, leaveTypeLabel: null, link });

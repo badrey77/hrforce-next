@@ -1,0 +1,149 @@
+<ng-container *transloco="let t">
+  @let a = application();
+  <app-offer-dialog (saved)="onSaved($event)" (failed)="failed.emit($event)" />
+  <div class="toolbar">
+    <h3 id="offer-title">{{ t('recruitment.offer.title') }}</h3>
+    @if (can('make_offer')) {
+      <button class="btn secondary" type="button" data-action="make-offer" [disabled]="offerDialog().busy()" (click)="make()">{{ t('recruitment.offer.make') }}</button>
+    }
+  </div>
+
+  @if (a.offer; as offer) {
+    <dl class="facts" data-panel="offer">
+      <dt>{{ t('recruitment.fields.status') }}</dt>
+      <dd>
+        <span class="badge" [attr.data-status]="offer.status === 'proposed' ? 'pending' : offer.status === 'accepted' ? 'approved' : 'cancelled'" data-field="offer-status">
+          {{ t('recruitment.offer.status.' + offer.status) }}
+        </span>
+        @if (offer.decidedAt) {
+          <span class="muted">{{ offer.decidedAt | date: 'mediumDate' : undefined : locale() }}</span>
+        }
+      </dd>
+      <dt>{{ t('recruitment.offer.jobTitle') }}</dt>
+      <dd><bdi>{{ offer.jobTitle }}</bdi></dd>
+      <dt>{{ t('recruitment.fields.unit') }}</dt>
+      <dd>
+        <bdi>{{ offer.unit | displayName: lang() }}</bdi>
+        @if (offer.site; as site) {
+          — <bdi>{{ site.name }}</bdi>
+        }
+      </dd>
+      <dt>{{ t('recruitment.fields.contractType') }}</dt>
+      <dd>{{ t('recruitment.contractType.' + offer.contractType) }}</dd>
+      <dt>{{ t('recruitment.offer.startDate') }}</dt>
+      <dd>{{ offer.startDate | date: 'mediumDate' : undefined : locale() }}</dd>
+      <dt>{{ t('recruitment.offer.proposedSalary') }}</dt>
+      <dd data-field="proposed-salary">
+        @if (a._redacted.includes('salary')) {
+          <span class="muted" data-state="redacted">{{ t('recruitment.application.salaryHidden') }}</span>
+        } @else if (a.salary?.proposed; as amount) {
+          <bdi>{{ amount | number: '1.2-2' : locale() }} {{ t('employees.pay.currency') }}</bdi>
+        } @else {
+          —
+        }
+      </dd>
+      @if (offer.note) {
+        <dt>{{ t('recruitment.offer.note') }}</dt>
+        <dd class="prose"><bdi>{{ offer.note }}</bdi></dd>
+      }
+      <dt>{{ t('recruitment.offer.createdAt') }}</dt>
+      <dd>
+        {{ offer.createdAt | date: 'medium' : undefined : locale() }}
+        @if (offer.createdBy; as by) {
+          — <bdi>{{ by.displayName }}</bdi>
+        }
+      </dd>
+    </dl>
+  } @else {
+    <p class="muted" data-state="no-offer">{{ t('recruitment.offer.empty') }}</p>
+  }
+
+  @if (a.stage === 'hired') {
+    <p class="feedback" data-panel="hired">
+      {{ t('recruitment.hire.done') }}
+      @if (a.employment; as e) {
+        @if (canReadEmployee()) {
+          <a [routerLink]="['/employees', e.id]" data-action="open-employee">{{ t('recruitment.hire.openEmployee', { matricule: e.matricule }) }}</a>
+        } @else {
+          <span class="code" dir="ltr">{{ e.matricule }}</span>
+        }
+      }
+    </p>
+  }
+
+  <p class="inline-actions">
+    @if (can('update_offer')) {
+      <button class="btn secondary" type="button" data-action="edit-offer" [disabled]="offerDialog().busy()" (click)="edit()">{{ t('recruitment.offer.edit') }}</button>
+    }
+    @if (can('decline_offer')) {
+      <button class="btn secondary" type="button" data-action="decline-offer" (click)="ask('decline')">{{ t('recruitment.offer.decline') }}</button>
+    }
+    @if (can('cancel_offer')) {
+      <button class="btn secondary" type="button" data-action="cancel-offer" (click)="ask('cancel')">{{ t('recruitment.offer.cancel') }}</button>
+    }
+    @if (can('hire')) {
+      @if (canCreateEmployee()) {
+        <a class="btn" [routerLink]="['/recruitment/applications', a.id, 'hire']" [queryParams]="{ candidate: a.candidate.id }" data-action="hire">{{ t('recruitment.hire.action') }}</a>
+      } @else {
+        <span class="field-hint" data-state="hire-needs-create">{{ t('recruitment.hire.needsCreate') }}</span>
+      }
+    }
+    @if (can('undo_hire')) {
+      <button class="btn secondary" type="button" data-action="undo-hire" (click)="ask('undo')">{{ t('recruitment.hire.undo') }}</button>
+    }
+  </p>
+
+  <dialog #confirmBox class="modal" aria-labelledby="offer-confirm-title" (close)="confirming.set(null)">
+    @switch (confirming()) {
+      @case ('undo') {
+        @let reason = reasonForm.controls.reason;
+        <form [formGroup]="reasonForm" (ngSubmit)="confirm()" novalidate data-form="undo-hire">
+          <h2 id="offer-confirm-title">{{ t('recruitment.hire.undoTitle') }}</h2>
+          <p><bdi>{{ name() }}</bdi></p>
+          <p>{{ t('recruitment.hire.undoIntro') }}</p>
+          @if (formError(); as error) {
+            <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+          }
+          <div class="field">
+            <label for="undo-reason">{{ t('recruitment.hire.undoReason') }}</label>
+            <textarea id="undo-reason" formControlName="reason" rows="3" dir="auto" required [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="undo-reason-hint undo-reason-error"></textarea>
+            <p class="field-hint" id="undo-reason-hint">{{ t('recruitment.move.commentHint') }}</p>
+            <app-control-error [control]="reason" errorId="undo-reason-error" [keys]="errorKeys" />
+          </div>
+          <div class="form-actions">
+            <button class="btn danger" type="submit" data-action="confirm-undo-hire" [disabled]="busy()">{{ t('recruitment.hire.undo') }}</button>
+            <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+          </div>
+        </form>
+      }
+      @case ('decline') {
+        <ng-container *ngTemplateOutlet="ending; context: { title: 'recruitment.offer.declineTitle', intro: 'recruitment.offer.declineIntro', submit: 'recruitment.offer.declineSubmit' }" />
+      }
+      @case ('cancel') {
+        <ng-container *ngTemplateOutlet="ending; context: { title: 'recruitment.offer.cancelTitle', intro: 'recruitment.offer.cancelIntro', submit: 'recruitment.offer.cancel' }" />
+      }
+    }
+  </dialog>
+
+  <ng-template #ending let-title="title" let-intro="intro" let-submit="submit">
+    @let comment = commentForm.controls.comment;
+    <form [formGroup]="commentForm" (ngSubmit)="confirm()" novalidate data-form="end-offer">
+      <h2 id="offer-confirm-title">{{ t(title) }}</h2>
+      <p><bdi>{{ name() }}</bdi></p>
+      <p>{{ t(intro) }}</p>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="field">
+        <label for="end-offer-comment">{{ t('recruitment.move.comment') }}</label>
+        <textarea id="end-offer-comment" formControlName="comment" rows="3" dir="auto" [attr.aria-invalid]="comment.invalid && comment.touched" aria-describedby="end-offer-hint end-offer-error"></textarea>
+        <p class="field-hint" id="end-offer-hint">{{ t('recruitment.move.commentHint') }}</p>
+        <app-control-error [control]="comment" errorId="end-offer-error" [keys]="errorKeys" />
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="confirm-end-offer" [disabled]="busy()">{{ t(submit) }}</button>
+        <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </ng-template>
+</ng-container>

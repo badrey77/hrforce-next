@@ -1,0 +1,92 @@
+<ng-container *transloco="let t">
+  @let target = back();
+  <p><a [routerLink]="target.link" [queryParams]="target.query" data-action="back">{{ t('recruitment.hire.back') }}</a></p>
+
+  @if (view(); as v) {
+    <h1>{{ t('recruitment.hire.title') }}</h1>
+    <p class="feedback" data-panel="hire-banner">
+      {{ t('recruitment.hire.banner') }}
+      <span class="code" dir="ltr">{{ v.opening.reference }}</span> — <bdi>{{ v.opening.title }}</bdi>
+      (<bdi>{{ v.opening.unit | displayName: lang() }}</bdi>)
+    </p>
+
+    @if (hireError(); as key) {
+      <p class="form-error" role="alert" data-error="hire" [appRevealAlert]="key">
+        {{ t(key) }}
+        <a [routerLink]="target.link" [queryParams]="target.query">{{ t('recruitment.hire.back') }}</a>
+      </p>
+    }
+
+    <ng-template #files>
+      <fieldset class="section" data-section="copy-files">
+        <legend>{{ t('recruitment.hire.files') }}</legend>
+        @if (v.files.length) {
+          <p class="field-hint">{{ t('recruitment.hire.filesHint', { max: maxFiles }) }}</p>
+          @for (f of v.files; track f.id) {
+            @let checked = copyIds().has(f.id);
+            <div class="check">
+              <input #box type="checkbox" [id]="'hire-file-' + f.id" [attr.data-copy-file]="f.id" [checked]="checked"
+                [disabled]="!checked && copyIds().size >= maxFiles" (change)="toggleFile(f.id, box.checked)" />
+              <label [for]="'hire-file-' + f.id">
+                {{ t('recruitment.fileKind.' + f.kind) }} — <bdi>{{ f.title }}</bdi>
+                <span class="field-hint">({{ badge(f.mime) }}, {{ f.sizeBytes | fileSize: lang() }})</span>
+              </label>
+            </div>
+          }
+        } @else {
+          <p class="muted" data-state="no-files">{{ t('recruitment.hire.noFiles') }}</p>
+        }
+      </fieldset>
+    </ng-template>
+
+    @if (previous(); as person) {
+      <!-- A person already known to the company: the identity cannot be edited here, and only its id is sent. -->
+      <section class="section" data-section="person" aria-labelledby="hire-person-title">
+        <h2 id="hire-person-title">{{ t('employees.sections.identity') }}</h2>
+        <p class="field-hint">{{ t('recruitment.hire.rehireIntro') }}</p>
+        <dl class="facts" data-panel="person">
+          <dt>{{ t('employees.fields.lastName') }}</dt>
+          <dd>{{ v.person.lastName }}</dd>
+          <dt>{{ t('employees.fields.firstName') }}</dt>
+          <dd>{{ v.person.firstName }}</dd>
+          @if (v.person.lastNameAr || v.person.firstNameAr) {
+            <dt>{{ t('employees.rehire.nameAr') }}</dt>
+            <dd lang="ar" dir="rtl">{{ v.person.lastNameAr ?? '' }} {{ v.person.firstNameAr ?? '' }}</dd>
+          }
+          <dt>{{ t('employees.fields.birthDate') }}</dt>
+          <dd class="nowrap">{{ v.person.birthDate ?? '—' }}</dd>
+          <dt>{{ t('employees.fields.nin') }}</dt>
+          <dd class="code">{{ v.person.nin ?? '—' }}</dd>
+        </dl>
+        @if (v.knownPerson; as known) {
+          <h2>{{ t('employees.rehire.previous') }}</h2>
+          <dl class="facts" data-panel="previous">
+            <dt>{{ t('employees.fields.matricule') }}</dt>
+            <dd class="code">{{ known.latestEmployment.matricule }}</dd>
+            <dt>{{ t('employees.fields.unit') }}</dt>
+            <dd>{{ known.latestEmployment.unit | displayName: lang() }}</dd>
+            <dt>{{ t('employees.fields.hireDate') }}</dt>
+            <dd class="nowrap">{{ known.latestEmployment.hireDate }}</dd>
+            <dt>{{ t('employees.fields.endDate') }}</dt>
+            <dd class="nowrap">{{ known.latestEmployment.endDate ?? '—' }}</dd>
+          </dl>
+        }
+      </section>
+      @if (v.knownPerson?.hasOpenEmployment) {
+        <p class="form-error" role="alert" data-state="person-employed">{{ t('recruitment.problems.personEmployed') }}</p>
+      } @else {
+        <app-rehire-form [previous]="person" [hire]="mode()">
+          <ng-container [ngTemplateOutlet]="files" />
+        </app-rehire-form>
+      }
+    } @else {
+      <app-employee-create-page [hireMode]="mode()">
+        <ng-container [ngTemplateOutlet]="files" />
+      </app-employee-create-page>
+    }
+  } @else if (loadErrorKey(); as key) {
+    <p class="form-error" role="alert" data-error="load">{{ t(key) }}</p>
+  } @else {
+    <p role="status">{{ t('employees.detail.loading') }}</p>
+  }
+</ng-container>

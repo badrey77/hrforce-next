@@ -367,6 +367,18 @@ export class EmployeesService {
     return personIds.map((id) => (id ? (resolved.get(id) ?? null) : null));
   }
 
+  /**
+   * The id and matricule of an employment when the caller can read it with employee.read, else null (the link from a
+   * hired application to its employee: docs/contracts/recruitment.md › Phase B). Read-only.
+   */
+  async visibleEmployment(id: string): Promise<{ id: string; matricule: string } | null> {
+    const companyId = tenant();
+    const employment = await this.repo.findEmployment(companyId, id);
+    if (!employment) return null;
+    const unitId = scopeAssignment(await this.repo.listAssignments(companyId, id), this.clock.today())?.orgUnitId;
+    return unitId && (await this.scopes.inScope(P.read, unitId)) ? { id: employment.id, matricule: employment.matricule } : null;
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   private async mustFind(companyId: string, id: string): Promise<EmploymentRow> {

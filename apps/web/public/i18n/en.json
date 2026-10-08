@@ -23,7 +23,9 @@
     "attendanceSettings": "Attendance settings",
     "recruitment": "Recruitment",
     "myRecruitment": "My openings",
-    "recruitmentSettings": "Recruitment settings"
+    "recruitmentSettings": "Recruitment settings",
+    "myInterviews": "My interviews",
+    "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter"
   },
   "language": {
     "label": "Language",
@@ -503,7 +505,9 @@
       "sso_role_assignment": "App role assignment",
       "recruitment_opening": "Opening",
       "recruitment_policy": "Recruitment policy",
-      "recruitment_rejection_reason": "Rejection reason"
+      "recruitment_rejection_reason": "Rejection reason",
+      "recruitment_criterion": "Evaluation criterion",
+      "recruitment_opening_criterion": "Opening criterion"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -834,6 +838,20 @@
         "closed_at": "Closed on",
         "closed_by": "Closed by",
         "close_reason": "Reason for closing"
+      },
+      "recruitment_criterion": {
+        "code": "Code",
+        "name_fr": "Label (French)",
+        "name_ar": "Label (Arabic)",
+        "name_en": "Label (English)",
+        "active": "Active",
+        "sort_order": "Order",
+        "is_system": "System"
+      },
+      "recruitment_opening_criterion": {
+        "opening_id": "Opening",
+        "criterion_id": "Criterion",
+        "position": "Position"
       }
     },
     "events": {
@@ -929,7 +947,23 @@
         "file_deleted": "File deleted",
         "file_downloaded": "File downloaded",
         "candidate_erased": "Data erased on request ({{applications}} application(s), {{files}} file(s))",
-        "purged": "{{applications}} application(s) anonymised (retention period)"
+        "purged": "{{applications}} application(s) anonymised (retention period)",
+        "interview_scheduled": "Interview scheduled",
+        "interview_updated": "Interview changed",
+        "interview_cancelled": "Interview cancelled",
+        "evaluation_submitted": "Interview evaluation submitted",
+        "offer_made": "Offer recorded",
+        "offer_updated": "Offer changed",
+        "offer_declined": "Offer declined",
+        "offer_cancelled": "Offer cancelled",
+        "offer_accepted": "Offer accepted (hire)",
+        "interviewer_added": "Interviewer added",
+        "interviewer_removed": "Interviewer removed",
+        "interview_deleted": "Interview deleted (data erased)",
+        "offer_deleted": "Offer deleted (data erased)",
+        "offer_reopened": "Offer proposed again (hire undone)",
+        "hired": "Hired through recruitment {{reference}}",
+        "hire_undone": "Hire undone in recruitment {{reference}}"
       }
     },
     "values": {
@@ -1520,7 +1554,11 @@
       },
       "recruitment": {
         "opening_approved": "Your opening request {{title}} ({{reference}}) was approved by {{actorName}}.",
-        "opening_rejected": "Your opening request {{title}} ({{reference}}) was rejected by {{actorName}}."
+        "opening_rejected": "Your opening request {{title}} ({{reference}}) was rejected by {{actorName}}.",
+        "interview_assigned": "Interview to hold on {{date}} at {{time}} — {{title}} ({{reference}})",
+        "interview_assigned_rescheduled": "Interview changed: {{date}} at {{time}} — {{title}} ({{reference}})",
+        "interview_cancelled": "Interview of {{date}} cancelled — {{title}} ({{reference}})",
+        "evaluations_complete": "All evaluations of the interview of {{date}} are in — {{title}} ({{reference}})"
       }
     },
     "typesNamed": {
@@ -1554,7 +1592,10 @@
       },
       "recruitment": {
         "opening_approved": "My opening request is approved",
-        "opening_rejected": "My opening request is rejected"
+        "opening_rejected": "My opening request is rejected",
+        "interview_assigned": "An interview is assigned to me or rescheduled",
+        "interview_cancelled": "An interview I was to hold is cancelled",
+        "evaluations_complete": "All evaluations of an interview I scheduled are in"
       }
     }
   },
@@ -2882,7 +2923,9 @@
       "justificationHint": "Describe the need without naming anyone.",
       "approvalHint": "The request goes through the approval chain before the post opens.",
       "submit": "Send the request",
-      "sent": "Request sent: it is awaiting approval."
+      "sent": "Request sent: it is awaiting approval.",
+      "unitsError": "Could not load your units. Please refresh the page.",
+      "unitHint": "The units you head and their sub-units."
     },
     "opening": {
       "edit": "Edit",
@@ -2896,6 +2939,7 @@
       "tabs": "Opening sections",
       "tab": {
         "pipeline": "Pipeline",
+        "comparison": "Comparison",
         "details": "Details",
         "history": "History"
       },
@@ -2919,7 +2963,9 @@
       "final": "Finished ({{count}})",
       "purged": "{{count}} anonymised application(s)",
       "tooMany": "This opening has too many applications for the board: use the applications list.",
-      "loadError": "Could not load the applications."
+      "loadError": "Could not load the applications.",
+      "nextInterview": "Interview on {{date}}",
+      "pendingEvaluations": "{{count}} evaluation(s) awaited"
     },
     "move": {
       "to": "Move to…",
@@ -2943,6 +2989,10 @@
         "hired": "{{name}}'s application: hire recorded.",
         "rejected": "{{name}}'s application rejected.",
         "withdrawn": "Withdrawal recorded for {{name}}'s application."
+      },
+      "extra": {
+        "schedule_interview": "Schedule an interview",
+        "make_offer": "Make an offer"
       }
     },
     "known": {
@@ -3081,7 +3131,8 @@
       "loadError": "Could not load the settings.",
       "tab": {
         "reasons": "Rejection reasons",
-        "policy": "Policy"
+        "policy": "Policy",
+        "criteria": "Evaluation criteria"
       },
       "reasons": {
         "add": "Add a reason",
@@ -3110,6 +3161,13 @@
           "manager_then_hr": "Manager, then HR",
           "hr_only": "HR only"
         }
+      },
+      "criteria": {
+        "add": "Add a criterion",
+        "hint": "Each opening copies the active criteria when it opens; they can then be adjusted per opening.",
+        "name": "Criterion",
+        "active": "Copied to new openings",
+        "editNamed": "Edit the criterion \"{{name}}\""
       }
     },
     "notice": {
@@ -3130,7 +3188,10 @@
         "interview": "in interview",
         "offer": "at offer"
       },
-      "minePending": "{{count}} request(s) awaiting approval"
+      "minePending": "{{count}} request(s) awaiting approval",
+      "interviewsNext7Days": "interview(s) in the next 7 days",
+      "offersPending": "offer(s) in progress",
+      "interviewsTodo": "My interviews to evaluate ({{count}})"
     },
     "errors": {
       "required": "This field is required.",
@@ -3153,7 +3214,14 @@
       "emailDuplicate": "Another record already has this e-mail.",
       "phoneDuplicate": "Another record already has this phone.",
       "candidateGone": "The chosen record was not found: enter a new record.",
-      "personNotFound": "This person was not found."
+      "personNotFound": "This person was not found.",
+      "time": "Invalid time (HH:MM).",
+      "interviewersMax": "{{max}} people at most.",
+      "interviewerNotFound": "A chosen user is no longer active: remove them.",
+      "interviewerDuplicate": "The same person is chosen twice.",
+      "interviewerSelf": "A person cannot evaluate their own application.",
+      "unitOutsideOpening": "The unit must be the opening's unit or one of its sub-units.",
+      "scoresIncomplete": "Every criterion of the opening must be scored."
     },
     "problems": {
       "stageChanged": "This application was changed in the meantime. Please refresh.",
@@ -3165,7 +3233,197 @@
       "applicationActive": "An application is still in progress: record a rejection or a withdrawal first.",
       "fileLimit": "This record has reached the maximum number of files.",
       "salaryForbidden": "You are not allowed to enter the expected salary.",
-      "gone": "This item was not found: it may have been deleted in the meantime."
+      "gone": "This item was not found: it may have been deleted in the meantime.",
+      "criteriaLocked": "The criteria can no longer be changed: an evaluation was submitted, or the opening is no longer open.",
+      "interviewStage": "This application is no longer at a stage that allows an interview. Please refresh.",
+      "interviewCancelled": "This interview was cancelled in the meantime.",
+      "evaluationExists": "A person who already submitted their evaluation cannot be removed.",
+      "evaluationClosed": "The evaluation is closed: the interview is cancelled or the application left the \"Interview\" stage.",
+      "interviewNotHeld": "The evaluation cannot be entered before the interview time.",
+      "noOffer": "This application no longer has an offer in progress. Please refresh.",
+      "employmentOpen": "The employment created by this hire is still open: end it first on the employee page.",
+      "personEmployed": "This person already has an open employment in the company: they cannot be hired through this recruitment.",
+      "noPostLeftOffer": "Every post is filled or already has an offer.",
+      "proposedSalaryForbidden": "You are not allowed to enter the proposed salary."
+    },
+    "recommendation": {
+      "strong_yes": "Strong yes",
+      "yes": "Yes",
+      "no": "No",
+      "strong_no": "Strong no"
+    },
+    "interviews": {
+      "title": "Interviews",
+      "average": "Average {{value}} / 5",
+      "schedule": "Schedule an interview",
+      "scheduleSubmit": "Schedule",
+      "editTitle": "Change the interview",
+      "edit": "Edit",
+      "cancel": "Cancel the interview",
+      "cancelTitle": "Cancel the interview",
+      "cancelIntro": "The interviewers are told. A cancelled interview no longer counts in the averages.",
+      "cancelReason": "Reason for cancelling",
+      "cancelledBecause": "Cancelled:",
+      "date": "Date",
+      "time": "Time",
+      "duration": "Duration (minutes)",
+      "minutes": "{{count}} min",
+      "mode": "Mode",
+      "modes": {
+        "on_site": "On site",
+        "video": "Video call",
+        "phone": "Phone"
+      },
+      "location": "Place or link",
+      "locationHint": "Optional: a room, an address or a video link.",
+      "label": "Label",
+      "labelHint": "Optional, e.g. \"Technical interview\".",
+      "interviewers": "Interviewers",
+      "removeInterviewer": "Remove {{name}}",
+      "search": "Search a user",
+      "searchHint": "Type at least 2 characters. 1 to {{max}} people.",
+      "searchError": "The search failed. Please try again.",
+      "searchEmpty": "No user found.",
+      "state": {
+        "upcoming": "Upcoming",
+        "awaiting_evaluations": "Awaiting evaluations",
+        "complete": "Evaluated",
+        "cancelled": "Cancelled"
+      },
+      "evaluations": "Evaluations",
+      "pending": "Evaluation pending",
+      "hidden": "The other evaluations will show once yours is submitted.",
+      "empty": "No interview.",
+      "done": {
+        "scheduled": "Interview scheduled for {{name}}'s application.",
+        "updated": "Interview updated for {{name}}'s application.",
+        "cancelled": "Interview cancelled for {{name}}'s application."
+      }
+    },
+    "offer": {
+      "title": "Offer",
+      "make": "Make an offer",
+      "makeTitle": "Make an offer",
+      "makeSubmit": "Record the offer",
+      "editTitle": "Change the offer",
+      "edit": "Edit the offer",
+      "jobTitle": "Job title offered",
+      "unitHint": "The opening's unit or one of its sub-units.",
+      "startDate": "Proposed start date",
+      "proposedSalary": "Proposed salary (DZD)",
+      "note": "Note",
+      "noteHint": "Optional. It is erased with the application's data.",
+      "recordOnly": "The offer is only recorded here: no letter is generated and nothing is sent.",
+      "createdAt": "Recorded on",
+      "empty": "No offer.",
+      "status": {
+        "proposed": "Proposed",
+        "accepted": "Accepted",
+        "declined": "Declined",
+        "cancelled": "Cancelled"
+      },
+      "decline": "Offer declined",
+      "declineTitle": "Offer declined",
+      "declineIntro": "The offer was declined: the application moves to \"Withdrawn\".",
+      "declineSubmit": "Record the withdrawal",
+      "cancel": "Cancel the offer",
+      "cancelTitle": "Cancel the offer",
+      "cancelIntro": "The offer is taken back: the application returns to \"Interview\".",
+      "done": {
+        "made": "Offer recorded for {{name}}'s application.",
+        "updated": "Offer updated for {{name}}'s application.",
+        "declined": "Offer declined: withdrawal recorded for {{name}}'s application.",
+        "cancelled": "Offer cancelled: {{name}}'s application returns to \"Interview\".",
+        "hire_undone": "Hire undone: {{name}}'s application returns to \"Offer\"."
+      }
+    },
+    "hire": {
+      "action": "Hire",
+      "submit": "Hire",
+      "title": "Hire",
+      "back": "Back to the application",
+      "banner": "Hire for",
+      "done": "Hire recorded.",
+      "openEmployee": "Open the employee page ({{matricule}})",
+      "needsCreate": "Hiring also needs the right to create an employee.",
+      "undo": "Undo the hire",
+      "undoTitle": "Undo the hire",
+      "undoIntro": "For a hire recorded by mistake or a person who never started. The employment must first be ended on the employee page. The application returns to \"Offer\"; files already copied into the employee file stay there.",
+      "undoReason": "Reason",
+      "files": "Files to copy into the employee file",
+      "filesHint": "Ticked files are copied into the employee file, category \"Recruitment\" ({{max}} at most).",
+      "noFiles": "This application has no file.",
+      "rehireIntro": "This person is already known to the company: the identity cannot be edited here, and the hire creates a new employment for them.",
+      "loadError": "Could not prepare the hire.",
+      "fileGone": "A chosen file no longer exists: check the list of files, then confirm again.",
+      "personChanged": "This application's link to a person changed in the meantime: the form was refreshed."
+    },
+    "comparison": {
+      "title": "Comparison",
+      "hint": "Applications with at least one interview that is not cancelled. Averages go from 1 to 5.",
+      "candidate": "Application",
+      "average": "Average",
+      "recommendations": "Recommendations",
+      "evaluations": "Evaluations received",
+      "comments": "Comments",
+      "commentsOf": "Comments on {{name}}'s application",
+      "interviews": "{{count}} interview(s)",
+      "empty": "No application has an interview yet.",
+      "loadError": "Could not load the comparison.",
+      "hidden": "Hidden until your evaluation is submitted."
+    },
+    "criteria": {
+      "title": "Evaluation criteria",
+      "edit": "Edit",
+      "editTitle": "Evaluation criteria of the opening",
+      "editIntro": "1 to {{max}} criteria, in the order shown to interviewers. They can no longer change after the first evaluation.",
+      "moveUp": "Move \"{{name}}\" up",
+      "moveDown": "Move \"{{name}}\" down",
+      "remove": "Remove",
+      "removeNamed": "Remove \"{{name}}\"",
+      "addIntro": "Add a criterion:",
+      "atLeastOne": "At least one criterion is needed.",
+      "saved": "Criteria updated."
+    },
+    "myInterviews": {
+      "title": "My interviews",
+      "back": "Back to my interviews",
+      "interview": "Interview",
+      "filter": {
+        "todo": "To evaluate",
+        "done": "Evaluated"
+      },
+      "submitted": "Evaluation submitted",
+      "todo": "Evaluation to enter",
+      "empty": {
+        "todo": "No interview to evaluate.",
+        "done": "No evaluated interview."
+      },
+      "loadError": "Could not load the interviews.",
+      "gone": "This interview is no longer available (cancelled, or the application is over)."
+    },
+    "evaluation": {
+      "title": "My evaluation",
+      "saved": "Evaluation saved on {{date}}.",
+      "submittedOn": "Evaluation submitted on {{date}}.",
+      "notYet": "The evaluation can be entered once the interview has started.",
+      "closed": "The evaluation can no longer be changed: the application left the \"Interview\" stage.",
+      "canChange": "It can still be changed while the application is at the \"Interview\" stage.",
+      "scaleHint": "Score each criterion from 1 (poor) to 5 (excellent).",
+      "scale": {
+        "1": "Poor",
+        "2": "Fair",
+        "3": "Good",
+        "4": "Very good",
+        "5": "Excellent"
+      },
+      "scoreRequired": "Choose a score for this criterion.",
+      "recommendation": "Recommendation",
+      "comment": "Comment",
+      "commentHint": "Optional. It is erased with the application's data.",
+      "submit": "Save the evaluation",
+      "resubmit": "Update the evaluation",
+      "incomplete": "Score every criterion and give your recommendation before saving."
     }
   }
 }

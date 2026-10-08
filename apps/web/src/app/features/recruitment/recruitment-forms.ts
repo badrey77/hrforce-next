@@ -86,6 +86,12 @@ export const FIELD_CODES: FieldCodeTable = {
   'file:too_large': 'documents.file.errors.too_large',
   'file:unsupported_type': 'documents.file.errors.unsupported_type',
   'file:one_file_only': 'documents.file.upload.onlyFirst',
+  'interviewerIds:not_found': 'recruitment.errors.interviewerNotFound',
+  'interviewerIds:duplicate': 'recruitment.errors.interviewerDuplicate',
+  'interviewerIds:self': 'recruitment.errors.interviewerSelf',
+  'orgUnitId:outside_opening': 'recruitment.errors.unitOutsideOpening',
+  'scores:incomplete': { key: 'recruitment.errors.scoresIncomplete', control: 'recommendation' },
+  'scores:unknown': { key: 'recruitment.errors.scoresIncomplete', control: 'recommendation' },
 };
 
 export const FORM_SLUGS: SlugTable = {
@@ -99,6 +105,15 @@ export const FORM_SLUGS: SlugTable = {
   'recruitment-file-duplicate': { key: 'recruitment.files.duplicate', field: 'file' },
   'recruitment-file-limit': { key: 'recruitment.problems.fileLimit' },
   'recruitment-reason-code-taken': { key: 'recruitment.settings.reasons.codeTaken', field: 'code' },
+  'recruitment-criterion-code-taken': { key: 'recruitment.settings.reasons.codeTaken', field: 'code' },
+  'recruitment-criteria-locked': { key: 'recruitment.problems.criteriaLocked' },
+  'recruitment-interview-stage': { key: 'recruitment.problems.interviewStage' },
+  'recruitment-interview-cancelled': { key: 'recruitment.problems.interviewCancelled' },
+  'recruitment-evaluation-exists': { key: 'recruitment.problems.evaluationExists', field: 'interviewerIds' },
+  'recruitment-evaluation-closed': { key: 'recruitment.problems.evaluationClosed' },
+  'recruitment-interview-not-held': { key: 'recruitment.problems.interviewNotHeld' },
+  'recruitment-no-offer': { key: 'recruitment.problems.noOffer' },
+  'recruitment-employment-open': { key: 'recruitment.problems.employmentOpen' },
 };
 
 /**
@@ -126,6 +141,17 @@ export function clearServerErrors(form: FormGroup): void {
 export function withoutFieldPrefix(error: unknown, prefix: string): unknown {
   if (!isApiProblemError(error) || !error.problem.errors?.some((e) => e.field.startsWith(prefix))) return error;
   const errors = error.problem.errors.map((e) => (e.field.startsWith(prefix) ? { ...e, field: e.field.slice(prefix.length) } : e));
+  return new ApiProblemError({ ...error.problem, errors }, { cause: error.cause });
+}
+
+/**
+ * The API names an item of a list `<field>.<index>` (`interviewerIds.2`); the form has one control for the whole
+ * list, so the index is dropped and the error lands on it.
+ */
+export function withoutFieldIndex(error: unknown, field: string): unknown {
+  const indexed = new RegExp(`^${field}\\.\\d+$`);
+  if (!isApiProblemError(error) || !error.problem.errors?.some((e) => indexed.test(e.field))) return error;
+  const errors = error.problem.errors.map((e) => (indexed.test(e.field) ? { ...e, field } : e));
   return new ApiProblemError({ ...error.problem, errors }, { cause: error.cause });
 }
 

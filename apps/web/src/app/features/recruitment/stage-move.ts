@@ -10,7 +10,7 @@ import { type ApplicationDetailView, COMMENT_MAX, type ReasonView, type Stage } 
 import { ControlError } from '../../shared/attendance/control-error';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 import { ERROR_KEYS, recruitmentProblemToForm, text } from './recruitment-forms';
-import { actionErrorKey, slugOf } from './recruitment-view';
+import { actionErrorKey, isStale } from './recruitment-view';
 
 /** What a move needs to know about the application the user is looking at. */
 export interface MoveSubject {
@@ -31,12 +31,12 @@ export interface MoveFailure {
   readonly reload: boolean;
 }
 
-const STALE_SLUGS: ReadonlySet<string> = new Set(['recruitment-stage-changed', 'recruitment-opening-not-open']);
-
 export function moveFailure(error: unknown): MoveFailure {
-  const slug = slugOf(error);
-  return { key: actionErrorKey(error), reload: slug !== undefined && STALE_SLUGS.has(slug) };
+  return { key: actionErrorKey(error), reload: isStale(error) };
 }
+
+/** Entries of the move menu that open a dialog of their own instead of posting a move. */
+export type MenuExtra = 'schedule_interview' | 'make_offer';
 
 /**
  * « Déplacer vers… »: a button that discloses the stages the API accepts now. A plain disclosure (button +
@@ -49,7 +49,7 @@ export function moveFailure(error: unknown): MoveFailure {
   host: { '(focusout)': 'onFocusOut($event)', '(keydown.escape)': 'close($event)' },
   template: `
     <ng-container *transloco="let t">
-      @if (targets().length) {
+      @if (targets().length || extras().length) {
         <button #toggle type="button" class="btn secondary" data-action="move" [disabled]="disabled()" [attr.aria-expanded]="open()"
           [attr.aria-label]="t('recruitment.move.toFor', { name: name() })" (click)="open.set(!open())">
           {{ t('recruitment.move.to') }}
@@ -58,6 +58,9 @@ export function moveFailure(error: unknown): MoveFailure {
           <ul class="targets" [attr.aria-label]="t('recruitment.move.toFor', { name: name() })">
             @for (target of targets(); track target) {
               <li><button type="button" [attr.data-target]="target" (click)="choose(target)">{{ t('recruitment.stage.' + target) }}</button></li>
+            }
+            @for (item of extras(); track item) {
+              <li><button type="button" [attr.data-extra]="item" (click)="chooseExtra(item)">{{ t('recruitment.move.extra.' + item) }}</button></li>
             }
           </ul>
         }
@@ -90,10 +93,12 @@ export function moveFailure(error: unknown): MoveFailure {
 export class StageMenu {
   readonly targets = input.required<readonly Stage[]>();
   readonly canReopen = input(false);
+  readonly extras = input<readonly MenuExtra[]>([]);
   readonly name = input.required<string>();
   readonly disabled = input(false);
   readonly pick = output<Stage>();
   readonly reopen = output<void>();
+  readonly extra = output<MenuExtra>();
 
   protected readonly open = signal(false);
   private readonly toggle = viewChild<ElementRef<HTMLButtonElement>>('toggle');
@@ -102,6 +107,12 @@ export class StageMenu {
     this.open.set(false);
     this.toggle()?.nativeElement.focus();
     this.pick.emit(target);
+  }
+
+  protected chooseExtra(item: MenuExtra): void {
+    this.open.set(false);
+    this.toggle()?.nativeElement.focus();
+    this.extra.emit(item);
   }
 
   protected close(event: Event): void {

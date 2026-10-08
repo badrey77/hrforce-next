@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, algiersDate, isPositiveMoney, isPurgeDue, likeContains, moveTargets, openingReference, phoneKey, restoredStage, STAGES } from './rules.js';
+import {
+  addMonths,
+  algiersDate,
+  algiersDateTime,
+  algiersInstant,
+  interviewState,
+  isClockTime,
+  isPositiveMoney,
+  isPreOfferStage,
+  isPurgeDue,
+  likeContains,
+  mean,
+  moveTargets,
+  openingReference,
+  phoneKey,
+  rawMean,
+  restoredStage,
+  round1,
+  STAGES,
+} from './rules.js';
 
 describe('recruitment rules', () => {
   it('moveTargets: free moves between received / shortlisted / interview, reject or withdraw from them; nothing from a final stage', () => {
@@ -54,5 +73,36 @@ describe('recruitment rules', () => {
     for (const ok of ['85000', '85000.5', '85000.50', '1']) expect(isPositiveMoney(ok), ok).toBe(true);
     for (const bad of ['0', '0.00', '-5', '85 000', '85000.505', '12345678901', 'abc', '']) expect(isPositiveMoney(bad), bad).toBe(false);
     expect(likeContains('50%_a\\b')).toBe('%50\\%\\_a\\\\b%');
+  });
+
+  it('Phase B: an Algiers date and time ↔ an instant; the clock format', () => {
+    expect(algiersInstant('2026-10-12', '09:30').toISOString()).toBe('2026-10-12T08:30:00.000Z');
+    expect(algiersInstant('2026-01-01', '00:15').toISOString()).toBe('2025-12-31T23:15:00.000Z');
+    expect(algiersDateTime(new Date('2025-12-31T23:15:00Z'))).toEqual({ date: '2026-01-01', time: '00:15' });
+    for (const ok of ['00:00', '09:30', '23:59']) expect(isClockTime(ok), ok).toBe(true);
+    for (const bad of ['24:00', '9:30', '09:60', '09:30:00', '', 'midi']) expect(isClockTime(bad), bad).toBe(false);
+  });
+
+  it('Phase B: averages are rounded once, to one decimal, half up; nothing to average is null', () => {
+    expect(mean([])).toBeNull();
+    expect(mean([4, 5, 4, 4, 5])).toBe(4.4);
+    expect(mean([3, 3, 3, 4])).toBe(3.3); // 3.25 → 3.3
+    expect(mean([4, 4, 5])).toBe(4.3);
+    expect(rawMean([])).toBeNull();
+    // an application's average is the mean of the evaluators' UNROUNDED overalls: (4.4 + 4.0) / 2 = 4.2
+    expect(round1(rawMean([rawMean([4, 5, 4, 4, 5]) ?? 0, rawMean([4, 4, 3, 5, 4]) ?? 0]))).toBe(4.2);
+    expect(round1(2.25)).toBe(2.3);
+    expect(round1(null)).toBeNull();
+  });
+
+  it('Phase B: the state of an interview; the stages an interview or an offer starts from', () => {
+    const at = new Date('2026-10-12T08:30:00Z');
+    const now = at.getTime();
+    expect(interviewState({ status: 'cancelled', scheduledAt: at }, 2, 2, now)).toBe('cancelled');
+    expect(interviewState({ status: 'scheduled', scheduledAt: at }, 0, 2, now - 1)).toBe('upcoming');
+    expect(interviewState({ status: 'scheduled', scheduledAt: at }, 1, 2, now)).toBe('awaiting_evaluations');
+    expect(interviewState({ status: 'scheduled', scheduledAt: at }, 2, 2, now + 1)).toBe('complete');
+    expect(interviewState({ status: 'scheduled', scheduledAt: at }, 0, 0, now + 1)).toBe('awaiting_evaluations');
+    expect(STAGES.filter(isPreOfferStage)).toEqual(['received', 'shortlisted', 'interview']);
   });
 });

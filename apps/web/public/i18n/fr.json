@@ -5,6 +5,7 @@
   },
   "nav": {
     "label": "Navigation principale",
+    "toggle": "Afficher ou masquer le menu",
     "home": "Accueil",
     "employees": "Employés",
     "organization": "Organisation",
@@ -117,7 +118,16 @@
   },
   "home": {
     "title": "Bienvenue",
-    "intro": "Choisissez une rubrique dans le menu pour commencer."
+    "intro": "Choisissez une rubrique dans le menu pour commencer.",
+    "mine": "Mon espace",
+    "openTasks": "tâche(s) en attente",
+    "arrival": "Arrivée aujourd’hui",
+    "departure": "Départ aujourd’hui",
+    "annualBalance": "jour(s) de congé annuel restant(s)",
+    "presenceToday": "Présence aujourd’hui",
+    "overview": "Vue d’ensemble",
+    "headcount": "employé(s) en poste",
+    "leavePending": "demande(s) de congé en attente"
   },
   "placeholder": {
     "comingSoon": "Cette page sera bientôt disponible."
@@ -288,7 +298,8 @@
       "employee": "Employés",
       "sensitive": "Données sensibles",
       "leave": "Congés",
-      "sso": "Applications connectées"
+      "sso": "Applications connectées",
+      "settings": "Paramètres"
     },
     "users": {
       "search": "Rechercher un utilisateur",
@@ -1616,6 +1627,11 @@
       "loadError": "Impossible de charger vos préférences.",
       "saveError": "Impossible d’enregistrer vos préférences.",
       "invalid": "Le serveur a refusé ces préférences. Rechargez la page et réessayez."
+    },
+    "nav": {
+      "label": "Sections des paramètres",
+      "notifications": "Notifications",
+      "branding": "Identité visuelle"
     }
   },
   "security": {
@@ -3191,7 +3207,9 @@
       "minePending": "{{count}} demande(s) en attente d’approbation",
       "interviewsNext7Days": "entretien(s) dans les 7 jours",
       "offersPending": "offre(s) en cours",
-      "interviewsTodo": "Mes entretiens à évaluer ({{count}})"
+      "interviewsLink": "Mes entretiens ({{count}})",
+      "evaluationsTodo": "{{count}} évaluation(s) à saisir",
+      "evaluationsNone": "Aucune évaluation à saisir pour l’instant"
     },
     "errors": {
       "required": "Ce champ est obligatoire.",
@@ -3390,13 +3408,13 @@
       "back": "Retour à mes entretiens",
       "interview": "Entretien",
       "filter": {
-        "todo": "À évaluer",
+        "todo": "À venir et à évaluer",
         "done": "Évalués"
       },
       "submitted": "Évaluation saisie",
       "todo": "Évaluation à saisir",
       "empty": {
-        "todo": "Aucun entretien à évaluer.",
+        "todo": "Aucun entretien à venir ou à évaluer.",
         "done": "Aucun entretien évalué."
       },
       "loadError": "Impossible de charger les entretiens.",
@@ -3424,6 +3442,118 @@
       "submit": "Enregistrer l’évaluation",
       "resubmit": "Mettre à jour l’évaluation",
       "incomplete": "Notez chaque critère et donnez votre avis avant d’enregistrer."
+    }
+  },
+  "branding": {
+    "title": "Identité visuelle",
+    "loadError": "Impossible de charger l’identité visuelle.",
+    "readOnly": "Lecture seule : votre droit ne couvre qu’une partie de la société. Modifier l’identité visuelle demande le droit sur toute la société.",
+    "tabs": {
+      "label": "Niveaux de l’identité visuelle",
+      "installation": "Installation (avant la connexion)",
+      "company": "Cette société"
+    },
+    "intro": {
+      "installation": "Ces réglages s’appliquent à la page de connexion et à toute société qui n’a pas défini les siens.",
+      "company": "Ces réglages s’appliquent aux personnes connectées de cette société. Un champ laissé vide reprend la valeur de l’installation."
+    },
+    "fields": {
+      "appTitle": "Titre de l’application",
+      "welcomeTitle": "Titre d’accueil",
+      "welcomeMessage": "Message d’accueil",
+      "signInMessage": "Message de la page de connexion",
+      "footer": "Pied de page"
+    },
+    "hints": {
+      "appTitle": "Affiché dans l’en-tête et dans l’onglet du navigateur.",
+      "welcomeTitle": "Affiché en haut du tableau de bord.",
+      "welcomeMessage": "Affiché sous le titre d’accueil, en texte simple (6 lignes au plus).",
+      "signInMessage": "Affiché sous le formulaire de connexion, en texte simple (6 lignes au plus).",
+      "footer": "Une ligne en bas de chaque page, en texte simple (les adresses ne deviennent pas des liens)."
+    },
+    "languages": {
+      "fr": "Français",
+      "ar": "Arabe",
+      "en": "Anglais"
+    },
+    "counter": "Caractères utilisés :",
+    "inheritedDefault": "Par défaut :",
+    "color": {
+      "label": "Couleur principale",
+      "hint": "Chaque couleur de la palette garde un contraste suffisant avec le texte.",
+      "inherit": "Par défaut (installation)"
+    },
+    "colors": {
+      "blue": "Bleu HRForce",
+      "navy": "Bleu marine",
+      "azure": "Bleu azur",
+      "teal": "Bleu canard",
+      "green": "Vert",
+      "olive": "Olive",
+      "brown": "Brun",
+      "plum": "Prune",
+      "indigo": "Indigo",
+      "slate": "Ardoise"
+    },
+    "errors": {
+      "tooLong": "Texte trop long : {{max}} caractères au plus.",
+      "tooManyLines": "Trop de lignes : 6 au plus.",
+      "frRequired": "Le texte en français est obligatoire dès qu’une autre langue est renseignée.",
+      "invalid": "Valeur refusée.",
+      "color": "Couleur refusée : choisissez une couleur de la palette.",
+      "companyWide": "Cette action demande le droit sur toute la société.",
+      "unavailable": "Ce réglage n’est pas disponible pour votre société. Rechargez la page.",
+      "refused": "Le serveur a refusé ces valeurs. Vérifiez les champs et réessayez.",
+      "fix": "Corrigez les champs signalés avant d’enregistrer."
+    },
+    "saved": "Identité visuelle enregistrée.",
+    "reset": {
+      "action": "Réinitialiser",
+      "title": "Réinitialiser l’identité visuelle ?",
+      "installation": "Les textes et le logo de l’installation seront effacés et la couleur redeviendra le bleu par défaut. La page de connexion et les sociétés sans réglages propres reprendront l’apparence d’origine.",
+      "company": "Les textes, la couleur et les deux logos de cette société seront effacés. La société reprendra les réglages de l’installation.",
+      "confirm": "Réinitialiser",
+      "done": "Identité visuelle réinitialisée."
+    },
+    "logo": {
+      "title": "Logos",
+      "app": "Logo de l’application",
+      "company": "Logo de la société",
+      "appHintInstallation": "Affiché dans l’en-tête et sur la page de connexion.",
+      "appHintCompany": "Affiché dans l’en-tête pour cette société. Sans logo propre, celui de l’installation est utilisé.",
+      "companyHint": "Affiché sur le tableau de bord, à côté du message d’accueil.",
+      "preview": "Aperçu du nouveau logo",
+      "current": "Logo actuel",
+      "inherited": "Logo de l’installation (par défaut)",
+      "none": "Aucun logo.",
+      "choose": "Choisir une image",
+      "hint": "PNG ou JPEG, 256 Ko et 4 000 × 4 000 pixels au plus.",
+      "save": "Enregistrer le logo",
+      "remove": "Supprimer le logo",
+      "saved": "Logo enregistré.",
+      "removed": "Logo supprimé.",
+      "errors": {
+        "type": "PNG ou JPEG uniquement ; le format SVG n’est pas accepté.",
+        "size": "Image trop lourde : 256 Ko au plus.",
+        "dimensions": "Image trop grande : 4 000 × 4 000 pixels au plus.",
+        "required": "Le fichier est vide ou manquant. Choisissez une image."
+      }
+    },
+    "letterhead": {
+      "intro": "Le logo de l’en-tête des documents reste une image séparée. Vous pouvez copier l’un vers l’autre.",
+      "from": "Reprendre le logo de l’en-tête des documents",
+      "to": "Utiliser ce logo pour l’en-tête des documents",
+      "fromTitle": "Reprendre le logo de l’en-tête ?",
+      "fromConfirm": "Le logo de la société sera remplacé par celui de l’en-tête des documents.",
+      "toTitle": "Utiliser ce logo pour l’en-tête ?",
+      "toConfirm": "Le logo de l’en-tête des documents sera remplacé par le logo de la société. Les documents déjà émis ne changent pas.",
+      "fromDone": "Logo de l’en-tête repris comme logo de la société.",
+      "toDone": "Logo de la société copié vers l’en-tête des documents.",
+      "none": "L’en-tête des documents n’a pas de logo."
+    },
+    "preview": {
+      "caption": "Aperçu avant enregistrement",
+      "button": "Bouton principal"
     }
   }
 }

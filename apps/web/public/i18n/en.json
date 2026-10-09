@@ -5,6 +5,7 @@
   },
   "nav": {
     "label": "Main navigation",
+    "toggle": "Show or hide the menu",
     "home": "Home",
     "employees": "Employees",
     "organization": "Organization",
@@ -117,7 +118,16 @@
   },
   "home": {
     "title": "Welcome",
-    "intro": "Pick a section from the menu to get started."
+    "intro": "Pick a section from the menu to get started.",
+    "mine": "My space",
+    "openTasks": "open task(s)",
+    "arrival": "Arrival today",
+    "departure": "Departure today",
+    "annualBalance": "annual leave day(s) left",
+    "presenceToday": "Presence today",
+    "overview": "Overview",
+    "headcount": "active employee(s)",
+    "leavePending": "pending leave request(s)"
   },
   "placeholder": {
     "comingSoon": "This page is coming soon."
@@ -288,7 +298,8 @@
       "employee": "Employees",
       "sensitive": "Sensitive data",
       "leave": "Leave",
-      "sso": "Connected apps"
+      "sso": "Connected apps",
+      "settings": "Settings"
     },
     "users": {
       "search": "Search users",
@@ -1616,6 +1627,11 @@
       "loadError": "Could not load your preferences.",
       "saveError": "Could not save your preferences.",
       "invalid": "The server refused these preferences. Reload the page and try again."
+    },
+    "nav": {
+      "label": "Settings sections",
+      "notifications": "Notifications",
+      "branding": "Branding"
     }
   },
   "security": {
@@ -3191,7 +3207,9 @@
       "minePending": "{{count}} request(s) awaiting approval",
       "interviewsNext7Days": "interview(s) in the next 7 days",
       "offersPending": "offer(s) in progress",
-      "interviewsTodo": "My interviews to evaluate ({{count}})"
+      "interviewsLink": "My interviews ({{count}})",
+      "evaluationsTodo": "{{count}} evaluation(s) to enter",
+      "evaluationsNone": "No evaluation to enter for now"
     },
     "errors": {
       "required": "This field is required.",
@@ -3390,13 +3408,13 @@
       "back": "Back to my interviews",
       "interview": "Interview",
       "filter": {
-        "todo": "To evaluate",
+        "todo": "Upcoming and to evaluate",
         "done": "Evaluated"
       },
       "submitted": "Evaluation submitted",
       "todo": "Evaluation to enter",
       "empty": {
-        "todo": "No interview to evaluate.",
+        "todo": "No upcoming interview or evaluation to enter.",
         "done": "No evaluated interview."
       },
       "loadError": "Could not load the interviews.",
@@ -3424,6 +3442,118 @@
       "submit": "Save the evaluation",
       "resubmit": "Update the evaluation",
       "incomplete": "Score every criterion and give your recommendation before saving."
+    }
+  },
+  "branding": {
+    "title": "Branding",
+    "loadError": "Could not load the branding settings.",
+    "readOnly": "Read only: your permission covers part of the company. Changing the branding needs the permission over the whole company.",
+    "tabs": {
+      "label": "Branding levels",
+      "installation": "Installation (before sign-in)",
+      "company": "This company"
+    },
+    "intro": {
+      "installation": "These settings apply to the sign-in page and to every company that has not set its own.",
+      "company": "These settings apply to signed-in users of this company. A field left empty uses the installation value."
+    },
+    "fields": {
+      "appTitle": "Application title",
+      "welcomeTitle": "Welcome title",
+      "welcomeMessage": "Welcome message",
+      "signInMessage": "Sign-in page message",
+      "footer": "Footer"
+    },
+    "hints": {
+      "appTitle": "Shown in the header and in the browser tab.",
+      "welcomeTitle": "Shown at the top of the dashboard.",
+      "welcomeMessage": "Shown under the welcome title, as plain text (6 lines at most).",
+      "signInMessage": "Shown under the sign-in form, as plain text (6 lines at most).",
+      "footer": "One line at the bottom of every page, as plain text (addresses do not become links)."
+    },
+    "languages": {
+      "fr": "French",
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "counter": "Characters used:",
+    "inheritedDefault": "Default:",
+    "color": {
+      "label": "Brand colour",
+      "hint": "Every colour of the palette keeps enough contrast with the text.",
+      "inherit": "Default (installation)"
+    },
+    "colors": {
+      "blue": "Blue",
+      "navy": "Navy",
+      "azure": "Azure",
+      "teal": "Teal",
+      "green": "Green",
+      "olive": "Olive",
+      "brown": "Brown",
+      "plum": "Plum",
+      "indigo": "Indigo",
+      "slate": "Slate"
+    },
+    "errors": {
+      "tooLong": "Too long: {{max}} characters at most.",
+      "tooManyLines": "Too many lines: 6 at most.",
+      "frRequired": "The French text is required as soon as another language is filled in.",
+      "invalid": "Value refused.",
+      "color": "Colour refused: choose a colour from the palette.",
+      "companyWide": "This action needs the permission over the whole company.",
+      "unavailable": "This setting is not available to your company. Reload the page.",
+      "refused": "The server refused these values. Check the fields and try again.",
+      "fix": "Fix the highlighted fields before saving."
+    },
+    "saved": "Branding saved.",
+    "reset": {
+      "action": "Reset",
+      "title": "Reset the branding?",
+      "installation": "The installation texts and logo will be erased and the colour goes back to the default blue. The sign-in page and companies without their own settings return to the original look.",
+      "company": "The texts, the colour and both logos of this company will be erased. The company goes back to the installation settings.",
+      "confirm": "Reset",
+      "done": "Branding reset."
+    },
+    "logo": {
+      "title": "Logos",
+      "app": "Application logo",
+      "company": "Company logo",
+      "appHintInstallation": "Shown in the header and on the sign-in page.",
+      "appHintCompany": "Shown in the header for this company. Without its own logo, the installation logo is used.",
+      "companyHint": "Shown on the dashboard, next to the welcome message.",
+      "preview": "Preview of the new logo",
+      "current": "Current logo",
+      "inherited": "Installation logo (default)",
+      "none": "No logo.",
+      "choose": "Choose an image",
+      "hint": "PNG or JPEG, 256 KB and 4,000 × 4,000 pixels at most.",
+      "save": "Save the logo",
+      "remove": "Delete the logo",
+      "saved": "Logo saved.",
+      "removed": "Logo deleted.",
+      "errors": {
+        "type": "PNG or JPEG only; SVG is not accepted.",
+        "size": "Image too heavy: 256 KB at most.",
+        "dimensions": "Image too large: 4,000 × 4,000 pixels at most.",
+        "required": "The file is empty or missing. Choose an image."
+      }
+    },
+    "letterhead": {
+      "intro": "The letterhead logo of documents stays a separate image. You can copy one to the other.",
+      "from": "Take the logo from the document letterhead",
+      "to": "Use this logo for the document letterhead",
+      "fromTitle": "Take the letterhead logo?",
+      "fromConfirm": "The company logo will be replaced by the letterhead logo of documents.",
+      "toTitle": "Use this logo for the letterhead?",
+      "toConfirm": "The letterhead logo of documents will be replaced by the company logo. Documents already issued do not change.",
+      "fromDone": "Letterhead logo now used as the company logo.",
+      "toDone": "Company logo copied to the document letterhead.",
+      "none": "The document letterhead has no logo."
+    },
+    "preview": {
+      "caption": "Preview before saving",
+      "button": "Primary button"
     }
   }
 }

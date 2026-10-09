@@ -50,6 +50,7 @@ import { firstValueFrom } from 'rxjs';
 import { AuthApi } from '../../core/auth/auth-api';
 import { enrollmentUrlTree } from '../../core/auth/mfa-enrollment';
 import { Session } from '../../core/auth/session';
+import { BrandingService } from '../../core/branding/branding.service';
 import { PAGE_LOCATION } from '../../core/browser/page-location';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { problemSlug } from '../../core/http/problem-form';
@@ -120,6 +121,7 @@ export class SsoHandoffPage {
   private readonly api = inject(SsoApi);
   private readonly auth = inject(AuthApi);
   private readonly session = inject(Session);
+  protected readonly branding = inject(BrandingService);
   private readonly router = inject(Router);
   private readonly location = inject(PAGE_LOCATION);
   private readonly document = inject(DOCUMENT);

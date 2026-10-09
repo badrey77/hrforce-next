@@ -270,6 +270,16 @@ describe('Identity (e2e)', () => {
         permissions: expect.arrayContaining(['org_unit.read', 'access.grant', 'employee.medical.read']),
         scopes: expect.objectContaining({ 'org_unit.read': [{ unitId: expect.any(String), includeDescendants: true }] }),
         mfa: { enabled: false, required: false, recoveryCodesLeft: null }, // DEMO: enforcement off
+        // docs/contracts/branding.md: always present; nothing is set in this file (no installation row either)
+        branding: {
+          appTitle: { fr: null, ar: null, en: null },
+          welcomeTitle: { fr: null, ar: null, en: null },
+          welcomeMessage: { fr: null, ar: null, en: null },
+          footer: { fr: null, ar: null, en: null },
+          color: 'blue',
+          appLogo: null,
+          companyLogo: null,
+        },
       });
       const est = browser();
       await est.login(EST.email, DEMO_PASSWORD);

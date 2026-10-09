@@ -17,6 +17,7 @@
     "user:invite": "tsc -p tsconfig.build.json && node dist/scripts/user-invite.js",
     "bootstrap": "tsc -p tsconfig.build.json && node dist/scripts/bootstrap.js",
     "oidc:keys": "tsc -p tsconfig.build.json && node dist/scripts/oidc-keys.js",
+    "branding:owner": "tsc -p tsconfig.build.json && node dist/scripts/branding-owner.js",
     "db:codegen": "kysely-codegen",
     "db:codegen:verify": "kysely-codegen --verify"
   },

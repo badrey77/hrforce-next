@@ -203,10 +203,11 @@ export const routes: Routes = [
     loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_RECRUITMENT_ROUTES),
   },
   {
-    // Personal settings (for now: email notification preferences).
+    // Settings: notification preferences for everyone; the branding section checks `settings.branding` on its own
+    // child (features/settings/settings.routes.ts, docs/contracts/branding.md).
     path: 'settings',
     canMatch: signedIn,
-    loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage),
+    loadChildren: () => import('./features/settings/settings.routes').then((m) => m.SETTINGS_ROUTES),
   },
   NOT_FOUND_ROUTE,
 ];

@@ -3,9 +3,12 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { ME_AR, ME_FIXTURE } from '../../../testing/auth-fixtures';
+import { BRANDING_DEFAULT_URL, MARKUP, PUBLIC_BRANDED, PUBLIC_UNSET } from '../../../testing/branding-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { authRefreshInterceptor } from '../../core/auth/auth-refresh.interceptor';
 import { Session } from '../../core/auth/session';
+import type { PublicBranding } from '../../core/branding/branding.models';
+import { BrandingService } from '../../core/branding/branding.service';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import { LANGUAGE_STORAGE_KEY, LanguageService } from '../../core/i18n/language.service';
 import { LoginPage } from './login.page';
@@ -44,6 +47,14 @@ describe('LoginPage', () => {
     await new Promise((resolve) => setTimeout(resolve));
     await fixture.whenStable();
   }
+
+  async function withDefault(body: PublicBranding): Promise<void> {
+    const loaded = TestBed.inject(BrandingService).loadDefault();
+    http.expectOne(BRANDING_DEFAULT_URL).flush(body);
+    await loaded;
+    await settle();
+  }
+  const message = () => el.querySelector('[data-brand="sign-in-message"]');
 
   function input(id: string): HTMLInputElement {
     const found = el.querySelector(`#${id}`);
@@ -385,6 +396,59 @@ describe('LoginPage', () => {
 
       expect(el.querySelector('#login-code-title')?.textContent?.trim()).toBe('التحقق بخطوتين');
       expect(input('login-code').getAttribute('dir')).toBe('ltr');
+    });
+  });
+
+  describe('branding (docs/contracts/branding.md › Sign-in page)', () => {
+    afterEach(() => {
+      document.documentElement.removeAttribute('data-brand');
+      document.title = '';
+    });
+
+    it('nothing set: no logo, no message', async () => {
+      await withDefault(PUBLIC_UNSET);
+      expect(el.querySelector('[data-brand-logo="app"]')).toBeNull();
+      expect(message()).toBeNull();
+    });
+
+    it('shows the installation logo above the title (named by the app title) and the sign-in message under the form', async () => {
+      await withDefault(PUBLIC_BRANDED);
+
+      const logo = el.querySelector('[data-brand-logo="app"]') as HTMLImageElement;
+      expect(logo.getAttribute('src')).toBe(PUBLIC_BRANDED.appLogo?.url);
+      expect(logo.getAttribute('alt')).toBe('Portail RH');
+      expect(logo.compareDocumentPosition(el.querySelector('h1') as Element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(message()?.textContent).toBe('Environnement de démonstration : données fictives.');
+      expect(message()?.getAttribute('dir')).toBe('auto');
+      expect((el.querySelector('form') as Element).compareDocumentPosition(message() as Element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('keeps the message on the code step, and follows the language (fr fallback marked as French)', async () => {
+      await withDefault({ ...PUBLIC_BRANDED, signInMessage: { fr: 'Message en français', ar: null, en: 'English message' } });
+      TestBed.inject(LanguageService).use('en', { remember: false });
+      await settle();
+      expect(message()?.textContent).toBe('English message');
+      expect(message()?.getAttribute('lang')).toBeNull();
+      TestBed.inject(LanguageService).use('ar', { remember: false });
+      await settle();
+      expect(message()?.textContent).toBe('Message en français');
+      expect(message()?.getAttribute('lang')).toBe('fr');
+      TestBed.inject(LanguageService).use('fr', { remember: false });
+
+      await fillAndSubmit('rh.admin@demo.dz', 'demo-password-2026');
+      http.expectOne('/api/auth/login').flush({ mfaRequired: true });
+      await settle();
+      expect(el.querySelector('form[data-step="code"]')).not.toBeNull();
+      expect(message()?.textContent).toBe('Message en français');
+    });
+
+    it('markup in the message and the title stays text', async () => {
+      const text = { fr: MARKUP, ar: null, en: null };
+      await withDefault({ ...PUBLIC_BRANDED, appTitle: text, signInMessage: text });
+      expect(message()?.textContent).toBe(MARKUP);
+      expect(el.querySelector('[data-brand-logo="app"]')?.getAttribute('alt')).toBe(MARKUP);
+      expect(el.querySelector('img[src="x"]')).toBeNull();
+      expect(el.querySelector('script')).toBeNull();
     });
   });
 });

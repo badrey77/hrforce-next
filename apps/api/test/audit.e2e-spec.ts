@@ -67,9 +67,9 @@ const M1_TABLES = [
 const AUDITED_TABLES = [
   'assignment',
   'attendance_device', 'attendance_policy', 'attendance_schedule', 'attendance_schedule_assignment', 'attendance_schedule_override', 'attendance_schedule_version',
-  'company', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
+  'company', 'company_branding', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
   'employment', 'employment_salary',
-  'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
+  'installation_branding', 'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
   'recruitment_criterion', 'recruitment_opening', 'recruitment_opening_criterion', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'sso_app_role', 'sso_client', 'sso_role_assignment',
@@ -494,6 +494,8 @@ describe('exit criterion: every write through the API produces an audit row with
     /** tables that must have a row for this request */
     tables: string[];
   }
+  /** an unset branding text */
+  const L0 = { fr: null, ar: null, en: null };
   const WRITES: Record<string, Write> = {
     'POST /api/org/units': {
       request: () => ({ path: '/api/org/units', body: { kind: 'service', code: 'AUD-SRV', name: 'Service Audit', parentId: unitA('REG-EST') } }),
@@ -726,6 +728,22 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: `/api/recruitment/openings/${REC_FX.opening.ouest}/criteria`, body: { criterionIds: [LV.criterion, LV.criteria[0]] } }),
       tables: ['recruitment_opening_criterion'],
     },
+    // branding (docs/contracts/branding.md › Audit): row triggers only; each write below changes something (a write
+    // that changes nothing writes no row), in this order: set, add a logo, remove it, reset
+    'PUT /api/branding/company': {
+      request: () => ({ path: '/api/branding/company', body: { appTitle: { fr: 'RH Audit', ar: null, en: null }, welcomeTitle: L0, welcomeMessage: L0, footer: L0, color: 'teal' } }),
+      tables: ['company_branding'],
+    },
+    'PUT /api/branding/company/logos/:kind': { request: () => ({ path: '/api/branding/company/logos/app', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0, 0xff, 0xd9]) }), tables: ['company_branding'] },
+    'DELETE /api/branding/company/logos/:kind': { request: () => ({ path: '/api/branding/company/logos/app', body: {} }), tables: ['company_branding'] },
+    'DELETE /api/branding/company': { request: () => ({ path: '/api/branding/company', body: {} }), tables: ['company_branding'] },
+    'PUT /api/branding/installation': {
+      request: () => ({ path: '/api/branding/installation', body: { appTitle: L0, signInMessage: { fr: 'Message audit', ar: null, en: null }, footer: L0, color: 'navy' } }),
+      tables: ['installation_branding'],
+    },
+    'PUT /api/branding/installation/logo': { request: () => ({ path: '/api/branding/installation/logo', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0, 0xff, 0xd9]) }), tables: ['installation_branding'] },
+    'DELETE /api/branding/installation/logo': { request: () => ({ path: '/api/branding/installation/logo', body: {} }), tables: ['installation_branding'] },
+    'DELETE /api/branding/installation': { request: () => ({ path: '/api/branding/installation', body: {} }), tables: ['installation_branding'] },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],

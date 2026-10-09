@@ -1,4 +1,8 @@
 <ng-container *transloco="let t">
+  <!-- Branding (installation default): the app logo, standing alone here, is named by the app title. -->
+  @if (branding.appLogo(); as logo) {
+    <img class="login-logo" [src]="logo.url" [attr.width]="logo.width" [attr.height]="logo.height" [alt]="branding.titleText()" data-brand-logo="app" />
+  }
   <h1 id="login-title">{{ t('auth.login.title') }}</h1>
   <!-- Back from an entrance QR scan (features/punch/punch.page.ts): say why a sign-in is asked for. -->
   @if (forPunch()) {
@@ -162,5 +166,10 @@
         </div>
       </form>
     }
+  }
+
+  <!-- The installation's sign-in message, on both steps: plain text, never markup. -->
+  @if (branding.signInMessage(); as message) {
+    <p class="note" dir="auto" [attr.lang]="branding.langAttr(message)" data-brand="sign-in-message">{{ message.text }}</p>
   }
 </ng-container>

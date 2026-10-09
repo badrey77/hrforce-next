@@ -3,7 +3,18 @@
   @if (chrome()) {
     <a class="skip-link" href="#main">{{ t('app.skipToContent') }}</a>
     <header class="header">
-      <a class="brand" routerLink="/">{{ t('app.title') }}</a>
+      <!-- Branding: the logo sits on a white chip (legible on any brand colour); the title is always the link's name. -->
+      @if (session.isAuthenticated()) {
+        <button class="nav-toggle" type="button" data-action="toggle-nav" aria-controls="sidenav" [attr.aria-expanded]="navOpen()" [attr.aria-label]="t('nav.toggle')" (click)="toggleNav()">
+          <app-nav-icon name="menu" />
+        </button>
+      }
+      <a class="brand" routerLink="/" [class.has-logo]="branding.appLogo()">
+        @if (branding.appLogo(); as logo) {
+          <span class="brand-logo"><img [src]="logo.url" [attr.width]="logo.width" [attr.height]="logo.height" alt="" /></span>
+        }
+        <span class="brand-title" dir="auto" [attr.lang]="branding.langAttr(branding.title())">{{ branding.titleText() }}</span>
+      </a>
       <div class="header-tools">
         @if (session.isAuthenticated()) {
           <app-notification-bell />
@@ -15,7 +26,7 @@
   }
   <div class="layout">
     @if (chrome() && session.isAuthenticated()) {
-      <nav class="sidenav" [attr.aria-label]="t('nav.label')">
+      <nav id="sidenav" class="sidenav" [attr.aria-label]="t('nav.label')" [hidden]="!navOpen()">
         <ul>
           @for (link of visibleLinks(); track link.path) {
             <li>
@@ -25,7 +36,8 @@
                 ariaCurrentWhenActive="page"
                 [routerLinkActiveOptions]="{ exact: link.exact }"
                 [attr.aria-label]="link.badge && link.badge.count() ? t(link.badge.labelKey, { count: link.badge.count() }) : null"
-                >{{ t(link.labelKey) }}
+                (click)="onNavLink()"
+                ><app-nav-icon [name]="link.icon" /><span class="label">{{ t(link.labelKey) }}</span>
                 @if (link.badge && link.badge.count()) {
                   <span class="count" aria-hidden="true" [attr.data-badge]="link.badge.name">{{ link.badge.count() }}</span>
                 }</a
@@ -33,14 +45,19 @@
             </li>
           }
         </ul>
-        <!-- Announces count changes politely; always rendered so assistive tech is already watching it. -->
-        <p class="visually-hidden" aria-live="polite" data-live="tasks">
-          {{ tasks.loaded() ? t('nav.tasksLive', { count: tasks.count() }) : '' }}
-        </p>
       </nav>
+      <!-- Announces count changes politely; outside the nav so it is still announced while the menu is hidden. -->
+      <p class="visually-hidden" aria-live="polite" data-live="tasks">
+        {{ tasks.loaded() ? t('nav.tasksLive', { count: tasks.count() }) : '' }}
+      </p>
     }
     <main id="main" class="content" [class.bare]="!chrome()" tabindex="-1">
       <router-outlet />
     </main>
   </div>
+  @if (chrome()) {
+    @if (branding.footer(); as footer) {
+      <footer class="app-footer" dir="auto" [attr.lang]="branding.langAttr(footer)">{{ footer.text }}</footer>
+    }
+  }
 </ng-container>

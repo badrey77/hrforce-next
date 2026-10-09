@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -61,6 +61,7 @@ export const PERMISSION_CODES = [
   'recruitment.hire',
   'recruitment.erase',
   'recruitment.configure',
+  'settings.branding',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];

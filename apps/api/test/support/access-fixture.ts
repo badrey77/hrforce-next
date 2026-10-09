@@ -1,6 +1,7 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { seedDemoAccess, seedGrants, seedSecurityPolicy, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
+import { seedBrandingDefaults } from '../../src/modules/branding/index.js';
 import { seedCompanyProfile, seedDemoDocumentSettings, seedDocumentDefaults, seedSignatory } from '../../src/modules/documents/index.js';
 import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
@@ -165,6 +166,8 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
   try {
     await migrator.transaction().execute(async (tx) => {
       await seedOrganization(tx, DEMO_ORGANIZATION, today);
+      // docs/contracts/branding.md › Owning company: the first company (DEMO, company A) owns the installation default
+      await seedBrandingDefaults(tx, COMPANY_A);
       await seedOrganization(tx, ORG_B, today);
       await seedIdentity(tx, COMPANY_A, [...DEMO_USERS, USERS.acces, USERS.newbie, USERS.target]);
       await seedIdentity(tx, COMPANY_B, [USERS.beta]);

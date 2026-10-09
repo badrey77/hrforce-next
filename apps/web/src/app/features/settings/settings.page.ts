@@ -25,6 +25,7 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { NotificationsApi } from '../../core/notifications/notifications-api';
 import type { NotificationPreference } from '../../core/notifications/notifications.models';
+import { SettingsNav } from './settings-nav';
 
 type Choices = Readonly<Record<string, boolean>>;
 
@@ -42,13 +43,11 @@ export function preferencesErrorKey(error: unknown): string {
 
 @Component({
   selector: 'app-settings-page',
-  imports: [TranslocoDirective],
+  imports: [TranslocoDirective, SettingsNav],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
-      <header class="page-header">
-        <h1>{{ t('settings.title') }}</h1>
-      </header>
+      <app-settings-nav />
 
       <section class="panel" aria-labelledby="settings-notifications-title" [attr.aria-busy]="preferences.isLoading()">
         <h2 id="settings-notifications-title">{{ t('settings.notifications.title') }}</h2>

@@ -58,6 +58,7 @@ import { AUTH_PROBLEM, type MfaVerification, RECOVERY_CODE_PATTERN } from '../..
 import { isCompleteTotp, normalizeTotp, totpCode } from '../../core/auth/one-time-code';
 import { safeReturnUrl } from '../../core/auth/return-url';
 import { Session } from '../../core/auth/session';
+import { BrandingService } from '../../core/branding/branding.service';
 import { type ApiProblemError, isApiProblemError, PROBLEM_TYPE_NETWORK, retryAfterSeconds } from '../../core/http/api-problem';
 import { applyServerErrors } from '../../core/http/apply-server-errors';
 import { LanguageService } from '../../core/i18n/language.service';
@@ -85,6 +86,15 @@ export type CodeKind = 'totp' | 'recovery';
     .aside {
       margin-block-start: var(--space-4);
     }
+    .login-logo {
+      display: block;
+      inline-size: auto;
+      block-size: auto;
+      max-block-size: 4.5rem;
+      max-inline-size: min(16rem, 100%);
+      margin-block-end: var(--space-4);
+      object-fit: contain;
+    }
     .otp {
       font-family: var(--font-mono);
       font-size: 1.5rem;
@@ -111,6 +121,7 @@ export class LoginPage {
   private readonly auth = inject(AuthApi);
   private readonly session = inject(Session);
   private readonly language = inject(LanguageService);
+  protected readonly branding = inject(BrandingService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly fb = inject(NonNullableFormBuilder);

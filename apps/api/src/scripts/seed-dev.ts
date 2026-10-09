@@ -20,7 +20,8 @@ import { createDatabase } from '../platform/db/database.js';
 import { TypstPdfRenderer } from '../platform/pdf/typst-renderer.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
 import { seedDemoAttendance } from '../modules/attendance/index.js';
-import { algiersToday, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
+import { seedDemoBranding } from '../modules/branding/index.js';
+import { algiersToday, demoLogoPng, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
@@ -54,6 +55,9 @@ async function main(): Promise<void> {
       const attendance = await seedDemoAttendance(tx, Date.now());
       const sso = await seedDemoSso(tx, env.OIDC_KEY);
       const recruitment = await seedDemoRecruitment(tx, Date.now());
+      // docs/contracts/branding.md › Seed: DEMO owns the installation default (sample footer and sign-in message)
+      // and shows a sample welcome message with the letterhead's generated logo as company logo
+      await seedDemoBranding(tx, DEMO_ORGANIZATION.company.id, demoLogoPng());
       return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso, recruitment };
     }).then(({ employees, leave, documents, attendance, sso, recruitment }) => {
       logger.info(recruitment, 'recruitment demo seeded (openings in every status, fictitious candidates across the stages, an already purged opening)');

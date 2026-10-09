@@ -22,6 +22,7 @@
  */
 import { inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { BrandingService } from '../branding/branding.service';
 import { LanguageService } from '../i18n/language.service';
 import { AuthApi } from './auth-api';
 import { Session } from './session';
@@ -30,6 +31,7 @@ export async function initializeSession(): Promise<void> {
   const api = inject(AuthApi);
   const session = inject(Session);
   const language = inject(LanguageService);
+  const branding = inject(BrandingService);
 
   try {
     await firstValueFrom(api.csrf());
@@ -43,4 +45,7 @@ export async function initializeSession(): Promise<void> {
     // Already signed in on reload: show the account's language unless this device has an explicit choice.
     language.applyAccountLocale(user.locale);
   }
+  // Signed out: the public default brand, waited for briefly so the first paint already has it
+  // (docs/contracts/branding.md › Start-up). Signed in: `me.branding` is already there.
+  await branding.init();
 }

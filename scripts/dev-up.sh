@@ -29,12 +29,21 @@ fi
 
 step "Starting Postgres and Mailpit"
 (cd apps/api && docker compose up -d)
+# On an empty volume the image first runs a temporary server (Unix socket only) for its init scripts, then restarts:
+# pg_isready over the socket answers during that phase and the next command fails with "the database system is
+# shutting down". Ready = a real query over TCP (which only the final server accepts) succeeds twice, a second apart.
 printf 'Waiting for Postgres'
-for _ in $(seq 1 60); do
-  if (cd apps/api && docker compose exec -T postgres pg_isready -U postgres -d hrforce >/dev/null 2>&1); then break; fi
-  printf '.'; sleep 1
+ready=0
+for _ in $(seq 1 90); do
+  if (cd apps/api && docker compose exec -T postgres psql -h 127.0.0.1 -U postgres -d hrforce -tAc 'select 1' >/dev/null 2>&1); then
+    ready=$((ready + 1)); [ "$ready" -ge 2 ] && break
+  else
+    ready=0; printf '.'
+  fi
+  sleep 1
 done
 echo
+[ "$ready" -ge 2 ] || { echo "Postgres did not become ready. Check: cd apps/api && docker compose logs postgres" >&2; exit 1; }
 
 # A database volume created before migration 0012 has no hrforce_worker role (the init hook only runs on an empty
 # volume): create it with the development password of .env.example.

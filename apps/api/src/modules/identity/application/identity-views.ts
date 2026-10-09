@@ -1,4 +1,5 @@
 import type { ScopeEntry } from '../../../platform/authz/scope-service.js';
+import type { EffectiveBranding } from '../../branding/index.js';
 import type { Locale } from '../domain/account.js';
 import type { MeMfaView } from './mfa-views.js';
 
@@ -13,6 +14,8 @@ export interface MeView {
   scopes: Record<string, ScopeEntry[]>;
   /** Two-step sign-in (docs/contracts/mfa.md): required by the company policy for this user, enabled, codes left. */
   mfa: MeMfaView;
+  /** The company's branding after inheritance from the installation default (docs/contracts/branding.md); always present. */
+  branding: EffectiveBranding;
 }
 
 export interface CompanyView {

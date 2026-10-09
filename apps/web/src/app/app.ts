@@ -40,7 +40,7 @@
  * while signed in. Its data — and the live SSE connection — belong to the root `NotificationCenter`, which opens and
  * closes the stream by itself as the Session changes; the shell only decides whether the bell is shown.
  */
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DOCUMENT, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import {
   type ActivatedRouteSnapshot,
@@ -53,12 +53,14 @@ import {
 import { filter, map } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from './core/auth/session';
+import { BrandingService } from './core/branding/branding.service';
 import { MyEmployment } from './core/leave/my-employment';
 import { MyRecruitment } from './core/recruitment/my-recruitment';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import { LanguageSwitcher } from './shell/language-switcher';
 import { NotificationBell } from './shell/notification-bell';
 import { UserMenu } from './shell/user-menu';
+import { NavIcon, type NavIconName } from './shared/nav-icon/nav-icon';
 
 /** Route `data` key: `chrome: false` hides the header, the nav and the skip link (the kiosk). */
 export const CHROME_DATA_KEY = 'chrome';
@@ -73,6 +75,7 @@ export function chromeOf(root: ActivatedRouteSnapshot): boolean {
 
 interface NavLink {
   readonly path: string;
+  readonly icon: NavIconName;
   readonly labelKey: string;
   readonly exact: boolean;
   /** Shown only to users holding this permission (anywhere); absent = every signed-in user. */
@@ -83,19 +86,56 @@ interface NavLink {
   readonly badge?: { readonly name: string; readonly count: () => number; readonly labelKey: string };
 }
 
+const NAV_STORAGE_KEY = 'hrforce.nav';
+
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslocoDirective, LanguageSwitcher, NotificationBell, UserMenu],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, TranslocoDirective, LanguageSwitcher, NotificationBell, UserMenu, NavIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   protected readonly session = inject(Session);
+  protected readonly branding = inject(BrandingService);
   private readonly myEmployment = inject(MyEmployment);
   private readonly myRecruitment = inject(MyRecruitment);
   protected readonly tasks = inject(TasksBadge);
   private readonly router = inject(Router);
+  private readonly document = inject(DOCUMENT);
+
+  /**
+   * The side menu can be hidden with the header's menu button. The choice is remembered on the device; with none,
+   * the menu starts open on a wide screen and closed on a phone (where it would push the page down).
+   */
+  protected readonly navOpen = signal(this.initialNavOpen());
+
+  protected toggleNav(): void {
+    this.navOpen.update((open) => !open);
+    try {
+      this.document.defaultView?.localStorage.setItem(NAV_STORAGE_KEY, this.navOpen() ? 'open' : 'closed');
+    } catch {
+      // Storage blocked (private mode, policy): the choice simply lasts for this page.
+    }
+  }
+
+  /** On a phone the menu covers the top of the page: following a link closes it again. */
+  protected onNavLink(): void {
+    if (this.isPhone()) this.navOpen.set(false);
+  }
+
+  private isPhone(): boolean {
+    return this.document.defaultView?.matchMedia?.('(max-width: 640px)').matches ?? false;
+  }
+
+  private initialNavOpen(): boolean {
+    if (this.isPhone()) return false;
+    try {
+      return this.document.defaultView?.localStorage.getItem(NAV_STORAGE_KEY) !== 'closed';
+    } catch {
+      return true;
+    }
+  }
 
   /** Header, nav and skip link are shown (every route except those with `data: { chrome: false }`). */
   protected readonly chrome = toSignal(
@@ -107,10 +147,11 @@ export class App {
   );
 
   private readonly navLinks: readonly NavLink[] = [
-    { path: '/', labelKey: 'nav.home', exact: true },
-    { path: '/me/leave', labelKey: 'nav.myLeave', exact: false, permission: 'leave.request_self', visible: () => this.myEmployment.linked() === true },
+    { path: '/', icon: 'home', labelKey: 'nav.home', exact: true },
+    { path: '/me/leave', icon: 'calendar', labelKey: 'nav.myLeave', exact: false, permission: 'leave.request_self', visible: () => this.myEmployment.linked() === true },
     {
       path: '/me/documents',
+      icon: 'file',
       labelKey: 'nav.myDocuments',
       exact: false,
       permission: 'document.request_self',
@@ -118,51 +159,56 @@ export class App {
     },
     {
       path: '/me/attendance',
+      icon: 'clock',
       labelKey: 'nav.myAttendance',
       exact: false,
       permission: 'attendance.punch_self',
       visible: () => this.myEmployment.linked() === true,
     },
-    { path: '/tasks', labelKey: 'nav.tasks', exact: false, badge: { name: 'tasks', count: () => this.tasks.count(), labelKey: 'nav.tasksWithCount' } },
-    { path: '/me/team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
+    { path: '/tasks', icon: 'tasks', labelKey: 'nav.tasks', exact: false, badge: { name: 'tasks', count: () => this.tasks.count(), labelKey: 'nav.tasksWithCount' } },
+    { path: '/me/team', icon: 'team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
     // Unit heads and requesters (no recruitment permission); HR uses « Recrutement » below.
-    { path: '/me/recruitment', labelKey: 'nav.myRecruitment', exact: false, visible: () => this.myRecruitment.showNav() },
+    { path: '/me/recruitment', icon: 'briefcase', labelKey: 'nav.myRecruitment', exact: false, visible: () => this.myRecruitment.showNav() },
     // Interviewers (chosen by HR, no permission needed): shown while they have an interview, with what is left to evaluate.
     {
       path: '/me/interviews',
+      icon: 'interview',
       labelKey: 'nav.myInterviews',
       exact: false,
       visible: () => this.myRecruitment.showInterviewsNav(),
       badge: { name: 'interviews', count: () => this.myRecruitment.evaluationsTodo(), labelKey: 'nav.myInterviewsWithCount' },
     },
-    { path: '/employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
-    { path: '/leave', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
-    { path: '/documents', labelKey: 'nav.documents', exact: false, permission: 'document.read' },
-    { path: '/attendance', labelKey: 'nav.attendance', exact: false, permission: 'attendance.read' },
+    { path: '/employees', icon: 'employees', labelKey: 'nav.employees', exact: false, permission: 'employee.read' },
+    { path: '/leave', icon: 'calendar-check', labelKey: 'nav.leave', exact: false, permission: 'leave.read' },
+    { path: '/documents', icon: 'files', labelKey: 'nav.documents', exact: false, permission: 'document.read' },
+    { path: '/attendance', icon: 'clock-check', labelKey: 'nav.attendance', exact: false, permission: 'attendance.read' },
     {
       path: '/attendance/settings',
+      icon: 'sliders',
       labelKey: 'nav.attendanceSettings',
       exact: false,
       permission: 'attendance.configure',
       visible: () => !this.session.can('attendance.read'),
     },
-    { path: '/recruitment', labelKey: 'nav.recruitment', exact: false, permission: 'recruitment.read' },
+    { path: '/recruitment', icon: 'user-plus', labelKey: 'nav.recruitment', exact: false, permission: 'recruitment.read' },
     {
       path: '/recruitment/settings',
+      icon: 'sliders',
       labelKey: 'nav.recruitmentSettings',
       exact: false,
       permission: 'recruitment.configure',
       visible: () => !this.session.can('recruitment.read'),
     },
-    { path: '/organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
+    { path: '/organization', icon: 'organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     // Access holds users/roles (access.read) and connected apps (sso.read): either one shows the link.
     {
       path: '/access',
+      icon: 'access',
       labelKey: 'nav.access',
       exact: false,
       visible: () => this.session.can('access.read') || this.session.can('sso.read'),
     },
-    { path: '/settings', labelKey: 'nav.settings', exact: false },
+    { path: '/settings', icon: 'settings', labelKey: 'nav.settings', exact: false },
   ];
 
   /** The links this user may see. `session.can()` reads the permissions signal, so this re-runs when they change. */

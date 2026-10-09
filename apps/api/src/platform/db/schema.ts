@@ -207,6 +207,35 @@ export interface Company {
   name: string;
 }
 
+export interface CompanyBranding {
+  app_logo: Buffer | null;
+  app_logo_height: number | null;
+  app_logo_mime: string | null;
+  app_logo_sha256: Buffer | null;
+  app_logo_width: number | null;
+  app_title_ar: string | null;
+  app_title_en: string | null;
+  app_title_fr: string | null;
+  color: string | null;
+  company_id: string;
+  company_logo: Buffer | null;
+  company_logo_height: number | null;
+  company_logo_mime: string | null;
+  company_logo_sha256: Buffer | null;
+  company_logo_width: number | null;
+  footer_ar: string | null;
+  footer_en: string | null;
+  footer_fr: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  welcome_message_ar: string | null;
+  welcome_message_en: string | null;
+  welcome_message_fr: string | null;
+  welcome_title_ar: string | null;
+  welcome_title_en: string | null;
+  welcome_title_fr: string | null;
+}
+
 export interface CompanyProfile {
   address_ar: string | null;
   address_fr: string | null;
@@ -340,6 +369,28 @@ export interface EmploymentSalary {
   employment_id: string;
   id: Generated<string>;
   valid: string;
+}
+
+export interface InstallationBranding {
+  app_logo: Buffer | null;
+  app_logo_height: number | null;
+  app_logo_mime: string | null;
+  app_logo_sha256: Buffer | null;
+  app_logo_width: number | null;
+  app_title_ar: string | null;
+  app_title_en: string | null;
+  app_title_fr: string | null;
+  color: Generated<string>;
+  company_id: string;
+  footer_ar: string | null;
+  footer_en: string | null;
+  footer_fr: string | null;
+  sign_in_message_ar: string | null;
+  sign_in_message_en: string | null;
+  sign_in_message_fr: string | null;
+  singleton: Generated<boolean>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
 }
 
 export interface IssuedDocument {
@@ -951,6 +1002,7 @@ export interface DB {
   "audit.event": AuditEvent;
   "audit.masked_column": AuditMaskedColumn;
   company: Company;
+  company_branding: CompanyBranding;
   company_profile: CompanyProfile;
   document_request: DocumentRequest;
   document_sequence: DocumentSequence;
@@ -961,6 +1013,7 @@ export interface DB {
   employee_file_content: EmployeeFileContent;
   employment: Employment;
   employment_salary: EmploymentSalary;
+  installation_branding: InstallationBranding;
   issued_document: IssuedDocument;
   issued_document_file: IssuedDocumentFile;
   leave_ledger: LeaveLedger;

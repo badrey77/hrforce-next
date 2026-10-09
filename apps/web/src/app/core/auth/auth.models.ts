@@ -2,6 +2,7 @@
  * Identity contract types (docs/contracts/identity.md › Endpoints). Plain TypeScript, no Angular.
  * Field names match the contract text exactly: the API builds against the same document.
  */
+import type { EffectiveBranding } from '../branding/branding.models';
 
 /** `GET /api/me` → `user`. */
 export interface SessionUser {
@@ -44,6 +45,11 @@ export interface Me {
    * parses: absent = not enabled, not required.
    */
   readonly mfa?: MeMfa;
+  /**
+   * The company's branding after inheritance (docs/contracts/branding.md › Views). Optional so a `/me` from before
+   * the branding slice still parses: absent = built-in.
+   */
+  readonly branding?: EffectiveBranding;
 }
 
 /** `GET /api/me` → `mfa`. */

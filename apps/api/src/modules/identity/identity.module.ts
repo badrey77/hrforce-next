@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ENV } from '../../platform/config/config.module.js';
 import type { Env } from '../../platform/config/env.schema.js';
+import { BrandingModule } from '../branding/index.js';
 import { AuthXsrfGuard } from './api/auth-xsrf.guard.js';
 import { AuthController } from './api/auth.controller.js';
 import { MeController } from './api/me.controller.js';
@@ -27,6 +28,8 @@ import { PasswordHasher } from './infra/password-hasher.js';
  * The request identity itself (cookie → user/company) is resolved by the platform's CookieIdentityResolver.
  */
 @Module({
+  // GET /api/me carries the company's branding (docs/contracts/branding.md); Branding imports only platform/**
+  imports: [BrandingModule],
   controllers: [AuthController, MeController, MfaController],
   providers: [
     AuthService,

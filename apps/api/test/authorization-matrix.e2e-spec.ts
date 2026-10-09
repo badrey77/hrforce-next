@@ -296,6 +296,14 @@ const READERS: readonly Row[] = [
 ];
 
 // prettier-ignore
+// ── branding (docs/contracts/branding.md › Authorization matrix rows) ───────────────────────────────────────────
+/** Filled in beforeAll: the digests of company A's company logo and of the installation app logo (A is the owner). */
+const BR = { companyLogo: '', defaultLogo: '' };
+const BR_L0 = { fr: null, ar: null, en: null };
+const digestOf = (url: string | undefined): string => url?.split('/').at(-1) ?? '';
+/** Installation routes: only the owning company's central admin; another company's admin learns nothing (404). */
+const BR_INSTALLATION_ROWS = (ok: number): readonly Row[] => [['admin', '-', ok], ['est', '-', 403], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 404]];
+
 const MATRIX: Record<string, RouteSpec> = {
   // ── public ─────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/health': { access: 'public', request: () => ({ path: '/api/health' }), rows: [['anon', '-', 200], ['admin', '-', 200]] },
@@ -322,6 +330,39 @@ const MATRIX: Record<string, RouteSpec> = {
     request: () => ({ path: '/api/auth/password/setup', body: { token: 'x'.repeat(43), password: 'a-long-enough-passphrase' } }),
     rows: [['anon', '-', 410], ['admin', '-', 410]],
   },
+
+  // branding: the installation default and its logo are what the sign-in page shows. These reads come BEFORE the
+  // branding writes further down (object order = run order): a reset or a new image changes the digests.
+  'GET /api/branding/default': { access: 'public', request: () => ({ path: '/api/branding/default' }), rows: [['anon', '-', 200], ['admin', '-', 200], ['beta', '-', 200]] },
+  'GET /api/branding/default/logo/:digest': {
+    access: 'public',
+    request: () => ({ path: `/api/branding/default/logo/${BR.defaultLogo}` }),
+    rows: [['anon', '-', 200], ['admin', '-', 200], ['beta', '-', 200]],
+  },
+  'GET /api/branding/logos/:kind/:digest': {
+    access: 'authenticated',
+    noMfa: true,
+    request: () => ({ path: `/api/branding/logos/company/${BR.companyLogo}` }),
+    // a logo of company A: every signed-in member of A; BETA's admin gets 404 with A's digest
+    rows: [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 200], ['acces', '-', 200], ['agent', '-', 200], ['chef', '-', 200], ['newbie', '-', 200], ['beta', '-', 404]],
+  },
+  'GET /api/branding/settings': { access: 'settings.branding', request: () => ({ path: '/api/branding/settings' }), rows: CONFIG_ROWS(200) },
+  'PUT /api/branding/company': {
+    access: 'settings.branding',
+    request: (_t, n) => ({ path: '/api/branding/company', body: { appTitle: { fr: `RH ${n}`, ar: null, en: null }, welcomeTitle: BR_L0, welcomeMessage: BR_L0, footer: BR_L0, color: 'green' } }),
+    rows: CONFIG_ROWS(200),
+  },
+  'PUT /api/branding/company/logos/:kind': { access: 'settings.branding', request: () => ({ path: '/api/branding/company/logos/app', upload: demoLogoPng() }), rows: CONFIG_ROWS(200) },
+  'DELETE /api/branding/company/logos/:kind': { access: 'settings.branding', request: () => ({ path: '/api/branding/company/logos/app' }), rows: CONFIG_ROWS(204) },
+  'DELETE /api/branding/company': { access: 'settings.branding', request: () => ({ path: '/api/branding/company' }), rows: CONFIG_ROWS(204) },
+  'PUT /api/branding/installation': {
+    access: 'settings.branding',
+    request: (_t, n) => ({ path: '/api/branding/installation', body: { appTitle: BR_L0, signInMessage: { fr: `Message ${n}`, ar: null, en: null }, footer: BR_L0, color: 'blue' } }),
+    rows: BR_INSTALLATION_ROWS(200),
+  },
+  'PUT /api/branding/installation/logo': { access: 'settings.branding', request: () => ({ path: '/api/branding/installation/logo', upload: demoLogoPng() }), rows: BR_INSTALLATION_ROWS(200) },
+  'DELETE /api/branding/installation/logo': { access: 'settings.branding', request: () => ({ path: '/api/branding/installation/logo' }), rows: BR_INSTALLATION_ROWS(204) },
+  'DELETE /api/branding/installation': { access: 'settings.branding', request: () => ({ path: '/api/branding/installation' }), rows: BR_INSTALLATION_ROWS(204) },
 
   // ── authenticated ──────────────────────────────────────────────────────────────────────────────────────
   'GET /api/me': { access: 'authenticated', noMfa: true, request: () => ({ path: '/api/me' }), rows: READERS },
@@ -1555,6 +1596,14 @@ describe('Authorization matrix (e2e, real grants)', () => {
     const [criteriaA, criteriaB] = [await criteriaOf(unitCompany), await criteriaOf(COMPANY_B)];
     Object.assign(REC_CRIT, { est: criteriaA.at(-1) ?? '', other: criteriaB.at(-1) ?? '', estAll: criteriaA });
     expect([criteriaA.length, criteriaB.length]).toEqual([5, 5]);
+  });
+  // branding: company A's company logo and the installation app logo (A owns the installation default)
+  beforeAll(async () => {
+    const company = await as(app, 'admin', xsrf).put('/api/branding/company/logos/company').attach('file', demoLogoPng(), 'logo.png').expect(200);
+    BR.companyLogo = digestOf((company.body as { company: { companyLogo: { url: string } | null } }).company.companyLogo?.url);
+    const installation = await as(app, 'admin', xsrf).put('/api/branding/installation/logo').attach('file', demoLogoPng(), 'logo.png').expect(200);
+    BR.defaultLogo = digestOf((installation.body as { installation: { appLogo: { url: string } | null } | null }).installation?.appLogo?.url);
+    expect([BR.companyLogo, BR.defaultLogo].every((d) => /^[0-9a-f]{64}$/.test(d)), JSON.stringify(BR)).toBe(true);
   });
   afterAll(async () => {
     await app?.close();

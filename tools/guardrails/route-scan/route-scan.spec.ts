@@ -177,6 +177,7 @@ export class XController {
     const result = scanRoutes();
     expect(result.violations).toEqual([]);
     expect(result.routes.filter((r) => r.allowWithoutMfa).map((r) => `${r.method} ${r.path}`).toSorted()).toEqual([
+      'GET /api/branding/logos/:kind/:digest', // docs/contracts/branding.md: the shell's logos on the enrolment page
       'GET /api/me',
       'GET /api/me/mfa',
       'GET /api/me/notifications/unread-count',

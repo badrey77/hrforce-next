@@ -17,10 +17,15 @@ export const NOTIFICATION_TYPES = [
   'document.rejected',
   'attendance.correction_approved',
   'attendance.correction_rejected',
+  'recruitment.opening_approved',
+  'recruitment.opening_rejected',
+  'recruitment.interview_assigned',
+  'recruitment.interview_cancelled',
+  'recruitment.evaluations_complete',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction';
+export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview';
 
 /**
  * Who the recipient is to the subject — decides the link: `approver` (a task candidate: /tasks…), `employee` (the

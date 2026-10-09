@@ -1,0 +1,57 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('recruitment.mine.title') }}</h1>
+    @if (canRequest()) {
+      <a class="btn" routerLink="/me/recruitment/new" data-action="request">{{ t('recruitment.request.title') }}</a>
+    }
+  </header>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+  @if (actionError(); as key) {
+    <p class="form-error" role="alert" data-error="action" [appRevealAlert]="key">{{ t(key) }}</p>
+  }
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error() && !list.hasValue()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <ul class="card-list" data-list="my-openings">
+        @for (o of items(); track o.id) {
+          <li [attr.data-opening]="o.id">
+            <p class="inline-actions">
+              <a [routerLink]="['/me/recruitment/openings', o.id]"><strong><bdi>{{ o.title }}</bdi></strong></a>
+              <span class="code muted" dir="ltr">{{ o.reference }}</span>
+              <span class="badge" [attr.data-status]="tone(o.status)" data-field="status">{{ t('recruitment.status.' + o.status) }}</span>
+            </p>
+            <p class="muted">
+              <bdi>{{ o.unit | displayName: lang() }}</bdi> · {{ t('recruitment.contractType.' + o.contractType) }} ·
+              <span data-field="posts">{{ t('recruitment.openings.hiredOf', { hired: o.hiredCount, posts: o.posts }) }}</span> ·
+              {{ t('recruitment.opening.target', { date: (o.targetDate | date: 'mediumDate' : undefined : locale()) }) }}
+            </p>
+            @if (o.status === 'pending' && o.workflow) {
+              <app-workflow-stepper [progress]="o.workflow" />
+            }
+            @if (o.counts; as counts) {
+              <p class="inline-actions" data-field="counts">
+                @for (stage of activeStages; track stage) {
+                  <span class="badge">{{ t('recruitment.stage.' + stage) }} : {{ counts[stage] }}</span>
+                }
+              </p>
+            }
+            @if (o._actions.includes('cancel')) {
+              <button class="btn secondary" type="button" data-action="cancel-request" [disabled]="busy() !== null" (click)="cancel(o)">{{ t('recruitment.mine.cancel') }}</button>
+            }
+          </li>
+        } @empty {
+          <li class="muted" data-state="empty">{{ t('recruitment.mine.empty') }}</li>
+        }
+      </ul>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

@@ -1,0 +1,112 @@
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  align-items: start;
+  margin-block-end: var(--space-4);
+}
+
+.board.final {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-block-start: var(--space-3);
+}
+
+.column {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+}
+
+.column.over {
+  border-color: var(--color-primary);
+  outline: 2px dashed var(--color-primary);
+}
+
+.column h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+
+.count {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.cards {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.card[draggable='true'] {
+  cursor: grab;
+}
+
+.name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meta,
+.tags {
+  margin: var(--space-1) 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.stage-tabs {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-block-end: var(--space-3);
+}
+
+[role='tab'] {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+[role='tab'][aria-selected='true'] {
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Phone: the stage tabs replace the side-by-side columns and the « Terminées » toggle. */
+@media (max-width: 640px) {
+  .stage-tabs {
+    display: flex;
+  }
+
+  .board,
+  .board.final {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .column:not(.selected),
+  .column h3,
+  .final-toggle {
+    display: none;
+  }
+}

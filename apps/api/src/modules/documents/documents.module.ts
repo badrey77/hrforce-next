@@ -9,6 +9,7 @@ import { DocumentPresenter } from './application/document-presenter.js';
 import { DocumentSettingsService } from './application/document-settings.service.js';
 import { DocumentsClock } from './application/documents-clock.js';
 import { DocumentsService } from './application/documents.service.js';
+import { EmployeeFileImporter } from './application/employee-file-importer.js';
 import { EmployeeFileCategoriesService } from './application/employee-file-categories.service.js';
 import { EmployeeFilesService } from './application/employee-files.service.js';
 import { MyDocumentsService } from './application/my-documents.service.js';
@@ -37,6 +38,9 @@ import { EmployeeFilesRepository } from './infra/employee-files.repository.js';
     EmployeeFilesService,
     EmployeeFileCategoriesService,
     EmployeeFileUploadInterceptor,
+    EmployeeFileImporter,
   ],
+  // the hire of a recruited candidate copies its files into the employee file (docs/contracts/recruitment.md › Hire)
+  exports: [EmployeeFileImporter],
 })
 export class DocumentsModule {}

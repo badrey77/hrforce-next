@@ -57,9 +57,10 @@
 	#    because Angular injects component styles as <style> elements at runtime (no per-request nonce with a static
 	#    server). Fonts are self-hosted (Cairo, Source Sans 3). The index.html build output must contain no inline
 	#    <script> / on* handler: apps/web/Dockerfile fails the build otherwise (deploy/web/check-index-csp.mjs).
-	@employeeFileContent path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+	# (employee files, and the candidate files of recruitment — HR route and the heads' /me route)
+	@employeeFileContent path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content)$
 	@notEmployeeFileContent {
-		not path_regexp ^/api/employees/[^/]+/files/[^/]+/content$
+		not path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content)$
 		not path /oidc /oidc/*
 	}
 	header @employeeFileContent {
@@ -79,7 +80,8 @@
 		request_header -X-Dev-Company-Id
 		# Employee-file uploads (POST /api/employees/:id/files): the API stops reading at EMPLOYEE_FILE_MAX_BYTES
 		# (10 MB by default, at most 20 MB) and answers 422 too_large; the proxy refuses anything beyond 25 MB outright.
-		@employeeFileUpload path_regexp ^/api/employees/[^/]+/files$
+		# Candidate files (POST /api/recruitment/candidates/:id/files, docs/contracts/recruitment.md) follow the same rule.
+		@employeeFileUpload path_regexp ^/api/(employees|recruitment/candidates)/[^/]+/files$
 		request_body @employeeFileUpload {
 			max_size 25MB
 		}

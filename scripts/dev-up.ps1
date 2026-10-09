@@ -47,14 +47,27 @@ try {
   if ($Reset) { Step 'Wiping the local database'; Invoke-Checked 'docker compose down' { docker compose down -v } }
   Step 'Starting Postgres and Mailpit'
   Invoke-Checked 'docker compose up' { docker compose up -d }
+  # On an empty volume the image first runs a temporary server (Unix socket only) for its init scripts, then
+  # restarts: pg_isready over the socket answers during that phase and the next command fails with "the database
+  # system is shutting down". Ready = a real query over TCP (which only the final server accepts) succeeds twice, a
+  # second apart.
   Write-Host -NoNewline 'Waiting for Postgres'
   $ready = $false
-  for ($i = 0; $i -lt 60; $i++) {
-    docker compose exec -T postgres pg_isready -U postgres -d hrforce *> $null
-    if ($LASTEXITCODE -eq 0) { $ready = $true; break }
-    Write-Host -NoNewline '.'
+  $answers = 0
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'   # psql writes to stderr while the server starts; that is not a failure here
+  for ($i = 0; $i -lt 90; $i++) {
+    docker compose exec -T postgres psql -h 127.0.0.1 -U postgres -d hrforce -tAc 'select 1' *> $null
+    if ($LASTEXITCODE -eq 0) {
+      $answers++
+      if ($answers -ge 2) { $ready = $true; break }
+    } else {
+      $answers = 0
+      Write-Host -NoNewline '.'
+    }
     Start-Sleep -Seconds 1
   }
+  $ErrorActionPreference = $previousPreference
   Write-Host ''
   if (-not $ready) { throw 'Postgres did not become ready. Check: cd apps\api; docker compose logs postgres' }
   # A database volume created before migration 0012 has no hrforce_worker role (the init hook only runs on an empty

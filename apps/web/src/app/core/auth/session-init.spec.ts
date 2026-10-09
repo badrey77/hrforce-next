@@ -3,7 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ME_AR } from '../../../testing/auth-fixtures';
+import { BRANDING_DEFAULT_URL, EFFECTIVE_BRANDED, PUBLIC_BRANDED } from '../../../testing/branding-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
+import { BrandingService } from '../branding/branding.service';
 import { apiProblemInterceptor } from '../http/api-problem.interceptor';
 import { LANGUAGE_STORAGE_KEY, LanguageService } from '../i18n/language.service';
 import { authRefreshInterceptor } from './auth-refresh.interceptor';
@@ -56,9 +58,24 @@ describe('initializeSession (app initializer)', () => {
     await settle();
     http.expectOne('/api/me').flush(null, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/auth/refresh').flush(null, { status: 401, statusText: 'Unauthorized' });
+    await settle();
+    // Signed out: the public default brand is awaited too, so the first paint already has it.
+    http.expectOne(BRANDING_DEFAULT_URL).flush(PUBLIC_BRANDED);
 
     await expect(done).resolves.toBeUndefined();
     expect(TestBed.inject(Session).isAuthenticated()).toBe(false);
+    expect(TestBed.inject(BrandingService).color()).toBe('teal');
+  });
+
+  it('signed in: the brand comes with /api/me, the public default is not asked', async () => {
+    const done = TestBed.runInInjectionContext(() => initializeSession());
+    http.expectOne('/api/auth/csrf').flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+    http.expectOne('/api/me').flush({ ...ME_AR, branding: EFFECTIVE_BRANDED });
+    await done;
+
+    http.expectNone(BRANDING_DEFAULT_URL);
+    expect(TestBed.inject(BrandingService).color()).toBe('plum');
   });
 
   it("applies the signed-in account's locale when this device has no stored choice", async () => {

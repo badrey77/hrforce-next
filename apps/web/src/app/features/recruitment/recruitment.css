@@ -1,0 +1,136 @@
+.tabs,
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.tabs {
+  border-block-end: 1px solid var(--color-border);
+}
+
+[role='tab'] {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+[role='tab'][aria-selected='true'] {
+  border-block-end-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.chip {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
+
+.page-actions,
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+ul.inline-actions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.card-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-list > li {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+@media (max-width: 640px) {
+  table.cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.cards,
+  table.cards tbody,
+  table.cards tr,
+  table.cards td {
+    display: block;
+  }
+
+  table.cards tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.cards td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: space-between;
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.cards td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.data.cards td.who {
+    display: block;
+    font-size: 1.0625rem;
+  }
+
+  table.cards td.who::before {
+    content: none;
+  }
+}

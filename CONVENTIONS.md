@@ -98,6 +98,6 @@ Boundary rules (dependency-cruiser):
   Guardrail: `fr` and `ar` must have identical key sets; `en` missing keys are a warning only.
 - `<html lang dir>` is set at runtime from the active language (`ar` → `rtl`); `index.html` ships `lang="fr" dir="ltr"`.
   `public/lang-boot.js` (a classic same-origin script in `<head>`, CSP `script-src 'self'`) sets `lang`/`dir` from the
-  preference stored on the device (`localStorage['hrforce.lang']`) before first paint; `LanguageService` stays the authority.
+  preference stored on the device (`localStorage['hrforce.lang']`) and applies the cached brand (`localStorage['hrforce.brand']` → `<html data-brand>`, `localStorage['hrforce.title']` → the tab title; docs/contracts/branding.md) before first paint; `LanguageService` and `BrandingService` stay the authorities.
 - Use CSS logical properties (`margin-inline-start`, not `margin-left`).
 - API calls go to same-origin `/api` (dev proxy to the API); cookies `httpOnly`, XSRF via Angular's `HttpXsrfTokenExtractor` (cookie `XSRF-TOKEN`, header `X-XSRF-TOKEN`).

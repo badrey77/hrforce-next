@@ -7,7 +7,8 @@
  * the DEMO security policy with two-step sign-in enforcement OFF (docs/contracts/mfa.md), and the documents demo
  * (docs/contracts/documents.md › Seed: letterhead, signatories, issued documents rendered with Typst, a pending request),
  * and the attendance demo (docs/contracts/attendance.md › Seed: schedules with the Ramadan override, kiosks in every
- * state — the pending one pairs with the dev code DEMK-2026 at /kiosk — and ~15 days of punches).
+ * state — the pending one pairs with the dev code DEMK-2026 at /kiosk — and ~15 days of punches), and the recruitment
+ * demo (docs/contracts/recruitment.md › Seed: openings in every status, fictitious candidates, generated CVs).
  *   npm run seed:dev -w @hrforce/api        (reads MIGRATOR_DATABASE_URL; idempotent; refuses NODE_ENV=production)
  * Runs as the migrator role (owner, BYPASSRLS) after `npm run migrate`.
  */
@@ -19,11 +20,13 @@ import { createDatabase } from '../platform/db/database.js';
 import { TypstPdfRenderer } from '../platform/pdf/typst-renderer.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
 import { seedDemoAttendance } from '../modules/attendance/index.js';
-import { algiersToday, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
+import { seedDemoBranding } from '../modules/branding/index.js';
+import { algiersToday, demoLogoPng, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
 import { seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
+import { seedDemoRecruitment } from '../modules/recruitment/index.js';
 import { DEMO_SSO_CLIENT, seedDemoSso } from '../modules/sso/index.js';
 
 const seedEnvSchema = migratorEnvSchema.extend({
@@ -51,8 +54,13 @@ async function main(): Promise<void> {
       const employeeFiles = await seedDemoEmployeeFiles(tx);
       const attendance = await seedDemoAttendance(tx, Date.now());
       const sso = await seedDemoSso(tx, env.OIDC_KEY);
-      return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso };
-    }).then(({ employees, leave, documents, attendance, sso }) => {
+      const recruitment = await seedDemoRecruitment(tx, Date.now());
+      // docs/contracts/branding.md › Seed: DEMO owns the installation default (sample footer and sign-in message)
+      // and shows a sample welcome message with the letterhead's generated logo as company logo
+      await seedDemoBranding(tx, DEMO_ORGANIZATION.company.id, demoLogoPng());
+      return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso, recruitment };
+    }).then(({ employees, leave, documents, attendance, sso, recruitment }) => {
+      logger.info(recruitment, 'recruitment demo seeded (openings in every status, fictitious candidates across the stages, an already purged opening)');
       logger.info(
         { clientId: DEMO_SSO_CLIENT.clientId, created: sso, redirectUris: DEMO_SSO_CLIENT.redirectUris },
         `SSO demo app seeded (docs/contracts/sso.md): client ${DEMO_SSO_CLIENT.clientId}, development secret ${DEMO_SSO_CLIENT.secret} (INSECURE, also in apps/sso-demo/.env.example)`,

@@ -208,6 +208,7 @@ export class TasksPage {
     const subject = task.subject;
     if (subject.type === 'leave_request') return this.catalog.nameOf(subject.leaveTypeId);
     if (subject.type === 'document_request') return this.catalog.labelOf(subject.documentType.labels);
+    if (subject.type === 'recruitment_opening') return `${subject.title} (${subject.reference})`;
     return '';
   }
 
@@ -293,6 +294,8 @@ export class TasksPage {
   }
 
   private employeeName(task: OpenTask): string {
+    // An opening request is about a post, not a person: the feedback names who asked.
+    if (task.subject.type === 'recruitment_opening') return task.subject.requestedBy.displayName;
     const p = subjectPerson(task.subject);
     if (!p) return '';
     return this.lang() === 'ar' && p.lastNameAr && p.firstNameAr ? `${p.lastNameAr} ${p.firstNameAr}` : `${p.lastName} ${p.firstName}`;

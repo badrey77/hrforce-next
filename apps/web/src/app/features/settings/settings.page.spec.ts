@@ -3,7 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { meWith } from '../../../testing/auth-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
+import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
 import type { NotificationPreference } from '../../core/notifications/notifications.models';
 import { SettingsPage } from './settings.page';
@@ -45,6 +47,7 @@ describe('SettingsPage › Notifications', () => {
 
 
   const el = () => harness.routeNativeElement as HTMLElement;
+  const tabs = () => [...el().querySelectorAll('.settings-nav a')];
   const box = (type: string) => el().querySelector(`[data-pref="${type}"] input`) as HTMLInputElement;
   const save = () => el().querySelector('[data-action="save"]') as HTMLButtonElement;
   async function toggle(type: string): Promise<void> {
@@ -114,5 +117,21 @@ describe('SettingsPage › Notifications', () => {
     expect(box('task.assigned').checked).toBe(true);
     expect(box('leave.cancelled').checked).toBe(false);
     expect(save().disabled).toBe(true);
+  });
+
+  describe('section tabs (docs/contracts/branding.md › Settings section)', () => {
+    it('a user without settings.branding sees « Notifications » only', () => {
+      expect(el().querySelector('h1')?.textContent?.trim()).toBe('Paramètres');
+      expect(tabs().map((tab) => tab.textContent?.trim())).toEqual(['Notifications']);
+      expect(tabs()[0]?.getAttribute('aria-current')).toBe('page');
+      expect(el().querySelector('[data-tab="branding"]')).toBeNull();
+    });
+
+    it('« Identité visuelle » appears with the permission', async () => {
+      TestBed.inject(Session).set(meWith(['settings.branding']));
+      await settle();
+      expect(tabs().map((tab) => tab.textContent?.trim())).toEqual(['Notifications', 'Identité visuelle']);
+      expect(el().querySelector('[data-tab="branding"]')?.getAttribute('href')).toBe('/settings/branding');
+    });
   });
 });

@@ -1,0 +1,127 @@
+<section *transloco="let t" class="panel" aria-labelledby="add-app-title" data-section="add-application">
+  <h3 id="add-app-title">{{ t('recruitment.add.title') }} — {{ t('recruitment.add.step', { step: step(), count: 2 }) }}</h3>
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  <!--
+    Step 1 stays in the page while step 2 shows (hidden, not removed): a duplicate found by the server on saving is
+    set on these fields, and re-creating them would run their validators again and drop that error.
+  -->
+  <form [hidden]="step() !== 1" [formGroup]="identity" (ngSubmit)="next()" novalidate data-form="candidate-identity">
+      <p class="field-hint">{{ t('recruitment.add.identityHint') }}</p>
+      <app-candidate-fields [form]="identity" idPrefix="add" [withInformedOn]="false" (lookup)="lookup()" />
+
+      <div aria-live="polite" data-region="matches">
+        @if (matches(); as found) {
+          @if (found.person; as person) {
+            <p class="warning" data-state="known-person"><app-known-person-note [known]="person" /></p>
+          }
+          @if (found.candidates.length) {
+            <p class="warning" data-state="matches">{{ t('recruitment.add.matchesFound', { count: found.candidates.length }) }}</p>
+            <ul class="card-list">
+              @for (match of found.candidates; track match.id) {
+                <li [attr.data-match]="match.id">
+                  <strong><bdi>{{ match.person | displayName: lang() }}</bdi></strong>
+                  @if (match.birthDate) {
+                    <span class="muted"> · {{ match.birthDate | date: 'mediumDate' : undefined : locale() }}</span>
+                  }
+                  <span class="muted">
+                    —
+                    @for (reason of match.matchedOn; track reason; let lastOne = $last) {
+                      {{ t('recruitment.add.matchedOn.' + reason) }}{{ lastOne ? '' : ', ' }}
+                    }
+                  </span>
+                  <ul>
+                    @for (application of match.applications; track application.id) {
+                      <li>
+                        <span dir="ltr" class="code">{{ application.opening.reference }}</span>&ngsp;<bdi>{{ application.opening.title }}</bdi> —
+                        {{ t('recruitment.stage.' + application.stage) }}
+                      </li>
+                    }
+                  </ul>
+                  <button class="btn secondary" type="button" data-action="use-existing" (click)="use(match)">{{ t('recruitment.add.useExisting') }}</button>
+                </li>
+              }
+            </ul>
+            <p class="field-hint">{{ t('recruitment.add.orNew') }}</p>
+          }
+        }
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="next" [disabled]="matching()">{{ t('recruitment.add.next') }}</button>
+        <button class="btn secondary" type="button" data-action="cancel-add" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+      </div>
+  </form>
+  @if (step() === 2) {
+    @let c = details.controls;
+    <form [formGroup]="details" (ngSubmit)="submit()" novalidate data-form="application-details">
+      @if (existing(); as match) {
+        <p class="feedback" data-state="existing">
+          {{ t('recruitment.add.usingExisting') }} <strong><bdi>{{ match.person | displayName: lang() }}</bdi></strong>
+          <button class="btn secondary" type="button" data-action="new-record" (click)="newRecord()">{{ t('recruitment.add.newRecord') }}</button>
+        </p>
+      } @else {
+        <p>
+          <strong><bdi>{{ identity.controls.lastName.value }} {{ identity.controls.firstName.value }}</bdi></strong>
+          <button class="btn secondary" type="button" data-action="back" (click)="step.set(1)">{{ t('recruitment.add.back') }}</button>
+        </p>
+      }
+
+      <div class="grid">
+        <div class="field">
+          <label for="add-source">{{ t('recruitment.fields.source') }}</label>
+          <select id="add-source" formControlName="source">
+            @for (source of sources; track source) {
+              <option [value]="source">{{ t('recruitment.source.' + source) }}</option>
+            }
+          </select>
+        </div>
+        @if (canSalary) {
+          <div class="field">
+            <label for="add-salary">{{ t('recruitment.fields.expectedSalary') }}</label>
+            <input id="add-salary" type="text" inputmode="decimal" formControlName="expectedSalary" dir="ltr" autocomplete="off"
+              [attr.aria-invalid]="c.expectedSalary.invalid && c.expectedSalary.touched" aria-describedby="add-salary-error" />
+            <app-control-error [control]="c.expectedSalary" errorId="add-salary-error" [keys]="errorKeys" />
+          </div>
+        }
+        @if (!existing()) {
+          <div class="field" [formGroup]="identity">
+            <label for="add-informed-on">{{ t('recruitment.candidate.informedOn') }}</label>
+            <input id="add-informed-on" type="date" formControlName="informedOn"
+              [attr.aria-invalid]="identity.controls.informedOn.invalid && identity.controls.informedOn.touched" aria-describedby="add-informed-on-hint add-informed-on-error" />
+            <p class="field-hint" id="add-informed-on-hint">
+              {{ t('recruitment.add.noticeHint') }}
+              <a routerLink="/recruitment/notice" target="_blank" rel="noopener">{{ t('recruitment.notice.link') }}</a>
+            </p>
+            <app-control-error [control]="identity.controls.informedOn" errorId="add-informed-on-error" [keys]="errorKeys" />
+          </div>
+        }
+      </div>
+
+      <div class="field">
+        <label for="add-cv">{{ t('recruitment.add.cv') }}</label>
+        <input id="add-cv" type="file" [accept]="accept" (change)="onFileInput($event)"
+          [attr.aria-invalid]="c.file.invalid && c.file.touched" aria-describedby="add-cv-hint add-cv-error" />
+        <p class="field-hint" id="add-cv-hint">{{ t('recruitment.files.hint', { max: (maxBytes | fileSize: lang()) }) }}</p>
+        <app-control-error [control]="c.file" errorId="add-cv-error" [keys]="errorKeys" />
+      </div>
+
+      <div class="field">
+        <label for="add-comment">{{ t('recruitment.move.comment') }}</label>
+        <textarea id="add-comment" formControlName="comment" rows="2" dir="auto"
+          [attr.aria-invalid]="c.comment.invalid && c.comment.touched" aria-describedby="add-comment-error"></textarea>
+        <app-control-error [control]="c.comment" errorId="add-comment-error" [keys]="errorKeys" />
+      </div>
+
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-application" [disabled]="saving()">{{ saving() ? t('recruitment.add.saving') : t('common.save') }}</button>
+        @if (overridable()) {
+          <button class="btn secondary" type="button" data-action="save-anyway" [disabled]="saving()" (click)="submit(true)">{{ t('recruitment.add.saveAnyway') }}</button>
+        }
+        <button class="btn secondary" type="button" data-action="cancel-add" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+</section>

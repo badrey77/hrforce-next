@@ -1,0 +1,115 @@
+<dialog #dialog class="modal" *transloco="let t" aria-labelledby="interview-dialog-title" (close)="pending.set(null)">
+  @if (pending(); as p) {
+    @if (p.kind === 'cancel') {
+      @let reason = cancelForm.controls.reason;
+      <form [formGroup]="cancelForm" (ngSubmit)="confirmCancel()" novalidate data-form="cancel-interview">
+        <h2 id="interview-dialog-title">{{ t('recruitment.interviews.cancelTitle') }}</h2>
+        <p><bdi>{{ p.name }}</bdi></p>
+        <p>{{ t('recruitment.interviews.cancelIntro') }}</p>
+        @if (formError(); as error) {
+          <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+        <div class="field">
+          <label for="iv-cancel-reason">{{ t('recruitment.interviews.cancelReason') }}</label>
+          <textarea id="iv-cancel-reason" formControlName="reason" rows="3" dir="auto" required
+            [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="iv-cancel-reason-error"></textarea>
+          <app-control-error [control]="reason" errorId="iv-cancel-reason-error" [keys]="errorKeys" />
+        </div>
+        <div class="form-actions">
+          <button class="btn danger" type="submit" data-action="confirm-cancel-interview" [disabled]="busy()">{{ t('recruitment.interviews.cancel') }}</button>
+          <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    } @else {
+      @let c = form.controls;
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate data-form="interview">
+        <h2 id="interview-dialog-title">{{ t(p.kind === 'schedule' ? 'recruitment.interviews.schedule' : 'recruitment.interviews.editTitle') }}</h2>
+        <p><bdi>{{ p.kind === 'schedule' ? p.subject.name : p.name }}</bdi></p>
+        @if (formError(); as error) {
+          <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+        <div class="grid">
+          <div class="field">
+            <label for="iv-date">{{ t('recruitment.interviews.date') }}</label>
+            <input id="iv-date" type="date" formControlName="date" required [attr.aria-invalid]="c.date.invalid && c.date.touched" aria-describedby="iv-date-error" />
+            <app-control-error [control]="c.date" errorId="iv-date-error" [keys]="errorKeys" />
+          </div>
+          <div class="field">
+            <label for="iv-time">{{ t('recruitment.interviews.time') }}</label>
+            <input id="iv-time" type="time" formControlName="time" required [attr.aria-invalid]="c.time.invalid && c.time.touched" aria-describedby="iv-time-error" />
+            <app-control-error [control]="c.time" errorId="iv-time-error" [keys]="errorKeys" />
+          </div>
+          <div class="field">
+            <label for="iv-duration">{{ t('recruitment.interviews.duration') }}</label>
+            <input id="iv-duration" type="number" formControlName="durationMinutes" [min]="bounds.min" [max]="bounds.max" step="5"
+              [attr.aria-invalid]="c.durationMinutes.invalid && c.durationMinutes.touched" aria-describedby="iv-duration-error" />
+            <app-control-error [control]="c.durationMinutes" errorId="iv-duration-error" [keys]="errorKeys" />
+          </div>
+          <div class="field">
+            <label for="iv-mode">{{ t('recruitment.interviews.mode') }}</label>
+            <select id="iv-mode" formControlName="mode">
+              @for (mode of modes; track mode) {
+                <option [value]="mode">{{ t('recruitment.interviews.modes.' + mode) }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="iv-location">{{ t('recruitment.interviews.location') }}</label>
+          <input id="iv-location" type="text" formControlName="location" dir="auto" autocomplete="off"
+            [attr.aria-invalid]="c.location.invalid && c.location.touched" aria-describedby="iv-location-hint iv-location-error" />
+          <p class="field-hint" id="iv-location-hint">{{ t('recruitment.interviews.locationHint') }}</p>
+          <app-control-error [control]="c.location" errorId="iv-location-error" [keys]="errorKeys" />
+        </div>
+        <div class="field">
+          <label for="iv-label">{{ t('recruitment.interviews.label') }}</label>
+          <input id="iv-label" type="text" formControlName="label" dir="auto" autocomplete="off"
+            [attr.aria-invalid]="c.label.invalid && c.label.touched" aria-describedby="iv-label-hint iv-label-error" />
+          <p class="field-hint" id="iv-label-hint">{{ t('recruitment.interviews.labelHint') }}</p>
+          <app-control-error [control]="c.label" errorId="iv-label-error" [keys]="errorKeys" />
+        </div>
+
+        <fieldset class="field" data-panel="interviewers">
+          <legend>{{ t('recruitment.interviews.interviewers') }}</legend>
+          <ul class="chosen">
+            @for (user of chosen(); track user.id) {
+              <li [attr.data-interviewer]="user.id">
+                <bdi>{{ user.displayName }}</bdi>
+                <button type="button" data-action="remove-interviewer" [attr.aria-label]="t('recruitment.interviews.removeInterviewer', { name: user.displayName })" (click)="remove(user)">×</button>
+              </li>
+            }
+          </ul>
+          <label for="iv-search">{{ t('recruitment.interviews.search') }}</label>
+          <input #search id="iv-search" type="search" autocomplete="off" [disabled]="chosen().length >= bounds.interviewers"
+            aria-describedby="iv-search-hint iv-interviewers-error" (input)="onSearch($event)" />
+          <p class="field-hint" id="iv-search-hint">{{ t('recruitment.interviews.searchHint', { max: bounds.interviewers }) }}</p>
+          <div aria-live="polite">
+            @if (searchState() === 'error') {
+              <p class="field-error">{{ t('recruitment.interviews.searchError') }}</p>
+            } @else if (searchState() === 'done' && !available().length) {
+              <p class="muted" data-state="no-interviewer">{{ t('recruitment.interviews.searchEmpty') }}</p>
+            }
+          </div>
+          <ul class="results">
+            @for (option of available(); track option.id) {
+              <li>
+                <button type="button" [attr.data-option]="option.id" (click)="add(option, search)">
+                  <bdi>{{ option.displayName }}</bdi>
+                  @if (option.employee; as e) {
+                    <span class="muted"> — <span class="code" dir="ltr">{{ e.matricule }}</span>, <bdi>{{ e.unit | displayName: lang() }}</bdi></span>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+          <app-control-error [control]="c.interviewerIds" errorId="iv-interviewers-error" [keys]="errorKeys" />
+        </fieldset>
+
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="save-interview" [disabled]="busy()">{{ t(p.kind === 'schedule' ? 'recruitment.interviews.scheduleSubmit' : 'common.save') }}</button>
+          <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    }
+  }
+</dialog>

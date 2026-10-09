@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { requireContext } from '../../../platform/context/request-context.js';
+import { BrandingService } from '../../branding/index.js';
 import { IdentityRepository } from '../infra/identity.repository.js';
 import type { MeView } from './identity-views.js';
 import { MfaService } from './mfa.service.js';
@@ -11,11 +12,13 @@ export class MeService {
     private readonly repo: IdentityRepository,
     private readonly scopes: ScopeService,
     private readonly mfa: MfaService,
+    private readonly branding: BrandingService,
   ) {}
 
   /**
    * The caller, the active company, every company the caller belongs to, and the caller's effective permissions and
    * scopes (platform ScopeService, implemented by the Authorization module). 401 if no longer active / member.
+   * `branding`: the company's branding after inheritance (docs/contracts/branding.md), read without any image bytes.
    */
   async me(): Promise<MeView> {
     const { userId, companyId } = requireContext();
@@ -31,6 +34,7 @@ export class MeService {
       permissions: access.permissions,
       scopes: access.scopes,
       mfa: await this.mfa.meBlock(),
+      branding: await this.branding.effective(),
     };
   }
 }

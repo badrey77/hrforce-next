@@ -22,5 +22,9 @@
   {
     "table": "attendance_device_heartbeat",
     "reason": "Operational heartbeat of an entrance kiosk (docs/contracts/attendance.md › Data, ADR 009 §1): one row per device, overwritten at most once a minute by the kiosk's own calls (last seen, source IP, user agent) and shown in kiosk management; not business data. Auditing it would add a change row per kiosk per minute; pairing, re-pairing and revocation are audited on attendance_device (and the attendance.device_paired event)."
+  },
+  {
+    "table": "recruitment_candidate_file_content",
+    "reason": "Bytes of a candidate file (docs/contracts/recruitment.md › Data, ADR 005): one row per recruitment_candidate_file, inserted with it and removed with it (FK cascade: delete, erasure on request, retention purge). The file row is audited as events without personal payload (recruitment.file_added / _deleted {kind}); diffing up to 10–20 MB of bytes per upload would bloat audit.change_log and keep a copy of the candidate's documents after their erasure."
   }
 ]

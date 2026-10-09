@@ -80,6 +80,8 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   assigned_by: 'user',
   disabled_by: 'user',
   sso_app_role_id: 'appRole',
+  // Recruitment (recruitment contract › Audit): who closed an opening (`requested_by` is above).
+  closed_by: 'user',
 };
 
 /**
@@ -123,6 +125,9 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   // SSO: the same words as Access → Applications.
   'sso_client.status': 'sso.status.',
   'sso_client.client_auth_method': 'sso.authMethod.',
+  // Recruitment: the same words as the recruitment screens.
+  'recruitment_opening.status': 'recruitment.status.',
+  'recruitment_opening.contract_type': 'recruitment.contractType.',
 };
 
 /**
@@ -157,6 +162,8 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   attendance_correction_item: ['correction_id', 'punch_id', 'result_punch_id'],
   // SSO: a role row on the app's own history repeats the app.
   sso_app_role: ['sso_client_id'],
+  // Recruitment: the link to the approval flow is a bare id (the flow's own rows follow in the same history).
+  recruitment_opening: ['workflow_instance_id'],
 };
 
 export type DisplayValue =
@@ -314,6 +321,12 @@ const VARIANT_EVENTS: ReadonlySet<string> = new Set(['attendance.punch_recorded'
 
 export function eventSentenceKey(type: string, data: Readonly<Record<string, unknown>>): string {
   const base = `audit.events.${type}`;
+  // A stage change is worded by where the application went (« Déplacée vers Entretien »), or by its automatic cause
+  // (« Clôturée avec le recrutement ») — never with raw stage codes in the sentence.
+  if (type === 'recruitment.stage_changed') {
+    if (typeof data['autoCause'] === 'string') return `${base}.auto_${data['autoCause']}`;
+    return `${base}.${typeof data['to'] === 'string' ? data['to'] : 'unknown'}`;
+  }
   if (!VARIANT_EVENTS.has(type)) return base;
   const source = typeof data['source'] === 'string' ? data['source'] : 'unknown';
   const direction = typeof data['direction'] === 'string' ? `_${data['direction']}` : '';

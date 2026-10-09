@@ -148,7 +148,8 @@ describe('Authorization (e2e, real grants)', () => {
         'attendance.manage', 'attendance.read',
         'document.issue', 'document.read',
         'employee.create', 'employee.read', 'employee.update', 'employee_file.read', 'employee_file.upload',
-        'leave.adjust', 'leave.approve_hr', 'leave.read', 'leave.request', 'org_unit.read', 'site.read',
+        'leave.adjust', 'leave.approve_hr', 'leave.read', 'leave.request', 'org_unit.read',
+        'recruitment.approve_opening', 'recruitment.hire', 'recruitment.manage', 'recruitment.read', 'site.read',
       ]);
       expect(res.body.scopes).toEqual({
         'attendance.manage': scope,
@@ -165,6 +166,10 @@ describe('Authorization (e2e, real grants)', () => {
         'leave.read': scope,
         'leave.request': scope,
         'org_unit.read': scope,
+        'recruitment.approve_opening': scope,
+        'recruitment.hire': scope,
+        'recruitment.manage': scope,
+        'recruitment.read': scope,
         'site.read': scope,
       });
       expect(res.body.user).toMatchObject({ email: 'rh.est@demo.dz', locale: 'ar' });
@@ -172,7 +177,7 @@ describe('Authorization (e2e, real grants)', () => {
 
     it('admin holds everything except employee.medical.read / update on DG (+); a member without grants holds nothing', async () => {
       const admin = await client('admin').get('/api/me').expect(200);
-      expect(admin.body.permissions).toHaveLength(39);
+      expect(admin.body.permissions).toHaveLength(48);
       expect(admin.body.permissions).not.toContain('employee.medical.read');
       expect(admin.body.permissions).not.toContain('employee.medical.update');
       expect(admin.body.scopes['employee.salary.read']).toEqual([{ unitId: unitA('DG'), includeDescendants: true }]);
@@ -281,11 +286,14 @@ describe('Authorization (e2e, real grants)', () => {
         'employee.read', 'employee.create', 'employee.update',
         'employee.salary.read', 'employee.salary.update', 'employee.bank.read', 'employee.bank.update',
         'employee.nss.read', 'employee.nss.update', 'employee.medical.read', 'employee.medical.update',
+        'recruitment.salary.read', 'recruitment.salary.update',
         'leave.request_self', 'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust', 'leave.configure',
         'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self',
         'employee_file.read', 'employee_file.upload', 'employee_file.delete',
         'attendance.punch_self', 'attendance.read', 'attendance.manage', 'attendance.configure',
         'sso.read', 'sso.manage_apps', 'sso.assign',
+        'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire', 'recruitment.erase', 'recruitment.configure',
+        'settings.branding',
       ]);
       expect(items[0]).toEqual({
         code: 'org_unit.read',
@@ -293,7 +301,7 @@ describe('Authorization (e2e, real grants)', () => {
         sensitive: false,
         labels: { fr: "Consulter l'organisation", ar: 'الاطلاع على الهيكل التنظيمي', en: 'View the organisation' },
       });
-      expect(items.filter((p) => p.sensitive).map((p) => p.group)).toEqual(Array.from({ length: 8 }, () => 'sensitive'));
+      expect(items.filter((p) => p.sensitive).map((p) => p.group)).toEqual(Array.from({ length: 10 }, () => 'sensitive'));
       for (const p of items) expect(p.labels.ar).toMatch(/[؀-ۿ]/);
     });
 
@@ -536,7 +544,7 @@ describe('Authorization (e2e, real grants)', () => {
     });
 
     it('permission is a read-only catalogue; grants are never deleted and only shortened', async () => {
-      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(41);
+      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(50);
       await expect(inTenant(COMPANY_A, `insert into permission values ('x.y', 'x', 'x', 'x', 'access', false, 999)`)).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role_grant')).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role')).rejects.toThrow(/permission denied/);

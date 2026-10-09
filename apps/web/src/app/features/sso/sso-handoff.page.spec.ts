@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ME_FIXTURE, ME_MFA_REQUIRED } from '../../../testing/auth-fixtures';
+import { answerBrandingDefault, EFFECTIVE_BRANDED } from '../../../testing/branding-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import type { Me } from '../../core/auth/auth.models';
 import { Session } from '../../core/auth/session';
@@ -74,6 +75,8 @@ describe('SsoHandoffPage (/sso/:uid)', () => {
 
   afterEach(() => {
     TestBed.inject(LanguageService).use('fr', { remember: false });
+    // A sign-out makes BrandingService read the public default again.
+    answerBrandingDefault(http);
     http.verify();
   });
 
@@ -100,6 +103,20 @@ describe('SsoHandoffPage (/sso/:uid)', () => {
     expect(assign).toHaveBeenCalledWith(RESUME);
     expect(router.url).toBe(`/sso/${UID}`);
     expect(text()).not.toContain(UID); // the page never renders the uid
+  });
+
+  it('branding: the brand line is the app title of the signed-in company, with its logo; built-in title otherwise', async () => {
+    await open({ ...ME_FIXTURE, branding: EFFECTIVE_BRANDED });
+    expect(el()?.querySelector('p.brand')?.textContent).toBe('RH Groupe Démo');
+    expect(el()?.querySelector('img.brand-logo')?.getAttribute('src')).toBe(EFFECTIVE_BRANDED.appLogo?.url);
+    expect(el()?.querySelector('footer')).toBeNull();
+    http.expectOne(`${BASE}/complete`).flush({ redirectTo: RESUME });
+    await settle();
+
+    TestBed.inject(Session).set(ME_FIXTURE);
+    await settle();
+    expect(el()?.querySelector('p.brand')?.textContent).toBe('HRForce');
+    expect(el()?.querySelector('img.brand-logo')).toBeNull();
   });
 
   it('shows the Arabic app name in the Arabic UI', async () => {

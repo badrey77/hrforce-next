@@ -113,3 +113,63 @@ describe('relativeTime', () => {
     }
   });
 });
+
+describe('recruitment notifications (docs/contracts/recruitment.md › Workflow, My tasks, notifications)', () => {
+  const data = { openingId: 'o-1', reference: 'REC-2026-0002', title: "Agent d'accueil", unitName: 'Agence Annaba', unitNameAr: 'وكالة عنابة', posts: 1, actorName: 'Amina Benali' };
+
+  it('an opening task has its own sentence: title, reference and unit (the Arabic unit name in Arabic)', () => {
+    const task = notificationMessage({ type: 'task.assigned', data: { ...data, subjectType: 'recruitment_opening' } }, FORMAT);
+    expect(task.key).toBe('notifications.types.task.assigned_recruitment');
+    expect(task.params).toMatchObject({ title: "Agent d'accueil", reference: 'REC-2026-0002', unitName: 'Agence Annaba' });
+    expect(notificationMessage({ type: 'task.assigned', data: { ...data, subjectType: 'recruitment_opening' } }, { ...FORMAT, arabic: true }).params['unitName']).toBe('وكالة عنابة');
+  });
+
+  it('an escalated opening request is worded the same whoever reads it (it is about a post, not an employee)', () => {
+    const subject = { type: 'recruitment_opening' as const, id: 'o-1' };
+    for (const audience of ['requester', 'approver', null] as const) {
+      expect(notificationKey({ type: 'task.escalated', audience, subject })).toBe('notifications.types.task.escalated_recruitment');
+    }
+  });
+
+  it('every sentence exists in fr, ar and en, names the opening and never an employee', () => {
+    const keys = [
+      'notifications.types.task.assigned_recruitment',
+      'notifications.types.task.escalated_recruitment',
+      notificationKey({ type: 'recruitment.opening_approved' }),
+      notificationKey({ type: 'recruitment.opening_rejected' }),
+    ];
+    expect(keys.slice(2)).toEqual(['notifications.types.recruitment.opening_approved', 'notifications.types.recruitment.opening_rejected']);
+    for (const file of [fr, ar, en]) {
+      for (const key of keys) {
+        expect(at(file, key)).toContain('{{title}}');
+        expect(at(file, key)).toContain('{{reference}}');
+        expect(at(file, key)).not.toContain('employeeName');
+      }
+      for (const key of keys.slice(2)) expect(at(file, key)).toContain('{{actorName}}');
+      expect(typeof at(file, 'notifications.typeLabels.recruitment.opening_approved')).toBe('string');
+      expect(typeof at(file, 'notifications.typeLabels.recruitment.opening_rejected')).toBe('string');
+    }
+  });
+
+  it('interview notifications: date and time, the opening, never a candidate; a changed interview has its own sentence', () => {
+    const interview = { interviewId: 'i-1', openingId: 'o-1', reference: 'REC-2026-0001', title: 'Chargé(e) de clientèle', date: '2026-10-12', time: '10:00', mode: 'on_site', actorName: 'Amina Benali' };
+    const assigned = notificationMessage({ type: 'recruitment.interview_assigned', data: interview }, FORMAT);
+    expect(assigned.key).toBe('notifications.types.recruitment.interview_assigned');
+    expect(assigned.params).toMatchObject({ time: '10:00', reference: 'REC-2026-0001', title: 'Chargé(e) de clientèle' });
+    expect(assigned.params['date']).toBe(FORMAT.date('2026-10-12'));
+    expect(notificationKey({ type: 'recruitment.interview_assigned', data: { ...interview, rescheduled: 1 } })).toBe('notifications.types.recruitment.interview_assigned_rescheduled');
+    const keys = [
+      assigned.key,
+      'notifications.types.recruitment.interview_assigned_rescheduled',
+      notificationKey({ type: 'recruitment.interview_cancelled', data: interview }),
+      notificationKey({ type: 'recruitment.evaluations_complete', data: interview }),
+    ];
+    for (const file of [fr, ar, en]) {
+      for (const key of keys) {
+        for (const placeholder of ['{{date}}', '{{title}}', '{{reference}}']) expect(at(file, key)).toContain(placeholder);
+        expect(at(file, key)).not.toContain('Name}}');
+      }
+      for (const type of ['interview_assigned', 'interview_cancelled', 'evaluations_complete']) expect(typeof at(file, `notifications.typeLabels.recruitment.${type}`)).toBe('string');
+    }
+  });
+});

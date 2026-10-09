@@ -157,10 +157,10 @@ afterAll(async () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('categories', () => {
-  it('GET: the five system categories for anyone signed in (medical one medical, no retention)', async () => {
+  it('GET: the six system categories for anyone signed in (medical one medical, no retention)', async () => {
     const res = await client('agent').get('/api/employee-files/categories').expect(200);
     const items = res.body.items as { code: string; accessClass: string; retentionYearsAfterEnd: number | null; isSystem: boolean; active: boolean; labels: { ar: string } }[];
-    expect(items.map((c) => c.code)).toEqual(['diploma', 'contract', 'id_document', 'medical', 'other']);
+    expect(items.map((c) => c.code)).toEqual(['diploma', 'contract', 'id_document', 'medical', 'other', 'recruitment']);
     expect(items.every((c) => c.isSystem && c.active && c.retentionYearsAfterEnd === null)).toBe(true);
     expect(items.filter((c) => c.accessClass === 'medical').map((c) => c.code)).toEqual(['medical']);
     expect(items.find((c) => c.code === 'medical')?.labels.ar).toBe('طبي');
@@ -171,7 +171,7 @@ describe('categories', () => {
       .post('/api/employee-files/categories')
       .send({ code: 'training', labels: { fr: 'Formations', ar: 'التكوين', en: 'Training' }, retentionYearsAfterEnd: 5 })
       .expect(201);
-    expect(created.body).toMatchObject({ code: 'training', accessClass: 'standard', isSystem: false, retentionYearsAfterEnd: 5, active: true, sortOrder: 60 });
+    expect(created.body).toMatchObject({ code: 'training', accessClass: 'standard', isSystem: false, retentionYearsAfterEnd: 5, active: true, sortOrder: 70 });
     const taken = await client('admin').post('/api/employee-files/categories').send({ code: 'training', labels: { fr: 'x', ar: 'س', en: 'x' } }).expect(409);
     expect(taken.body).toMatchObject({ type: PROBLEM('category-code-taken'), errors: [{ field: 'code' }] });
     const bad = await client('admin').post('/api/employee-files/categories').send({ code: 'Bad Code', labels: { fr: 'x', ar: 'س', en: 'x' }, retentionYearsAfterEnd: 0 }).expect(422);

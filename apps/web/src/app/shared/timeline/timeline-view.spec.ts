@@ -96,6 +96,14 @@ describe('buildTimeline (pure view model)', () => {
     expect(eventSentenceKey('attendance.punch_recorded', { source: 'manual', direction: 'in' })).toBe('audit.events.attendance.punch_recorded.manual_in');
     expect(eventSentenceKey('attendance.punch_voided', { source: 'qr' })).toBe('audit.events.attendance.punch_voided.qr');
     expect(eventSentenceKey('attendance.purged', { punches: 3 })).toBe('audit.events.attendance.purged');
+    // Recruitment: a stage change is worded by its destination, or by its automatic cause.
+    expect(eventSentenceKey('recruitment.stage_changed', { from: 'received', to: 'interview', reasonCode: null, autoCause: null })).toBe(
+      'audit.events.recruitment.stage_changed.interview',
+    );
+    expect(eventSentenceKey('recruitment.stage_changed', { from: 'interview', to: 'rejected', reasonCode: 'opening_closed', autoCause: 'opening_closed' })).toBe(
+      'audit.events.recruitment.stage_changed.auto_opening_closed',
+    );
+    expect(eventSentenceKey('recruitment.note_added', {})).toBe('audit.events.recruitment.note_added');
   });
 
   it('correction item events number the changes from 1 (the event carries the 0-based position)', () => {

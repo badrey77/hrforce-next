@@ -733,3 +733,13 @@ the worker with `command: ["node", "dist/worker.js"]` (compose overrides the hea
 (as `MIGRATOR_DATABASE_URL`) creates the company, root unit + site, system roles, leave defaults and workflows, and the
 first admin (invited, setup link mailed) with `admin_rh_central` on the whole company. Refuses an existing company code.
 Logic in `src/scripts/bootstrap-company.ts`, tested in `test/bootstrap.e2e-spec.ts`.
+The first company created also owns the installation branding (the default shown on the sign-in page).
+
+## Branding: the owning company (`branding:owner`)
+
+`npm run branding:owner -w @hrforce/api -- --company <code>` (as `MIGRATOR_DATABASE_URL`; in the deploy pack
+`docker compose run --rm migrate node dist/scripts/branding-owner.js --company <code>`) creates the single
+`installation_branding` row for that company or moves the existing row to it, keeping its content, and logs the
+previous and the new owner. Only the central admins of the owning company can edit the installation default
+(docs/contracts/branding.md); the app role can neither create the row nor move it. Unknown code → exit code 1.
+Logic in `src/modules/branding/infra/branding-seed.ts` (`moveBrandingOwner`), tested in `test/branding.e2e-spec.ts`.

@@ -178,10 +178,36 @@ export const routes: Routes = [
     loadChildren: () => import('./features/attendance/attendance.routes').then((m) => m.ATTENDANCE_ROUTES),
   },
   {
-    // Personal settings (for now: email notification preferences).
+    // The hire of a candidate IS the create-employee form (or the rehire form) in hire mode, so its page lives with
+    // the Employees feature. It needs both permissions; refused, the URL falls through to "not found" below.
+    path: 'recruitment/applications/:id/hire',
+    canMatch: [...signedIn, permissionGuard('recruitment.hire'), permissionGuard('employee.create')],
+    loadComponent: () => import('./features/employees/employee-hire.page').then((m) => m.EmployeeHirePage),
+  },
+  {
+    // Mes entretiens: an interviewer needs no permission (the API decides which interviews are theirs).
+    path: 'me/interviews',
+    canMatch: signedIn,
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_INTERVIEWS_ROUTES),
+  },
+  {
+    path: 'recruitment',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['recruitment.read', 'recruitment.configure'] },
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.RECRUITMENT_ROUTES),
+  },
+  {
+    // The requester's / unit head's view: no permission (the API decides what the caller may see).
+    path: 'me/recruitment',
+    canMatch: signedIn,
+    loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_RECRUITMENT_ROUTES),
+  },
+  {
+    // Settings: notification preferences for everyone; the branding section checks `settings.branding` on its own
+    // child (features/settings/settings.routes.ts, docs/contracts/branding.md).
     path: 'settings',
     canMatch: signedIn,
-    loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage),
+    loadChildren: () => import('./features/settings/settings.routes').then((m) => m.SETTINGS_ROUTES),
   },
   NOT_FOUND_ROUTE,
 ];

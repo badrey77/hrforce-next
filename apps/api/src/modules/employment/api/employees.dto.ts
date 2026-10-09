@@ -85,10 +85,10 @@ export class ListEmployeesQueryDto extends createZodDto(
  * POST /employees. Person fields are flat (so the 409 fields `nin` / `matricule` / `personId` match the body); the
  * sensitive blocks are nested like in the detail (`salary`, `bank`, `nss`), which is what `forbidden-field` names.
  * With `personId` (rehire) the person fields must be omitted; otherwise lastName and firstName are required.
+ * The shape and its rule are exported: the hire of a recruited candidate takes the SAME body (plus two fields of its
+ * own — docs/contracts/recruitment.md › Hire).
  */
-export class CreateEmployeeDto extends createZodDto(
-  z
-    .object({
+export const createEmployeeShape = {
       personId: uuid.optional(),
       lastName: requiredName.optional(),
       firstName: requiredName.optional(),
@@ -111,18 +111,21 @@ export class CreateEmployeeDto extends createZodDto(
       salary: salaryBlock.optional(),
       bank: bankBlock.optional(),
       nss: nssBlock.optional(),
-    })
-    .superRefine((body, ctx) => {
-      if (body.personId !== undefined) {
-        for (const field of PERSON_FIELDS) {
-          if (body[field] !== undefined) ctx.addIssue({ code: 'custom', path: [field], message: 'Not allowed together with personId (rehire)' });
-        }
-        return;
-      }
-      if (body.lastName === undefined) ctx.addIssue({ code: 'custom', path: ['lastName'], message: 'Required' });
-      if (body.firstName === undefined) ctx.addIssue({ code: 'custom', path: ['firstName'], message: 'Required' });
-    }),
-) {}
+};
+
+/** With `personId` (rehire) no person field is accepted; without it lastName and firstName are required. */
+export function refineCreateEmployee(body: Partial<Record<(typeof PERSON_FIELDS)[number] | 'personId', unknown>>, ctx: z.RefinementCtx): void {
+  if (body.personId !== undefined) {
+    for (const field of PERSON_FIELDS) {
+      if (body[field] !== undefined) ctx.addIssue({ code: 'custom', path: [field], message: 'Not allowed together with personId (rehire)' });
+    }
+    return;
+  }
+  if (body.lastName === undefined) ctx.addIssue({ code: 'custom', path: ['lastName'], message: 'Required' });
+  if (body.firstName === undefined) ctx.addIssue({ code: 'custom', path: ['firstName'], message: 'Required' });
+}
+
+export class CreateEmployeeDto extends createZodDto(z.object(createEmployeeShape).superRefine(refineCreateEmployee)) {}
 
 export class UpdatePersonDto extends createZodDto(
   z

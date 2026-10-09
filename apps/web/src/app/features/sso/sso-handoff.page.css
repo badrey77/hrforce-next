@@ -20,6 +20,16 @@
   background: var(--color-surface);
 }
 
+.brand-logo {
+  display: block;
+  inline-size: auto;
+  block-size: auto;
+  max-block-size: 4.5rem;
+  max-inline-size: min(16rem, 100%);
+  margin-block-end: var(--space-3);
+  object-fit: contain;
+}
+
 .brand {
   margin: 0 0 var(--space-2);
   color: var(--color-primary);

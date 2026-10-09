@@ -38,6 +38,7 @@
 import { Injectable, type Signal, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { AuthApi } from './auth-api';
+import type { EffectiveBranding } from '../branding/branding.models';
 import type { Me, MeMfa, PermissionScopes, SessionCompany, SessionUser } from './auth.models';
 
 @Injectable({ providedIn: 'root' })
@@ -69,6 +70,9 @@ export class Session {
     const mfa = this.mfa();
     return mfa !== null && mfa.required && !mfa.enabled;
   });
+
+  /** `/me.branding` as received (`null` when signed out or sent by an older API); read through `BrandingService`. */
+  readonly branding = computed<EffectiveBranding | null>(() => this.me()?.branding ?? null);
 
   /** Does the user hold `code` anywhere? Reads a signal: reactive when called from a template or a computed. */
   can(code: string): boolean {

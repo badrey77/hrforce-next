@@ -24,11 +24,12 @@
  * - **Navigation after a write**: `router.navigate(['/employees', created.id])` — segments, so the id is encoded.
  * - `<app-field-error>` (field-error.ts) renders each field's message from the control's `events`.
  */
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, type OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { type FormGroup, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import type { Observable } from 'rxjs';
 import { Session } from '../../core/auth/session';
 import { todayIso } from '../../core/date/iso-date';
 import { EmployeesApi } from '../../core/employees/employees-api';
@@ -57,6 +58,7 @@ import {
   notBlank,
 } from './employee-forms';
 import { FieldError } from './field-error';
+import { asHireMode } from './hire-mode';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 /** Blank → null (optional text fields). */
@@ -71,11 +73,19 @@ function orNull(value: string): string | null {
   templateUrl: './employee-create.page.html',
   styleUrl: './employees.css',
 })
-export class EmployeeCreatePage {
+export class EmployeeCreatePage implements OnInit {
   private readonly api = inject(EmployeesApi);
   private readonly router = inject(Router);
   private readonly session = inject(Session);
   private readonly fb = inject(NonNullableFormBuilder);
+
+  /**
+   * Set by the hire page of a recruitment (employee-hire.page.ts): the same form, prefilled from the candidate and
+   * sent to the hire endpoint. Absent on /employees/new. (The router may bind a query parameter of the same name: only
+   * a real hire mode is taken.)
+   */
+  readonly hireMode = input<unknown>();
+  protected readonly hire = computed(() => asHireMode(this.hireMode()));
 
   protected readonly form = this.fb.group(
     {
@@ -137,6 +147,28 @@ export class EmployeeCreatePage {
     });
   }
 
+  ngOnInit(): void {
+    const prefill = this.hire()?.prefill;
+    if (!prefill) return;
+    const p = prefill.person;
+    this.form.patchValue({
+      identity: {
+        lastName: p.lastName,
+        firstName: p.firstName,
+        lastNameAr: p.lastNameAr ?? '',
+        firstNameAr: p.firstNameAr ?? '',
+        birthDate: p.birthDate ?? '',
+        birthPlace: p.birthPlace ?? '',
+        sex: p.sex ?? null,
+        nationality: p.nationality ?? 'DZ',
+        nin: p.nin ?? '',
+      },
+      employment: { hireDate: prefill.hireDate },
+      assignment: { orgUnitId: prefill.orgUnitId, siteId: prefill.siteId, jobTitle: prefill.jobTitle },
+      salary: { baseSalary: prefill.salary?.baseSalary ?? '' },
+    });
+  }
+
   /** `(blur)` of the matricule input: show the value as it will be saved (employee-forms.ts › `matricule`). */
   protected normaliseMatricule(): void {
     normaliseMatriculeControl(this.form.controls.employment.controls.matricule);
@@ -151,13 +183,16 @@ export class EmployeeCreatePage {
       return;
     }
     this.submitting.set(true);
-    this.api.create(this.body()).subscribe({
+    const hire = this.hire();
+    const request$: Observable<{ readonly id: string }> = hire ? hire.submit(this.body()) : this.api.create(this.body());
+    request$.subscribe({
       next: (created) => {
         this.submitting.set(false);
         void this.router.navigate(['/employees', created.id]);
       },
       error: (error: unknown) => {
-        this.formError.set(employeeProblemToForm(this.form, error, CREATE_SLUGS, CREATE_FIELD_PATHS));
+        // The recruitment's own refusals are shown by the hire page; everything else is an employee problem.
+        this.formError.set(hire?.failed(error) ? null : employeeProblemToForm(this.form, error, CREATE_SLUGS, CREATE_FIELD_PATHS));
         this.submitting.set(false);
       },
     });

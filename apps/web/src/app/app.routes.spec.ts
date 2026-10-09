@@ -56,6 +56,10 @@ describe('app routes: refused URLs show the 404 page', () => {
     '/attendance/corrections/c-1',
     '/attendance/reports',
     '/me/attendance',
+    '/recruitment',
+    '/recruitment/applications/a-1/hire',
+    '/settings/branding',
+    '/settings/nope',
   ])('%s without its permission', async (url) => {
     const harness = await open(ME_LECTURE, url);
 
@@ -79,6 +83,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/access/roles', ['sso.read']],
     ['/access/apps', ['access.read']],
     ['/access/apps/new', ['sso.read']],
+    // Branding is for `settings.branding` only: neither access admins nor letterhead managers get the page.
+    ['/settings/branding', ['access.manage_roles', 'access.grant', 'document.configure']],
   ])('%s with only %j', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 
@@ -96,6 +102,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/me/team', []],
     ['/access/apps', ['sso.read']],
     ['/access/apps/new', ['sso.read', 'sso.manage_apps']],
+    ['/settings', []],
+    ['/settings/branding', ['settings.branding']],
   ])('%s with %j opens the page', async (url, permissions) => {
     const harness = await open(meWith(permissions), url);
 

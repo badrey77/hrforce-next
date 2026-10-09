@@ -1,0 +1,46 @@
+.criterion {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.criterion.missing {
+  border-color: var(--color-danger);
+}
+
+.scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Each choice is a label wrapping its radio: the whole box is the touch target (44 px). */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 2.75rem;
+  min-inline-size: 2.75rem;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.choice:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-alt);
+  font-weight: 600;
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.choice:has(input:disabled) {
+  cursor: default;
+  opacity: 0.7;
+}

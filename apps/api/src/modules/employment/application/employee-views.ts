@@ -22,6 +22,18 @@ export interface SiteRef {
   name: string;
 }
 
+/**
+ * A person the company already knows (a former or current employee), as other modules may show it
+ * (docs/contracts/recruitment.md › KnownPersonView): returned only to a caller who can read the latest employment.
+ */
+export interface KnownPerson {
+  personId: string;
+  person: NamePair;
+  /** an employment without an end date exists (the person cannot be hired again before it ends) */
+  hasOpenEmployment: boolean;
+  latestEmployment: { id: string; matricule: string; hireDate: string; endDate: string | null; unit: UnitRef };
+}
+
 export interface EmployeeListItem {
   id: string;
   matricule: string;

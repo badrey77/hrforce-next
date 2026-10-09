@@ -5,5 +5,6 @@
   { "route": "POST /api/me/mfa/enroll/confirm", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* — enrollment is the way out of mfa-enrollment-required." },
   { "route": "POST /api/me/mfa/recovery-codes", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* (needs an active factor anyway)." },
   { "route": "POST /api/me/mfa/disable", "reason": "docs/contracts/mfa.md › Enforcement: /me/mfa* (needs an active factor anyway; refused when required)." },
-  { "route": "GET /api/me/notifications/unread-count", "reason": "docs/contracts/mfa.md › Enforcement: the shell's bell polls it on every page, the enrollment page included; a count reveals nothing." }
+  { "route": "GET /api/me/notifications/unread-count", "reason": "docs/contracts/mfa.md › Enforcement: the shell's bell polls it on every page, the enrollment page included; a count reveals nothing." },
+  { "route": "GET /api/branding/logos/:kind/:digest", "reason": "docs/contracts/branding.md › GET /me: the shell shows the company's logos on every page, the two-step enrolment page included; a logo is not secret inside its company and the route only answers for the current image's digest." }
 ]

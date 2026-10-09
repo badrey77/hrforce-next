@@ -19,7 +19,10 @@ export type AuditSubjectType =
   | 'employee_file'
   | 'attendance_device'
   | 'attendance_correction'
-  | 'sso_client';
+  | 'sso_client'
+  | 'recruitment_opening'
+  | 'recruitment_candidate'
+  | 'recruitment_application';
 
 export interface AuditEventInput {
   /** `<area>.<event>`, e.g. `auth.login`, `access.grant_created` */

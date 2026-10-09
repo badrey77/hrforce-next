@@ -7,12 +7,17 @@ import type { ActivatedRouteSnapshot } from '@angular/router';
 import { App, chromeOf } from './app';
 import { Session } from './core/auth/session';
 import { MyEmployment } from './core/leave/my-employment';
+import { MyRecruitment } from './core/recruitment/my-recruitment';
 import { NotificationCenter } from './core/notifications/notification-center';
 import { TasksBadge } from './core/tasks/tasks-badge';
 import type { OpenTask } from './core/tasks/tasks.models';
 import { LanguageService } from './core/i18n/language.service';
 import { ME_FIXTURE, ME_LECTURE, meWith } from '../testing/auth-fixtures';
+import { BRANDING_DEFAULT_URL, EFFECTIVE_BRANDED, MARKUP, PUBLIC_BRANDED, PUBLIC_UNSET } from '../testing/branding-fixtures';
 import { translocoTesting } from '../testing/transloco-testing';
+import type { Me } from './core/auth/auth.models';
+import type { EffectiveBranding, PublicBranding } from './core/branding/branding.models';
+import { BrandingService } from './core/branding/branding.service';
 
 const route = (data: object, firstChild: unknown = null) => ({ data, firstChild }) as unknown as ActivatedRouteSnapshot;
 const links = (el: HTMLElement) => [...el.querySelectorAll('nav a')].map((a) => a.getAttribute('href'));
@@ -24,6 +29,10 @@ interface Answers {
   employment?: object | null;
   /** Unread notifications (`GET /api/me/notifications/unread-count`). */
   unread?: number;
+  /** `GET /api/me/recruitment/summary` (zeros and `false` when absent: a user with nothing). */
+  /** `GET /api/branding/default`, read again after a sign-out (nothing set when absent). */
+  branding?: PublicBranding;
+  recruitment?: { canRequestOpening: boolean; openings: number; pendingOpenings: number; interviews?: number; evaluationsTodo?: number };
 }
 let answers: Answers = {};
 
@@ -42,6 +51,8 @@ async function settle(fixture: ComponentFixture<App>): Promise<void> {
       else if (req.request.url === '/api/documents/types') req.flush({ items: [] });
       else if (req.request.url === '/api/me/notifications') req.flush({ items: [], nextCursor: null });
       else if (req.request.url === '/api/me/notifications/unread-count') req.flush({ count: answers.unread ?? 0 });
+      else if (req.request.url === BRANDING_DEFAULT_URL) req.flush(answers.branding ?? PUBLIC_UNSET);
+      else if (req.request.url === '/api/me/recruitment/summary') req.flush(answers.recruitment ?? { canRequestOpening: false, openings: 0, pendingOpenings: 0 });
       else if (req.request.url === '/api/me/employment') {
         if (answers.employment) req.flush(answers.employment);
         else req.flush({ type: 'about:blank', title: 'Not found', status: 404 }, { status: 404, statusText: 'Not Found' });
@@ -76,6 +87,8 @@ function task(id: string): OpenTask {
     },
   };
 }
+
+const branded = (branding: Partial<EffectiveBranding>): Me => ({ ...ME_FIXTURE, branding: { ...EFFECTIVE_BRANDED, ...branding } });
 
 describe('App shell', () => {
   beforeEach(async () => {
@@ -136,6 +149,39 @@ describe('App shell', () => {
     expect(el.querySelector('app-user-menu .name')?.textContent?.trim()).toBe('Amina Benali');
     expect(el.querySelector('app-user-menu .company')?.textContent?.trim()).toBe('Groupe Démo');
     expect(el.querySelector('app-user-menu button')?.textContent?.trim()).toBe('Se déconnecter');
+  });
+
+  it('side menu: an icon on every link; the header button hides and shows it and the choice is remembered', async () => {
+    TestBed.inject(Session).set(ME_FIXTURE);
+    const { fixture, el } = await render();
+    const nav = el.querySelector('#sidenav') as HTMLElement;
+    const toggle = el.querySelector('[data-action="toggle-nav"]') as HTMLButtonElement;
+
+    const navLinks = [...nav.querySelectorAll('a')];
+    expect(navLinks.length).toBeGreaterThan(0);
+    expect(navLinks.every((a) => a.querySelector('app-nav-icon svg[aria-hidden="true"] path'))).toBe(true);
+    expect(nav.hidden).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.getAttribute('aria-controls')).toBe('sidenav');
+
+    toggle.click();
+    await settle(fixture);
+    expect(nav.hidden).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(localStorage.getItem('hrforce.nav')).toBe('closed');
+
+    toggle.click();
+    await settle(fixture);
+    expect(nav.hidden).toBe(false);
+    expect(localStorage.getItem('hrforce.nav')).toBe('open');
+  });
+
+  it('side menu: starts hidden when the device remembers it closed', async () => {
+    localStorage.setItem('hrforce.nav', 'closed');
+    TestBed.inject(Session).set(ME_FIXTURE);
+    const { el } = await render();
+    expect((el.querySelector('#sidenav') as HTMLElement).hidden).toBe(true);
+    expect(el.querySelector('[data-action="toggle-nav"]')?.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('signs out: POST logout, session cleared, nav hidden, /login', async () => {
@@ -228,6 +274,69 @@ describe('App shell', () => {
     });
   });
 
+  describe('recruitment nav (docs/contracts/recruitment.md › Web › Nav)', () => {
+    it('shows « Recrutement » with recruitment.read, and the settings entry to a configure-only holder', async () => {
+      TestBed.inject(Session).set(meWith(['recruitment.read', 'recruitment.configure']));
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/tasks', '/recruitment', '/settings']);
+      expect(el.querySelector('nav a[href="/recruitment"]')?.textContent?.trim()).toBe('Recrutement');
+
+      TestBed.inject(Session).set(meWith(['recruitment.configure']));
+      await settle(fixture);
+      expect(links(el)).toEqual(['/', '/tasks', '/recruitment/settings', '/settings']);
+    });
+
+    it('shows « Mes recrutements » to a head or a requester without recruitment.read — never to HR, never to a user with nothing', async () => {
+      // A user with nothing: the summary says so.
+      TestBed.inject(Session).set(meWith([]));
+      const nothing = await render();
+      expect(links(nothing.el)).not.toContain('/me/recruitment');
+
+      // A unit head (no permission at all): may request.
+      answers = { recruitment: { canRequestOpening: true, openings: 0, pendingOpenings: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toEqual(['/', '/tasks', '/me/recruitment', '/settings']);
+      expect(nothing.el.querySelector('nav a[href="/me/recruitment"]')?.textContent?.trim()).toBe('Mes recrutements');
+
+      // A former head who still has a request: openings > 0 is enough.
+      answers = { recruitment: { canRequestOpening: false, openings: 1, pendingOpenings: 1 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toContain('/me/recruitment');
+
+      // HR uses « Recrutement ».
+      TestBed.inject(Session).set(meWith(['recruitment.read']));
+      await settle(nothing.fixture);
+      expect(links(nothing.el)).toEqual(['/', '/tasks', '/recruitment', '/settings']);
+    });
+  });
+
+  describe('« Mes entretiens » nav (docs/contracts/recruitment.md › Web (Phase B))', () => {
+    it('shows to an interviewer without any permission, with the evaluations to enter as a badge; gone when they have none', async () => {
+      TestBed.inject(Session).set(meWith([]));
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 1 } };
+      const { fixture, el } = await render();
+      expect(links(el)).toEqual(['/', '/tasks', '/me/interviews', '/settings']);
+      const link = el.querySelector('nav a[href="/me/interviews"]');
+      expect(link?.textContent).toContain('Mes entretiens');
+      expect(link?.querySelector('[data-badge="interviews"]')?.textContent?.trim()).toBe('1');
+      expect(link?.getAttribute('aria-label')).toBe('Mes entretiens, 1 évaluation(s) à saisir');
+
+      // Everything evaluated: the entry stays (the interviews are still theirs), without a badge.
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(fixture);
+      expect(el.querySelector('nav a[href="/me/interviews"] [data-badge]')).toBeNull();
+      expect(el.querySelector('nav a[href="/me/interviews"]')?.getAttribute('aria-label')).toBeNull();
+
+      answers = { recruitment: { canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 } };
+      TestBed.inject(MyRecruitment).reload();
+      await settle(fixture);
+      expect(links(el)).not.toContain('/me/interviews');
+    });
+  });
+
   describe('documents nav (docs/contracts/documents.md › Web › Nav)', () => {
     it('shows Documents with document.read, and My documents with document.request_self AND a linked employment', async () => {
       answers = { employment: { id: 'e-1', matricule: 'EMP-1' } };
@@ -274,6 +383,102 @@ describe('App shell', () => {
       await TestBed.inject(Router).navigateByUrl('/');
       await settle(fixture);
       expect(el.querySelector('[data-badge="tasks"]')?.textContent?.trim()).toBe('1');
+    });
+  });
+
+  describe('branding (docs/contracts/branding.md › Where branding shows)', () => {
+    afterEach(() => {
+      document.documentElement.removeAttribute('data-brand');
+      document.title = '';
+    });
+
+    it('header: the logo on its chip, then the title as the link text; data-brand and the tab title follow', async () => {
+      TestBed.inject(Session).set(branded({}));
+      const { el } = await render();
+
+      const brand = el.querySelector('header a.brand') as HTMLAnchorElement;
+      const logo = brand.querySelector('.brand-logo img') as HTMLImageElement;
+      expect(logo.getAttribute('src')).toBe(EFFECTIVE_BRANDED.appLogo?.url);
+      expect(logo.getAttribute('width')).toBe('200');
+      expect(logo.getAttribute('height')).toBe('50');
+      // The title text is next to it and names the link: the image is decorative.
+      expect(logo.getAttribute('alt')).toBe('');
+      expect(brand.classList.contains('has-logo')).toBe(true);
+      expect(brand.textContent?.trim()).toBe('RH Groupe Démo');
+      expect(brand.querySelector('.brand-title')?.getAttribute('dir')).toBe('auto');
+      expect(document.documentElement.getAttribute('data-brand')).toBe('plum');
+      expect(document.title).toBe('RH Groupe Démo');
+    });
+
+    it('header without a logo: the title alone; nothing set: the built-in title', async () => {
+      TestBed.inject(Session).set(branded({ appLogo: null }));
+      const first = await render();
+      expect(first.el.querySelector('header a.brand img')).toBeNull();
+      expect(first.el.querySelector('header a.brand')?.classList.contains('has-logo')).toBe(false);
+      expect(first.el.querySelector('header a.brand')?.textContent?.trim()).toBe('RH Groupe Démo');
+
+      TestBed.inject(Session).set(ME_FIXTURE);
+      await settle(first.fixture);
+      expect(first.el.querySelector('header a.brand')?.textContent?.trim()).toBe('HRForce');
+      expect(document.documentElement.getAttribute('data-brand')).toBe('blue');
+    });
+
+    it('footer: shown with its text, absent when none is set, and gone with the chrome (kiosk)', async () => {
+      TestBed.inject(Session).set(branded({}));
+      const { fixture, el } = await render();
+      const footer = el.querySelector('footer.app-footer') as HTMLElement;
+      expect(footer.textContent?.trim()).toBe('Groupe Démo — assistance : support@demo.dz');
+      expect(footer.getAttribute('dir')).toBe('auto');
+      // An address in the footer stays text: no link is made of it.
+      expect(footer.querySelector('a')).toBeNull();
+
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'kiosk', data: { chrome: false }, children: [] }]);
+      await router.navigateByUrl('/kiosk');
+      await settle(fixture);
+      expect(el.querySelector('header')).toBeNull();
+      expect(el.querySelector('footer.app-footer')).toBeNull();
+
+      TestBed.inject(Session).set(branded({ footer: { fr: null, ar: null, en: null } }));
+      await router.navigateByUrl('/');
+      await settle(fixture);
+      expect(el.querySelector('header')).not.toBeNull();
+      expect(el.querySelector('footer.app-footer')).toBeNull();
+    });
+
+    it('a text in another language than the UI is marked with its language', async () => {
+      TestBed.inject(Session).set(branded({}));
+      const { fixture, el } = await render();
+      expect(el.querySelector('footer.app-footer')?.getAttribute('lang')).toBeNull();
+
+      TestBed.inject(LanguageService).use('ar', { remember: false });
+      await settle(fixture);
+      expect(el.querySelector('header a.brand')?.textContent?.trim()).toBe('الموارد البشرية');
+      expect(el.querySelector('header .brand-title')?.getAttribute('lang')).toBeNull();
+      // No Arabic footer was entered: the French one, announced as French.
+      expect(el.querySelector('footer.app-footer')?.getAttribute('lang')).toBe('fr');
+      TestBed.inject(LanguageService).use('fr', { remember: false });
+    });
+
+    it('markup in the title and the footer stays text', async () => {
+      const text = { fr: MARKUP, ar: null, en: null };
+      TestBed.inject(Session).set(branded({ appTitle: text, footer: text }));
+      const { el } = await render();
+      expect(el.querySelector('header .brand-title')?.textContent).toBe(MARKUP);
+      expect(el.querySelector('footer.app-footer')?.textContent).toBe(MARKUP);
+      expect(el.querySelector('img[src="x"]')).toBeNull();
+      expect(el.querySelector('script')).toBeNull();
+      expect(document.title).toBe(MARKUP);
+    });
+
+    it('signed out: the installation default read at start-up (title, logo, footer)', async () => {
+      answers = { branding: PUBLIC_BRANDED };
+      void TestBed.inject(BrandingService).init();
+      const { el } = await render();
+      expect(el.querySelector('header a.brand')?.textContent?.trim()).toBe('Portail RH');
+      expect(el.querySelector('header a.brand img')?.getAttribute('src')).toBe(PUBLIC_BRANDED.appLogo?.url);
+      expect(el.querySelector('footer.app-footer')?.textContent?.trim()).toBe('Groupe Démo — assistance : support@demo.dz');
+      expect(document.documentElement.getAttribute('data-brand')).toBe('teal');
     });
   });
 });

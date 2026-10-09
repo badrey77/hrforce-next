@@ -30,7 +30,7 @@ import {
   type PersonPatch,
   type PersonRow,
 } from '../infra/employee.repository.js';
-import type { AssignmentView, EmployeeDetail, EmployeeListItem, EmployeeListView, SiteRef, UnitRef } from './employee-views.js';
+import type { AssignmentView, EmployeeDetail, EmployeeListItem, EmployeeListView, KnownPerson, SiteRef, UnitRef } from './employee-views.js';
 import { EmploymentClock } from './employment-clock.js';
 import { UnitSnapshots } from './unit-snapshots.js';
 
@@ -324,6 +324,59 @@ export class EmployeesService {
     const loaded = await this.loadForWrite(id, P.nssUpdate);
     await this.repo.upsertSensitive(loaded.companyId, loaded.employment.personId, { nss: input.nss });
     return this.detail(loaded);
+  }
+
+  // ── known persons (docs/contracts/recruitment.md › Module boundaries) ───────────────────────────────────────────
+
+  /**
+   * A person of the company named by id or by NIN, with their latest employment — ONLY when the caller can read that
+   * employment with employee.read (the rehire visibility rule, see {@link rehirePerson}); else null: other people's
+   * records stay invisible. A person without any employment is not "known" (null). Read-only.
+   */
+  async knownPerson(ref: { personId: string } | { nin: string }): Promise<KnownPerson | null> {
+    const [found] = await this.knownPersons([ref]);
+    return found ?? null;
+  }
+
+  /** {@link knownPerson} for several references at once (same order; one NIN lookup for all of them). */
+  async knownPersons(refs: readonly ({ personId: string } | { nin: string })[]): Promise<(KnownPerson | null)[]> {
+    if (refs.length === 0) return [];
+    const companyId = tenant();
+    const today = this.clock.today();
+    const byNin = await this.repo.personIdsByNin(companyId, [...new Set(refs.flatMap((r) => ('nin' in r ? [r.nin] : [])))]);
+    const personIds = refs.map((r) => ('personId' in r ? r.personId : (byNin.get(r.nin) ?? null)));
+    const resolved = new Map<string, KnownPerson | null>();
+    let snapshots: UnitSnapshots | undefined;
+    for (const personId of new Set(personIds.filter((id): id is string => id !== null))) {
+      const person = await this.repo.findPerson(companyId, personId);
+      const employments = person ? await this.repo.employmentsOf(companyId, personId) : [];
+      const latest = employments[0];
+      const unitId = latest ? scopeAssignment(await this.repo.listAssignments(companyId, latest.id), today)?.orgUnitId : undefined;
+      if (!person || !latest || !unitId || !(await this.scopes.inScope(P.read, unitId))) {
+        resolved.set(personId, null);
+        continue;
+      }
+      snapshots ??= new UnitSnapshots(await this.repo.unitVersions(companyId));
+      resolved.set(personId, {
+        personId,
+        person: { lastName: person.lastName, firstName: person.firstName, lastNameAr: person.lastNameAr, firstNameAr: person.firstNameAr },
+        hasOpenEmployment: hasOpenEmployment(employments),
+        latestEmployment: { id: latest.id, matricule: latest.matricule, hireDate: latest.hireDate, endDate: latest.endDate, unit: unitRef(unitId, snapshots.at(today).get(unitId)) },
+      });
+    }
+    return personIds.map((id) => (id ? (resolved.get(id) ?? null) : null));
+  }
+
+  /**
+   * The id and matricule of an employment when the caller can read it with employee.read, else null (the link from a
+   * hired application to its employee: docs/contracts/recruitment.md › Phase B). Read-only.
+   */
+  async visibleEmployment(id: string): Promise<{ id: string; matricule: string } | null> {
+    const companyId = tenant();
+    const employment = await this.repo.findEmployment(companyId, id);
+    if (!employment) return null;
+    const unitId = scopeAssignment(await this.repo.listAssignments(companyId, id), this.clock.today())?.orgUnitId;
+    return unitId && (await this.scopes.inScope(P.read, unitId)) ? { id: employment.id, matricule: employment.matricule } : null;
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────────────────────

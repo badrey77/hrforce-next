@@ -1,0 +1,128 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/me/interviews">{{ t('recruitment.myInterviews.back') }}</a></p>
+  @if (interview.hasValue()) {
+    @let i = interview.value();
+    <header class="page-header">
+      <h1><bdi>{{ i.candidate | displayName: lang() }}</bdi></h1>
+    </header>
+
+    <section class="panel" aria-labelledby="my-interview-facts" data-section="interview">
+      <h2 id="my-interview-facts">{{ i.label || t('recruitment.myInterviews.interview') }}</h2>
+      <dl class="facts" data-panel="interview">
+        <dt>{{ t('recruitment.fields.opening') }}</dt>
+        <dd><bdi>{{ i.opening.title }}</bdi>&ngsp;<span class="code muted nowrap" dir="ltr">{{ i.opening.reference }}</span> — <bdi>{{ i.opening.unit | displayName: lang() }}</bdi></dd>
+        <dt>{{ t('recruitment.interviews.date') }}</dt>
+        <dd data-field="when">{{ i.date | date: 'fullDate' : undefined : locale() }}, <span dir="ltr">{{ i.time }}</span> ({{ t('recruitment.interviews.minutes', { count: i.durationMinutes }) }})</dd>
+        <dt>{{ t('recruitment.interviews.mode') }}</dt>
+        <dd>{{ t('recruitment.interviews.modes.' + i.mode) }}</dd>
+        @if (i.location) {
+          <dt>{{ t('recruitment.interviews.location') }}</dt>
+          <dd><bdi>{{ i.location }}</bdi></dd>
+        }
+      </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="my-interview-files" data-section="files">
+      <h2 id="my-interview-files">{{ t('recruitment.files.title') }}</h2>
+      @if (i.files.length) {
+        <ul class="inline-actions">
+          @for (f of i.files; track f.id) {
+            <li>
+              <button class="btn secondary" type="button" data-action="download-file" [disabled]="downloading() !== null"
+                [attr.aria-label]="t('documents.file.downloadNamed', { title: f.title })" (click)="download(i, f)">
+                {{ t('recruitment.fileKind.' + f.kind) }} ({{ badge(f.mime) }})
+              </button>
+              @if (fileError()?.id === f.id) {
+                <span class="form-error" role="alert" data-error="file">{{ t(fileError()?.key ?? 'documents.file.downloadError') }}</span>
+              }
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">{{ t('recruitment.files.empty') }}</p>
+      }
+    </section>
+
+    <section aria-labelledby="my-evaluation-title" data-section="evaluation">
+      <h2 id="my-evaluation-title">{{ t('recruitment.evaluation.title') }}</h2>
+      @if (i.evaluation.submittedAt; as at) {
+        <p class="feedback" role="status" data-state="submitted">
+          {{ t(saved() ? 'recruitment.evaluation.saved' : 'recruitment.evaluation.submittedOn', { date: (at | date: 'medium' : undefined : locale()) }) }}
+          @if (i.evaluation.overall !== null) {
+            <strong data-field="overall">{{ t('recruitment.interviews.average', { value: (i.evaluation.overall | number: '1.1-1' : locale()) }) }}</strong>
+          }
+        </p>
+      }
+      @if (lockedKey(); as key) {
+        <p class="warning" data-state="locked">{{ t(key) }}</p>
+      } @else if (i.evaluation.submittedAt) {
+        <p class="field-hint">{{ t('recruitment.evaluation.canChange') }}</p>
+      }
+
+      @let locked = lockedKey() !== null;
+      @let c = form.controls;
+      <form class="panel" [formGroup]="form" (ngSubmit)="submit(i)" novalidate data-form="evaluation">
+        @if (formError(); as error) {
+          <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+        }
+        <p class="field-hint">{{ t('recruitment.evaluation.scaleHint') }}</p>
+        @for (criterion of i.criteria; track criterion.id) {
+          @let missing = scoresMissing() && scores()[criterion.id] === null;
+          <fieldset class="criterion" [class.missing]="missing" [attr.data-criterion]="criterion.id">
+            <legend>{{ label(criterion.labels) }}</legend>
+            <div class="scale">
+              @for (value of scoreValues; track value) {
+                <label class="choice">
+                  <input type="radio" [name]="'score-' + criterion.id" [value]="value" [checked]="scores()[criterion.id] === value" [disabled]="locked"
+                    [attr.aria-describedby]="missing ? 'score-error-' + criterion.id : null" (change)="setScore(criterion.id, value)" />
+                  <span>{{ value }} — {{ t('recruitment.evaluation.scale.' + value) }}</span>
+                </label>
+              }
+            </div>
+            @if (missing) {
+              <p class="field-error" [id]="'score-error-' + criterion.id">{{ t('recruitment.evaluation.scoreRequired') }}</p>
+            }
+          </fieldset>
+        }
+
+        <fieldset class="criterion" [class.missing]="c.recommendation.invalid && c.recommendation.touched" data-field="recommendation">
+          <legend>{{ t('recruitment.evaluation.recommendation') }}</legend>
+          <div class="scale">
+            @for (r of recommendations; track r) {
+              <label class="choice">
+                <input type="radio" formControlName="recommendation" [value]="r" aria-describedby="evaluation-recommendation-error" />
+                <span>{{ t('recruitment.recommendation.' + r) }}</span>
+              </label>
+            }
+          </div>
+          <app-control-error [control]="c.recommendation" errorId="evaluation-recommendation-error" [keys]="errorKeys" />
+        </fieldset>
+
+        <div class="field">
+          <label for="evaluation-comment">{{ t('recruitment.evaluation.comment') }}</label>
+          <textarea id="evaluation-comment" formControlName="comment" rows="4" dir="auto"
+            [attr.aria-invalid]="c.comment.invalid && c.comment.touched" aria-describedby="evaluation-comment-hint evaluation-comment-error"></textarea>
+          <p class="field-hint" id="evaluation-comment-hint">{{ t('recruitment.evaluation.commentHint') }}</p>
+          <app-control-error [control]="c.comment" errorId="evaluation-comment-error" [keys]="errorKeys" />
+        </div>
+
+        @if (!locked) {
+          <div class="form-actions">
+            <button class="btn" type="submit" data-action="submit-evaluation" [disabled]="saving()">
+              {{ t(i.evaluation.submittedAt ? 'recruitment.evaluation.resubmit' : 'recruitment.evaluation.submit') }}
+            </button>
+          </div>
+        }
+      </form>
+    </section>
+  } @else if (interview.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t(notFound() ? 'recruitment.myInterviews.gone' : errorKey()) }}</p>
+      @if (!notFound()) {
+        <button class="btn secondary" type="button" (click)="interview.reload()">{{ t('common.retry') }}</button>
+      }
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

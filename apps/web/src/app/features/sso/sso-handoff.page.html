@@ -7,7 +7,10 @@
   <div class="handoff-page">
     <div class="handoff-tools"><app-language-switcher /></div>
     <section class="handoff card" [attr.data-state]="state().kind" [attr.aria-busy]="state().kind !== 'problem'">
-      <p class="brand">{{ t('app.title') }}</p>
+      @if (branding.appLogo(); as logo) {
+        <img class="brand-logo" [src]="logo.url" [attr.width]="logo.width" [attr.height]="logo.height" alt="" />
+      }
+      <p class="brand" dir="auto" [attr.lang]="branding.langAttr(branding.title())">{{ branding.titleText() }}</p>
       <h1>{{ t('sso.handoff.title') }}</h1>
 
       @switch (state().kind) {

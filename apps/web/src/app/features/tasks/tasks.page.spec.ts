@@ -7,6 +7,7 @@ import { correctionDetail, correctionView } from '../../../testing/attendance-fi
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
 import { conflict, flushLeaveTypes, leaveDetail, openTask } from '../../../testing/leave-fixtures';
+import { openingTaskSummary } from '../../../testing/recruitment-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
@@ -272,6 +273,41 @@ describe('TasksPage', () => {
     for (const req of http.match('/api/attendance/corrections/c-1')) req.flush(correctionDetail());
     await settle();
     expect(el().querySelector('[data-error="panel"]')?.textContent).toContain('déjà été annulé');
+  });
+
+  it('an opening request: everything an approver needs in the panel; approve and reject work as for leave', async () => {
+    const task: OpenTask = { ...openTask('k-9'), stepKey: 'manager', stepIndex: 0, subject: openingTaskSummary() };
+    await open([task]);
+    const row = el().querySelector('[data-task="k-9"]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+    expect(row).toContain("Agent d'accueil");
+    expect(row).toContain('REC-2026-0002');
+    expect(row).toContain('Agence Annaba');
+    click('[data-task="k-9"]');
+    await settle();
+    // No other request: the summary carries the whole opening (an approver may hold no recruitment permission).
+    http.expectNone((r) => r.url.startsWith('/api/recruitment'));
+    const panel = el().querySelector('[data-panel="recruitment-opening"]') as HTMLElement;
+    expect(el().querySelector('#task-panel-title')?.textContent?.trim()).toBe("Agent d'accueil");
+    expect(panel.querySelector('[data-field="reference"]')?.textContent).toContain('REC-2026-0002');
+    expect(panel.querySelector('[data-field="posts"]')?.textContent?.trim()).toBe('1');
+    expect(panel.querySelector('[data-field="justification"]')?.textContent).toContain('Saison haute.');
+    expect(panel.querySelector('[data-field="requester"]')?.textContent).toContain('Chef Annaba');
+    expect(panel.textContent).toContain('CDD');
+
+    // Reject needs a comment, whose hint says who will read it.
+    click('[data-action="reject"]');
+    await settle();
+    expect(el().querySelector('#reject-comment-hint')?.textContent).toContain('la personne qui a fait la demande');
+    const comment = el().querySelector('#reject-comment') as HTMLTextAreaElement;
+    comment.value = 'Poste non budgétisé';
+    comment.dispatchEvent(new Event('input'));
+    click('[data-action="confirm-reject"]');
+    await settle();
+    const reject = http.expectOne('/api/tasks/k-9/reject');
+    expect(reject.request.body).toEqual({ comment: 'Poste non budgétisé' });
+    reject.flush({});
+    await answerTasks([]);
+    expect(el().querySelector('[data-feedback]')?.textContent).toContain('Demande de Chef Annaba refusée.');
   });
 
   it('a purged correction: no employee, an explanation, and only Reject', async () => {

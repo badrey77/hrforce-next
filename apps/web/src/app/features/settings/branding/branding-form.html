@@ -1,0 +1,176 @@
+<!--
+  One level of the branding settings. Ids are prefixed with the level: both tabs stay in the page (the hidden one
+  keeps what was typed). Every branded text is interpolated, never bound as markup.
+-->
+<div class="branding" *transloco="let t" [attr.data-level]="level()">
+  <div class="editor">
+    <p class="muted">{{ t('branding.intro.' + level()) }}</p>
+
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate [attr.data-form]="level()">
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+
+      @for (field of fields(); track field) {
+        <fieldset class="texts" [formGroupName]="field" [attr.data-field]="field">
+          <legend>{{ t('branding.fields.' + field) }}</legend>
+          <p class="field-hint">{{ t('branding.hints.' + field) }}</p>
+          <div class="langs">
+            @for (lang of languages; track lang) {
+              @let id = level() + '-' + field + '-' + lang;
+              @let error = errorKey(field, lang);
+              <div class="field">
+                <label [for]="id">{{ t('branding.languages.' + lang) }}</label>
+                @if (multiline(field)) {
+                  <textarea
+                    [id]="id"
+                    [formControlName]="lang"
+                    rows="3"
+                    [attr.lang]="lang"
+                    [dir]="lang === 'ar' ? 'rtl' : 'ltr'"
+                    [placeholder]="inheritedIn(field, lang)"
+                    [attr.aria-invalid]="error !== null"
+                    [attr.aria-describedby]="id + '-count ' + id + '-error'"
+                  ></textarea>
+                } @else {
+                  <input
+                    type="text"
+                    [id]="id"
+                    [formControlName]="lang"
+                    [attr.lang]="lang"
+                    [dir]="lang === 'ar' ? 'rtl' : 'ltr'"
+                    [placeholder]="inheritedIn(field, lang)"
+                    [attr.aria-invalid]="error !== null"
+                    [attr.aria-describedby]="id + '-count ' + id + '-error'"
+                  />
+                }
+                <p class="field-hint counter" [id]="id + '-count'" [class.over]="count(field, lang) > limit(field)" [attr.data-count]="field + '.' + lang">
+                  <span class="visually-hidden">{{ t('branding.counter') }} </span>
+                  <span dir="ltr">{{ count(field, lang) }} / {{ limit(field) }}</span>
+                </p>
+                @if (error) {
+                  <p class="field-error" [id]="id + '-error'" [attr.data-error]="field + '.' + lang">{{ t(error, { max: limit(field) }) }}</p>
+                }
+              </div>
+            }
+          </div>
+          @if (inheritedText(field); as text) {
+            <p class="field-hint" [attr.data-inherited]="field">{{ t('branding.inheritedDefault') }} <bdi>{{ text }}</bdi></p>
+          }
+        </fieldset>
+      }
+
+      <!-- Native radios drawn as swatches: each chip takes its colour from styles.css through `data-brand`. -->
+      <fieldset class="palette" data-field="color">
+        <legend>{{ t('branding.color.label') }}</legend>
+        <p class="field-hint">{{ t('branding.color.hint') }}</p>
+        <div class="swatches">
+          @if (level() === 'company') {
+            <label class="swatch" data-swatch="inherit">
+              <input type="radio" [name]="level() + '-color'" value="" [checked]="color() === null" (change)="pick(null)" />
+              <span class="chip" [attr.data-brand]="view().inherited.color"></span>
+              <span>{{ t('branding.color.inherit') }} — {{ t('branding.colors.' + view().inherited.color) }}</span>
+            </label>
+          }
+          @for (code of palette(); track code) {
+            <label class="swatch" [attr.data-swatch]="code">
+              <input type="radio" [name]="level() + '-color'" [value]="code" [checked]="color() === code" (change)="pick(code)" />
+              <span class="chip" [attr.data-brand]="code"></span>
+              <span>{{ t('branding.colors.' + code) }}</span>
+            </label>
+          }
+        </div>
+        @if (colorInvalid()) {
+          <p class="field-error" data-error="color">{{ t('branding.errors.color') }}</p>
+        }
+      </fieldset>
+
+      <p class="feedback-line" role="status" data-state="feedback">
+        @if (feedback(); as key) {
+          <span class="feedback">{{ t(key) }}</span>
+        }
+      </p>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save" [disabled]="saving() || readOnly()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" data-action="reset" [disabled]="saving() || readOnly()" (click)="reset()">{{ t('branding.reset.action') }}</button>
+      </div>
+    </form>
+
+    <section class="logos" [attr.aria-labelledby]="level() + '-logos-title'">
+      <h3 [id]="level() + '-logos-title'">{{ t('branding.logo.title') }}</h3>
+      @if (level() === 'installation') {
+        <app-branding-logo
+          inputId="installation-app-logo"
+          target="installation"
+          labelKey="branding.logo.app"
+          hintKey="branding.logo.appHintInstallation"
+          [current]="view().installation?.appLogo ?? null"
+          [maxBytes]="view().limits.logoMaxBytes"
+          (pendingChange)="pendingAppLogo.set($event)"
+          [readOnly]="readOnly()"
+          (scopeRefused)="scopeRefused.emit()"
+          (saved)="saved.emit($event)"
+          (removed)="reload.emit()"
+        />
+      } @else {
+        <app-branding-logo
+          inputId="company-app-logo"
+          target="app"
+          labelKey="branding.logo.app"
+          hintKey="branding.logo.appHintCompany"
+          [current]="view().company.appLogo"
+          [inherited]="view().inherited.appLogo"
+          [maxBytes]="view().limits.logoMaxBytes"
+          (pendingChange)="pendingAppLogo.set($event)"
+          [readOnly]="readOnly()"
+          (scopeRefused)="scopeRefused.emit()"
+          (saved)="saved.emit($event)"
+          (removed)="reload.emit()"
+        />
+        <app-branding-logo
+          inputId="company-company-logo"
+          target="company"
+          labelKey="branding.logo.company"
+          hintKey="branding.logo.companyHint"
+          [current]="view().company.companyLogo"
+          [maxBytes]="view().limits.logoMaxBytes"
+          [readOnly]="readOnly()"
+          (scopeRefused)="scopeRefused.emit()"
+          (saved)="saved.emit($event)"
+          (removed)="reload.emit()"
+        />
+        <!-- The letterhead logo of the documents stays a separate image: two explicit copies, for those who manage both. -->
+        @if (canCopyLetterhead()) {
+          <div class="letterhead" data-section="letterhead">
+            <p class="field-hint">{{ t('branding.letterhead.intro') }}</p>
+            @if (copyMessage(); as message) {
+              <p [class]="message.ok ? 'feedback' : 'form-error'" [attr.role]="message.ok ? 'status' : 'alert'" data-state="letterhead">{{ t(message.key) }}</p>
+            }
+            <div class="form-actions">
+              <button class="btn secondary" type="button" data-action="from-letterhead" [disabled]="copyBusy() || readOnly()" (click)="copyFromLetterhead()">
+                {{ t('branding.letterhead.from') }}
+              </button>
+              @if (view().company.companyLogo) {
+                <button class="btn secondary" type="button" data-action="to-letterhead" [disabled]="copyBusy() || readOnly()" (click)="copyToLetterhead()">
+                  {{ t('branding.letterhead.to') }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+      }
+    </section>
+    <app-branding-confirm />
+  </div>
+
+  <app-branding-preview
+    class="side"
+    [color]="preview().color"
+    [logoUrl]="preview().logoUrl"
+    [title]="preview().title"
+    [welcomeTitle]="preview().welcomeTitle"
+    [welcomeMessage]="preview().welcomeMessage"
+    [signInMessage]="preview().signInMessage"
+    [footer]="preview().footer"
+  />
+</div>

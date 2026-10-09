@@ -1,0 +1,82 @@
+<dialog #dialog class="modal" *transloco="let t" aria-labelledby="offer-dialog-title" (close)="pending.set(null)">
+  @if (pending(); as p) {
+    @let c = form.controls;
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate data-form="offer">
+      <h2 id="offer-dialog-title">{{ t(p.editing ? 'recruitment.offer.editTitle' : 'recruitment.offer.makeTitle') }}</h2>
+      <p><bdi>{{ p.subject.name }}</bdi></p>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @if (openingError()) {
+        <p class="form-error" role="alert">{{ t('recruitment.opening.loadError') }}</p>
+      } @else if (opening()) {
+        <div class="field">
+          <label for="offer-title">{{ t('recruitment.offer.jobTitle') }}</label>
+          <input id="offer-title" type="text" formControlName="jobTitle" dir="auto" required autocomplete="off"
+            [attr.aria-invalid]="c.jobTitle.invalid && c.jobTitle.touched" aria-describedby="offer-title-error" />
+          <app-control-error [control]="c.jobTitle" errorId="offer-title-error" [keys]="errorKeys" />
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label for="offer-unit">{{ t('recruitment.fields.unit') }}</label>
+            <select id="offer-unit" formControlName="orgUnitId" required [attr.aria-invalid]="c.orgUnitId.invalid && c.orgUnitId.touched" aria-describedby="offer-unit-hint offer-unit-error">
+              @for (unit of units(); track unit.id) {
+                <option [value]="unit.id">{{ unitLabel(unit) }}</option>
+              }
+            </select>
+            <p class="field-hint" id="offer-unit-hint">{{ t('recruitment.offer.unitHint') }}</p>
+            <app-control-error [control]="c.orgUnitId" errorId="offer-unit-error" [keys]="errorKeys" />
+          </div>
+          @if (sites.hasValue()) {
+            <div class="field">
+              <label for="offer-site">{{ t('recruitment.fields.site') }}</label>
+              <select id="offer-site" formControlName="siteId" aria-describedby="offer-site-error">
+                <option value="">{{ t('recruitment.fields.siteOfUnit') }}</option>
+                @for (site of sites.value().items; track site.id) {
+                  <option [value]="site.id">{{ site.name }} ({{ site.code }})</option>
+                }
+              </select>
+              <app-control-error [control]="c.siteId" errorId="offer-site-error" [keys]="errorKeys" />
+            </div>
+          }
+          <div class="field">
+            <label for="offer-contract">{{ t('recruitment.fields.contractType') }}</label>
+            <select id="offer-contract" formControlName="contractType">
+              @for (type of contractTypes; track type) {
+                <option [value]="type">{{ t('recruitment.contractType.' + type) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="offer-start">{{ t('recruitment.offer.startDate') }}</label>
+            <input id="offer-start" type="date" formControlName="startDate" required
+              [attr.aria-invalid]="c.startDate.invalid && c.startDate.touched" aria-describedby="offer-start-error" />
+            <app-control-error [control]="c.startDate" errorId="offer-start-error" [keys]="errorKeys" />
+          </div>
+          @if (canSalary()) {
+            <div class="field">
+              <label for="offer-salary">{{ t('recruitment.offer.proposedSalary') }}</label>
+              <input id="offer-salary" type="text" inputmode="decimal" formControlName="proposedSalary" dir="ltr" autocomplete="off"
+                [attr.aria-invalid]="c.proposedSalary.invalid && c.proposedSalary.touched" aria-describedby="offer-salary-error" />
+              <app-control-error [control]="c.proposedSalary" errorId="offer-salary-error" [keys]="errorKeys" />
+            </div>
+          }
+        </div>
+        <div class="field">
+          <label for="offer-note">{{ t('recruitment.offer.note') }}</label>
+          <textarea id="offer-note" formControlName="note" rows="3" dir="auto"
+            [attr.aria-invalid]="c.note.invalid && c.note.touched" aria-describedby="offer-note-hint offer-note-error"></textarea>
+          <p class="field-hint" id="offer-note-hint">{{ t('recruitment.offer.noteHint') }}</p>
+          <app-control-error [control]="c.note" errorId="offer-note-error" [keys]="errorKeys" />
+        </div>
+        <p class="field-hint">{{ t('recruitment.offer.recordOnly') }}</p>
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-offer" [disabled]="busy() || !opening()">{{ t(p.editing ? 'common.save' : 'recruitment.offer.makeSubmit') }}</button>
+        <button class="btn secondary" type="button" (click)="close()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+</dialog>

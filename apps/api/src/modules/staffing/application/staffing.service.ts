@@ -150,6 +150,18 @@ export class StaffingService {
     return pickManager(await this.repo.chain(companyId, card.unitId, date), employmentId);
   }
 
+  /**
+   * The employment heading `unitId` on `date`, else the head of its nearest ancestor that has one (the walk of
+   * {@link managerOf}), skipping `excludeEmploymentId` (a requester who heads the unit themselves) — with the user
+   * linked to that head, or null when none is. null: nobody heads the unit or any unit above it.
+   */
+  async headAtOrAbove(unitId: string, date: string, excludeEmploymentId: string | null): Promise<{ employmentId: string; unitId: string; userId: string | null } | null> {
+    const { companyId } = tenant();
+    const found = pickManager(await this.repo.chain(companyId, unitId, date), excludeEmploymentId ?? '');
+    if (found.kind === 'user') return { employmentId: found.employmentId, unitId: found.unitId, userId: found.userId };
+    return found.reason === 'manager-not-linked' ? { employmentId: found.employmentId, unitId: found.unitId, userId: null } : null;
+  }
+
   // ── GET /me/employment ─────────────────────────────────────────────────────────────────────────────────────────
 
   async myEmployment(): Promise<MyEmploymentView> {

@@ -59,7 +59,32 @@
         }
       </fieldset>
 
-      @if (type.code === selfServiceType) {
+      @if (type.kind === 'custom') {
+        <div class="field">
+          <label for="type-name-fr">{{ t('documents.templates.nameFr') }}</label>
+          <input id="type-name-fr" type="text" formControlName="nameFr" lang="fr" dir="ltr" maxlength="120" />
+        </div>
+        <div class="field">
+          <label for="type-name-ar">{{ t('documents.templates.nameAr') }}</label>
+          <input id="type-name-ar" type="text" formControlName="nameAr" lang="ar" dir="rtl" maxlength="120" />
+        </div>
+        <div class="field">
+          <label for="type-name-en">{{ t('documents.templates.nameEn') }}</label>
+          <input id="type-name-en" type="text" formControlName="nameEn" lang="en" dir="ltr" maxlength="120" />
+        </div>
+        @if (type.subject === 'employment') {
+          <div class="field">
+            <label for="type-rule">{{ t('documents.templates.employmentRule') }}</label>
+            <select id="type-rule" formControlName="employmentRule">
+              @for (r of rules; track r) {
+                <option [value]="r">{{ t('documents.templates.rules.' + r) }}</option>
+              }
+            </select>
+          </div>
+        }
+      }
+
+      @if (selfServiceOffered(type) || type.selfService) {
         <div class="check field">
           <input id="type-self" type="checkbox" formControlName="selfService" aria-describedby="type-self-hint" />
           <label for="type-self">{{ t('documents.types.selfService') }}</label>
@@ -79,9 +104,15 @@
       </div>
 
       <div class="check field">
-        <input id="type-active" type="checkbox" formControlName="active" />
+        <input id="type-active" type="checkbox" formControlName="active" aria-describedby="type-active-error" />
         <label for="type-active">{{ t('documents.types.active') }}</label>
       </div>
+      @if (form.controls.active.hasError('serverKey')) {
+        <p class="field-error" id="type-active-error" data-error="active">{{ t(form.controls.active.getError('serverKey')) }}</p>
+      }
+      @if (type.kind === 'custom' && !type.template) {
+        <p class="field-hint" data-hint="unpublished">{{ t('documents.templates.activateHint') }}</p>
+      }
 
       <div class="form-actions">
         <button class="btn" type="submit" data-action="save-type" [disabled]="saving()">{{ t('common.save') }}</button>
@@ -113,7 +144,12 @@
       <tbody>
         @for (type of catalog.types(); track type.id) {
           <tr [attr.data-type]="type.code" [class.muted]="!type.active">
-            <td>{{ catalog.labelOf(type.labels) }}</td>
+            <td>
+              {{ catalog.labelOf(type.labels) }}
+              @if (type.kind === 'custom') {
+                <span class="badge" data-kind="custom">{{ t('documents.templates.kind.custom') }}</span>
+              }
+            </td>
             <td><span class="code" dir="ltr">{{ type.numberFormat ?? '—' }}</span></td>
             <td><span class="code" dir="ltr" data-field="next">{{ type.nextNumber ?? '—' }}</span></td>
             <td>

@@ -28,7 +28,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, type OnInit, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormControl, FormRecord, NonNullableFormBuilder, ReactiveFormsModule, type ValidatorFn, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from '../../core/auth/session';
@@ -36,7 +36,8 @@ import { BlobFiles } from '../../core/browser/blob-files';
 import { newUuid } from '../../core/browser/uuid';
 import { DocumentCatalog } from '../../core/documents/document-catalog';
 import { DocumentsApi } from '../../core/documents/documents-api';
-import type { DocumentLanguage, IssueBody, SignatoryView } from '../../core/documents/documents.models';
+import { type DocumentLanguage, type IssueBody, issueFieldsOf, type SignatoryView, subjectOf } from '../../core/documents/documents.models';
+import type { TemplateField } from '../../../lib/document-designer';
 import { EmployeesApi } from '../../core/employees/employees-api';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
@@ -50,6 +51,28 @@ import { ISSUE_SLUGS, missingProfileFields } from './document-forms';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
 export const TITRE_CONGE = 'titre_conge';
+
+/** A number typed in a field: optional sign, up to 12 digits, a decimal part of up to 4 (comma or point). */
+export const FIELD_NUMBER = /^-?\d{1,12}([.,]\d{1,4})?$/;
+
+/** Validators of a template field's input (docs/contracts/document-templates.md › Issuing). */
+export function fieldValidators(field: TemplateField): ValidatorFn[] {
+  const validators: ValidatorFn[] = [];
+  if (field.required) validators.push(Validators.required);
+  if (field.kind === 'text') validators.push(Validators.maxLength(500));
+  if (field.kind === 'longText') validators.push(Validators.maxLength(2000));
+  if (field.kind === 'number') validators.push(Validators.pattern(FIELD_NUMBER));
+  return validators;
+}
+
+/** The non-empty field values to send (trimmed). */
+export function fieldValues(values: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values)
+      .map(([key, value]) => [key, value.trim()] as const)
+      .filter(([, value]) => value !== ''),
+  );
+}
 
 @Component({
   selector: 'app-documents-issue-page',
@@ -75,6 +98,9 @@ export class IssuePage implements OnInit {
   readonly employee = input<string | undefined>();
   readonly leaveRequest = input<string | undefined>();
 
+  /** The published template's fields, rebuilt when the type changes (422 `fields.<key>` lands on them). */
+  protected readonly fieldControls = new FormRecord<FormControl<string>>({});
+
   protected readonly form = this.fb.group({
     typeCode: ['', Validators.required],
     employmentId: this.fb.control<string | null>(null, Validators.required),
@@ -82,12 +108,16 @@ export class IssuePage implements OnInit {
     language: this.fb.control<DocumentLanguage>('fr'),
     /** '' = let the server choose (the type's default, else the nearest signatory up the unit tree). */
     signatoryId: [''],
+    fields: this.fieldControls,
   });
 
   private readonly typeCode = toSignal(this.form.controls.typeCode.valueChanges, { initialValue: '' });
   private readonly employmentId = toSignal(this.form.controls.employmentId.valueChanges, { initialValue: null });
   protected readonly selectedType = computed(() => this.catalog.type(this.typeCode()));
-  protected readonly isTitre = computed(() => this.typeCode() === TITRE_CONGE);
+  /** The type is about an approved leave request (the titre de congé, or a custom type with that subject). */
+  protected readonly isTitre = computed(() => subjectOf(this.selectedType()) === 'leave_request');
+  /** Fields HR fills in for the type's published template. */
+  protected readonly issueFields = computed<readonly TemplateField[]>(() => issueFieldsOf(this.selectedType()));
   protected readonly languages = computed<readonly DocumentLanguage[]>(() => this.selectedType()?.languages ?? ['fr', 'ar']);
 
   protected readonly signatories = this.api.signatoriesForResource(this.employmentId);
@@ -157,6 +187,16 @@ export class IssuePage implements OnInit {
         this.form.controls.employmentId.setValue(request.employee.id);
       }
     });
+    // The template fields follow the type (values typed for another type are dropped).
+    effect(() => {
+      const fields = this.issueFields();
+      untracked(() => {
+        const group = this.fieldControls;
+        for (const key of Object.keys(group.controls)) group.removeControl(key, { emitEvent: false });
+        for (const field of fields) group.addControl(field.key, new FormControl('', { nonNullable: true, validators: fieldValidators(field) }), { emitEvent: false });
+        group.updateValueAndValidity();
+      });
+    });
     // A new fill of the form = a new idempotency key.
     this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
       this.clientRequestId = null;
@@ -168,6 +208,11 @@ export class IssuePage implements OnInit {
     if (employee) this.form.controls.employmentId.setValue(employee);
     const leaveRequest = this.leaveRequest();
     if (leaveRequest) this.form.controls.leaveRequestId.setValue(leaveRequest);
+  }
+
+  /** A field's label or a choice's label in the UI language (French outside Arabic). */
+  protected fieldLabel(labels: { readonly fr: string; readonly ar: string }): string {
+    return (this.lang() === 'ar' ? labels.ar : labels.fr) || labels.fr || labels.ar;
   }
 
   protected signatoryLabel(s: SignatoryView): string {
@@ -184,8 +229,15 @@ export class IssuePage implements OnInit {
       return null;
     }
     const v = this.form.getRawValue();
-    const subject = v.typeCode === TITRE_CONGE ? { leaveRequestId: v.leaveRequestId } : { employmentId: v.employmentId ?? '' };
-    return { typeCode: v.typeCode, ...subject, language: v.language, ...(v.signatoryId ? { signatoryId: v.signatoryId } : {}) };
+    const subject = this.isTitre() ? { leaveRequestId: v.leaveRequestId } : { employmentId: v.employmentId ?? '' };
+    const fields = fieldValues(v.fields);
+    return {
+      typeCode: v.typeCode,
+      ...subject,
+      language: v.language,
+      ...(v.signatoryId ? { signatoryId: v.signatoryId } : {}),
+      ...(this.issueFields().length ? { fields } : {}),
+    };
   }
 
   protected preview(): void {

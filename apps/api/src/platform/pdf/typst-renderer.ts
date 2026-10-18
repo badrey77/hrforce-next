@@ -30,8 +30,8 @@ export const RENDER_INPUT_MAX_BYTES = 2 * 1024 * 1024;
  * image asset is refused when its header is unreadable or declares more pixels than the limits (image-header.ts):
  * the engine would decode all of them. Non-image assets pass (their size still counts).
  */
-export function unsafeRenderInput(job: { data: string; options: string; assets: readonly { path: string; bytes: Uint8Array }[] }): string | null {
-  const size = job.data.length + job.options.length + job.assets.reduce((n, a) => n + a.bytes.byteLength, 0);
+export function unsafeRenderInput(job: { data: string; options: string; layout?: string; assets: readonly { path: string; bytes: Uint8Array }[] }): string | null {
+  const size = job.data.length + job.options.length + (job.layout?.length ?? 0) + job.assets.reduce((n, a) => n + a.bytes.byteLength, 0);
   if (size > RENDER_INPUT_MAX_BYTES) return `render input too large (${size} bytes)`;
   for (const asset of job.assets) {
     const header = readImageHeader(asset.bytes);
@@ -130,6 +130,7 @@ export class TypstPdfRenderer extends PdfRenderer {
       template: input.template,
       data: JSON.stringify(input.data),
       options: JSON.stringify(input.options ?? {}),
+      ...(input.layout === undefined ? {} : { layout: JSON.stringify(input.layout) }),
       assets: (input.assets ?? []).map((a) => ({ path: a.path, bytes: a.bytes })),
       standard: input.standard === undefined ? 'a-2b' : input.standard,
     };

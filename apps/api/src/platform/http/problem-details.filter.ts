@@ -119,6 +119,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       if (exception instanceof ProblemException && exception.errors?.length && status < 500) {
         problem.errors = exception.errors;
       }
+      if (exception instanceof ProblemException && status < 500) {
+        // extension members never replace the standard ones
+        for (const [key, value] of Object.entries(exception.extensions)) if (!(key in problem)) Object.assign(problem, { [key]: value });
+      }
       return problem;
     }
 

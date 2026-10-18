@@ -10,6 +10,7 @@
  */
 import type { NamePair, UnitRef } from '../employees/employees.models';
 import type { Labels, WorkflowProgress } from '../leave/leave.models';
+import type { TemplateField, TemplateLayout, TemplateVariable } from '../../../lib/document-designer';
 
 /** The three Phase A types (codes are fixed in code; names, formats and switches are data). */
 export type DocumentTypeCode = 'attestation_travail' | 'certificat_travail' | 'titre_conge';
@@ -35,6 +36,30 @@ export interface DocumentTypeView {
   readonly numberFormat: string | null;
   readonly nextNumber: string | null;
   readonly defaultSignatoryId: string | null;
+  /** docs/contracts/document-templates.md: `system` (the three seeded types) or `custom`. Absent on an older API. */
+  readonly kind?: DocumentTypeKind;
+  readonly subject?: DocumentSubject;
+  readonly employmentRule?: EmploymentRule;
+  readonly templateMode?: TemplateMode;
+  /** The published designed version (its fields drive the issue form), or null. */
+  readonly template?: { readonly id: string; readonly version: number; readonly fields: readonly TemplateField[] } | null;
+}
+
+export type DocumentTypeKind = 'system' | 'custom';
+export type DocumentSubject = 'employment' | 'leave_request';
+export type EmploymentRule = 'any' | 'active' | 'ended';
+export type TemplateMode = 'builtin' | 'designed';
+export const EMPLOYMENT_RULES: readonly EmploymentRule[] = ['any', 'active', 'ended'];
+export const DOCUMENT_SUBJECTS: readonly DocumentSubject[] = ['employment', 'leave_request'];
+
+/** The subject of a type: from the API, else from the system code (an API without the templates slice). */
+export function subjectOf(type: Pick<DocumentTypeView, 'code' | 'subject'> | undefined): DocumentSubject {
+  return type?.subject ?? (type?.code === 'titre_conge' ? 'leave_request' : 'employment');
+}
+
+/** The fields HR fills in when issuing this type (its published designed version), else none. */
+export function issueFieldsOf(type: Pick<DocumentTypeView, 'templateMode' | 'template'> | undefined): readonly TemplateField[] {
+  return type?.templateMode === 'designed' ? (type.template?.fields ?? []) : [];
 }
 
 export interface DocumentTypeList {
@@ -48,6 +73,88 @@ export interface UpdateDocumentType {
   readonly selfService?: boolean;
   readonly defaultSignatoryId?: string | null;
   readonly active?: boolean;
+  /** Custom types only. */
+  readonly names?: Labels;
+  readonly employmentRule?: EmploymentRule;
+}
+
+/** `POST /documents/types` — a custom type (inactive until a template version is published). */
+export interface NewDocumentType {
+  readonly code: string;
+  readonly names: Labels;
+  readonly subject: DocumentSubject;
+  readonly employmentRule?: EmploymentRule;
+  readonly numberFormat: string;
+  readonly languages: readonly DocumentLanguage[];
+  readonly sortOrder?: number;
+}
+
+/** A custom type code: `^[a-z][a-z0-9_]{2,39}$`, never one of the system codes. */
+export const CUSTOM_TYPE_CODE = /^[a-z][a-z0-9_]{2,39}$/;
+
+// --- Template versions (docs/contracts/document-templates.md › Endpoints) ---------------------------------------
+
+export type TemplateStatus = 'draft' | 'published' | 'archived';
+export type TemplateAction = 'edit' | 'publish' | 'discard' | 'duplicate';
+
+export interface TemplateVersionSummary {
+  readonly id: string;
+  readonly version: number;
+  readonly status: TemplateStatus;
+  readonly languages: readonly DocumentLanguage[];
+  readonly fieldCount: number;
+  readonly note: string | null;
+  readonly updatedAt: string;
+  readonly updatedBy: PersonRef | null;
+  readonly publishedAt: string | null;
+  readonly publishedBy: PersonRef | null;
+  readonly issuedCount: number;
+}
+
+export interface TemplateVersionView extends TemplateVersionSummary {
+  readonly typeId: string;
+  readonly typeCode: string;
+  readonly layouts: { readonly fr?: TemplateLayout; readonly ar?: TemplateLayout };
+  readonly fields: readonly TemplateField[];
+  readonly revision: number;
+  readonly basedOn: string | null;
+  readonly _actions: readonly TemplateAction[];
+}
+
+/** `GET /documents/types/:id/templates`. */
+export interface TypeTemplates {
+  readonly mode: TemplateMode;
+  readonly builtin: { readonly version: string; readonly available: boolean } | null;
+  readonly items: readonly TemplateVersionSummary[];
+}
+
+export interface TemplateVariableList {
+  readonly items: readonly TemplateVariable[];
+}
+
+/** `POST /documents/types/:id/templates` — where a new draft starts: blank, built-in, published, or a version id. */
+export type TemplateSource = string;
+
+/** `PUT /documents/templates/:id`. */
+export interface SaveTemplate {
+  readonly revision: number;
+  readonly layouts: { readonly fr?: TemplateLayout; readonly ar?: TemplateLayout };
+  readonly fields: readonly TemplateField[];
+  readonly note?: string | null;
+}
+
+/** `POST /documents/templates/:id/preview`: sample data, or a real subject (needs `document.issue` over it). */
+export interface TemplatePreviewBody {
+  readonly lang: DocumentLanguage;
+  readonly sample?: true;
+  readonly employmentId?: string;
+  readonly leaveRequestId?: string;
+  readonly fields?: Readonly<Record<string, string>>;
+}
+
+export function templateActions(view: Pick<TemplateVersionView, '_actions'>): readonly TemplateAction[] {
+  // oxlint-disable-next-line no-underscore-dangle -- contract field name
+  return view._actions ?? [];
 }
 
 export interface FrAr {
@@ -146,6 +253,9 @@ export interface IssuedDocumentView {
   readonly void: { readonly at: string; readonly by: PersonRef | null; readonly reason: string } | null;
   readonly warnings: readonly DocumentWarning[];
   readonly _actions: readonly DocumentAction[];
+  /** e.g. `attestation_travail@2` or `ordre_mission.designed@3` (document-templates.md). */
+  readonly templateVersion?: string;
+  readonly template?: { readonly id: string; readonly version: number } | null;
 }
 
 /** The printed values (contract › Snapshot). Only the fields the detail page shows are typed strictly. */
@@ -167,6 +277,8 @@ export interface DocumentSnapshot {
   };
   readonly leave?: { readonly typeLabel: string; readonly startText: string; readonly endText: string; readonly days: string; readonly resumptionText: string };
   readonly signatory: { readonly name: string; readonly title: string };
+  /** Designed documents (`v: 2`): the values HR typed, as printed. */
+  readonly fields?: Readonly<Record<string, string | null>>;
 }
 
 /** `GET /documents/:id` = the view + the printed values. */
@@ -193,6 +305,8 @@ export interface IssueBody {
   readonly signatoryId?: string;
   /** One per form fill: a repeat returns the document already issued instead of a second number. */
   readonly clientRequestId?: string;
+  /** The values of the published template's fields (document-templates.md › Issuing). */
+  readonly fields?: Readonly<Record<string, string>>;
 }
 
 export type DocumentRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';

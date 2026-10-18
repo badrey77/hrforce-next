@@ -6,8 +6,9 @@ import { IMAGE_MAX_PIXELS, IMAGE_MAX_SIDE, readImageHeader, withinImageLimits } 
 import { isValidNumberFormat } from '../domain/numbering.js';
 import { LOGO_MAX_BYTES } from '../domain/rules.js';
 import { missingProfileFields } from '../domain/snapshot.js';
-import { DOCUMENT_PERMISSIONS as P, type DocumentLanguage } from '../domain/types.js';
+import { DOCUMENT_PERMISSIONS as P, isDocumentTypeCode, type DocumentLanguage, type DocumentSubject, type EmploymentRule } from '../domain/types.js';
 import { DocumentsRepository, pgError, type LogoRow, type ProfileInput } from '../infra/documents.repository.js';
+import { TemplatesRepository } from '../infra/templates.repository.js';
 import { signatoryView } from './document-presenter.js';
 import type { CompanyProfileView, DocumentTypeView, SignatoryView } from './document-views.js';
 import { DocumentsClock } from './documents-clock.js';
@@ -19,6 +20,36 @@ export interface TypePatch {
   selfService?: boolean | undefined;
   defaultSignatoryId?: string | null | undefined;
   active?: boolean | undefined;
+  /** custom types only */
+  names?: { fr: string; ar: string; en: string } | undefined;
+  /** custom employee documents only */
+  employmentRule?: EmploymentRule | undefined;
+}
+
+export interface NewTypeInput {
+  code: string;
+  names: { fr: string; ar: string; en: string };
+  subject: DocumentSubject;
+  employmentRule?: EmploymentRule | undefined;
+  numberFormat: string;
+  languages: DocumentLanguage[];
+  sortOrder?: number | undefined;
+}
+
+const INVALID_FORMAT = 'Literals A-Z 0-9 / _ . - and {YYYY} {YY} {SEQ} {SEQ:n}; one {SEQ}, a year token, at most 40 characters.';
+
+/** Unique violations of document_type → 409 (format or code already used). */
+function typeConflict(error: unknown): ProblemException | null {
+  const constraint = pgError(error)?.constraint;
+  if (constraint === 'document_type_company_format_uk') {
+    return new ProblemException(409, 'document-format-taken', 'Another document type already uses this number format.', [
+      { field: 'numberFormat', code: 'format_taken', message: 'Already used by another type.' },
+    ]);
+  }
+  if (constraint === 'document_type_company_code_uk') {
+    return new ProblemException(409, 'document-type-code-taken', 'Another document type already has this code.', [{ field: 'code', code: 'code_taken', message: 'Already used.' }]);
+  }
+  return null;
 }
 
 export interface SignatoryInput {
@@ -41,6 +72,7 @@ export class DocumentSettingsService {
     private readonly scopes: ScopeService,
     private readonly clock: DocumentsClock,
     private readonly documents: DocumentsService,
+    private readonly templates: TemplatesRepository,
   ) {}
 
   private async assertCompanyWide(): Promise<void> {
@@ -166,34 +198,85 @@ export class DocumentSettingsService {
     await this.assertCompanyWide();
     const errors: { field: string; code: string; message: string }[] = [];
     if (input.numberFormat !== undefined && !isValidNumberFormat(input.numberFormat)) {
-      errors.push({ field: 'numberFormat', code: 'invalid_format', message: 'Literals A-Z 0-9 / _ . - and {YYYY} {YY} {SEQ} {SEQ:n}; one {SEQ}, a year token, at most 40 characters.' });
+      errors.push({ field: 'numberFormat', code: 'invalid_format', message: INVALID_FORMAT });
     }
+    const custom = type.kind === 'custom';
+    const published = type.publishedTemplateId ? (await this.templates.published(companyId, [type.publishedTemplateId])).get(type.publishedTemplateId) : undefined;
     if (input.selfService === true && type.code !== 'attestation_travail') {
-      errors.push({ field: 'selfService', code: 'not_allowed', message: 'Only the attestation de travail can be requested by employees.' });
+      if (!custom || type.subject !== 'employment') {
+        errors.push({ field: 'selfService', code: 'not_allowed', message: 'Only the attestation de travail and custom employee documents can be requested by employees.' });
+      } else if (published?.fields.some((f) => f.required)) {
+        errors.push({ field: 'selfService', code: 'required_fields', message: 'Employees cannot fill in the required fields of this template.' });
+      }
+    }
+    if (input.names !== undefined && !custom) errors.push({ field: 'names', code: 'not_allowed', message: 'The names of a system type are fixed.' });
+    if (input.employmentRule !== undefined && (!custom || type.subject !== 'employment')) {
+      errors.push({ field: 'employmentRule', code: 'not_allowed', message: 'Only a custom employee document has an employment rule to choose.' });
+    }
+    // a designed type is issued in a language only when its published version has that layout
+    const languages = input.languages ? [...new Set(input.languages)] : undefined;
+    if (languages && published && languages.some((lang) => !published.layouts[lang])) {
+      errors.push({ field: 'languages', code: 'template_language_missing', message: 'The published template has no layout in this language.' });
     }
     if (input.defaultSignatoryId) {
       const signatory = (await this.repo.signatories(companyId, this.clock.today())).find((s) => s.id === input.defaultSignatoryId);
       if (!signatory?.active) errors.push({ field: 'defaultSignatoryId', code: 'not_found', message: 'No active signatory with this id.' });
     }
     if (errors.length) throw new ValidationProblemException(errors);
+    if (input.active === true && custom && !type.publishedTemplateId) {
+      throw new ProblemException(409, 'document-template-missing', 'Publish a template for this document type before activating it.');
+    }
     const patch: Record<string, unknown> = {};
     if (input.numberFormat !== undefined) patch['number_format'] = input.numberFormat;
-    if (input.languages !== undefined) patch['languages'] = [...new Set(input.languages)];
+    if (languages !== undefined) patch['languages'] = languages;
     if (input.selfService !== undefined) patch['self_service'] = input.selfService;
     if (input.defaultSignatoryId !== undefined) patch['default_signatory_id'] = input.defaultSignatoryId;
     if (input.active !== undefined) patch['active'] = input.active;
+    if (input.names !== undefined) Object.assign(patch, { name_fr: input.names.fr, name_ar: input.names.ar, name_en: input.names.en });
+    if (input.employmentRule !== undefined) patch['employment_rule'] = input.employmentRule;
     try {
       await this.repo.updateType(companyId, id, patch);
     } catch (error) {
-      if (pgError(error)?.constraint === 'document_type_company_format_uk') {
-        throw new ProblemException(409, 'document-format-taken', 'Another document type already uses this number format.', [
-          { field: 'numberFormat', code: 'format_taken', message: 'Already used by another type.' },
-        ]);
-      }
-      throw error;
+      throw typeConflict(error) ?? error;
     }
+    return this.typeView(id);
+  }
+
+  private async typeView(id: string): Promise<DocumentTypeView> {
     const view = (await this.documents.types()).items.find((t) => t.id === id);
     if (!view) throw new NotFoundException('Document type not found');
     return view;
+  }
+
+  /** POST /documents/types: a custom type, inactive until a template is published (document-templates.md › Endpoints). */
+  async createType(input: NewTypeInput): Promise<DocumentTypeView> {
+    const { companyId } = caller();
+    await this.assertCompanyWide();
+    const errors: { field: string; code: string; message: string }[] = [];
+    if (!isValidNumberFormat(input.numberFormat)) errors.push({ field: 'numberFormat', code: 'invalid_format', message: INVALID_FORMAT });
+    if (input.subject === 'leave_request' && input.employmentRule !== undefined && input.employmentRule !== 'any') {
+      errors.push({ field: 'employmentRule', code: 'not_allowed', message: 'A leave document has no employment rule.' });
+    }
+    if (errors.length) throw new ValidationProblemException(errors);
+    if (isDocumentTypeCode(input.code)) {
+      throw new ProblemException(409, 'document-type-code-taken', 'This code belongs to a built-in document type.', [{ field: 'code', code: 'code_taken', message: 'Already used.' }]);
+    }
+    let id: string;
+    try {
+      id = await this.repo.insertType(companyId, {
+        code: input.code,
+        nameFr: input.names.fr,
+        nameAr: input.names.ar,
+        nameEn: input.names.en,
+        subject: input.subject,
+        employmentRule: input.subject === 'employment' ? (input.employmentRule ?? 'any') : 'any',
+        numberFormat: input.numberFormat,
+        languages: [...new Set(input.languages)],
+        sortOrder: input.sortOrder ?? null,
+      });
+    } catch (error) {
+      throw typeConflict(error) ?? error;
+    }
+    return this.typeView(id);
   }
 }

@@ -177,7 +177,7 @@ describe('Authorization (e2e, real grants)', () => {
 
     it('admin holds everything except employee.medical.read / update on DG (+); a member without grants holds nothing', async () => {
       const admin = await client('admin').get('/api/me').expect(200);
-      expect(admin.body.permissions).toHaveLength(48);
+      expect(admin.body.permissions).toHaveLength(49);
       expect(admin.body.permissions).not.toContain('employee.medical.read');
       expect(admin.body.permissions).not.toContain('employee.medical.update');
       expect(admin.body.scopes['employee.salary.read']).toEqual([{ unitId: unitA('DG'), includeDescendants: true }]);
@@ -288,7 +288,7 @@ describe('Authorization (e2e, real grants)', () => {
         'employee.nss.read', 'employee.nss.update', 'employee.medical.read', 'employee.medical.update',
         'recruitment.salary.read', 'recruitment.salary.update',
         'leave.request_self', 'leave.read', 'leave.request', 'leave.approve_hr', 'leave.adjust', 'leave.configure',
-        'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self',
+        'document.read', 'document.issue', 'document.void', 'document.configure', 'document.request_self', 'document.design',
         'employee_file.read', 'employee_file.upload', 'employee_file.delete',
         'attendance.punch_self', 'attendance.read', 'attendance.manage', 'attendance.configure',
         'sso.read', 'sso.manage_apps', 'sso.assign',
@@ -544,7 +544,7 @@ describe('Authorization (e2e, real grants)', () => {
     });
 
     it('permission is a read-only catalogue; grants are never deleted and only shortened', async () => {
-      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(50);
+      expect((await inTenant<{ n: number }>(COMPANY_A, 'select count(*)::int as n from permission'))[0]?.n).toBe(51);
       await expect(inTenant(COMPANY_A, `insert into permission values ('x.y', 'x', 'x', 'x', 'access', false, 999)`)).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role_grant')).rejects.toThrow(/permission denied/);
       await expect(inTenant(COMPANY_A, 'delete from role')).rejects.toThrow(/permission denied/);

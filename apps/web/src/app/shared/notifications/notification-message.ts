@@ -100,5 +100,10 @@ export function notificationMessage(
   if (format.arabic && typeof arabicUnit === 'string' && arabicUnit.trim()) params['unitName'] = arabicUnit;
   const documentType = notification.data?.['documentType'];
   const message = { key: notificationKey(notification), params };
-  return typeof documentType === 'string' && documentType ? { ...message, documentTypeKey: `documents.typeNames.${documentType}` } : message;
+  if (typeof documentType !== 'string' || !documentType) return message;
+  // A custom type (document-templates.md) has no fixed name in the i18n files: a generic word stands in.
+  const known = (SYSTEM_DOCUMENT_TYPES as readonly string[]).includes(documentType);
+  return { ...message, documentTypeKey: `documents.typeNames.${known ? documentType : 'custom'}` };
 }
+
+const SYSTEM_DOCUMENT_TYPES = ['attestation_travail', 'certificat_travail', 'titre_conge'] as const;

@@ -31,6 +31,7 @@ import { BETA_KIOSK, kioskCookie, qrToken, scanReceipt } from './support/attenda
 import { DEMO_OPENINGS, demoApplication, demoCandidateFile } from '../src/modules/recruitment/index.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { REC_FX, type RecTarget } from './support/recruitment-fixture.js';
+import { seedTemplateFixture, SIMPLE_LAYOUT, type TemplateFixture } from './support/templates-fixture.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
 import { openSse } from './support/sse.js';
@@ -124,6 +125,14 @@ const DOC_READ_ROWS: readonly Row[] = [
   ['ouest', 'ouest', 403], ['acces', 'est', 403],
   ['beta', 'est', 404], ['beta', 'other', 200],
   ['agent', 'est', 403],
+];
+/** Designed templates (filled in beforeAll): the fixture of company A and of BETA (docs/contracts/document-templates.md). */
+const TPL = { a: {} as TemplateFixture, b: {} as TemplateFixture };
+const tplOf = (t: Target): TemplateFixture => (t === 'other' ? TPL.b : TPL.a);
+/** document.design on the caller's own company: est = company A's type or version, other = BETA's. */
+const TPL_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403], ['agent', 'est', 403],
+  ['beta', 'other', ok], ['beta', 'est', 404],
 ];
 /** document.configure writes on the caller's own company: est = company A's row, other = BETA's. */
 const DOC_CONFIG_ROWS = (ok: number): readonly Row[] => [
@@ -740,6 +749,54 @@ const MATRIX: Record<string, RouteSpec> = {
     access: 'document.configure',
     request: (t) => ({ path: `/api/documents/types/${t === 'other' ? DOC.typeB : DOC.typeA}`, body: { active: true } }),
     rows: DOC_CONFIG_ROWS(200),
+  },
+  // ── designed templates and custom types (docs/contracts/document-templates.md › Authorization matrix rows) ──
+  'POST /api/documents/types': {
+    access: 'document.configure',
+    request: (_t, n) => ({ path: '/api/documents/types', body: { code: `mx_type_${n}`, names: { fr: `Type ${n}`, ar: 'نوع', en: `Type ${n}` }, subject: 'employment', numberFormat: `MX${n}-{YYYY}-{SEQ}`, languages: ['fr'] } }),
+    rows: [...CONFIG_ROWS(201), ['agent', '-', 403]],
+  },
+  'GET /api/documents/template-variables': {
+    access: 'document.design',
+    request: () => ({ path: '/api/documents/template-variables?subject=employment' }),
+    rows: [...CONFIG_ROWS(200), ['agent', '-', 403]],
+  },
+  'GET /api/documents/types/:id/templates': { access: 'document.design', request: (t) => ({ path: `/api/documents/types/${tplOf(t).editType}/templates` }), rows: TPL_ROWS(200) },
+  'GET /api/documents/types/:id/builtin-layout': { access: 'document.design', request: (t) => ({ path: `/api/documents/types/${tplOf(t).titreType}/builtin-layout?lang=fr` }), rows: TPL_ROWS(200) },
+  'GET /api/documents/templates/:id': { access: 'document.design', request: (t) => ({ path: `/api/documents/templates/${tplOf(t).archived}` }), rows: TPL_ROWS(200) },
+  'POST /api/documents/types/:id/templates': {
+    access: 'document.design',
+    request: (t) => ({ path: `/api/documents/types/${tplOf(t).titreType}/templates`, body: { from: 'builtin' } }),
+    rows: TPL_ROWS(201),
+  },
+  'PUT /api/documents/templates/:id': {
+    access: 'document.design',
+    request: (t) => ({ path: `/api/documents/templates/${tplOf(t).toSave}`, body: { revision: 1, layouts: { fr: SIMPLE_LAYOUT }, fields: [], note: 'Matrice' } }),
+    rows: TPL_ROWS(200),
+  },
+  'DELETE /api/documents/templates/:id': { access: 'document.design', request: (t) => ({ path: `/api/documents/templates/${tplOf(t).toDiscard}` }), rows: TPL_ROWS(204) },
+  'POST /api/documents/templates/:id/publish': {
+    access: 'document.design',
+    request: (t) => ({ path: `/api/documents/templates/${tplOf(t).toPublish}/publish`, body: { revision: 1 } }),
+    rows: TPL_ROWS(200),
+  },
+  'POST /api/documents/types/:id/templates/builtin': {
+    access: 'document.design',
+    request: (t) => ({ path: `/api/documents/types/${tplOf(t).certificatType}/templates/builtin`, body: {} }),
+    rows: TPL_ROWS(200),
+  },
+  // sample data (-), or a real employee: document.issue over them is needed too (BETA's version is unknown to company A)
+  'POST /api/documents/templates/:id/preview': {
+    access: 'document.design',
+    request: (t) => ({
+      path: `/api/documents/templates/${tplOf(t).archived}/preview`,
+      body: t === '-' ? { lang: 'fr', sample: true } : { lang: 'fr', employmentId: employeeOf(t) },
+    }),
+    rows: [
+      ['admin', '-', 200], ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+      ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403], ['agent', 'est', 403],
+      ['beta', 'other', 200], ['beta', 'est', 404],
+    ],
   },
   'GET /api/documents/settings/profile': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile' }), rows: CONFIG_ROWS(200) },
   'PUT /api/documents/settings/profile': { access: 'document.configure', request: () => ({ path: '/api/documents/settings/profile', body: PROFILE_BODY }), rows: CONFIG_ROWS(200) },
@@ -1475,6 +1532,8 @@ describe('Authorization matrix (e2e, real grants)', () => {
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [COMPANY_B, demoLogoPng()]);
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [unitCompany, demoLogoPng()]);
     expect(Object.values(DOC).every((v) => v !== ''), JSON.stringify(DOC)).toBe(true);
+    TPL.a = await seedTemplateFixture(db.superuserUrl, unitCompany, USERS.admin.id, 'a');
+    TPL.b = await seedTemplateFixture(db.superuserUrl, COMPANY_B, USERS.beta.id, 'b');
     // employee files: categories, then one file to read and one to delete per target
     const category = async (company: string, code: string) =>
       (await query<{ id: string }>(db.superuserUrl, `select id from employee_file_category where company_id = $1 and code = $2`, [company, code]))[0]?.id ?? '';

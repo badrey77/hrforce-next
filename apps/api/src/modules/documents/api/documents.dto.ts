@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from '../../../platform/http/zod-validation.pipe.js';
-import { DOCUMENT_LANGUAGES, DOCUMENT_TYPE_CODES } from '../domain/types.js';
+import { DOCUMENT_LANGUAGES, DOCUMENT_SUBJECTS, EMPLOYMENT_RULES, TYPE_CODE_PATTERN } from '../domain/types.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const uuid = z
@@ -41,21 +41,27 @@ const identifier = z
   .optional()
   .transform((v) => (v ? v : null));
 const pair = (max: number) => z.object({ fr: text(1, max), ar: text(1, max) });
+const typeCode = z.string().regex(TYPE_CODE_PATTERN, { message: 'A document type code' });
+/** Values of a designed template's fields, as typed (keys and values are checked against the template). */
+const fieldValues = z
+  .record(z.string().max(60), z.string().max(5_000))
+  .refine((v) => Object.keys(v).length <= 50, { message: 'At most 50 fields' });
 
 export const issueShape = z.object({
-  typeCode: z.enum(DOCUMENT_TYPE_CODES),
+  typeCode,
   employmentId: uuid.optional(),
   leaveRequestId: uuid.optional(),
   language: z.enum(DOCUMENT_LANGUAGES),
   signatoryId: uuid.optional(),
   clientRequestId: uuid.optional(),
+  fields: fieldValues.optional(),
 });
 
 export class IssueDocumentDto extends createZodDto(issueShape) {}
 
 export class RegisterQueryDto extends createZodDto(
   z.object({
-    typeCode: z.enum(DOCUMENT_TYPE_CODES).optional(),
+    typeCode: typeCode.optional(),
     status: z
       .enum(['issued', 'void', 'all'])
       .optional()
@@ -85,6 +91,53 @@ export class UpdateDocumentTypeDto extends createZodDto(
     selfService: z.boolean().optional(),
     defaultSignatoryId: uuid.nullable().optional(),
     active: z.boolean().optional(),
+    // custom types only (document-templates.md › Endpoints)
+    names: z.object({ fr: text(1, 120), ar: text(1, 120), en: text(1, 120) }).optional(),
+    employmentRule: z.enum(EMPLOYMENT_RULES).optional(),
+  }),
+) {}
+
+export class CreateDocumentTypeDto extends createZodDto(
+  z.object({
+    code: typeCode,
+    names: z.object({ fr: text(1, 120), ar: text(1, 120), en: text(1, 120) }),
+    subject: z.enum(DOCUMENT_SUBJECTS),
+    employmentRule: z.enum(EMPLOYMENT_RULES).optional(),
+    numberFormat: z.string().trim().min(1).max(60),
+    languages: z.array(z.enum(DOCUMENT_LANGUAGES)).min(1, { message: 'At least one language' }).max(2),
+    sortOrder: z.number().int().min(0).max(10_000).optional(),
+  }),
+) {}
+
+// ── designed templates (document-templates.md › Endpoints) ──────────────────────────────────────────────────────────
+
+export class TemplateVariablesQueryDto extends createZodDto(z.object({ subject: z.enum(DOCUMENT_SUBJECTS) })) {}
+
+export class BuiltinLayoutQueryDto extends createZodDto(z.object({ lang: z.enum(DOCUMENT_LANGUAGES) })) {}
+
+export class CreateTemplateDto extends createZodDto(
+  z.object({ from: z.union([z.enum(['blank', 'builtin', 'published']), uuid]) }),
+) {}
+
+/** layouts and fields are checked by the domain (paths such as layouts.ar.blocks.3.content.2 in errors[]). */
+export class SaveTemplateDto extends createZodDto(
+  z.object({
+    revision: z.number().int().min(1),
+    layouts: z.unknown(),
+    fields: z.unknown(),
+    note: optionalText(300),
+  }),
+) {}
+
+export class PublishTemplateDto extends createZodDto(z.object({ revision: z.number().int().min(1), note: optionalText(300) })) {}
+
+export class PreviewTemplateDto extends createZodDto(
+  z.object({
+    lang: z.enum(DOCUMENT_LANGUAGES),
+    sample: z.literal(true).optional(),
+    employmentId: uuid.optional(),
+    leaveRequestId: uuid.optional(),
+    fields: fieldValues.optional(),
   }),
 ) {}
 
@@ -124,5 +177,5 @@ export class UpdateSignatoryDto extends createZodDto(
 ) {}
 
 export class DocumentRequestDto extends createZodDto(
-  z.object({ typeCode: z.enum(DOCUMENT_TYPE_CODES), language: z.enum(DOCUMENT_LANGUAGES), purpose: optionalText(200) }),
+  z.object({ typeCode, language: z.enum(DOCUMENT_LANGUAGES), purpose: optionalText(200) }),
 ) {}

@@ -26,6 +26,7 @@
 import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
+import type { TemplateLayout } from '../../../lib/document-designer';
 import type {
   CompanyProfileFields,
   CompanyProfileView,
@@ -39,6 +40,13 @@ import type {
   IssuedDocumentView,
   MyDocuments,
   NewDocumentRequest,
+  NewDocumentType,
+  SaveTemplate,
+  TemplatePreviewBody,
+  TemplateSource,
+  TemplateVariableList,
+  TemplateVersionView,
+  TypeTemplates,
   NewSignatory,
   PdfDisposition,
   SignatoryList,
@@ -166,6 +174,65 @@ export class DocumentsApi {
 
   updateType(id: string, body: UpdateDocumentType): Observable<DocumentTypeView> {
     return this.http.put<DocumentTypeView>(`${DOCUMENTS_API_BASE}/types/${enc(id)}`, body);
+  }
+
+  /** `POST /documents/types` — a custom type (`document.configure`, company-wide). */
+  createType(body: NewDocumentType): Observable<DocumentTypeView> {
+    return this.http.post<DocumentTypeView>(`${DOCUMENTS_API_BASE}/types`, body);
+  }
+
+  // --- Templates (`document.design`, docs/contracts/document-templates.md) --------------------------------------
+
+  typeTemplatesResource(typeId: () => string | null | undefined): HttpResourceRef<TypeTemplates | undefined> {
+    return httpResource<TypeTemplates>(() => {
+      const id = typeId();
+      return id ? `${DOCUMENTS_API_BASE}/types/${enc(id)}/templates` : undefined;
+    });
+  }
+
+  typeTemplates(typeId: string): Observable<TypeTemplates> {
+    return this.http.get<TypeTemplates>(`${DOCUMENTS_API_BASE}/types/${enc(typeId)}/templates`);
+  }
+
+  templateVariablesResource(subject: () => string | null | undefined): HttpResourceRef<TemplateVariableList | undefined> {
+    return httpResource<TemplateVariableList>(() => {
+      const value = subject();
+      return value ? { url: `${DOCUMENTS_API_BASE}/template-variables`, params: { subject: value } } : undefined;
+    });
+  }
+
+  template(id: string): Observable<TemplateVersionView> {
+    return this.http.get<TemplateVersionView>(`${DOCUMENTS_API_BASE}/templates/${enc(id)}`);
+  }
+
+  builtinLayout(typeId: string, lang: string): Observable<TemplateLayout> {
+    return this.http.get<TemplateLayout>(`${DOCUMENTS_API_BASE}/types/${enc(typeId)}/builtin-layout`, { params: { lang } });
+  }
+
+  /** A new draft (one per type: 409 `document-template-draft-exists`). */
+  createTemplate(typeId: string, from: TemplateSource): Observable<TemplateVersionView> {
+    return this.http.post<TemplateVersionView>(`${DOCUMENTS_API_BASE}/types/${enc(typeId)}/templates`, { from });
+  }
+
+  saveTemplate(id: string, body: SaveTemplate): Observable<TemplateVersionView> {
+    return this.http.put<TemplateVersionView>(`${DOCUMENTS_API_BASE}/templates/${enc(id)}`, body);
+  }
+
+  discardTemplate(id: string): Observable<void> {
+    return this.http.delete<void>(`${DOCUMENTS_API_BASE}/templates/${enc(id)}`);
+  }
+
+  previewTemplate(id: string, body: TemplatePreviewBody): Observable<Blob> {
+    return this.http.post(`${DOCUMENTS_API_BASE}/templates/${enc(id)}/preview`, body, { responseType: 'blob' });
+  }
+
+  publishTemplate(id: string, revision: number, note?: string | null): Observable<TemplateVersionView> {
+    return this.http.post<TemplateVersionView>(`${DOCUMENTS_API_BASE}/templates/${enc(id)}/publish`, { revision, ...(note ? { note } : {}) });
+  }
+
+  /** Back to the built-in template (system types only). */
+  revertToBuiltin(typeId: string): Observable<TypeTemplates> {
+    return this.http.post<TypeTemplates>(`${DOCUMENTS_API_BASE}/types/${enc(typeId)}/templates/builtin`, {});
   }
 
   // --- Self-service (`document.request_self`) -------------------------------------------------------------------

@@ -7,9 +7,11 @@ import { LeaveFacts } from '../../leave/index.js';
 import { formatNumber } from '../domain/numbering.js';
 import { coveringSignatories, nextSeq } from '../domain/rules.js';
 import { DOCUMENT_PERMISSIONS as P, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
+import type { DocumentSnapshot } from '../domain/snapshot.js';
 import { DocumentsRepository, type DocumentRow } from '../infra/documents.repository.js';
+import { TemplatesRepository } from '../infra/templates.repository.js';
 import { DocumentIssuer, documentProblems, type IssueSpec } from './document-issuer.js';
-import { DocumentPresenter, labelsOf, signatoryView } from './document-presenter.js';
+import { DocumentPresenter, labelsOf, signatoryView, templateRef } from './document-presenter.js';
 import type { DocumentTypeView, IssuedDocumentDetail, IssuedDocumentPage, IssuedDocumentView, PdfFile, SignatoryView } from './document-views.js';
 import { DocumentsClock } from './documents-clock.js';
 
@@ -20,6 +22,7 @@ export interface IssueInput {
   language: DocumentLanguage;
   signatoryId?: string | undefined;
   clientRequestId?: string | undefined;
+  fields?: Record<string, string> | undefined;
 }
 
 export interface RegisterInput {
@@ -44,6 +47,14 @@ export function caller(): { companyId: string; userId: string } {
 
 const documentNotFound = () => new NotFoundException('Document not found');
 
+/** A replayed clientRequestId carries the same field values as the issued document (typed values, trimmed). */
+function sameFields(snapshot: DocumentSnapshot | undefined, fields: Record<string, string> | undefined): boolean {
+  const stored = snapshot?.fieldValues ?? {};
+  const given = Object.entries(fields ?? {}).filter(([, value]) => typeof value === 'string' && value.trim() !== '');
+  if (given.length !== Object.keys(stored).length) return false;
+  return given.every(([key, value]) => stored[key] === value.trim() || stored[key] === value.trim().replace(',', '.'));
+}
+
 /**
  * HR side of documents (docs/contracts/documents.md › Endpoints /documents*): reference data, signatories for the
  * issue form, preview, issuing (gap-free numbers, clientRequestId replay), the register, detail, PDF download, void.
@@ -60,6 +71,7 @@ export class DocumentsService {
     private readonly clock: DocumentsClock,
     private readonly audit: AuditEvents,
     private readonly leaves: LeaveFacts,
+    private readonly templates: TemplatesRepository,
   ) {}
 
   private async holds(code: string): Promise<boolean> {
@@ -85,6 +97,7 @@ export class DocumentsService {
     const privileged = (await this.holds(P.issue)) || (await this.holds(P.configure));
     const year = Number(this.clock.today().slice(0, 4));
     const last = privileged ? await this.repo.lastValues(companyId, year) : new Map<string, number>();
+    const published = await this.templates.published(companyId, types.flatMap((t) => (t.publishedTemplateId ? [t.publishedTemplateId] : [])));
     return {
       items: types.map((t) => ({
         id: t.id,
@@ -97,6 +110,11 @@ export class DocumentsService {
         numberFormat: privileged ? t.numberFormat : null,
         nextNumber: privileged ? formatNumber(t.numberFormat, year, nextSeq(last.get(t.id) ?? null)) : null,
         defaultSignatoryId: privileged ? t.defaultSignatoryId : null,
+        kind: t.kind,
+        subject: t.subject,
+        employmentRule: t.employmentRule,
+        templateMode: t.templateMode,
+        template: templateRef(t.publishedTemplateId ? published.get(t.publishedTemplateId) : undefined),
       })),
     };
   }
@@ -116,13 +134,19 @@ export class DocumentsService {
 
   // ── issuing ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** Access check + the issue spec (employee from the body or from the leave request). */
-  private async spec(companyId: string, input: IssueInput): Promise<IssueSpec> {
-    const titre = input.typeCode === 'titre_conge';
+  /**
+   * Access check + the issue spec (employee from the body or from the leave request). The type's subject says which id
+   * the body carries: `leaveRequestId` for a leave document (titre de congé or a custom one), else `employmentId`.
+   * `access` is the permission over the employee (document.issue; the designer's preview with a real subject too).
+   */
+  async spec(companyId: string, input: IssueInput, access: string = P.issue): Promise<IssueSpec> {
+    const type = await this.repo.typeByCode(companyId, input.typeCode);
+    if (!type) throw new ValidationProblemException([{ field: 'typeCode', code: 'not_found', message: 'Unknown document type.' }]);
+    const titre = type.subject === 'leave_request';
     if (titre ? !input.leaveRequestId || input.employmentId : !input.employmentId || input.leaveRequestId) {
       const field = titre ? (input.leaveRequestId ? 'employmentId' : 'leaveRequestId') : input.employmentId ? 'leaveRequestId' : 'employmentId';
       const code = (titre && field === 'leaveRequestId') || (!titre && field === 'employmentId') ? 'required' : 'not_allowed';
-      throw new ValidationProblemException([{ field, code, message: titre ? 'A titre de congé is issued from leaveRequestId.' : 'This document is issued for employmentId.' }]);
+      throw new ValidationProblemException([{ field, code, message: titre ? 'This document is issued from leaveRequestId.' : 'This document is issued for employmentId.' }]);
     }
     let employmentId = input.employmentId ?? '';
     if (titre) {
@@ -130,7 +154,7 @@ export class DocumentsService {
       if (!leave) throw new NotFoundException('Leave request not found');
       employmentId = leave.employmentId;
     }
-    await this.unitFor(companyId, employmentId, P.issue, () => new NotFoundException(titre ? 'Leave request not found' : 'Employee not found'));
+    await this.unitFor(companyId, employmentId, access, () => new NotFoundException(titre ? 'Leave request not found' : 'Employee not found'));
     return {
       typeCode: input.typeCode,
       employmentId,
@@ -138,6 +162,7 @@ export class DocumentsService {
       language: input.language,
       signatoryId: input.signatoryId,
       issueDate: this.clock.today(),
+      fields: input.fields,
     };
   }
 
@@ -160,7 +185,8 @@ export class DocumentsService {
           existing.employmentId === spec.employmentId &&
           existing.leaveRequestId === spec.leaveRequestId &&
           existing.language === spec.language &&
-          (!spec.signatoryId || existing.signatoryId === spec.signatoryId);
+          (!spec.signatoryId || existing.signatoryId === spec.signatoryId) &&
+          sameFields(await this.repo.snapshot(companyId, existing.id), spec.fields);
         if (!same) throw new ProblemException(409, 'document-client-request-reused', 'This clientRequestId was already used for another document.');
         return { created: false, view: await this.view(companyId, existing) };
       }

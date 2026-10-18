@@ -124,7 +124,7 @@ export const routes: Routes = [
     // nothing to users who never open them.
     path: 'documents',
     canMatch: [...signedIn, permissionGuard()],
-    data: { permission: ['document.read', 'document.issue', 'document.configure'] },
+    data: { permission: ['document.read', 'document.issue', 'document.configure', 'document.design'] },
     loadChildren: () => import('./features/documents/documents.routes').then((m) => m.DOCUMENTS_ROUTES),
   },
   {

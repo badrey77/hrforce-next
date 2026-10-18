@@ -35,18 +35,30 @@ import type {
   MyDocumentsView,
   PdfFile,
   SignatoryView,
+  TemplateVariableView,
+  TemplateVersionView,
+  TypeTemplatesView,
 } from '../application/document-views.js';
+import { TemplatesService } from '../application/templates.service.js';
+import type { TemplateLayout } from '../domain/template-layout.js';
 import { DocumentsService } from '../application/documents.service.js';
 import { MyDocumentsService } from '../application/my-documents.service.js';
 import { LOGO_MAX_BYTES } from '../domain/rules.js';
 import {
+  BuiltinLayoutQueryDto,
+  CreateDocumentTypeDto,
   CreateSignatoryDto,
+  CreateTemplateDto,
   DispositionQueryDto,
   DocumentRequestDto,
   IssueDocumentDto,
   isUuid,
   ProfileDto,
+  PreviewTemplateDto,
+  PublishTemplateDto,
   RegisterQueryDto,
+  SaveTemplateDto,
+  TemplateVariablesQueryDto,
   SignatoriesQueryDto,
   UpdateDocumentTypeDto,
   UpdateSignatoryDto,
@@ -251,5 +263,88 @@ export class MyDocumentsController {
   @RequirePermission('document.request_self')
   async pdf(@Param('id') id: string, @Query() query: DispositionQueryDto, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     return sendStored(res, await this.mine.pdf(idParam(id, 'Document'), query.disposition), query.disposition);
+  }
+}
+
+/**
+ * Designed templates and custom types (docs/contracts/document-templates.md › Endpoints). Registered BEFORE
+ * DocumentsController (documents.module.ts) so that `GET /documents/template-variables` is not taken for a document id.
+ */
+@Controller('documents')
+export class DocumentTemplatesController {
+  constructor(
+    private readonly templates: TemplatesService,
+    private readonly settings: DocumentSettingsService,
+  ) {}
+
+  @Post('types')
+  @RequirePermission('document.configure')
+  createType(@Body() body: CreateDocumentTypeDto): Promise<DocumentTypeView> {
+    return this.settings.createType(body);
+  }
+
+  @Get('template-variables')
+  @RequirePermission('document.design')
+  variables(@Query() query: TemplateVariablesQueryDto): { items: TemplateVariableView[] } {
+    return this.templates.variables(query.subject);
+  }
+
+  @Get('types/:id/templates')
+  @RequirePermission('document.design')
+  typeTemplates(@Param('id') id: string): Promise<TypeTemplatesView> {
+    return this.templates.typeTemplates(idParam(id, 'Document type'));
+  }
+
+  @Get('types/:id/builtin-layout')
+  @RequirePermission('document.design')
+  builtinLayout(@Param('id') id: string, @Query() query: BuiltinLayoutQueryDto): Promise<TemplateLayout> {
+    return this.templates.builtinLayout(idParam(id, 'Document type'), query.lang);
+  }
+
+  @Post('types/:id/templates')
+  @RequirePermission('document.design')
+  createDraft(@Param('id') id: string, @Body() body: CreateTemplateDto): Promise<TemplateVersionView> {
+    return this.templates.createDraft(idParam(id, 'Document type'), body.from);
+  }
+
+  @Post('types/:id/templates/builtin')
+  @HttpCode(200)
+  @RequirePermission('document.design')
+  revert(@Param('id') id: string): Promise<DocumentTypeView> {
+    return this.templates.revertToBuiltin(idParam(id, 'Document type'));
+  }
+
+  @Get('templates/:id')
+  @RequirePermission('document.design')
+  version(@Param('id') id: string): Promise<TemplateVersionView> {
+    return this.templates.version(idParam(id, 'Template version'));
+  }
+
+  @Put('templates/:id')
+  @RequirePermission('document.design')
+  save(@Param('id') id: string, @Body() body: SaveTemplateDto): Promise<TemplateVersionView> {
+    return this.templates.save(idParam(id, 'Template version'), { revision: body.revision, layouts: body.layouts, fields: body.fields, note: body.note ?? null });
+  }
+
+  @Delete('templates/:id')
+  @HttpCode(204)
+  @RequirePermission('document.design')
+  discard(@Param('id') id: string): Promise<void> {
+    return this.templates.discard(idParam(id, 'Template version'));
+  }
+
+  @Post('templates/:id/preview')
+  @HttpCode(200)
+  @RequirePermission('document.design')
+  async preview(@Param('id') id: string, @Body() body: PreviewTemplateDto, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
+    const { pdf, filename } = await this.templates.preview(idParam(id, 'Template version'), body);
+    return sendPdf(res, { bytes: pdf, filename, disposition: 'inline' });
+  }
+
+  @Post('templates/:id/publish')
+  @HttpCode(200)
+  @RequirePermission('document.design')
+  publish(@Param('id') id: string, @Body() body: PublishTemplateDto): Promise<TemplateVersionView> {
+    return this.templates.publish(idParam(id, 'Template version'), { revision: body.revision, note: body.note ?? null });
   }
 }

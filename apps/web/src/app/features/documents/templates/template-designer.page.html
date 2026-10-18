@@ -1,0 +1,238 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/documents/settings" [queryParams]="{ tab: 'templates' }" data-action="back">{{ t('documents.templates.back') }}</a></p>
+
+  <header class="page-header designer-header">
+    <div>
+      <h1>{{ type() ? catalog.labelOf(type()!.labels) : t('common.loading') }}</h1>
+      @if (opened(); as v) {
+        <p class="muted" data-field="version">
+          {{ t('documents.templates.versionN', { version: v.version }) }}
+          <span class="badge" [attr.data-template-status]="v.status">{{ t(statusKey(v.status)) }}</span>
+          @if (editable()) {
+            <span class="save-state" role="status" aria-live="polite" [attr.data-save]="saveState()">
+              @switch (saveState()) {
+                @case ('pending') { {{ t('documents.templates.save.pending') }} }
+                @case ('saving') { {{ t('documents.templates.save.saving') }} }
+                @case ('saved') { {{ t('documents.templates.save.saved', { time: (savedAt() | date: 'shortTime' : undefined : locale()) }) }} }
+                @case ('invalid') { {{ t('documents.templates.save.invalid') }} }
+                @case ('error') { {{ t('documents.templates.save.error') }} }
+              }
+            </span>
+          }
+        </p>
+      }
+    </div>
+    <div class="form-actions">
+      @if (opened(); as v) {
+        @if (languages().length > 1) {
+          <div class="lang-switch" role="group" [attr.aria-label]="t('documents.templates.editLanguage')">
+            @for (l of languages(); track l) {
+              <button type="button" class="btn secondary" [attr.aria-pressed]="editLang() === l" [attr.data-lang]="l" (click)="editLang.set(l)">
+                {{ l === 'fr' ? 'FR' : 'AR' }}
+              </button>
+            }
+          </div>
+        }
+        @if (editable()) {
+          <button class="btn secondary" type="button" data-action="save" [disabled]="!dirty() || saveState() === 'saving' || !!conflict()" (click)="save()">{{ t('common.save') }}</button>
+          @if (actions().includes('publish')) {
+            <button class="btn" type="button" data-action="publish" [disabled]="!!conflict()" (click)="openPublish()">{{ t('documents.templates.publish') }}</button>
+          }
+          @if (actions().includes('discard')) {
+            <button class="btn secondary danger-text" type="button" data-action="discard" (click)="openDiscard()">{{ t('documents.templates.discard') }}</button>
+          }
+        }
+      }
+      <button class="btn secondary" type="button" data-action="versions" [attr.aria-expanded]="showVersions()" (click)="showVersions.set(!showVersions())">
+        {{ t('documents.templates.versions') }}
+      </button>
+    </div>
+  </header>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (pageError(); as key) {
+    <p class="form-error" role="alert" data-error="page">{{ t(key) }}</p>
+  }
+  @if (conflict(); as key) {
+    <div class="warning" role="alert" data-state="conflict">
+      <p>{{ t(key) }}</p>
+      <button class="btn secondary" type="button" data-action="reload" (click)="reloadAfterConflict()">{{ t('documents.templates.reload') }}</button>
+    </div>
+  }
+  @if (saveErrorKey(); as key) {
+    <p class="form-error" role="alert" data-error="save">{{ t(key) }}</p>
+  }
+
+  @if (showVersions() || !wide()) {
+    <section class="panel versions" aria-labelledby="versions-title" data-section="versions">
+      <h2 id="versions-title">{{ t('documents.templates.versions') }}</h2>
+      @if (!wide()) {
+        <p class="warning" data-state="narrow">{{ t('documents.templates.narrow') }}</p>
+      }
+      <div class="table-scroll">
+        <table class="data" data-table="versions">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('documents.templates.version') }}</th>
+              <th scope="col">{{ t('documents.templates.statusHeader') }}</th>
+              <th scope="col">{{ t('documents.templates.changedBy') }}</th>
+              <th scope="col">{{ t('documents.templates.issuedCount') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('documents.settings.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (v of versions(); track v.id) {
+              <tr [attr.data-version]="v.version" [class.current]="opened()?.id === v.id">
+                <td>
+                  {{ t('documents.templates.versionN', { version: v.version }) }}
+                  @if (v.note) {
+                    <br /><span class="muted" dir="auto">{{ v.note }}</span>
+                  }
+                </td>
+                <td><span class="badge" [attr.data-template-status]="v.status">{{ t(statusKey(v.status)) }}</span></td>
+                <td>
+                  <bdi>{{ (v.publishedBy ?? v.updatedBy)?.displayName ?? '—' }}</bdi> ·
+                  <bdi>{{ (v.publishedAt ?? v.updatedAt) | date: 'medium' : undefined : locale() }}</bdi>
+                </td>
+                <td>{{ v.issuedCount }}</td>
+                <td>
+                  <div class="form-actions">
+                    @if (wide() && opened()?.id !== v.id) {
+                      <button class="btn secondary" type="button" data-action="open-version" (click)="open(v.id)">{{ t('documents.templates.open') }}</button>
+                    }
+                    @for (l of languages(); track l) {
+                      @if (v.languages.includes(l)) {
+                        <button class="btn secondary" type="button" [attr.data-action]="'preview-' + l" [disabled]="previewing()" (click)="preview(l, v.id)">
+                          {{ t('documents.templates.previewIn', { lang: t('documents.languages.' + l) }) }}
+                        </button>
+                      }
+                    }
+                    @if (wide() && v.status !== 'draft' && !draft()) {
+                      <button class="btn secondary" type="button" data-action="duplicate-version" [disabled]="creating()" (click)="createDraft(v.id)">
+                        {{ t('documents.templates.duplicate') }}
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="muted">{{ templates.hasValue() ? t('documents.templates.noVersion') : t('common.loading') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (mounted()) {
+    <div [hidden]="!wide()" data-section="designer">
+    @if (opened(); as v) {
+      @if (!editable()) {
+        <div class="warning" data-state="readonly">
+          <p>{{ t(v.status === 'published' ? 'documents.templates.readonlyPublished' : 'documents.templates.readonlyArchived') }}</p>
+          @if (draft(); as d) {
+            <button class="btn secondary" type="button" data-action="open-draft" (click)="open(d.id)">{{ t('documents.templates.openDraft', { version: d.version }) }}</button>
+          } @else {
+            <button class="btn secondary" type="button" data-action="duplicate" [disabled]="creating()" (click)="createDraft(v.id)">{{ t('documents.templates.duplicateFrom') }}</button>
+          }
+        </div>
+      }
+
+      <div class="preview-options" role="group" [attr.aria-label]="t('documents.templates.previewWith')">
+        <span>{{ t('documents.templates.previewWith') }}</span>
+        <label class="check"><input type="radio" name="preview-mode" [checked]="previewMode() === 'sample'" (change)="previewMode.set('sample')" /> {{ t('documents.templates.previewSample') }}</label>
+        @if (canIssue() && subject() === 'employment') {
+          <label class="check"><input type="radio" name="preview-mode" [checked]="previewMode() === 'employee'" (change)="previewMode.set('employee')" data-input="preview-employee" /> {{ t('documents.templates.previewEmployee') }}</label>
+          @if (previewMode() === 'employee') {
+            <app-employee-picker [formControl]="previewSubject" inputId="preview-employee" />
+          }
+        }
+      </div>
+
+      @if (currentLayout(); as layout) {
+        <dd-document-designer
+          [layout]="layout"
+          [fields]="fields()"
+          [variables]="variables()"
+          [subject]="subject()"
+          [lang]="editLang()"
+          [uiLang]="lang()"
+          [readonly]="!editable()"
+          [problems]="problems()"
+          (layoutChange)="onLayout($event)"
+          (fieldsChange)="onFields($event)"
+          (previewRequested)="preview($event)" />
+      } @else {
+        <div class="panel" data-state="no-layout">
+          <p>{{ t('documents.templates.noLayout', { lang: t('documents.languages.' + editLang()) }) }}</p>
+          @if (editable()) {
+            <div class="form-actions">
+              <button class="btn" type="button" data-action="layout-blank" (click)="addLayout('blank')">{{ t('documents.templates.startBlank') }}</button>
+              @if (isSystem()) {
+                <button class="btn secondary" type="button" data-action="layout-builtin" (click)="addLayout('builtin')">{{ t('documents.templates.startBuiltin') }}</button>
+              }
+            </div>
+          }
+        </div>
+      }
+    } @else if (opening()) {
+      <p class="muted">{{ t('common.loading') }}</p>
+    } @else if (templates.hasValue()) {
+      <section class="panel" data-state="start" aria-labelledby="start-title">
+        <h2 id="start-title">{{ t('documents.templates.startTitle') }}</h2>
+        <p>{{ t(isSystem() ? 'documents.templates.startIntroSystem' : 'documents.templates.startIntroCustom') }}</p>
+        <div class="form-actions">
+          @if (isSystem()) {
+            <button class="btn" type="button" data-action="start-builtin" [disabled]="creating()" (click)="createDraft('builtin')">{{ t('documents.templates.startBuiltin') }}</button>
+          }
+          <button class="btn" [class.secondary]="isSystem()" type="button" data-action="start-blank" [disabled]="creating()" (click)="createDraft('blank')">
+            {{ t('documents.templates.startBlank') }}
+          </button>
+        </div>
+      </section>
+    } @else if (templates.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t('documents.templates.loadError') }}</p>
+        <button class="btn secondary" type="button" (click)="templates.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+    </div>
+  }
+
+  <dialog #publishDialog class="modal" aria-labelledby="publish-title">
+    <h2 id="publish-title">{{ t('documents.templates.publishTitle') }}</h2>
+    <p>{{ t('documents.templates.publishIntro') }}</p>
+    <ul>
+      <li>{{ t('documents.templates.publishEffect1') }}</li>
+      <li>{{ t('documents.templates.publishEffect2') }}</li>
+    </ul>
+    @if (publishError(); as key) {
+      <p class="form-error" role="alert" data-error="publish">{{ t(key) }}</p>
+    }
+    <div class="field">
+      <label for="publish-note">{{ t('documents.templates.note') }}</label>
+      <textarea id="publish-note" rows="2" maxlength="300" dir="auto" [value]="publishNote()" (input)="publishNote.set($any($event.target).value)"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="button" data-action="confirm-publish" [disabled]="publishing()" (click)="publish()">
+        {{ publishing() ? t('documents.templates.publishing') : t('documents.templates.publish') }}
+      </button>
+      <button class="btn secondary" type="button" (click)="closePublish()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+
+  <dialog #discardDialog class="modal" aria-labelledby="discard-title">
+    <h2 id="discard-title">{{ t('documents.templates.discardTitle') }}</h2>
+    <p>{{ t('documents.templates.discardIntro') }}</p>
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-discard" [disabled]="discarding()" (click)="discard()">{{ t('documents.templates.discard') }}</button>
+      <button class="btn secondary" type="button" (click)="closeDiscard()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+</ng-container>

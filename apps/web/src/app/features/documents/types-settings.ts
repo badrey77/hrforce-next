@@ -31,9 +31,13 @@ import { DocumentsApi } from '../../core/documents/documents-api';
 import {
   type DocumentLanguage,
   type DocumentTypeView,
+  EMPLOYMENT_RULES,
+  type EmploymentRule,
+  issueFieldsOf,
   numberFormatError,
   parseNumber,
   renderNumber,
+  subjectOf,
   type SignatoryView,
   type UpdateDocumentType,
 } from '../../core/documents/documents.models';
@@ -41,8 +45,18 @@ import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { CONFIG_SLUGS } from './document-forms';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
 
-/** The only type employees may request themselves (contract: `selfService` is refused on the others). */
+/** The only SYSTEM type employees may request themselves (contract: `selfService` is refused on the other two). */
 export const SELF_SERVICE_TYPE = 'attestation_travail';
+
+/**
+ * Whether the self-service switch is offered for a type: the attestation, and custom EMPLOYEE documents whose
+ * published template has no required field (docs/contracts/document-templates.md › assumption 4; the API refuses a
+ * custom leave document: an employee's request names no leave request).
+ */
+export function selfServiceOffered(type: DocumentTypeView): boolean {
+  if (type.kind === 'custom') return subjectOf(type) === 'employment' && !issueFieldsOf(type).some((field) => field.required);
+  return type.code === SELF_SERVICE_TYPE;
+}
 
 /**
  * The format as it will be saved: trimmed and in capitals. The input only SHOWS capitals (`class="uppercase"`, a CSS
@@ -96,7 +110,14 @@ export class TypesSettings {
     selfService: [false],
     defaultSignatoryId: [''],
     active: [true],
+    // custom types only (document-templates.md)
+    nameFr: [''],
+    nameAr: [''],
+    nameEn: [''],
+    employmentRule: this.fb.control<EmploymentRule>('any'),
   });
+  protected readonly rules = EMPLOYMENT_RULES;
+  protected readonly selfServiceOffered = selfServiceOffered;
 
   private readonly format = toSignal(this.form.controls.numberFormat.valueChanges, { initialValue: '' });
 
@@ -124,6 +145,10 @@ export class TypesSettings {
       selfService: type.selfService,
       defaultSignatoryId: type.defaultSignatoryId ?? '',
       active: type.active,
+      nameFr: type.labels.fr,
+      nameAr: type.labels.ar,
+      nameEn: type.labels.en,
+      employmentRule: type.employmentRule ?? 'any',
     });
     this.editing.set(type);
   }
@@ -145,9 +170,15 @@ export class TypesSettings {
     const body: UpdateDocumentType = {
       numberFormat: normalizeFormat(v.numberFormat),
       languages,
-      ...(type.code === SELF_SERVICE_TYPE ? { selfService: v.selfService } : {}),
+      ...(selfServiceOffered(type) || type.selfService ? { selfService: v.selfService } : {}),
       defaultSignatoryId: v.defaultSignatoryId || null,
       active: v.active,
+      ...(type.kind === 'custom'
+        ? {
+            names: { fr: v.nameFr.trim() || type.labels.fr, ar: v.nameAr.trim() || type.labels.ar, en: v.nameEn.trim() || v.nameFr.trim() || type.labels.en },
+            ...(type.subject === 'employment' ? { employmentRule: v.employmentRule } : {}),
+          }
+        : {}),
     };
     this.saving.set(true);
     this.api.updateType(type.id, body).subscribe({

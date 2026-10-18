@@ -2,7 +2,8 @@
 import type { EmployeeCard } from '../../staffing/index.js';
 import type { WorkflowProgressView } from '../../workflow/index.js';
 import type { DocumentSnapshot } from '../domain/snapshot.js';
-import type { DocumentLanguage } from '../domain/types.js';
+import type { TemplateField, TemplateLayouts } from '../domain/template-layout.js';
+import type { DocumentLanguage, DocumentSubject, EmploymentRule, TemplateMode } from '../domain/types.js';
 
 export interface Labels {
   fr: string;
@@ -22,6 +23,12 @@ export interface DocumentTypeView {
   numberFormat: string | null;
   nextNumber: string | null;
   defaultSignatoryId: string | null;
+  kind: 'system' | 'custom';
+  subject: DocumentSubject;
+  employmentRule: EmploymentRule;
+  templateMode: TemplateMode;
+  /** the published designed version (its fields make the issue form); null = the built-in template or none yet */
+  template: { id: string; version: number; fields: TemplateField[] } | null;
 }
 
 export interface SignatoryView {
@@ -73,6 +80,10 @@ export interface IssuedDocumentView {
   leaveRequestId: string | null;
   documentRequestId: string | null;
   signatory: { id: string; names: { fr: string; ar: string } };
+  /** e.g. `attestation_travail@2` or `ordre_mission.designed@3` */
+  templateVersion: string;
+  /** the designed version used, null for a built-in template */
+  template: { id: string; version: number } | null;
   sizeBytes: number;
   /** hex SHA-256 of the stored PDF */
   sha256: string;
@@ -116,4 +127,46 @@ export interface PdfFile {
   number: string;
   sha256: string;
   status: 'issued' | 'void';
+}
+
+// ── designed templates (docs/contracts/document-templates.md › Endpoints) ─────────────────────────────────────────
+
+export interface TemplateVersionSummary {
+  id: string;
+  version: number;
+  status: 'draft' | 'published' | 'archived';
+  /** the languages the version has a layout for */
+  languages: DocumentLanguage[];
+  fieldCount: number;
+  note: string | null;
+  updatedAt: string;
+  updatedBy: UserRefView | null;
+  publishedAt: string | null;
+  publishedBy: UserRefView | null;
+  /** documents issued with this version */
+  issuedCount: number;
+}
+
+export interface TemplateVersionView extends TemplateVersionSummary {
+  typeId: string;
+  typeCode: string;
+  layouts: TemplateLayouts;
+  fields: TemplateField[];
+  revision: number;
+  basedOn: string | null;
+  _actions: ('edit' | 'publish' | 'discard' | 'duplicate')[];
+}
+
+export interface TypeTemplatesView {
+  mode: TemplateMode;
+  /** system types: the built-in template (always available); custom types: null */
+  builtin: { version: string; available: boolean } | null;
+  items: TemplateVersionSummary[];
+}
+
+export interface TemplateVariableView {
+  key: string;
+  labels: Labels;
+  group: string;
+  sample: { fr: string; ar: string };
 }

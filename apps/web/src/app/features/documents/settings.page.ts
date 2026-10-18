@@ -12,21 +12,28 @@
  * - **Writes need the permission over the WHOLE company** (contract › Scope): a unit-scoped holder can read these tabs
  *   but every save answers 403 `forbidden-scope`, which the sections translate ("only a company-wide administrator…").
  */
-import { ChangeDetectionStrategy, Component, input, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { Session } from '../../core/auth/session';
 import { CanDirective } from '../../shared/can/can.directive';
 import { FileCategoriesSettings } from './file-categories-settings';
 import { ProfileSettings } from './profile-settings';
 import { SignatoriesSettings } from './signatories-settings';
+import { TemplatesSettings } from './templates/templates-settings';
 import { TypesSettings } from './types-settings';
 
-export type SettingsTab = 'profile' | 'signatories' | 'types' | 'categories';
-export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 'types', 'categories'];
+export type SettingsTab = 'profile' | 'signatories' | 'types' | 'templates' | 'categories';
+export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 'types', 'templates', 'categories'];
+
+/** « Modèles » needs `document.design`; the other tabs `document.configure` (docs/contracts/document-templates.md). */
+export function tabPermission(tab: SettingsTab): string {
+  return tab === 'templates' ? 'document.design' : 'document.configure';
+}
 
 @Component({
   selector: 'app-document-settings-page',
-  imports: [TranslocoDirective, RouterLink, CanDirective, ProfileSettings, SignatoriesSettings, TypesSettings, FileCategoriesSettings],
+  imports: [TranslocoDirective, RouterLink, CanDirective, ProfileSettings, SignatoriesSettings, TypesSettings, TemplatesSettings, FileCategoriesSettings],
   changeDetection: ChangeDetectionStrategy.OnPush,
   styleUrl: './documents.css',
   template: `
@@ -38,7 +45,7 @@ export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 
       <p class="field-hint">{{ t('documents.settings.intro') }}</p>
 
       <div class="tabs" role="tablist" [attr.aria-label]="t('documents.settings.tabs')">
-        @for (name of tabs; track name) {
+        @for (name of tabs(); track name) {
           <button type="button" role="tab" [id]="'settings-tab-' + name" [attr.data-tab]="name"
             [attr.aria-selected]="active() === name" aria-controls="settings-panel" (click)="active.set(name)">
             {{ t('documents.settings.tab.' + name) }}
@@ -56,6 +63,9 @@ export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 
           @case ('types') {
             <app-document-types-settings />
           }
+          @case ('templates') {
+            <app-document-templates-settings />
+          }
           @case ('categories') {
             <app-document-file-categories-settings />
           }
@@ -65,11 +75,12 @@ export const SETTINGS_TABS: readonly SettingsTab[] = ['profile', 'signatories', 
   `,
 })
 export class DocumentSettingsPage {
-  protected readonly tabs = SETTINGS_TABS;
-  /** `?tab=signatories|types|categories` (bound by the router). */
+  private readonly session = inject(Session);
+  protected readonly tabs = computed(() => SETTINGS_TABS.filter((tab) => this.session.can(tabPermission(tab))));
+  /** `?tab=signatories|types|templates|categories` (bound by the router). */
   readonly tab = input<string | undefined>();
-  protected readonly active = linkedSignal<string | undefined, SettingsTab>({
-    source: this.tab,
-    computation: (tab) => (SETTINGS_TABS as readonly string[]).includes(tab ?? '') ? (tab as SettingsTab) : 'profile',
+  protected readonly active = linkedSignal<{ tab: string | undefined; tabs: readonly SettingsTab[] }, SettingsTab>({
+    source: () => ({ tab: this.tab(), tabs: this.tabs() }),
+    computation: ({ tab, tabs }) => ((tabs as readonly string[]).includes(tab ?? '') ? (tab as SettingsTab) : (tabs[0] ?? 'profile')),
   });
 }

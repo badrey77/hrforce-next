@@ -16,6 +16,7 @@ export type AuditSubjectType =
   | 'leave_request'
   | 'document_request'
   | 'issued_document'
+  | 'document_template_version'
   | 'employee_file'
   | 'attendance_device'
   | 'attendance_correction'

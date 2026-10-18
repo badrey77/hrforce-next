@@ -21,6 +21,7 @@ import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
+import { seedTemplateFixture, SIMPLE_LAYOUT, type TemplateFixture } from './support/templates-fixture.js';
 import { fetchXsrf, type XsrfPair } from './support/xsrf.js';
 
 interface ChangeRow {
@@ -67,7 +68,7 @@ const M1_TABLES = [
 const AUDITED_TABLES = [
   'assignment',
   'attendance_device', 'attendance_policy', 'attendance_schedule', 'attendance_schedule_assignment', 'attendance_schedule_override', 'attendance_schedule_version',
-  'company', 'company_branding', 'company_profile', 'document_request', 'document_signatory', 'document_type', 'employee_file', 'employee_file_category',
+  'company', 'company_branding', 'company_profile', 'document_request', 'document_signatory', 'document_template_version', 'document_type', 'employee_file', 'employee_file_category',
   'employment', 'employment_salary',
   'installation_branding', 'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
@@ -353,7 +354,7 @@ async function runWrite(key: string, send: (requestId: string) => request.Test):
 
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
   /** POST routes that write nothing (a read with a body). */
-  const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview', 'POST /api/attendance/scan', 'POST /api/recruitment/candidates/match'];
+  const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview', 'POST /api/documents/templates/:id/preview', 'POST /api/attendance/scan', 'POST /api/recruitment/candidates/match'];
   /**
    * Writes to an AUDIT-EXEMPT table only (tools/guardrails/audit-exempt.json): marking one's own notifications read
    * changes notification.read_at — per-user UI state of derived rows whose source events are audited. No audit row
@@ -487,7 +488,10 @@ describe('exit criterion: every write through the API produces an audit row with
     LV.criteria = (await query<{ id: string }>(db.superuserUrl, `select id from recruitment_criterion where company_id = $1 and is_system order by sort_order`, [COMPANY_A])).map((r) => r.id);
     LV.criterion = LV.criteria.at(-1) ?? '';
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
+    // designed templates: drafts to save, publish and discard, and the certificat in designed mode (to revert)
+    TPL = await seedTemplateFixture(db.superuserUrl, COMPANY_A, USERS.admin.id, 'aud', { designedCertificat: true });
   });
+  let TPL: TemplateFixture;
 
   interface Write {
     request: () => { path: string; body: object; upload?: Buffer; fields?: Record<string, string> };
@@ -587,6 +591,26 @@ describe('exit criterion: every write through the API produces an audit row with
       tables: ['security_policy'],
     },
     'PUT /api/documents/types/:id': { request: () => ({ path: `/api/documents/types/${LV.titreType}`, body: { languages: ['fr'] } }), tables: ['document_type'] },
+    // designed templates and custom types (docs/contracts/document-templates.md › Audit): row triggers; publishing and
+    // reverting also record an event (asserted in document-templates.e2e-spec.ts)
+    'POST /api/documents/types': {
+      request: () => ({ path: '/api/documents/types', body: { code: 'aud_type', names: { fr: 'Type audit', ar: 'نوع', en: 'Audit type' }, subject: 'employment', numberFormat: 'AUD-{YYYY}-{SEQ}', languages: ['fr'] } }),
+      tables: ['document_type'],
+    },
+    'POST /api/documents/types/:id/templates': { request: () => ({ path: `/api/documents/types/${TPL.titreType}/templates`, body: { from: 'blank' } }), tables: ['document_template_version'] },
+    'PUT /api/documents/templates/:id': {
+      request: () => ({ path: `/api/documents/templates/${TPL.toSave}`, body: { revision: 1, layouts: { fr: { ...SIMPLE_LAYOUT, blocks: SIMPLE_LAYOUT.blocks.slice(0, 2) } }, fields: [], note: 'Sans signature' } }),
+      tables: ['document_template_version'],
+    },
+    'DELETE /api/documents/templates/:id': { request: () => ({ path: `/api/documents/templates/${TPL.toDiscard}`, body: {} }), tables: ['document_template_version'] },
+    'POST /api/documents/templates/:id/publish': {
+      request: () => ({ path: `/api/documents/templates/${TPL.toPublish}/publish`, body: { revision: 1 } }),
+      tables: ['document_template_version', 'document_type'],
+    },
+    'POST /api/documents/types/:id/templates/builtin': {
+      request: () => ({ path: `/api/documents/types/${TPL.certificatType}/templates/builtin`, body: {} }),
+      tables: ['document_template_version', 'document_type'],
+    },
     'PUT /api/documents/settings/profile': {
       request: () => ({ path: '/api/documents/settings/profile', body: { legalNameFr: 'Entreprise Démo HRForce SPA', addressFr: '12 rue Didouche Mourad, Alger', cityFr: 'Alger', nif: '000016999999999' } }),
       tables: ['company_profile'],

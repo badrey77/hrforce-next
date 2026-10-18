@@ -1723,7 +1723,8 @@
     "typeNames": {
       "attestation_travail": "Employment attestation",
       "certificat_travail": "Employment certificate",
-      "titre_conge": "Leave certificate"
+      "titre_conge": "Leave certificate",
+      "custom": "Document"
     },
     "languages": {
       "fr": "French",
@@ -1760,7 +1761,8 @@
       "leaveRequest": "Leave request",
       "origin": "Origin",
       "size": "Size",
-      "sha256": "Fingerprint (SHA-256)"
+      "sha256": "Fingerprint (SHA-256)",
+      "template": "Template"
     },
     "form": {
       "required": "This field is required.",
@@ -1797,7 +1799,9 @@
       "selfService": "Employee request (self-service)",
       "kb": "KB",
       "leaveCancelled": "The leave of this certificate was cancelled after it was issued. Void the certificate if it must no longer be used.",
-      "voidedOn": "Voided on {{date}} by {{by}}."
+      "voidedOn": "Voided on {{date}} by {{by}}.",
+      "designedVersion": "Designed template, version {{version}}",
+      "builtinTemplate": "Built-in template"
     },
     "feedback": {
       "issued": "Document {{number}} issued. Open the PDF to print, sign and stamp it.",
@@ -1837,7 +1841,12 @@
       "previewing": "Preparing the preview…",
       "previewHint": "The preview opens a specimen in a new tab; no number is used.",
       "submit": "Issue",
-      "issuing": "Issuing…"
+      "issuing": "Issuing…",
+      "fields": "Information to print",
+      "optional": "(optional)",
+      "choose": "Choose…",
+      "numberInvalid": "Invalid number (e.g. 1250 or 12.5).",
+      "tooLong": "Text too long."
     },
     "problems": {
       "profileIncomplete": "The company letterhead is incomplete for this language. Missing fields:",
@@ -1856,7 +1865,8 @@
       "subjectNotFound": "Employee or request not found (or outside your scope).",
       "alreadyVoid": "This document is already void.",
       "companyWide": "Only an administrator holding this right over the whole company can change these settings.",
-      "formatTaken": "This format is already used by another document type."
+      "formatTaken": "This format is already used by another document type.",
+      "templateMissing": "This type has no published template yet."
     },
     "employee": {
       "title": "Issued documents",
@@ -1874,13 +1884,14 @@
     },
     "settings": {
       "title": "Document settings",
-      "intro": "The letterhead, signatories and numbering are company data; the legal wording of each document is fixed.",
+      "intro": "The letterhead, signatories, numbering and document templates are company data.",
       "tabs": "Settings sections",
       "tab": {
         "profile": "Letterhead",
         "signatories": "Signatories",
         "types": "Types",
-        "categories": "File categories"
+        "categories": "File categories",
+        "templates": "Templates"
       },
       "actions": "Actions",
       "edit": "Edit",
@@ -2103,6 +2114,142 @@
       "loadError": "The categories could not be loaded.",
       "created": "Category created.",
       "saved": "Category saved."
+    },
+    "templates": {
+      "title": "Document templates",
+      "intro": "Layout and wording of each document type. A published template applies to the next documents; documents already issued keep their PDF.",
+      "newType": "New document type",
+      "newTypeHint": "The type stays inactive until its first template is published; then activate it on the “Types” tab.",
+      "createAndDesign": "Create and design the template",
+      "code": "Code",
+      "codeHint": "Lower-case letters, digits and “_”, 3 to 40 characters, starting with a letter (e.g. ordre_mission). Cannot be changed later.",
+      "codeInvalid": "Invalid code: lower-case letters, digits and “_”, 3 to 40 characters, starting with a letter.",
+      "codeReserved": "This code is reserved for a built-in type.",
+      "nameFr": "Name (French)",
+      "nameAr": "Name (Arabic)",
+      "nameEn": "Name (English, optional)",
+      "subject": "The document is about",
+      "subjects": {
+        "employment": "An employee",
+        "leave_request": "An approved leave request"
+      },
+      "employmentRule": "Employment",
+      "rules": {
+        "any": "Current or ended",
+        "active": "Current only",
+        "ended": "Ended only"
+      },
+      "kindHeader": "Origin",
+      "kind": {
+        "system": "Built-in",
+        "custom": "Custom"
+      },
+      "template": "Template",
+      "inactive": "Inactive",
+      "mode": {
+        "builtin": "Built-in template",
+        "designed": "Version {{version}} published",
+        "none": "No published template"
+      },
+      "draftBadge": "Draft v{{version}}",
+      "design": "Design",
+      "preview": "Preview",
+      "revert": "Back to the built-in template",
+      "revertTitle": "Back to the built-in template?",
+      "revertIntro": "The next “{{name}}” documents will use the built-in template again. The published version is archived; documents already issued do not change.",
+      "reverted": "The built-in template is used again.",
+      "activateHint": "This type can be activated only once its first template is published.",
+      "back": "Back to templates",
+      "versionN": "Version {{version}}",
+      "version": "Version",
+      "statusHeader": "Status",
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "archived": "Archived"
+      },
+      "save": {
+        "pending": "Changes pending…",
+        "saving": "Saving…",
+        "saved": "Saved at {{time}}",
+        "invalid": "Not saved: problems to fix",
+        "error": "Not saved"
+      },
+      "editLanguage": "Template language",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "publishTitle": "Publish this template?",
+      "publishIntro": "After publishing:",
+      "publishEffect1": "the next documents of this type use this template;",
+      "publishEffect2": "the version published until now is archived; documents already issued keep their PDF.",
+      "note": "Note (optional): what changes",
+      "published": "Template published.",
+      "discard": "Discard the draft",
+      "discardTitle": "Discard this draft?",
+      "discardIntro": "The draft is deleted. The published version, if any, stays in force.",
+      "discarded": "Draft discarded.",
+      "versions": "Versions",
+      "reload": "Reload",
+      "narrow": "Designing a template needs a screen at least 900 pixels wide. The versions and their previews remain available here.",
+      "changedBy": "Changed by",
+      "issuedCount": "Documents issued",
+      "open": "Open",
+      "previewIn": "Preview ({{lang}})",
+      "duplicate": "New draft",
+      "noVersion": "No version.",
+      "readonlyPublished": "Published version: read-only. Changes are made in a new draft.",
+      "readonlyArchived": "Archived version: read-only.",
+      "openDraft": "Open draft v{{version}}",
+      "duplicateFrom": "Create a draft from this version",
+      "previewWith": "Preview with:",
+      "previewSample": "sample data",
+      "previewEmployee": "an employee",
+      "noLayout": "This draft has no {{lang}} layout yet.",
+      "startTitle": "Design the first template",
+      "startIntroSystem": "This type uses the built-in template. A draft can start from its wording or from a blank page.",
+      "startIntroCustom": "This type has no template yet: a draft starts from a blank page.",
+      "startBlank": "Blank page",
+      "startBuiltin": "Built-in wording",
+      "loadError": "The templates of this type could not be loaded.",
+      "leaveConfirm": "Some changes are not saved yet. Leave anyway?",
+      "problems": {
+        "codeTaken": "Another type already uses this code.",
+        "noBuiltin": "This type has no built-in template.",
+        "changed": "This draft was changed elsewhere (another tab or person). Reload it to continue; your last unsaved changes will be lost.",
+        "notDraft": "This version is no longer a draft (published or discarded elsewhere). Reload the page.",
+        "draftExists": "This type already has a draft: open it from “Versions”.",
+        "tooLong": "The document would exceed 5 pages: shorten the template.",
+        "selfService": "This type is self-service: its template cannot have a required field.",
+        "invalid": "The template has problems (listed beside it).",
+        "notFound": "This version does not exist."
+      },
+      "codes": {
+        "invalid": "Unknown or malformed element.",
+        "required": "This language has no layout yet.",
+        "empty": "The layout of this language is empty: add at least one block.",
+        "too_many_blocks": "Too many blocks (150 at most).",
+        "text_too_long": "The text is too long.",
+        "invalid_text": "The text contains characters that are not allowed.",
+        "unknown_variable": "This placeholder does not exist for this kind of document.",
+        "unknown_field": "This field to fill in does not exist (any more) in the template.",
+        "empty_gender": "Enter at least one of the three forms.",
+        "invalid_id": "Invalid block identifier.",
+        "duplicate_id": "Two blocks have the same identifier.",
+        "too_many_items": "Too many list items (30 at most).",
+        "table_too_large": "The table is too large (2 to 6 columns, 40 rows at most).",
+        "invalid_width": "Invalid column width (1 to 10).",
+        "invalid_row": "Each row needs one cell per column.",
+        "positions_not_allowed": "Positions held exist only for a document about an employee.",
+        "layout_too_large": "The template is too large (20,000 characters per language, 256 KB in all).",
+        "too_many_fields": "Too many fields to fill in (10 at most).",
+        "invalid_key": "Invalid field code (lower-case letters, digits and “_”, starting with a letter).",
+        "duplicate_key": "Two fields have the same code.",
+        "invalid_label": "A label is required in French and in Arabic (80 characters at most).",
+        "invalid_options": "A choice list has 1 to 20 choices.",
+        "invalid_value": "Invalid choice value (lower-case letters, digits and “_”).",
+        "duplicate_value": "Two choices have the same value.",
+        "not_allowed": "Not allowed for this document type."
+      }
     }
   },
   "attendance": {

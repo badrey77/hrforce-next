@@ -183,3 +183,23 @@ on Windows dev machines, and a different engine build (reprints are stored bytes
 Forking the existing binding gets the same isolation with nothing new to install. Cost: one more Node process per
 render slot (≈ 50–60 MB RSS once warm, about what the thread used).
 
+
+## Amendment (2026-10-09): designed templates are data
+
+Owner decision 2026-10-09: companies design their own document templates in a built-in designer (no Word upload),
+override the three built-in types and create new document types (contract `docs/contracts/document-templates.md`).
+Decision 3 kept user-editable templates out because a Typst template is code; it named "a restricted block editor"
+as the way to offer custom wording. This amendment is that editor.
+
+**Change to Decision 3:** besides the built-in templates in code, a type may use a **designed template**: a versioned
+JSON layout (blocks, formatted text runs, placeholders, fields) stored in `document_template_version`.
+- A designed layout is **never turned into Typst source**. The API validates it (bounded block, text and table sizes),
+  resolves placeholders, gender forms and conditions in TypeScript, and passes the resolved blocks as one more JSON
+  string (`sys.inputs.layout`) to **one fixed, reviewed template** `designed.typ`, which only lays them out. Strings
+  stay content (Decision 1), so markup typed by a user prints literally; the render timeout, memory ceiling and
+  child-process isolation (amendment of 2026-10-02) stay the outer limits, plus a 5-page cap per document.
+- No user-supplied images: the company logo stays the only image; the signatory is printed as name and title and the
+  paper is signed by hand (contract `documents.md`, assumption 7).
+- Built-in templates remain (`<code>@2`) and are the default of the system types; a company can return to them.
+- Storage and numbering are unchanged: issued PDFs are stored bytes, so publishing a new version never changes a
+  document already issued. `issued_document` records the version used (`<code>.designed@<n>` and its id).

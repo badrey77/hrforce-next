@@ -33,8 +33,9 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from '../../core/auth/session';
+import { DocumentCatalog } from '../../core/documents/document-catalog';
 import { DocumentsApi } from '../../core/documents/documents-api';
-import { documentActions, type IssuedDocumentDetail } from '../../core/documents/documents.models';
+import { documentActions, type IssuedDocumentDetail, issueFieldsOf } from '../../core/documents/documents.models';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
@@ -74,6 +75,31 @@ export class DocumentDetailPage {
   protected readonly detail = computed<IssuedDocumentDetail | undefined>(() =>
     this.document.hasValue() ? this.document.value() : undefined,
   );
+  private readonly catalog = inject(DocumentCatalog);
+  /**
+   * Values typed in the template's fields (snapshot `fields`), labelled by the type's CURRENT published fields (an
+   * older version's label is not served to readers); a key no longer there shows as is.
+   */
+  protected readonly fieldEntries = computed(() => {
+    const d = this.detail();
+    const values = d?.snapshot?.fields;
+    if (!d || !values) return [];
+    const fields = issueFieldsOf(this.catalog.type(d.type.code));
+    const ar = this.lang() === 'ar';
+    // in the order of the template's fields (the stored snapshot has its own key order); unknown keys last
+    const position = (key: string) => {
+      const index = fields.findIndex((f) => f.key === key);
+      return index < 0 ? fields.length : index;
+    };
+    return Object.entries(values)
+      .filter(([, value]) => value !== null && value !== '')
+      .map(([key, value]) => {
+        const field = fields.find((f) => f.key === key);
+        const label = field ? (ar ? field.labels.ar : field.labels.fr) || field.labels.fr : key;
+        return { key, label, value: value ?? '' };
+      })
+      .toSorted((x, y) => position(x.key) - position(y.key));
+  });
   protected readonly notFound = computed(() => {
     const error = this.document.error();
     return isApiProblemError(error) && error.status === 404;

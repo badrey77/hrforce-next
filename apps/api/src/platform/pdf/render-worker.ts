@@ -26,6 +26,8 @@ export interface RenderJob {
   template: string;
   data: string;
   options: string;
+  /** a resolved designed layout (JSON), only for the `designed` template */
+  layout?: string;
   assets: { path: string; bytes: Uint8Array }[];
   standard: string | null;
 }
@@ -44,6 +46,16 @@ function describe(error: unknown): string {
     }
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The error diagnostics of compiling `args` (only called after a failed render). */
+function diagnosticsOf(args: { mainFilePath: string; inputs: Record<string, string> }): string {
+  try {
+    const error = compiler.compile(args).takeError();
+    return error ? JSON.stringify(error.shortDiagnostics.map((d: { message?: unknown }) => d.message)).slice(0, 2000) : 'render failed';
+  } catch (error) {
+    return describe(error) || 'render failed';
+  }
 }
 
 function send(reply: RenderReply): void {
@@ -67,11 +79,17 @@ process.on('message', (job: RenderJob) => {
       compiler.mapShadow(file, Buffer.from(asset.bytes));
       mapped.push(file);
     }
-    const pdf = compiler.pdf(
-      { mainFilePath: path.join(config.templatesDir, `${job.template}.typ`), inputs: { data: job.data, render: job.options } },
-      job.standard ? { pdfStandard: job.standard } : undefined,
-    );
-    reply = { id: job.id, ok: true, pdf: new Uint8Array(pdf.buffer, pdf.byteOffset, pdf.byteLength) };
+    const inputs: Record<string, string> = { data: job.data, render: job.options };
+    if (job.layout !== undefined) inputs['layout'] = job.layout;
+    const args = { mainFilePath: path.join(config.templatesDir, `${job.template}.typ`), inputs };
+    try {
+      const pdf = compiler.pdf(args, job.standard ? { pdfStandard: job.standard } : undefined);
+      reply = { id: job.id, ok: true, pdf: new Uint8Array(pdf.buffer, pdf.byteOffset, pdf.byteLength) };
+    } catch (error) {
+      // pdf() reports a compile error (e.g. designed.typ's page-cap panic) with an empty message: compile again to
+      // read the diagnostics, so the API can tell the cause
+      reply = { id: job.id, ok: false, error: describe(error) || diagnosticsOf(args) };
+    }
   } catch (error) {
     reply = { id: job.id, ok: false, error: describe(error) };
   } finally {

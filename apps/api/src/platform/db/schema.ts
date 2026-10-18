@@ -291,20 +291,44 @@ export interface DocumentSignatory {
   title_fr: string;
 }
 
+export interface DocumentTemplateVersion {
+  based_on: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  document_type_id: string;
+  fields: Generated<Json>;
+  id: Generated<string>;
+  layouts: Generated<Json>;
+  note: string | null;
+  published_at: Timestamp | null;
+  published_by: string | null;
+  revision: Generated<number>;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+  version: number;
+}
+
 export interface DocumentType {
   active: Generated<boolean>;
   code: string;
   company_id: string;
   created_at: Generated<Timestamp>;
   default_signatory_id: string | null;
+  employment_rule: Generated<string>;
   id: Generated<string>;
+  kind: Generated<string>;
   languages: Generated<string[]>;
   name_ar: string;
   name_en: string;
   name_fr: string;
   number_format: string;
+  published_template_id: string | null;
   self_service: Generated<boolean>;
   sort_order: Generated<number>;
+  subject: Generated<string>;
+  template_mode: Generated<string>;
 }
 
 export interface EmployeeFile {
@@ -414,7 +438,9 @@ export interface IssuedDocument {
   size_bytes: number;
   snapshot: Json;
   status: Generated<string>;
+  subject: string;
   template_version: string;
+  template_version_id: string | null;
   type_code: string;
   void_reason: string | null;
   voided_at: Timestamp | null;
@@ -1007,6 +1033,7 @@ export interface DB {
   document_request: DocumentRequest;
   document_sequence: DocumentSequence;
   document_signatory: DocumentSignatory;
+  document_template_version: DocumentTemplateVersion;
   document_type: DocumentType;
   employee_file: EmployeeFile;
   employee_file_category: EmployeeFileCategory;

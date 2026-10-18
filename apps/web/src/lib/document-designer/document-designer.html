@@ -1,0 +1,353 @@
+@let l = texts();
+@let ro = readonly();
+<div class="dd-shell" [attr.dir]="uiDir()" [attr.lang]="uiLang()">
+  <div class="dd-toolbar" role="toolbar" [attr.aria-label]="l.properties">
+    @if (!ro) {
+      <button type="button" class="dd-btn" data-action="undo" [disabled]="!canUndo()" (click)="undo()" [attr.aria-keyshortcuts]="'Control+Z'">{{ l.undo }}</button>
+      <button type="button" class="dd-btn" data-action="redo" [disabled]="!canRedo()" (click)="redo()" [attr.aria-keyshortcuts]="'Control+Shift+Z'">{{ l.redo }}</button>
+      <span class="dd-sep" aria-hidden="true"></span>
+      <button type="button" class="dd-btn dd-mark" data-action="bold" [attr.aria-pressed]="activeMarks().has('bold')" [disabled]="!hasEditor()"
+        (mousedown)="$event.preventDefault()" (click)="toggleMark('bold')" [attr.aria-label]="l.bold"><b>G</b></button>
+      <button type="button" class="dd-btn dd-mark" data-action="italic" [attr.aria-pressed]="activeMarks().has('italic')" [disabled]="!hasEditor()"
+        (mousedown)="$event.preventDefault()" (click)="toggleMark('italic')" [attr.aria-label]="l.italic"><i>I</i></button>
+      <button type="button" class="dd-btn dd-mark" data-action="underline" [attr.aria-pressed]="activeMarks().has('underline')" [disabled]="!hasEditor()"
+        (mousedown)="$event.preventDefault()" (click)="toggleMark('underline')" [attr.aria-label]="l.underline"><u>S</u></button>
+    } @else {
+      <span class="dd-badge" data-state="readonly">{{ l.readonly }}</span>
+    }
+    <span class="dd-grow"></span>
+    <button type="button" class="dd-btn" data-action="preview" (click)="previewRequested.emit(lang())">{{ l.preview }}</button>
+  </div>
+  @if (status(); as s) {
+    <p class="dd-status" role="status">
+      {{ s }}
+      @if (canUndo() && !ro) {
+        <button type="button" class="dd-link" (click)="undo(); status.set(null)">{{ l.undo }}</button>
+      }
+    </p>
+  }
+
+  <div class="dd-body">
+    <aside class="dd-left">
+      @if (!ro) {
+        <section aria-labelledby="dd-blocks-title">
+          <h3 id="dd-blocks-title">{{ l.blocks }}</h3>
+          <ul class="dd-palette">
+            @for (type of blockTypes(); track type) {
+              <li>
+                <button type="button" class="dd-palette-item" draggable="true" [attr.data-add]="type" [disabled]="doc().blocks.length >= limits.blocks"
+                  (dragstart)="dragNew($event, type)" (dragend)="dragEnd()" (click)="add(type)">{{ blockLabel(type) }}</button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+      <section aria-labelledby="dd-page-title" class="dd-page-settings">
+        <h3 id="dd-page-title">{{ l.page }}</h3>
+        <label class="dd-check">
+          <input type="checkbox" [disabled]="ro" [checked]="doc().page.letterhead" (change)="setPage({ letterhead: checked($event) })" data-page="letterhead" />
+          {{ l.letterhead }}
+        </label>
+        <label class="dd-check">
+          <input type="checkbox" [disabled]="ro" [checked]="doc().page.footer" (change)="setPage({ footer: checked($event) })" data-page="footer" />
+          {{ l.footer }}
+        </label>
+        <label for="dd-font">{{ l.fontSize }}</label>
+        <select id="dd-font" [disabled]="ro" (change)="setPage({ fontSize: $any(value($event)) })" data-page="fontSize">
+          @for (size of ['small', 'normal', 'large']; track size) {
+            <option [value]="size" [selected]="doc().page.fontSize === size">{{ $any(l.fontSizes)[size] }}</option>
+          }
+        </select>
+        <label for="dd-margins">{{ l.margins }}</label>
+        <select id="dd-margins" [disabled]="ro" (change)="setPage({ margins: $any(value($event)) })" data-page="margins">
+          @for (size of ['narrow', 'normal', 'wide']; track size) {
+            <option [value]="size" [selected]="doc().page.margins === size">{{ $any(l.marginSizes)[size] }}</option>
+          }
+        </select>
+        <p class="dd-hint" data-limits>
+          {{ l.blocks }} : {{ doc().blocks.length }} / {{ limits.blocks }}<br />
+          {{ fillText(l.textCount, { n: textLength(), max: limits.textChars }) }}
+        </p>
+      </section>
+    </aside>
+
+    <div class="dd-canvas-wrap">
+      <div class="dd-page" [attr.dir]="docDir()" [attr.lang]="lang()" [attr.data-font]="doc().page.fontSize" [attr.data-margins]="doc().page.margins"
+        (dragover)="dragOver($event, doc().blocks.length)" (drop)="drop($event)" data-canvas>
+        @if (doc().page.letterhead) {
+          <div class="dd-fixed" aria-hidden="true">{{ l.letterheadArea }}</div>
+        }
+        @for (block of doc().blocks; track block.id; let i = $index; let first = $first; let last = $last) {
+          @if (dropIndex() === i) {
+            <div class="dd-drop-line" aria-hidden="true"></div>
+          }
+          <div #blockEl class="dd-block" [attr.data-block-id]="block.id" [attr.data-block-type]="block.type" tabindex="0"
+            [class.selected]="selectedId() === block.id" [class.dd-has-problem]="problemBlocks().has(i)"
+            [attr.aria-label]="blockLabel(block.type)" [attr.aria-current]="selectedId() === block.id ? 'true' : null"
+            (focusin)="select(block.id)" (click)="select(block.id)" (dragover)="dragOver($event, i)" (drop)="drop($event)">
+            @if (!ro) {
+              <div class="dd-block-tools">
+                <span class="dd-handle" draggable="true" [attr.aria-label]="l.dragHandle" [title]="l.dragHandle" (dragstart)="dragMove($event, block.id)" (dragend)="dragEnd()">⠿</span>
+                <span class="dd-block-name">{{ blockLabel(block.type) }}</span>
+                <button type="button" class="dd-icon" [attr.aria-label]="l.moveUp" [title]="l.moveUp" [disabled]="first" (click)="move(block.id, -1)" data-action="up">↑</button>
+                <button type="button" class="dd-icon" [attr.aria-label]="l.moveDown" [title]="l.moveDown" [disabled]="last" (click)="move(block.id, 1)" data-action="down">↓</button>
+                <button type="button" class="dd-icon" [attr.aria-label]="l.duplicate" [title]="l.duplicate" (click)="duplicate(block.id)" data-action="duplicate">⧉</button>
+                <button type="button" class="dd-icon dd-danger" [attr.aria-label]="l.remove" [title]="l.remove" (click)="remove(block.id)" data-action="remove">×</button>
+              </div>
+            }
+            @switch (block.type) {
+              @case ('title') {
+                <dd-inline-editor class="dd-title" [attr.data-align]="block.align" [content]="block.content" [dir]="docDir()" [lang]="lang()" [readonly]="ro"
+                  [placeholders]="placeholderOptions()" [hint]="l.typeBracket" [ariaLabel]="blockLabel('title')" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder"
+                  (contentChange)="setContent(block.id, $event)" (focused)="onEditorFocus($event, block.id)" (chipChange)="onChip($event)"
+                  (undoRequested)="undo()" (redoRequested)="redo()" />
+              }
+              @case ('heading') {
+                <dd-inline-editor class="dd-heading" [attr.data-align]="block.align" [content]="block.content" [dir]="docDir()" [lang]="lang()" [readonly]="ro"
+                  [placeholders]="placeholderOptions()" [hint]="l.typeBracket" [ariaLabel]="blockLabel('heading')" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder"
+                  (contentChange)="setContent(block.id, $event)" (focused)="onEditorFocus($event, block.id)" (chipChange)="onChip($event)"
+                  (undoRequested)="undo()" (redoRequested)="redo()" />
+              }
+              @case ('paragraph') {
+                @if (block.when) {
+                  <span class="dd-when" dir="auto">? [{{ labelOf(block.when) }}]</span>
+                }
+                <dd-inline-editor class="dd-paragraph" [attr.data-align]="block.align" [content]="block.content" [dir]="docDir()" [lang]="lang()" [readonly]="ro"
+                  [placeholders]="placeholderOptions()" [hint]="l.typeBracket" [ariaLabel]="blockLabel('paragraph')" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder"
+                  (contentChange)="setContent(block.id, $event)" (focused)="onEditorFocus($event, block.id)" (chipChange)="onChip($event)"
+                  (undoRequested)="undo()" (redoRequested)="redo()" />
+              }
+              @case ('list') {
+                <div class="dd-list" [class.ordered]="block.ordered">
+                  @for (item of block.items; track $index; let n = $index) {
+                    <div class="dd-list-item">
+                      <span class="dd-bullet" aria-hidden="true">{{ block.ordered ? n + 1 + '.' : '•' }}</span>
+                      <dd-inline-editor [content]="item" [dir]="docDir()" [lang]="lang()" [readonly]="ro" [placeholders]="placeholderOptions()"
+                        [ariaLabel]="fillText(l.item, { n: n + 1 })" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder"
+                        (contentChange)="setItem(block.id, n, $event)" (focused)="onEditorFocus($event, block.id)" (chipChange)="onChip($event)"
+                        (undoRequested)="undo()" (redoRequested)="redo()" />
+                      @if (!ro && selectedId() === block.id) {
+                        <button type="button" class="dd-icon" [attr.aria-label]="l.removeItem" [disabled]="block.items.length <= 1" (click)="removeItem(block.id, n)">−</button>
+                      }
+                    </div>
+                  }
+                  @if (!ro && selectedId() === block.id && block.items.length < limits.listItems) {
+                    <button type="button" class="dd-link" (click)="addItem(block.id, block.items.length - 1)" data-action="add-item">{{ l.addItem }}</button>
+                  }
+                </div>
+              }
+              @case ('table') {
+                <div class="dd-table" [class.borders]="block.borders" [style.grid-template-columns]="gridColumns(block.widths)">
+                  @for (row of block.rows; track $index; let r = $index) {
+                    @for (cell of row; track $index; let c = $index) {
+                      <div class="dd-cell" [class.header]="block.headerRow && r === 0">
+                        <dd-inline-editor [content]="cell" [dir]="docDir()" [lang]="lang()" [readonly]="ro" [placeholders]="placeholderOptions()" [multiline]="false"
+                          [ariaLabel]="fillText(l.cell, { r: r + 1, c: c + 1 })" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder"
+                          (contentChange)="setCell(block.id, r, c, $event)" (focused)="onEditorFocus($event, block.id)" (chipChange)="onChip($event)"
+                          (undoRequested)="undo()" (redoRequested)="redo()" />
+                      </div>
+                    }
+                  }
+                </div>
+              }
+              @case ('positions') {
+                <p class="dd-placeholder-block">{{ l.positionsPreview }}</p>
+              }
+              @case ('signature') {
+                <div class="dd-signature" [attr.data-align]="block.align">
+                  <p>{{ l.signaturePreview }}</p>
+                  <p><b>[{{ labelOf('signatory.title') }}]</b></p>
+                  <p>[{{ labelOf('signatory.name') }}]</p>
+                </div>
+              }
+              @case ('spacer') {
+                <div class="dd-spacer" [attr.data-size]="block.size" aria-hidden="true"></div>
+              }
+              @case ('divider') {
+                <hr class="dd-divider" />
+              }
+              @case ('pageBreak') {
+                <div class="dd-pagebreak">{{ l.blockType['pageBreak'] }}</div>
+              }
+            }
+          </div>
+        } @empty {
+          <p class="dd-muted dd-empty-canvas">{{ l.emptyCanvas }}</p>
+        }
+        @if (dropIndex() === doc().blocks.length && doc().blocks.length) {
+          <div class="dd-drop-line" aria-hidden="true"></div>
+        }
+        @if (doc().page.footer) {
+          <div class="dd-fixed dd-footer" aria-hidden="true">{{ l.footerArea }}</div>
+        }
+      </div>
+    </div>
+
+    <aside class="dd-right">
+      <div class="dd-tabs" role="tablist">
+        @for (name of ['placeholders', 'fields', 'properties']; track name) {
+          <button type="button" role="tab" [attr.aria-selected]="panel() === name" [attr.data-panel-tab]="name" (click)="panel.set($any(name))">
+            {{ $any(l)[name] }}
+          </button>
+        }
+      </div>
+
+      @switch (panel()) {
+        @case ('placeholders') {
+          <div role="tabpanel" data-panel="placeholders">
+            <input type="search" class="dd-search" [placeholder]="l.searchPlaceholders" [attr.aria-label]="l.searchPlaceholders" [value]="search()" (input)="search.set(value($event))" />
+            @for (g of placeholderGroups(); track g.group) {
+              <h4>{{ l.groups[g.group] ?? g.group }}</h4>
+              <ul class="dd-vars">
+                @for (item of g.items; track item.key) {
+                  <li>
+                    <button type="button" class="dd-var" [attr.data-insert]="item.key" [disabled]="ro || !hasEditor()" [title]="item.sample ?? item.key"
+                      (mousedown)="$event.preventDefault()" (click)="insertVar(item.key)"><span dir="auto">[{{ item.label }}]</span></button>
+                  </li>
+                }
+              </ul>
+            } @empty {
+              <p class="dd-muted">{{ l.noPlaceholder }}</p>
+            }
+            @if (!ro) {
+              <details class="dd-more">
+                <summary>{{ l.insertGender }}</summary>
+                <label for="dd-g-m">{{ l.genderM }}</label>
+                <input id="dd-g-m" type="text" [attr.dir]="docDir()" [value]="gender().m" (input)="setGender('m', value($event))" data-gender="m" />
+                <label for="dd-g-f">{{ l.genderF }}</label>
+                <input id="dd-g-f" type="text" [attr.dir]="docDir()" [value]="gender().f" (input)="setGender('f', value($event))" data-gender="f" />
+                <label for="dd-g-x">{{ l.genderX }}</label>
+                <input id="dd-g-x" type="text" [attr.dir]="docDir()" [value]="gender().x" (input)="setGender('x', value($event))" data-gender="x" />
+                <button type="button" class="dd-btn" [disabled]="!hasEditor() || !gender().m || !gender().f" (mousedown)="$event.preventDefault()" (click)="insertGender()"
+                  data-action="insert-gender">{{ l.insert }}</button>
+              </details>
+              <details class="dd-more">
+                <summary>{{ l.insertOptional }}</summary>
+                <label for="dd-opt-key">{{ l.optionalKey }}</label>
+                <select id="dd-opt-key" (change)="optionalKey.set(value($event))" data-input="optional-key">
+                  <option value="">—</option>
+                  @for (p of placeholderOptions(); track p.key) {
+                    <option [value]="p.key" [selected]="optionalKey() === p.key">{{ p.label }}</option>
+                  }
+                </select>
+                <button type="button" class="dd-btn" [disabled]="!hasEditor() || !optionalKey()" (mousedown)="$event.preventDefault()" (click)="insertOptional()"
+                  data-action="insert-optional">{{ l.insert }}</button>
+              </details>
+            }
+          </div>
+        }
+        @case ('fields') {
+          <div role="tabpanel" data-panel="fields">
+            <dd-fields-editor [fields]="fields()" [labels]="l" [lang]="lang()" [readonly]="ro" (fieldsChange)="setFields($event)" />
+          </div>
+        }
+        @case ('properties') {
+          <div role="tabpanel" data-panel="properties">
+            @if (chip(); as c) {
+              <section class="dd-chip-props" data-chip-props>
+                <h4>{{ l.chip }}</h4>
+                @switch (c.kind) {
+                  @case ('var') {
+                    <p dir="auto">[{{ labelOf(c.key) }}]</p>
+                  }
+                  @case ('gender') {
+                    <label for="dd-cg-m">{{ l.genderM }}</label>
+                    <input id="dd-cg-m" type="text" [attr.dir]="docDir()" [disabled]="ro" [value]="c.m" (change)="updateChip({ m: value($event) })" />
+                    <label for="dd-cg-f">{{ l.genderF }}</label>
+                    <input id="dd-cg-f" type="text" [attr.dir]="docDir()" [disabled]="ro" [value]="c.f" (change)="updateChip({ f: value($event) })" />
+                    <label for="dd-cg-x">{{ l.genderX }}</label>
+                    <input id="dd-cg-x" type="text" [attr.dir]="docDir()" [disabled]="ro" [value]="c.x" (change)="updateChip({ x: value($event) })" />
+                  }
+                  @case ('optional') {
+                    <label for="dd-co-key">{{ l.optionalKey }}</label>
+                    <select id="dd-co-key" [disabled]="ro" (change)="updateChip({ key: value($event) })">
+                      @for (p of placeholderOptions(); track p.key) {
+                        <option [value]="p.key" [selected]="c.key === p.key">{{ p.label }}</option>
+                      }
+                    </select>
+                    <p class="dd-sub">{{ l.optionalContent }}</p>
+                    <dd-inline-editor class="dd-nested" [content]="c.content" [dir]="docDir()" [lang]="lang()" [readonly]="ro"
+                      [placeholders]="placeholderOptions()" [listLabel]="l.placeholders" [emptyLabel]="l.noPlaceholder" [ariaLabel]="l.optionalContent"
+                      (contentChange)="updateChip({ content: $event })" />
+                  }
+                }
+                @if (!ro) {
+                  <button type="button" class="dd-link dd-danger" (click)="removeChip()">{{ l.removeChip }}</button>
+                }
+              </section>
+            }
+            @if (selected(); as b) {
+              <section data-block-props [attr.data-for]="b.type">
+                <h4>{{ blockLabel(b.type) }}</h4>
+                @if (b.type === 'title' || b.type === 'heading' || b.type === 'paragraph' || b.type === 'signature') {
+                  <label for="dd-align">{{ b.type === 'signature' ? l.signatureAlign : l.align }}</label>
+                  <select id="dd-align" [disabled]="ro" (change)="setAlign(b.id, $any(value($event)))" data-prop="align">
+                    @for (a of b.type === 'signature' ? ['start', 'center', 'end'] : ['start', 'center', 'end', 'justify']; track a) {
+                      <option [value]="a" [selected]="b.align === a">{{ $any(l.alignments)[a] }}</option>
+                    }
+                  </select>
+                }
+                @if (b.type === 'paragraph') {
+                  <label for="dd-when">{{ l.when }}</label>
+                  <select id="dd-when" [disabled]="ro" (change)="setWhen(b.id, value($event))" data-prop="when">
+                    <option value="" [selected]="!b.when">{{ l.whenAlways }}</option>
+                    @for (p of placeholderOptions(); track p.key) {
+                      <option [value]="p.key" [selected]="b.when === p.key">{{ p.label }}</option>
+                    }
+                  </select>
+                }
+                @if (b.type === 'list') {
+                  <label class="dd-check"><input type="checkbox" [disabled]="ro" [checked]="b.ordered" (change)="patchBlock(b.id, { ordered: checked($event) })" data-prop="ordered" /> {{ l.ordered }}</label>
+                }
+                @if (b.type === 'table') {
+                  <label for="dd-cols">{{ l.columns }}</label>
+                  <input id="dd-cols" type="number" min="2" max="6" [disabled]="ro" [value]="b.widths.length" (change)="setColumns(b.id, numberOf($event))" data-prop="columns" />
+                  <label for="dd-rows">{{ l.rows }}</label>
+                  <input id="dd-rows" type="number" min="1" max="40" [disabled]="ro" [value]="b.rows.length" (change)="setRows(b.id, numberOf($event))" data-prop="rows" />
+                  <p class="dd-sub">{{ l.widths }}</p>
+                  <div class="dd-widths">
+                    @for (w of b.widths; track $index; let c = $index) {
+                      <input type="number" min="1" max="10" [disabled]="ro" [value]="w" [attr.aria-label]="l.columns + ' ' + (c + 1)" (change)="setWidth(b.id, c, numberOf($event))" />
+                    }
+                  </div>
+                  <label class="dd-check"><input type="checkbox" [disabled]="ro" [checked]="b.headerRow" (change)="patchBlock(b.id, { headerRow: checked($event) })" data-prop="headerRow" /> {{ l.headerRow }}</label>
+                  <label class="dd-check"><input type="checkbox" [disabled]="ro" [checked]="b.borders" (change)="patchBlock(b.id, { borders: checked($event) })" data-prop="borders" /> {{ l.borders }}</label>
+                }
+                @if (b.type === 'spacer') {
+                  <label for="dd-spacer">{{ l.spacerSize }}</label>
+                  <select id="dd-spacer" [disabled]="ro" (change)="patchBlock(b.id, { size: value($event) })" data-prop="size">
+                    @for (size of ['small', 'medium', 'large']; track size) {
+                      <option [value]="size" [selected]="b.size === size">{{ $any(l.spacerSizes)[size] }}</option>
+                    }
+                  </select>
+                }
+                @if (b.type === 'signature') {
+                  <p class="dd-hint">{{ l.signatureHint }}</p>
+                }
+                @if (b.type === 'positions') {
+                  <p class="dd-hint">{{ l.positionsHint }}</p>
+                }
+                @if (b.type === 'pageBreak') {
+                  <p class="dd-hint">{{ l.pageBreakHint }}</p>
+                }
+              </section>
+            } @else if (!chip()) {
+              <p class="dd-muted">{{ l.noSelection }}</p>
+            }
+          </div>
+        }
+      }
+
+      @if (problems().length) {
+        <section class="dd-problems" role="alert" data-problems>
+          <h4>{{ l.problems }}</h4>
+          <ul>
+            @for (p of problems(); track $index) {
+              <li><span class="dd-code" dir="ltr">{{ p.field }}</span> — {{ p.message }}</li>
+            }
+          </ul>
+        </section>
+      }
+    </aside>
+  </div>
+</div>

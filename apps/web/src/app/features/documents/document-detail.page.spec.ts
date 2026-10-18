@@ -5,8 +5,9 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { meWith } from '../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../testing/dialog-polyfill';
-import { issuedDocument, problemBlob } from '../../../testing/document-fixtures';
+import { DOCUMENT_TYPES, issuedDocument, problemBlob } from '../../../testing/document-fixtures';
 import { installIntersectionObserver, untilDeferredRequest } from '../../../testing/intersection-observer';
+import { TYPE_OM } from '../../../testing/template-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
@@ -49,8 +50,42 @@ describe('DocumentDetailPage', () => {
     await harness.navigateByUrl(url);
     await settle();
     http.expectOne('/api/documents/d-1').flush(doc);
+    // the type catalogue labels the template fields (document-templates.md)
+    for (const req of http.match('/api/documents/types')) req.flush({ items: [...DOCUMENT_TYPES, TYPE_OM] });
     await settle();
   }
+
+  it('shows the template version and the values typed in its fields', async () => {
+    await open(
+      '/documents/d-1',
+      issuedDocument({
+        type: { code: 'ordre_mission', labels: TYPE_OM.labels },
+        templateVersion: 'ordre_mission.designed@1',
+        template: { id: 'tv-om-1', version: 1 },
+        snapshot: {
+          v: 2,
+          type: 'ordre_mission',
+          lang: 'fr',
+          number: 'OM-2026-0001',
+          issueDate: '2026-10-09',
+          issueDateText: '9 octobre 2026',
+          employee: { civility: 'M.', fullName: 'Amine Benali', matricule: 'EMP-0001', jobTitle: 'Agent', unitName: 'Agence', hireDateText: '1er janvier 2020', endDateText: null },
+          signatory: { name: 'Nadia Rahmani', title: 'Directrice RH' },
+          fields: { inconnu: 'x', depart: '12 octobre 2026', transport: null, destination: 'Oran' },
+        },
+      }),
+    );
+    expect(el().querySelector('[data-field="template"]')?.textContent).toContain('Modèle conçu, version 1');
+    expect(el().querySelector('[data-field="template"]')?.textContent).toContain('ordre_mission.designed@1');
+    const dts = [...el().querySelectorAll('dt')].map((dt) => dt.textContent?.trim());
+    expect(dts).toContain('Destination');
+    expect(dts).toContain('inconnu');
+    expect(dts).not.toContain('Moyen de transport');
+    expect(el().querySelector('[data-field="fields.destination"]')?.textContent).toBe('Oran');
+    // in the order of the template's fields, whatever the order of the stored snapshot; unknown keys last
+    const keys = [...el().querySelectorAll('[data-field^="fields."]')].map((dd) => dd.getAttribute('data-field'));
+    expect(keys).toEqual(['fields.destination', 'fields.depart', 'fields.inconnu']);
+  });
 
   it('shows the facts, a short hash and, after issuing, the call to action', async () => {
     await open('/documents/d-1?issued=1');
@@ -123,6 +158,7 @@ describe('DocumentDetailPage', () => {
     await harness.navigateByUrl('/documents/d-1');
     await settle();
     http.expectOne('/api/documents/d-1').flush({ type: 'about:blank', title: 'Not found', status: 404 }, { status: 404, statusText: 'Not Found' });
+    for (const req of http.match('/api/documents/types')) req.flush({ items: DOCUMENT_TYPES });
     await settle();
     expect(el().textContent).toContain('Document introuvable');
     expect(el().querySelector('.form-error button')).toBeNull();

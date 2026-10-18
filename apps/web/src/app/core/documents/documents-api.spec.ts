@@ -61,4 +61,34 @@ describe('DocumentsApi', () => {
     expect(req.request.headers.has('Content-Type')).toBe(false);
     req.flush({});
   });
+
+  it('calls the template endpoints of document-templates.md', () => {
+    const calls: [() => void, string, string, unknown][] = [
+      [() => api.createType({ code: 'om', names: { fr: 'a', ar: 'b', en: 'c' }, subject: 'employment', numberFormat: 'OM-{YYYY}-{SEQ}', languages: ['fr'] }).subscribe(), 'POST', '/api/documents/types', undefined],
+      [() => api.typeTemplates('dt 1').subscribe(), 'GET', '/api/documents/types/dt%201/templates', undefined],
+      [() => api.template('tv-1').subscribe(), 'GET', '/api/documents/templates/tv-1', undefined],
+      [() => api.builtinLayout('dt-1', 'ar').subscribe(), 'GET', '/api/documents/types/dt-1/builtin-layout', undefined],
+      [() => api.createTemplate('dt-1', 'builtin').subscribe(), 'POST', '/api/documents/types/dt-1/templates', { from: 'builtin' }],
+      [() => api.saveTemplate('tv-1', { revision: 3, layouts: {}, fields: [] }).subscribe(), 'PUT', '/api/documents/templates/tv-1', { revision: 3, layouts: {}, fields: [] }],
+      [() => api.discardTemplate('tv-1').subscribe(), 'DELETE', '/api/documents/templates/tv-1', undefined],
+      [() => api.publishTemplate('tv-1', 3, 'note').subscribe(), 'POST', '/api/documents/templates/tv-1/publish', { revision: 3, note: 'note' }],
+      [() => api.publishTemplate('tv-1', 3).subscribe(), 'POST', '/api/documents/templates/tv-1/publish', { revision: 3 }],
+      [() => api.revertToBuiltin('dt-1').subscribe(), 'POST', '/api/documents/types/dt-1/templates/builtin', {}],
+    ];
+    for (const [call, method, url, body] of calls) {
+      call();
+      const req = http.expectOne((r) => r.url === url && r.method === method);
+      if (body !== undefined) expect(req.request.body).toEqual(body);
+      if (url.endsWith('builtin-layout')) expect(req.request.params.get('lang')).toBe('ar');
+      req.flush({});
+    }
+  });
+
+  it('previews a template version as a blob', () => {
+    api.previewTemplate('tv-1', { lang: 'fr', sample: true }).subscribe();
+    const req = http.expectOne('/api/documents/templates/tv-1/preview');
+    expect(req.request.responseType).toBe('blob');
+    expect(req.request.body).toEqual({ lang: 'fr', sample: true });
+    req.flush(new Blob(['%PDF']));
+  });
 });

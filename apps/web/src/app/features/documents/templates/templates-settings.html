@@ -8,7 +8,7 @@
     <p class="form-error" role="alert" [appRevealAlert]="e">{{ 'key' in e ? t(e.key) : e.text }}</p>
   }
 
-  @if (canConfigure()) {
+  @if (canConfigure() && wide()) {
     @if (!creating()) {
       <p><button class="btn" type="button" data-action="new-type" (click)="startCreate()">{{ t('documents.templates.newType') }}</button></p>
     } @else {
@@ -155,7 +155,7 @@
             </td>
             <td>
               <div class="form-actions">
-                <a class="btn secondary" [routerLink]="['/documents/settings/templates', type.id]" data-action="design">{{ t('documents.templates.design') }}</a>
+                <a class="btn secondary" [routerLink]="['/documents/settings/templates', type.id]" data-action="design">{{ t(wide() ? 'documents.templates.design' : 'documents.templates.versionsAndPreviews') }}</a>
                 @if (type.templateMode === 'designed' && type.template) {
                   <button class="btn secondary" type="button" data-action="preview" [disabled]="previewing() === type.id" (click)="preview(type)">
                     {{ t('documents.templates.preview') }}

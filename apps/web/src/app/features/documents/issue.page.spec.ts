@@ -89,6 +89,27 @@ describe('IssuePage', () => {
     (el().querySelector(`[data-action="${action}"]`) as HTMLButtonElement).click();
   }
 
+  async function searchStatus(url: string): Promise<string | null> {
+    await harness.navigateByUrl(url);
+    await answerAll();
+    const input = el().querySelector('#issue-employee') as HTMLInputElement;
+    input.value = 'ben';
+    input.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const req = http.expectOne((r) => r.url === '/api/employees');
+    const status = req.request.params.get('status');
+    req.flush({ items: [], total: 0, page: 1, pageSize: 10 });
+    return status;
+  }
+
+  it('searches active employees for an attestation', async () => {
+    expect(await searchStatus('/documents/new?type=attestation_travail')).toBe('active');
+  });
+
+  it('also searches ended employments for a certificat', async () => {
+    expect(await searchStatus('/documents/new?type=certificat_travail')).toBe('all');
+  });
+
   it('preselects the first active type, the employee from ?employee=, French and the nearest signatory', async () => {
     await harness.navigateByUrl('/documents/new?employee=e-1');
     await answerAll();

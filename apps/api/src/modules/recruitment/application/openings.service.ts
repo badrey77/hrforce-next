@@ -5,6 +5,7 @@ import { Notifier, type NotificationData, type NotificationType } from '../../..
 import { StaffingService } from '../../staffing/index.js';
 import { WorkflowEngine, WorkflowSubjects, type HookContext, type ManagerCandidate, type TaskHistoryView, type WorkflowProgressView } from '../../workflow/index.js';
 import {
+  AUTO_CANCEL_TEXT,
   AUTO_REASON,
   isActiveStage,
   MY_OPENINGS_MAX,
@@ -313,7 +314,7 @@ export class OpeningsService implements OnModuleInit {
       await this.candidates.insertStage(companyId, { applicationId: a.id, from: a.stage, to: 'rejected', reasonId: reason.id, autoCause: cause, movedBy: actorUserId });
     }
     // their offers in progress and their interviews to come are cancelled, the interviewers told
-    await this.notices.applicationsClosed(companyId, active.map((a) => a.id), reason.nameFr);
+    await this.notices.applicationsClosed(companyId, active.map((a) => a.id), AUTO_CANCEL_TEXT[cause === 'opening_filled' ? 'position_filled' : 'opening_closed']);
   }
 
   /**
@@ -343,6 +344,7 @@ export class OpeningsService implements OnModuleInit {
       openings: counts.openings,
       pendingOpenings: counts.pending,
       interviews: mine.length,
+      interviewsTodo: mine.filter((i) => own.get(i.id)?.submittedAt === null).length,
       evaluationsTodo: mine.filter((i) => i.stage === 'interview' && i.scheduledAt.getTime() <= now && own.get(i.id)?.submittedAt === null).length,
     };
   }

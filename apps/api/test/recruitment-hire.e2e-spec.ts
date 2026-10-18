@@ -326,7 +326,7 @@ describe('interviews', () => {
     const interview = await ok('est', 'post', url, { ...base, interviewerIds: [USERS.chef.id, USERS.est.id], label: 'Entretien technique', location: 'https://visio.example.test/x', durationMinutes: 45 }, 201);
     expect(interview).toMatchObject({
       applicationId: a.id, label: 'Entretien technique', date: FUTURE.date, time: FUTURE.time, scheduledAt: '2031-05-05T13:00:00.000Z', durationMinutes: 45, mode: 'video',
-      location: 'https://visio.example.test/x', status: 'scheduled', state: 'upcoming', cancelReason: null, createdBy: { id: USERS.est.id }, average: null, _actions: ['update', 'cancel'],
+      location: 'https://visio.example.test/x', status: 'scheduled', state: 'upcoming', cancelReason: null, cancelCode: null, createdBy: { id: USERS.est.id }, average: null, _actions: ['update', 'cancel'],
     });
     expect(interview.evaluations.map((e: Body) => [e.interviewer.id, e.submittedAt, e.scores, e.overall, e.recommendation])).toEqual(
       expect.arrayContaining([[USERS.chef.id, null, [], null, null], [USERS.est.id, null, [], null, null]]),
@@ -353,7 +353,7 @@ describe('interviews', () => {
     await ok('admin', 'post', `/api/recruitment/applications/${a.id}/move`, { toStage: 'withdrawn', expectedStage: 'interview' });
     await problem('admin', 'post', url, base, 409, 'recruitment-interview-stage');
     // … and the withdrawal cancelled the interview to come: chef is told, the reason is recorded
-    expect((await ok('admin', 'get', `/api/recruitment/applications/${a.id}`)).interviews[0]).toMatchObject({ status: 'cancelled', state: 'cancelled', cancelReason: 'Désistement', _actions: [] });
+    expect((await ok('admin', 'get', `/api/recruitment/applications/${a.id}`)).interviews[0]).toMatchObject({ status: 'cancelled', state: 'cancelled', cancelReason: 'Désistement', cancelCode: 'application_withdrawn', _actions: [] });
     expect((await notificationsOf(USERS.chef.id, interview.id)).map((n) => n.type)).toEqual(['recruitment.interview_assigned', 'recruitment.interview_cancelled']);
   });
 
@@ -394,7 +394,7 @@ describe('interviews', () => {
     // cancel: a reason, final, out of the averages
     expect((await call('admin', 'post', `${url}/cancel`, {})).status).toBe(422);
     expect((await call('ouest', 'post', `${url}/cancel`, { reason: 'Report' })).status).toBe(403);
-    expect(await ok('est', 'post', `${url}/cancel`, { reason: 'Candidat indisponible' })).toMatchObject({ status: 'cancelled', state: 'cancelled', cancelReason: 'Candidat indisponible', average: null, _actions: [] });
+    expect(await ok('est', 'post', `${url}/cancel`, { reason: 'Candidat indisponible' })).toMatchObject({ status: 'cancelled', state: 'cancelled', cancelReason: 'Candidat indisponible', cancelCode: null, average: null, _actions: [] });
     expect((await notificationsOf(USERS.agent.id, interview.id)).map((n) => n.type)).toEqual(['recruitment.interview_assigned', 'recruitment.interview_cancelled']);
     await problem('admin', 'post', `${url}/cancel`, { reason: 'Encore' }, 409, 'recruitment-interview-cancelled');
     await problem('admin', 'patch', url, { durationMinutes: 60 }, 409, 'recruitment-interview-cancelled');
@@ -580,14 +580,14 @@ describe('evaluation rules', () => {
 
   it('GET /me/recruitment/summary counts the interviews the caller sees and those they can evaluate now', async () => {
     const before = await ok('agent', 'get', '/api/me/recruitment/summary');
-    expect(before).toMatchObject({ interviews: 0, evaluationsTodo: 0 });
+    expect(before).toMatchObject({ interviews: 0, interviewsTodo: 0, evaluationsTodo: 0 });
     const opening = await openOpening(CNE);
     const a = await apply(opening);
     const held = await schedule('admin', a.id, ['agent']);
     await schedule('admin', a.id, ['agent'], FUTURE);
-    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: false, openings: 0, interviews: 2, evaluationsTodo: 1 });
+    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: false, openings: 0, interviews: 2, interviewsTodo: 2, evaluationsTodo: 1 });
     expect((await evaluate('agent', held.id, [4])).status).toBe(200);
-    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toMatchObject({ interviews: 2, evaluationsTodo: 0 });
+    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toMatchObject({ interviews: 2, interviewsTodo: 1, evaluationsTodo: 0 });
     // the HR home counts: interviews in the next 7 days (the demo one, in two days) and offers in progress
     const summary = await ok('admin', 'get', '/api/recruitment/summary');
     expect(summary.interviewsNext7Days).toBeGreaterThanOrEqual(1);
@@ -931,7 +931,7 @@ describe('hire', () => {
     }
     // the interview to come is cancelled (« Poste pourvu »), the one already held is kept; chef is told
     const interviews = (await ok('admin', 'get', `/api/recruitment/applications/${interviewed.id}`)).interviews as Body[];
-    expect(interviews.map((i) => [i.id, i.status, i.cancelReason])).toEqual([[held.id, 'scheduled', null], [future.id, 'cancelled', 'Poste pourvu']]);
+    expect(interviews.map((i) => [i.id, i.status, i.cancelReason, i.cancelCode])).toEqual([[held.id, 'scheduled', null, null], [future.id, 'cancelled', 'Poste pourvu', 'position_filled']]);
     const told = await notificationsOf(USERS.chef.id, future.id);
     expect(told.map((n) => n.type)).toEqual(['recruitment.interview_assigned', 'recruitment.interview_cancelled']);
     expect(JSON.stringify(told)).not.toMatch(/Zzperdant|Gagnant/);

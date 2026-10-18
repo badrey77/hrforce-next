@@ -36,6 +36,7 @@ import {
   type NewAssignment,
   type NewSalary,
   type PersonInput,
+  type StatusFilter,
 } from './employees.models';
 
 export const EMPLOYEES_API_BASE = '/api/employees';
@@ -103,11 +104,11 @@ export class EmployeesApi {
 
   /**
    * `GET /employees?q=` as a one-shot Observable, for the employee picker (shared/employee-picker): the picker drives
-   * it from an RxJS `debounceTime`/`switchMap` pipeline, like the org-unit picker's search. Active employees only,
-   * first 10 by name (in Arabic order when `sortLanguage` is `'ar'`).
+   * it from an RxJS `debounceTime`/`switchMap` pipeline, like the org-unit picker's search. Active employees by
+   * default (`status` widens it), first 10 by name (in Arabic order when `sortLanguage` is `'ar'`).
    */
-  search(q: string, pageSize = 10, sortLanguage: EmployeeSortLanguage = null): Observable<EmployeePage> {
-    const params = employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, q, pageSize }, sortLanguage);
+  search(q: string, pageSize = 10, sortLanguage: EmployeeSortLanguage = null, status: StatusFilter = 'active'): Observable<EmployeePage> {
+    const params = employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, q, pageSize, status }, sortLanguage);
     return this.http.get<EmployeePage>(EMPLOYEES_API_BASE, { params });
   }
 

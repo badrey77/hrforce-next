@@ -398,3 +398,9 @@ through the API. Behaviour it settled or changed:
     900 px message) and offers « Revenir au modèle intégré » and « Nouveau type de document »;
   - the toolbar of a selected block overlaps the block above by a pixel; an `optional` chip's content is edited in
     the side panel; the canvas justifies short lines around chips more loosely than the PDF.
+
+## Settled by cleanup round 3 (2026-10-18)
+
+- The designer's « un employé » preview searches ended employments too (`GET /employees?status=`), and a leave-subject type previews with one of the chosen employee's **approved** leave requests (`leaveRequestId`); changing the employee clears the chosen request. `/documents/new` lists ended employments unless the type's employment rule is `active`.
+- Below 900 px the « Modèles » tab names its link « Versions et aperçus » and hides « Nouveau type de document »; « Revenir au modèle intégré » stays (it works on phones).
+- The timeline names custom document types (the web resolves `type_code` from the type list) and hides the bare `subject` and `template_version_id` columns of `issued_document`.

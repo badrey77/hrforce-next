@@ -19,6 +19,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
@@ -27,6 +28,10 @@ import { Session } from '../../../core/auth/session';
 import { BlobFiles } from '../../../core/browser/blob-files';
 import { DocumentCatalog } from '../../../core/documents/document-catalog';
 import { DocumentsApi } from '../../../core/documents/documents-api';
+import { EmployeesApi } from '../../../core/employees/employees-api';
+import { LeaveApi } from '../../../core/leave/leave-api';
+import { LeaveCatalog } from '../../../core/leave/leave-catalog';
+import { DEFAULT_LEAVE_QUERY, type LeaveRequestSummary } from '../../../core/leave/leave.models';
 import {
   type DocumentLanguage,
   subjectOf,
@@ -44,9 +49,11 @@ import { EmployeePicker } from '../../../shared/employee-picker/employee-picker'
 import { pdfErrorKey } from '../../../shared/documents/pdf-actions';
 import { DocumentDesigner, emptyLayout, type LayoutProblem, type TemplateField, type TemplateLayout } from '../../../../lib/document-designer';
 import type { LeavesWithConfirmation } from './unsaved-template.guard';
+import { WIDE_QUERY } from './wide-screen';
+
+export { WIDE_QUERY } from './wide-screen';
 
 export const AUTOSAVE_MS = 3000;
-export const WIDE_QUERY = '(min-width: 900px)';
 
 export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'invalid' | 'error';
 
@@ -207,6 +214,22 @@ export class TemplateDesignerPage implements LeavesWithConfirmation {
   protected readonly previewing = signal(false);
   protected readonly previewSubject = new FormControl<string | null>(null);
   protected readonly previewMode = signal<'sample' | 'employee'>('sample');
+  /** Leave-subject types: one of the chosen employee's approved leave requests. */
+  protected readonly previewLeave = new FormControl<string>('', { nonNullable: true });
+  protected readonly leaveCatalog = inject(LeaveCatalog);
+  private readonly previewEmploymentId = toSignal(this.previewSubject.valueChanges, { initialValue: null });
+  private readonly previewEmployee = inject(EmployeesApi).detailResource(() =>
+    this.subject() === 'leave_request' && this.previewMode() === 'employee' ? this.previewEmploymentId() : null,
+  );
+  protected readonly previewApprovedLeave = inject(LeaveApi).listResource(() => {
+    const e = this.previewEmployee.hasValue() ? this.previewEmployee.value() : undefined;
+    if (!e || e.id !== this.previewEmploymentId()) return undefined;
+    return { ...DEFAULT_LEAVE_QUERY, q: e.matricule, status: 'approved', pageSize: 100 };
+  });
+  protected readonly previewLeaveItems = computed<readonly LeaveRequestSummary[]>(() => {
+    const id = this.previewEmploymentId();
+    return this.previewApprovedLeave.hasValue() ? this.previewApprovedLeave.value().items.filter((r) => r.employee.id === id) : [];
+  });
 
   constructor() {
     const media = this.window?.matchMedia?.(WIDE_QUERY);
@@ -221,6 +244,12 @@ export class TemplateDesignerPage implements LeavesWithConfirmation {
       inject(DestroyRef).onDestroy(() => media.removeEventListener?.('change', listener));
     }
     inject(DestroyRef).onDestroy(() => this.clearTimer());
+
+    // Another employee: the leave request chosen for the previous one is not theirs.
+    effect(() => {
+      this.previewEmploymentId();
+      untracked(() => this.previewLeave.setValue(''));
+    });
 
     // First load: open the asked version, else the draft, else the published one; else the start screen.
     effect(() => {
@@ -468,8 +497,18 @@ export class TemplateDesignerPage implements LeavesWithConfirmation {
 
   protected preview(lang: DocumentLanguage = this.editLang(), versionId: string | null = this.opened()?.id ?? null): void {
     if (!versionId) return;
-    const employmentId = this.previewMode() === 'employee' ? this.previewSubject.value : null;
-    const body: TemplatePreviewBody = employmentId ? { lang, employmentId } : { lang, sample: true };
+    const real = this.previewMode() === 'employee';
+    const employmentId = real ? this.previewSubject.value : null;
+    // only one of the chosen employee's approved requests (never a stale choice made for someone else)
+    const chosenLeave = this.previewLeave.value;
+    const leaveRequestId =
+      real && this.subject() === 'leave_request' && this.previewLeaveItems().some((r) => r.id === chosenLeave) ? chosenLeave : '';
+    // Without a chosen subject the preview falls back to the sample data.
+    const body: TemplatePreviewBody = leaveRequestId
+      ? { lang, leaveRequestId }
+      : employmentId && this.subject() === 'employment'
+        ? { lang, employmentId }
+        : { lang, sample: true };
     const own = versionId === this.opened()?.id;
     this.previewing.set(true);
     this.pageError.set(null);

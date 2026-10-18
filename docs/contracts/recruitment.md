@@ -1303,3 +1303,8 @@ that the text above did not state.
   `offer_reopened`). The comparison lists an application from its first non-cancelled interview on, withdrawn ones
   included. The interviewer picker searches after a short pause: the list shown just before may be the previous
   search's. A head's request form lists the headed unit and its sub-units indented with « — ».
+
+## Settled by cleanup round 3 (2026-10-18)
+
+- **Automatic interview cancellations** (application rejected or withdrawn, offer declined, opening filled or closed) store fixed French texts in `recruitment_interview.cancel_reason`, no longer the company's editable reason label. Interview views gain `cancelCode`: `application_rejected` | `application_withdrawn` | `offer_declined` | `position_filled` | `opening_closed` | `null` (a reason typed by HR). Older rows are mapped by their text; one stored under a company-renamed label keeps that text and has `cancelCode: null`. The web shows `recruitment.interviews.autoCancel.<code>` in fr/ar/en.
+- **`GET /me/recruitment/summary`** gains `interviewsTodo`: the caller's interviews whose evaluation by the caller is not submitted yet (what « Mes entretiens » lists by default). The home link shows « Mes entretiens (interviewsTodo) », or « Mes entretiens évalués (n) » → `/me/interviews?filter=done` when it is 0. « Évaluation à saisir » is shown only when `_actions` contains `evaluate`, otherwise « À venir ».

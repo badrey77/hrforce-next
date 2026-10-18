@@ -29,7 +29,9 @@ export type AuditRefKind =
   | 'signatory'
   | 'fileCategory'
   /** A connected app's role id (`sso_role_assignment.sso_app_role_id`), named by its code where the page knows it. */
-  | 'appRole';
+  | 'appRole'
+  /** A document type code (`issued_document.type_code`): a custom type has no fixed translation, the page names it. */
+  | 'documentType';
 
 /**
  * References whose raw value means nothing to a reader (a bare UUID, unlike a role code or a unit id an admin may
@@ -82,6 +84,8 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   sso_app_role_id: 'appRole',
   // Recruitment (recruitment contract › Audit): who closed an opening (`requested_by` is above).
   closed_by: 'user',
+  // Documents: the type of an issued document (also in ENUM_FIELDS: the page's name wins, else the built-in name).
+  type_code: 'documentType',
 };
 
 /**
@@ -150,8 +154,9 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // Documents: links that repeat the subject or the type (shown by `type_code`); `snapshot` is the whole printed text
   // as JSON — one unreadable line here, and the document's detail page already shows what was printed. The links
   // between a document and the leave request / document request it came from are bare ids (they meant nothing as a
-  // line); the detail pages show those relations.
-  issued_document: ['employment_id', 'document_type_id', 'snapshot', 'leave_request_id', 'document_request_id'],
+  // line); the detail pages show those relations. `subject` repeats the type, `template_version_id` is the bare id of
+  // the version that `template_version` already names.
+  issued_document: ['employment_id', 'document_type_id', 'snapshot', 'leave_request_id', 'document_request_id', 'subject', 'template_version_id'],
   document_request: ['employment_id', 'document_type_id', 'workflow_instance_id', 'issued_document_id'],
   // Employee file: the employment repeats the subject.
   employee_file: ['employment_id'],
@@ -253,7 +258,10 @@ function displayValue(value: unknown, masked: boolean, field: FieldKind, resolve
   if (masked || value === MASK) return { kind: 'masked' };
   if (value === null || value === undefined || value === '') return { kind: 'empty' };
   if (typeof value === 'boolean') return { kind: 'bool', value };
-  if (enumPrefix && typeof value === 'string') return { kind: 'key', key: enumPrefix + value, text: value };
+  if (enumPrefix && typeof value === 'string') {
+    const name = ref ? resolve(ref, value) : undefined;
+    return name ? { kind: 'text', text: name } : { kind: 'key', key: enumPrefix + value, text: value };
+  }
   if (field.hash && typeof value === 'string') {
     const hex = HEX.exec(value)?.[1]?.toLowerCase();
     if (hex) return { kind: 'hash', hex, short: hex.slice(0, SHORT_HASH_LENGTH) };

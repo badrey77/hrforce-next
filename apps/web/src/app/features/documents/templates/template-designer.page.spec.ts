@@ -1,11 +1,14 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import type { FormControl } from '@angular/forms';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { meWith } from '../../../../testing/auth-fixtures';
 import { installDialogPolyfill } from '../../../../testing/dialog-polyfill';
 import { DOCUMENT_TYPES } from '../../../../testing/document-fixtures';
+import { detail } from '../../../../testing/employee-fixtures';
+import { LEAVE_TYPES, leaveSummary } from '../../../../testing/leave-fixtures';
 import { TYPE_OM, templateVersion, typeTemplates, VARIABLES } from '../../../../testing/template-fixtures';
 import { translocoTesting } from '../../../../testing/transloco-testing';
 import { Session } from '../../../core/auth/session';
@@ -31,6 +34,7 @@ async function settle(): Promise<void> {
 }
 
 const PROBLEM = 'application/problem+json';
+const TYPE_LV = { ...TYPE_OM, id: 'dt-lv', code: 'reprise_conge', subject: 'leave_request' as const, employmentRule: 'any' as const };
 
 describe('template designer helpers', () => {
   it('opens the asked version, else the draft, else the published one', () => {
@@ -79,7 +83,9 @@ describe('TemplateDesignerPage', () => {
         if (req.cancelled) continue;
         const { url, method } = req.request;
         if (extra(req)) continue;
-        if (url === '/api/documents/types' && method === 'GET') req.flush({ items: [...DOCUMENT_TYPES, TYPE_OM] });
+        if (url === '/api/documents/types' && method === 'GET') req.flush({ items: [...DOCUMENT_TYPES, TYPE_OM, TYPE_LV] });
+        else if (url === '/api/leave/types') req.flush({ items: LEAVE_TYPES });
+        else if (url === '/api/documents/types/dt-lv/templates' && method === 'GET') req.flush(templates);
         else if (url === '/api/documents/types/dt-om/templates' && method === 'GET') req.flush(templates);
         else if (url === '/api/documents/template-variables') req.flush({ items: VARIABLES });
         else if (url === '/api/documents/templates/tv-om-2' && method === 'GET') req.flush(templateVersion());
@@ -279,6 +285,99 @@ describe('TemplateDesignerPage', () => {
     } finally {
       openSpy.mockRestore();
     }
+  });
+
+  type PreviewControls = { previewSubject: FormControl<string | null>; previewLeave: FormControl<string>; previewMode: { set(v: 'employee'): void } };
+
+  async function previewBody(run: (page: PreviewControls) => Promise<void>): Promise<unknown> {
+    const tab = { document: { title: '' }, location: { href: '' }, opener: {}, close: vi.fn() };
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
+    URL.createObjectURL = vi.fn(() => 'blob:x');
+    URL.revokeObjectURL = vi.fn();
+    try {
+      await run(harness.routeDebugElement?.componentInstance as PreviewControls);
+      (q('dd-document-designer [data-action="preview"]') as HTMLButtonElement).click();
+      const post = http.expectOne((r) => r.url === '/api/documents/templates/tv-om-2/preview');
+      const body = post.request.body;
+      post.flush(new Blob(['%PDF'], { type: 'application/pdf' }));
+      await settle();
+      return body;
+    } finally {
+      openSpy.mockRestore();
+    }
+  }
+
+  it('previews with a real employee, searching ended employments too', async () => {
+    await open();
+    (q('[data-input="preview-employee"]') as HTMLInputElement).click();
+    harness.detectChanges();
+    const search = q('#preview-employee') as HTMLInputElement;
+    search.value = 'ben';
+    search.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const req = http.expectOne((r) => r.url === '/api/employees');
+    expect(req.request.params.get('status')).toBe('all');
+    req.flush({ items: [], total: 0, page: 1, pageSize: 10 });
+    const body = await previewBody(async (page) => {
+      page.previewSubject.setValue('e-9');
+      await answer((r) => {
+        if (r.request.url !== '/api/employees/e-9') return false;
+        r.flush(detail({ id: 'e-9' }));
+        return true;
+      });
+    });
+    expect(body).toEqual({ lang: 'fr', employmentId: 'e-9' });
+  });
+
+  it('previews a leave-subject template with one of the employee’s approved leave requests', async () => {
+    await open('/documents/settings/templates/dt-lv');
+    (q('[data-input="preview-employee"]') as HTMLInputElement).click();
+    harness.detectChanges();
+    expect(q('[data-input="preview-leave"]')).not.toBeNull();
+    const body = await previewBody(async (page) => {
+      page.previewSubject.setValue('e-1');
+      await answer((req) => {
+        const { url } = req.request;
+        if (url === '/api/employees/e-1') req.flush(detail({ id: 'e-1', matricule: 'EMP-0001' }));
+        else if (url === '/api/leave/requests') {
+          expect(req.request.params.get('status')).toBe('approved');
+          req.flush({ items: [leaveSummary({ id: 'r-7', status: 'approved' })], total: 1, page: 1, pageSize: 100 });
+        } else return false;
+        return true;
+      });
+      expect(el().querySelectorAll('[data-input="preview-leave"] option')).toHaveLength(2);
+      page.previewLeave.setValue('r-7');
+      harness.detectChanges();
+    });
+    expect(body).toEqual({ lang: 'fr', leaveRequestId: 'r-7' });
+  });
+
+  it('another employee drops the leave request chosen for the previous one (the sample data, not someone else’s leave)', async () => {
+    await open('/documents/settings/templates/dt-lv');
+    (q('[data-input="preview-employee"]') as HTMLInputElement).click();
+    harness.detectChanges();
+    const body = await previewBody(async (page) => {
+      page.previewSubject.setValue('e-1');
+      await answer((req) => {
+        const { url } = req.request;
+        if (url === '/api/employees/e-1') req.flush(detail({ id: 'e-1', matricule: 'EMP-0001' }));
+        else if (url === '/api/leave/requests') req.flush({ items: [leaveSummary({ id: 'r-7', status: 'approved' })], total: 1, page: 1, pageSize: 100 });
+        else return false;
+        return true;
+      });
+      page.previewLeave.setValue('r-7');
+      harness.detectChanges();
+      page.previewSubject.setValue('e-2');
+      await answer((req) => {
+        const { url } = req.request;
+        if (url === '/api/employees/e-2') req.flush(detail({ id: 'e-2', matricule: 'EMP-0002' }));
+        else if (url === '/api/leave/requests') req.flush({ items: [], total: 0, page: 1, pageSize: 100 });
+        else return false;
+        return true;
+      });
+      expect(page.previewLeave.value).toBe('');
+    });
+    expect(body).toEqual({ lang: 'fr', sample: true });
   });
 
   it('asks before leaving with unsaved changes', async () => {

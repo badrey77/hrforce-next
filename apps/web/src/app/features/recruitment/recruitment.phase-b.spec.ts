@@ -269,6 +269,13 @@ describe('Recruitment pages (Phase B)', () => {
     search.flush({ items: [{ id: 'u-chef', displayName: 'Chef Annaba', employee: { matricule: 'EMP-0007', unit: UNIT_ANNABA } }] });
     await settle();
     expect(text('[data-option="u-chef"]')).toContain('EMP-0007');
+    // typing again hides the previous answer at once, before the next search is sent
+    fill('#iv-search', 'cha');
+    await settle();
+    expect(el().querySelector('[data-option="u-chef"]')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, INTERVIEWER_SEARCH_DEBOUNCE_MS + 30));
+    (await one('GET', '/api/recruitment/interviewers')).flush({ items: [{ id: 'u-chef', displayName: 'Chef Annaba', employee: { matricule: 'EMP-0007', unit: UNIT_ANNABA } }] });
+    await settle();
     click('[data-option="u-chef"]');
     await settle();
     expect(text('[data-panel="interviewers"] [data-interviewer="u-chef"]')).toContain('Chef Annaba');
@@ -320,6 +327,15 @@ describe('Recruitment pages (Phase B)', () => {
     await reloaded(applicationDetail({ stage: 'interview', interviews: [interviewView({ status: 'cancelled', state: 'cancelled', cancelReason: 'Autre', _actions: [] })] }));
     expect(text('[data-interview="i-1"] [data-field="cancel-reason"]')).toContain('Autre');
     expect(el().querySelector('[data-action="schedule-interview"]')).toBeNull();
+  });
+
+  it('an automatic cancellation shows its reason in the UI language, not the stored text', async () => {
+    await start(CENTRAL);
+    await openCandidate(
+      applicationDetail({ stage: 'interview', interviews: [interviewView({ status: 'cancelled', state: 'cancelled', cancelReason: 'texte stocké', cancelCode: 'position_filled', _actions: [] })] }),
+    );
+    expect(text('[data-interview="i-1"] [data-field="cancel-reason"]')).toContain('Poste pourvu');
+    expect(text('[data-interview="i-1"] [data-field="cancel-reason"]')).not.toContain('texte stocké');
   });
 
   // --- Candidate page: offer, hire link, undo ---
@@ -524,8 +540,11 @@ describe('Recruitment pages (Phase B)', () => {
     await go('/me/interviews');
     const todo = await one('GET', '/api/me/recruitment/interviews');
     expect(todo.request.params.get('filter')).toBe('todo');
-    todo.flush({ items: [myInterviewView()] });
+    todo.flush({ items: [myInterviewView(), myInterviewView({ id: 'i-2', _actions: [] })] });
     await settle();
+    // not held yet: listed under « À venir et à évaluer » but not « Évaluation à saisir »
+    expect(text('[data-interview="i-2"] [data-state="upcoming"]')).toBe('À venir');
+    expect(el().querySelector('[data-interview="i-2"] [data-state="todo"]')).toBeNull();
     expect(el().querySelector('[data-interview="i-1"] a')?.getAttribute('href')).toBe('/me/interviews/i-1');
     expect(text('[data-interview="i-1"]')).toContain('TESTEUR Nadia');
     expect(text('[data-interview="i-1"]')).toContain('REC-2026-0001');

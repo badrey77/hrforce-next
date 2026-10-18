@@ -158,4 +158,17 @@ describe('TemplatesSettings', () => {
     expect(el().querySelector('[data-action="new-type"]')).toBeNull();
     expect(row('ordre_mission').querySelector('[data-action="design"]')).not.toBeNull();
   });
+
+  it('on a narrow screen names the link « Versions et aperçus » and starts no new type', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, addEventListener: () => undefined, removeEventListener: () => undefined })) as unknown as typeof window.matchMedia;
+    try {
+      await setup(['document.design', 'document.configure']);
+      expect(el().querySelector('[data-action="new-type"]')).toBeNull();
+      expect(row('ordre_mission').querySelector('[data-action="design"]')?.textContent?.trim()).toBe('Versions et aperçus');
+      expect(row('attestation_travail').querySelector('[data-action="preview"]')).not.toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
 });

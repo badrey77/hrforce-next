@@ -57,6 +57,11 @@ export function subjectOf(type: Pick<DocumentTypeView, 'code' | 'subject'> | und
   return type?.subject ?? (type?.code === 'titre_conge' ? 'leave_request' : 'employment');
 }
 
+/** Which employments a type is issued for: from the API, else from the system code. */
+export function employmentRuleOf(type: Pick<DocumentTypeView, 'code' | 'employmentRule'> | undefined): EmploymentRule {
+  return type?.employmentRule ?? (type?.code === 'attestation_travail' ? 'active' : type?.code === 'certificat_travail' ? 'ended' : 'any');
+}
+
 /** The fields HR fills in when issuing this type (its published designed version), else none. */
 export function issueFieldsOf(type: Pick<DocumentTypeView, 'templateMode' | 'template'> | undefined): readonly TemplateField[] {
   return type?.templateMode === 'designed' ? (type.template?.fields ?? []) : [];

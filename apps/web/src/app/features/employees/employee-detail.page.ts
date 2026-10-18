@@ -219,6 +219,11 @@ export class EmployeeDetailPage {
       const category = this.fileCategories.hasValue() ? this.fileCategories.value().items.find((c) => c.id === value) : undefined;
       return category ? pickLabel(category.labels, this.lang()) : undefined;
     }
+    if (kind === 'documentType') {
+      const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
+      const type = documents.find((d) => d.type.code === value)?.type;
+      return type ? pickLabel(type.labels, this.lang()) : undefined;
+    }
     if (kind === 'signatory') {
       const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
       const signatory = documents.find((d) => d.signatory.id === value)?.signatory;

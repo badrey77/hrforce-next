@@ -2153,6 +2153,7 @@
       },
       "draftBadge": "مسودة ن{{version}}",
       "design": "تصميم",
+      "versionsAndPreviews": "الإصدارات والمعاينات",
       "preview": "معاينة",
       "revert": "العودة إلى النموذج المدمج",
       "revertTitle": "العودة إلى النموذج المدمج؟",
@@ -2204,6 +2205,7 @@
       "previewWith": "المعاينة باستعمال:",
       "previewSample": "بيانات نموذجية",
       "previewEmployee": "موظف(ة)",
+      "previewLeave": "طلب عطلة موافق عليه",
       "noLayout": "لا يوجد بعد تخطيط لهذه المسودة بـ{{lang}}.",
       "startTitle": "تصميم أول نموذج",
       "startIntroSystem": "يستعمل هذا النوع النموذج المدمج. يمكن أن تنطلق المسودة من نصه أو من صفحة فارغة.",
@@ -3355,6 +3357,7 @@
       "interviewsNext7Days": "مقابلات خلال 7 أيام",
       "offersPending": "عروض توظيف جارية",
       "interviewsLink": "مقابلاتي ({{count}})",
+      "interviewsDoneLink": "مقابلاتي التي تم تقييمها ({{count}})",
       "evaluationsTodo": "التقييمات في انتظار الإدخال: {{count}}",
       "evaluationsNone": "لا يوجد تقييم للإدخال حاليًا"
     },
@@ -3428,6 +3431,13 @@
       "cancelTitle": "إلغاء المقابلة",
       "cancelIntro": "يتم إعلام أعضاء لجنة المقابلة. المقابلة الملغاة لا تُحتسب في المعدلات.",
       "cancelReason": "سبب الإلغاء",
+      "autoCancel": {
+        "application_rejected": "رفض الترشح",
+        "application_withdrawn": "الانسحاب من الترشح",
+        "offer_declined": "عدم قبول العرض",
+        "position_filled": "تم شغل المنصب",
+        "opening_closed": "تم إغلاق عملية التوظيف"
+      },
       "cancelledBecause": "سبب الإلغاء:",
       "date": "التاريخ",
       "time": "الساعة",

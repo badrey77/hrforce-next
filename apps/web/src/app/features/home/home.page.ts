@@ -128,7 +128,12 @@ import { TasksBadge } from '../../core/tasks/tasks-badge';
       }
       @if (mine.showInterviewsNav()) {
         <p class="panel" data-card="my-interviews">
-          <a routerLink="/me/interviews" class="action">{{ t('recruitment.home.interviewsLink', { count: mine.interviews() }) }}</a>
+          <!-- The count is what the linked tab lists: the interviews still to evaluate, else the evaluated ones. -->
+          @if (mine.interviewsTodo() > 0) {
+            <a routerLink="/me/interviews" class="action" data-link="interviews-todo">{{ t('recruitment.home.interviewsLink', { count: mine.interviewsTodo() }) }}</a>
+          } @else {
+            <a routerLink="/me/interviews" [queryParams]="{ filter: 'done' }" class="action" data-link="interviews-done">{{ t('recruitment.home.interviewsDoneLink', { count: mine.interviews() }) }}</a>
+          }
           <!-- Two different counts: interviews assigned to the caller, and evaluations that can be entered now
                (an upcoming interview is listed but cannot be evaluated before its time). -->
           <span class="action-note" data-count="evaluations-todo">

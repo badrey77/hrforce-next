@@ -2153,6 +2153,7 @@
       },
       "draftBadge": "Brouillon v{{version}}",
       "design": "Concevoir",
+      "versionsAndPreviews": "Versions et aperçus",
       "preview": "Aperçu",
       "revert": "Revenir au modèle intégré",
       "revertTitle": "Revenir au modèle intégré ?",
@@ -2204,6 +2205,7 @@
       "previewWith": "Aperçu avec :",
       "previewSample": "des données d’exemple",
       "previewEmployee": "un employé",
+      "previewLeave": "une demande de congé approuvée",
       "noLayout": "Ce brouillon n’a pas encore de mise en page en {{lang}}.",
       "startTitle": "Concevoir le premier modèle",
       "startIntroSystem": "Ce type utilise le modèle intégré. Un brouillon peut partir de son texte ou d’une page vierge.",
@@ -3355,6 +3357,7 @@
       "interviewsNext7Days": "entretien(s) dans les 7 jours",
       "offersPending": "offre(s) en cours",
       "interviewsLink": "Mes entretiens ({{count}})",
+      "interviewsDoneLink": "Mes entretiens évalués ({{count}})",
       "evaluationsTodo": "{{count}} évaluation(s) à saisir",
       "evaluationsNone": "Aucune évaluation à saisir pour l’instant"
     },
@@ -3428,6 +3431,13 @@
       "cancelTitle": "Annuler l’entretien",
       "cancelIntro": "Les personnes chargées de l’entretien sont prévenues. Un entretien annulé ne compte plus dans les moyennes.",
       "cancelReason": "Motif de l’annulation",
+      "autoCancel": {
+        "application_rejected": "Candidature refusée",
+        "application_withdrawn": "Désistement",
+        "offer_declined": "Offre déclinée",
+        "position_filled": "Poste pourvu",
+        "opening_closed": "Recrutement clôturé"
+      },
       "cancelledBecause": "Annulé :",
       "date": "Date",
       "time": "Heure",

@@ -609,3 +609,8 @@ dialog.modal {
 dialog.modal::backdrop {
   background: rgb(0 0 0 / 40%);
 }
+
+/* A bare item alone on a wrapped line of a filter bar (shared/filter-bar): no empty label line above it. */
+.filters > .no-label-line {
+  margin-block-start: 0;
+}

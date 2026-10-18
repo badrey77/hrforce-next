@@ -145,10 +145,22 @@
       <div class="preview-options" role="group" [attr.aria-label]="t('documents.templates.previewWith')">
         <span>{{ t('documents.templates.previewWith') }}</span>
         <label class="check"><input type="radio" name="preview-mode" [checked]="previewMode() === 'sample'" (change)="previewMode.set('sample')" /> {{ t('documents.templates.previewSample') }}</label>
-        @if (canIssue() && subject() === 'employment') {
-          <label class="check"><input type="radio" name="preview-mode" [checked]="previewMode() === 'employee'" (change)="previewMode.set('employee')" data-input="preview-employee" /> {{ t('documents.templates.previewEmployee') }}</label>
+        @if (canIssue()) {
+          <label class="check"><input type="radio" name="preview-mode" [checked]="previewMode() === 'employee'" (change)="previewMode.set('employee')" data-input="preview-employee" />
+            {{ t(subject() === 'leave_request' ? 'documents.templates.previewLeave' : 'documents.templates.previewEmployee') }}</label>
           @if (previewMode() === 'employee') {
-            <app-employee-picker [formControl]="previewSubject" inputId="preview-employee" />
+            <app-employee-picker [formControl]="previewSubject" inputId="preview-employee" status="all" />
+            @if (subject() === 'leave_request') {
+              <select [formControl]="previewLeave" data-input="preview-leave" [attr.aria-label]="t('documents.fields.leaveRequest')" [attr.aria-busy]="previewApprovedLeave.isLoading()">
+                <option value="">{{ previewSubject.value ? (previewApprovedLeave.hasValue() && !previewLeaveItems().length ? t('documents.issue.noApprovedLeave') : t('documents.issue.chooseLeave')) : t('documents.issue.pickEmployeeFirst') }}</option>
+                @for (r of previewLeaveItems(); track r.id) {
+                  <option [value]="r.id">
+                    {{ leaveCatalog.nameOf(r.leaveTypeId) }} ·
+                    {{ t('leave.fields.range', { from: (r.startDate | date: 'mediumDate' : undefined : locale()), to: (r.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                  </option>
+                }
+              </select>
+            }
           }
         }
       </div>

@@ -133,6 +133,7 @@ export class DocumentDetailPage {
     if (!d) return undefined;
     if (kind === 'unit' && d.employee.unit.id === value) return displayNameOf(d.employee.unit, this.lang());
     if (kind === 'signatory' && d.signatory.id === value) return this.lang() === 'ar' ? d.signatory.names.ar : d.signatory.names.fr;
+    if (kind === 'documentType' && d.type.code === value) return pickLabel(d.type.labels, this.lang());
     if (kind === 'user') {
       if (d.issuedBy?.id === value) return d.issuedBy.displayName;
       if (d.void?.by?.id === value) return d.void.by.displayName;

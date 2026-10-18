@@ -27,6 +27,8 @@ export class MyRecruitment {
   /** Interviews the caller takes part in — HR included: an interviewer's view is not the HR one. */
   readonly interviews = computed(() => this.summary()?.interviews ?? 0);
   readonly evaluationsTodo = computed(() => this.summary()?.evaluationsTodo ?? 0);
+  /** What the default « À venir et à évaluer » tab lists (all of them for an API without the count). */
+  readonly interviewsTodo = computed(() => this.summary()?.interviewsTodo ?? this.interviews());
   readonly showInterviewsNav = computed(() => this.interviews() > 0);
 
   reload(): void {

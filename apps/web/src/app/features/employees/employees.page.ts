@@ -58,6 +58,7 @@ import { OrgApi } from '../../core/org/org-api';
 import type { Site } from '../../core/org/org.models';
 import { CanDirective } from '../../shared/can/can.directive';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
+import { FilterBar } from '../../shared/filter-bar/filter-bar.directive';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
 import { resolveQuery, toQueryParams } from './employee-list-state';
 
@@ -66,7 +67,7 @@ export const EMPLOYEE_SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   selector: 'app-employees-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, OrgUnitPicker, CanDirective, DisplayNamePipe],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, OrgUnitPicker, CanDirective, DisplayNamePipe, FilterBar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employees.page.html',
   styleUrl: './employees.css',

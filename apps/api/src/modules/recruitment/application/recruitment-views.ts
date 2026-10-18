@@ -3,6 +3,7 @@ import type { EmployeeDetail, KnownPerson, NamePair, SiteRef, UnitRef } from '..
 import type { TaskHistoryView, WorkflowProgressView } from '../../workflow/index.js';
 import type {
   ActiveStage,
+  AutoCancelCode,
   AutoCause,
   ContractType,
   FileKind,
@@ -113,6 +114,8 @@ export interface MySummaryView {
   pendingOpenings: number;
   /** interviews the caller sees as an interviewer */
   interviews: number;
+  /** those whose evaluation by the caller is not submitted yet (the « À venir et à évaluer » tab) */
+  interviewsTodo: number;
   /** those they can evaluate now and have not */
   evaluationsTodo: number;
 }
@@ -344,6 +347,8 @@ export interface InterviewView {
   status: 'scheduled' | 'cancelled';
   state: InterviewState;
   cancelReason: string | null;
+  /** set when the interview was cancelled because its application left the pipeline: the reason in the UI language */
+  cancelCode: AutoCancelCode | null;
   createdBy: UserRef | null;
   /** one per interviewer, submitted or not */
   evaluations: EvaluationView[];

@@ -2153,6 +2153,7 @@
       },
       "draftBadge": "Draft v{{version}}",
       "design": "Design",
+      "versionsAndPreviews": "Versions and previews",
       "preview": "Preview",
       "revert": "Back to the built-in template",
       "revertTitle": "Back to the built-in template?",
@@ -2204,6 +2205,7 @@
       "previewWith": "Preview with:",
       "previewSample": "sample data",
       "previewEmployee": "an employee",
+      "previewLeave": "an approved leave request",
       "noLayout": "This draft has no {{lang}} layout yet.",
       "startTitle": "Design the first template",
       "startIntroSystem": "This type uses the built-in template. A draft can start from its wording or from a blank page.",
@@ -3355,6 +3357,7 @@
       "interviewsNext7Days": "interview(s) in the next 7 days",
       "offersPending": "offer(s) in progress",
       "interviewsLink": "My interviews ({{count}})",
+      "interviewsDoneLink": "My evaluated interviews ({{count}})",
       "evaluationsTodo": "{{count}} evaluation(s) to enter",
       "evaluationsNone": "No evaluation to enter for now"
     },
@@ -3428,6 +3431,13 @@
       "cancelTitle": "Cancel the interview",
       "cancelIntro": "The interviewers are told. A cancelled interview no longer counts in the averages.",
       "cancelReason": "Reason for cancelling",
+      "autoCancel": {
+        "application_rejected": "Application rejected",
+        "application_withdrawn": "Withdrawn",
+        "offer_declined": "Offer declined",
+        "position_filled": "Position filled",
+        "opening_closed": "Recruitment closed"
+      },
       "cancelledBecause": "Cancelled:",
       "date": "Date",
       "time": "Time",

@@ -47,7 +47,7 @@
 
     <div class="field">
       <label for="issue-employee">{{ t('documents.fields.employee') }}</label>
-      <app-employee-picker formControlName="employmentId" inputId="issue-employee"
+      <app-employee-picker formControlName="employmentId" inputId="issue-employee" [status]="pickerStatus()"
         [invalid]="c.employmentId.invalid && c.employmentId.touched" describedBy="issue-employee-error" />
       @if (c.employmentId.invalid && c.employmentId.touched) {
         <p class="field-error" id="issue-employee-error" data-error="employmentId">

@@ -31,6 +31,7 @@ import { LanguageService } from '../../../core/i18n/language.service';
 import { RevealAlert } from '../../../shared/reveal-alert/reveal-alert.directive';
 import { pdfErrorKey } from '../../../shared/documents/pdf-actions';
 import { normalizeFormat, numberFormat } from '../types-settings';
+import { wideScreen } from './wide-screen';
 
 export const NEW_TYPE_SLUGS: SlugTable = {
   'document-type-code-taken': { key: 'documents.templates.problems.codeTaken', field: 'code' },
@@ -77,6 +78,8 @@ export class TemplatesSettings {
   protected readonly catalog = inject(DocumentCatalog);
   protected readonly lang = inject(LanguageService).current;
   protected readonly canConfigure = inject(Session).allows('document.configure');
+  /** Below 900 px the designer is not offered: the link opens the versions and previews, no new type is started. */
+  protected readonly wide = wideScreen();
   protected readonly subjects = DOCUMENT_SUBJECTS;
   protected readonly rules = EMPLOYMENT_RULES;
 

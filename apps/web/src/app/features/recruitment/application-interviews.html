@@ -34,7 +34,7 @@
           }
         </p>
         @if (i.cancelReason) {
-          <p class="prose" data-field="cancel-reason">{{ t('recruitment.interviews.cancelledBecause') }} <bdi>{{ i.cancelReason }}</bdi></p>
+          <p class="prose" data-field="cancel-reason">{{ t('recruitment.interviews.cancelledBecause') }} <bdi>{{ i.cancelCode ? t('recruitment.interviews.autoCancel.' + i.cancelCode) : i.cancelReason }}</bdi></p>
         }
         @if (i.evaluationsHidden) {
           <p class="field-hint" data-state="evaluations-hidden">{{ t('recruitment.interviews.hidden') }}</p>

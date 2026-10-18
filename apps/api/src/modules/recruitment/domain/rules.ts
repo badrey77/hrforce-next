@@ -56,6 +56,27 @@ export const MY_OPENINGS_MAX = 200;
 /** The system reasons of an automatic closing (recruitment_rejection_reason.auto_only). */
 export const AUTO_REASON = { opening_closed: 'opening_closed', opening_filled: 'position_filled' } as const;
 
+/**
+ * Why an interview was cancelled when the application left the pipeline (not a user's text). The French text is what
+ * `recruitment_interview.cancel_reason` stores (fixed, not the company's editable reason labels); views also return
+ * the code, so the web shows it in the UI language. Rows stored before the code existed match by the same text.
+ */
+export const AUTO_CANCEL_TEXT = {
+  application_rejected: 'Candidature refusée',
+  application_withdrawn: 'Désistement',
+  offer_declined: 'Offre déclinée',
+  position_filled: 'Poste pourvu',
+  opening_closed: 'Recrutement clôturé',
+} as const;
+export type AutoCancelCode = keyof typeof AUTO_CANCEL_TEXT;
+
+/** The automatic cancellation a stored reason is, or null for a reason a user typed. */
+export function autoCancelCode(reason: string | null): AutoCancelCode | null {
+  if (reason === null) return null;
+  const found = Object.entries(AUTO_CANCEL_TEXT).find(([, text]) => text === reason);
+  return found ? (found[0] as AutoCancelCode) : null;
+}
+
 export function isActiveStage(stage: string): stage is ActiveStage {
   return (ACTIVE_STAGES as readonly string[]).includes(stage);
 }

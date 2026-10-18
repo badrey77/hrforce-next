@@ -13,7 +13,7 @@
   </header>
 
   @let current = query();
-  <form class="filters" role="search" [attr.aria-label]="t('employees.filters.label')" (submit)="$event.preventDefault()">
+  <form class="filters" appFilterBar role="search" [attr.aria-label]="t('employees.filters.label')" (submit)="$event.preventDefault()">
     <div class="field">
       <label for="employees-q">{{ t('employees.filters.search') }}</label>
       <input

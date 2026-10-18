@@ -4,7 +4,7 @@ import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { ProblemException, ValidationProblemException, type FieldError } from '../../../platform/http/problem-details.js';
 import { EmployeeFileImporter, type ImportedFile } from '../../documents/index.js';
 import { EMPLOYEE_PERMISSIONS, EmployeesService, type CreateEmployeeInput } from '../../employment/index.js';
-import { isPreOfferStage, RECRUITMENT_PERMISSIONS as P, type ContractType, type Stage } from '../domain/rules.js';
+import { AUTO_CANCEL_TEXT, isPreOfferStage, RECRUITMENT_PERMISSIONS as P, type ContractType, type Stage } from '../domain/rules.js';
 import { CandidatesRepository, type ApplicationRow } from '../infra/candidates.repository.js';
 import { InterviewsRepository, type OfferFields } from '../infra/interviews.repository.js';
 import { RecruitmentRepository, type OpeningRow } from '../infra/recruitment.repository.js';
@@ -159,7 +159,7 @@ export class OffersService {
     await this.repo.setOfferStatus(companyId, offer.id, how === 'decline' ? 'declined' : 'cancelled');
     await this.candidates.setStage(companyId, applicationId, to, how === 'decline');
     await this.candidates.insertStage(companyId, { applicationId, from: 'offer', to, comment: input.comment ?? null, movedBy: userId });
-    if (how === 'decline') await this.notices.applicationsClosed(companyId, [applicationId], 'Offre déclinée');
+    if (how === 'decline') await this.notices.applicationsClosed(companyId, [applicationId], AUTO_CANCEL_TEXT.offer_declined);
     return this.applications.detailOf(companyId, applicationId);
   }
 }

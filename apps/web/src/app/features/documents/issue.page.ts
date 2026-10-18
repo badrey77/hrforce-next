@@ -36,7 +36,7 @@ import { BlobFiles } from '../../core/browser/blob-files';
 import { newUuid } from '../../core/browser/uuid';
 import { DocumentCatalog } from '../../core/documents/document-catalog';
 import { DocumentsApi } from '../../core/documents/documents-api';
-import { type DocumentLanguage, type IssueBody, issueFieldsOf, type SignatoryView, subjectOf } from '../../core/documents/documents.models';
+import { type DocumentLanguage, employmentRuleOf, type IssueBody, issueFieldsOf, type SignatoryView, subjectOf } from '../../core/documents/documents.models';
 import type { TemplateField } from '../../../lib/document-designer';
 import { EmployeesApi } from '../../core/employees/employees-api';
 import { type FormMessage, problemToForm } from '../../core/http/problem-form';
@@ -116,6 +116,8 @@ export class IssuePage implements OnInit {
   protected readonly selectedType = computed(() => this.catalog.type(this.typeCode()));
   /** The type is about an approved leave request (the titre de congé, or a custom type with that subject). */
   protected readonly isTitre = computed(() => subjectOf(this.selectedType()) === 'leave_request');
+  /** The employee search offers ended employments too unless the type is for active employments only. */
+  protected readonly pickerStatus = computed(() => (employmentRuleOf(this.selectedType()) === 'active' ? 'active' : 'all'));
   /** Fields HR fills in for the type's published template. */
   protected readonly issueFields = computed<readonly TemplateField[]>(() => issueFieldsOf(this.selectedType()));
   protected readonly languages = computed<readonly DocumentLanguage[]>(() => this.selectedType()?.languages ?? ['fr', 'ar']);

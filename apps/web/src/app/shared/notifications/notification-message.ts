@@ -63,6 +63,7 @@ export function notificationKey(
     if (subjectType === 'document_request') suffix = '_document';
     else if (subjectType === 'attendance_correction') suffix = '_attendance';
     else if (subjectType === 'recruitment_opening') suffix = '_recruitment';
+    else if (subjectType === 'contract_decision') suffix = '_contract';
   } else if (notification.type === 'task.escalated' && notification.subject?.type === 'attendance_correction') {
     suffix = '_attendance';
   } else if (notification.type === 'task.escalated' && notification.subject?.type === 'recruitment_opening') {
@@ -77,7 +78,7 @@ export function notificationKey(
 }
 
 /** Every placeholder a sentence may use; missing data shows as an ellipsis rather than a raw `{{placeholder}}`. */
-const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number', 'date', 'changes', 'reference', 'title', 'unitName', 'posts', 'time'] as const;
+const PLACEHOLDERS = ['employeeName', 'leaveType', 'startDate', 'endDate', 'days', 'actorName', 'stepKey', 'documentType', 'number', 'date', 'changes', 'reference', 'title', 'unitName', 'posts', 'time', 'newCount', 'overdueCount', 'criticalCount'] as const;
 const MISSING = '…';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -100,5 +101,10 @@ export function notificationMessage(
   if (format.arabic && typeof arabicUnit === 'string' && arabicUnit.trim()) params['unitName'] = arabicUnit;
   const documentType = notification.data?.['documentType'];
   const message = { key: notificationKey(notification), params };
-  return typeof documentType === 'string' && documentType ? { ...message, documentTypeKey: `documents.typeNames.${documentType}` } : message;
+  if (typeof documentType !== 'string' || !documentType) return message;
+  // A custom type (document-templates.md) has no fixed name in the i18n files: a generic word stands in.
+  const known = (SYSTEM_DOCUMENT_TYPES as readonly string[]).includes(documentType);
+  return { ...message, documentTypeKey: `documents.typeNames.${known ? documentType : 'custom'}` };
 }
+
+const SYSTEM_DOCUMENT_TYPES = ['attestation_travail', 'certificat_travail', 'titre_conge'] as const;

@@ -77,7 +77,7 @@ describe('HomePage — recruitment counts (docs/contracts/recruitment.md › Web
   it('Phase B: interviews in the next 7 days and offers in progress for HR; « Mes entretiens à évaluer (n) » for an interviewer', async () => {
     const el = await create(['recruitment.read']);
     http.expectOne('/api/recruitment/summary').flush(SUMMARY);
-    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 2, evaluationsTodo: 1 });
+    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 3, interviewsTodo: 2, evaluationsTodo: 1 });
     await settle();
     expect(el.querySelector('[data-count="interviews-next"]')?.textContent).toContain('3');
     const offers = el.querySelector('[data-count="offers-pending"]') as HTMLAnchorElement;
@@ -85,10 +85,20 @@ describe('HomePage — recruitment counts (docs/contracts/recruitment.md › Web
     expect(offers.textContent).toContain('1');
     const mine = el.querySelector('[data-card="my-interviews"] a') as HTMLAnchorElement;
     expect(mine.getAttribute('href')).toBe('/me/interviews');
-    // Two counts: the caller's interviews (2) and the evaluations that can be entered now (1).
+    // Two counts: what the default tab lists (2 not evaluated yet, of 3) and the evaluations that can be entered now (1).
     expect(mine.textContent?.trim()).toBe('Mes entretiens (2)');
     expect(el.querySelector('[data-card="my-interviews"] [data-count="evaluations-todo"]')?.textContent?.trim()).toBe('1 évaluation(s) à saisir');
   });
+  it('an interviewer with every evaluation submitted is sent to « Évalués » with that count', async () => {
+    const el = await create([]);
+    http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 1, interviewsTodo: 0, evaluationsTodo: 0 });
+    await settle();
+    const mine = el.querySelector('[data-card="my-interviews"] a') as HTMLAnchorElement;
+    expect(mine.getAttribute('href')).toBe('/me/interviews?filter=done');
+    expect(mine.textContent?.trim()).toBe('Mes entretiens évalués (1)');
+    expect(el.querySelector('[data-count="evaluations-todo"]')?.textContent?.trim()).toBe('Aucune évaluation à saisir pour l’instant');
+  });
+
   it('HR sections: presence today, headcount and pending leave, each a link; one small request each', async () => {
     const el = await create(['attendance.read', 'employee.read', 'leave.read']);
     http.expectOne('/api/me/recruitment/summary').flush({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 });

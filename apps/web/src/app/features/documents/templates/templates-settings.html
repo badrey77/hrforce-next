@@ -1,0 +1,190 @@
+<section *transloco="let t" aria-labelledby="templates-title" data-section="templates">
+  <h2 id="templates-title">{{ t('documents.templates.title') }}</h2>
+  <p class="field-hint">{{ t('documents.templates.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (error(); as e) {
+    <p class="form-error" role="alert" [appRevealAlert]="e">{{ 'key' in e ? t(e.key) : e.text }}</p>
+  }
+
+  @if (canConfigure() && wide()) {
+    @if (!creating()) {
+      <p><button class="btn" type="button" data-action="new-type" (click)="startCreate()">{{ t('documents.templates.newType') }}</button></p>
+    } @else {
+      @let c = typeForm.controls;
+      <form class="panel single" [formGroup]="typeForm" (ngSubmit)="create()" novalidate aria-labelledby="new-type-title" data-form="new-type">
+        <h3 id="new-type-title">{{ t('documents.templates.newType') }}</h3>
+        @if (createError(); as e) {
+          <p class="form-error" role="alert" [appRevealAlert]="e">{{ 'key' in e ? t(e.key) : e.text }}</p>
+        }
+        <div class="field">
+          <label for="nt-code">{{ t('documents.templates.code') }}</label>
+          <input id="nt-code" type="text" formControlName="code" dir="ltr" class="code" autocomplete="off" maxlength="40"
+            [attr.aria-invalid]="c.code.invalid && c.code.touched" aria-describedby="nt-code-hint nt-code-error" />
+          <p class="field-hint" id="nt-code-hint">{{ t('documents.templates.codeHint') }}</p>
+          @if (c.code.invalid && c.code.touched) {
+            <p class="field-error" id="nt-code-error" data-error="code">
+              @if (c.code.hasError('serverKey')) {
+                {{ t(c.code.getError('serverKey')) }}
+              } @else if (c.code.hasError('server')) {
+                {{ c.code.getError('server') }}
+              } @else if (c.code.hasError('reserved')) {
+                {{ t('documents.templates.codeReserved') }}
+              } @else if (c.code.hasError('code')) {
+                {{ t('documents.templates.codeInvalid') }}
+              } @else {
+                {{ t('documents.form.required') }}
+              }
+            </p>
+          }
+        </div>
+        <div class="field">
+          <label for="nt-fr">{{ t('documents.templates.nameFr') }}</label>
+          <input id="nt-fr" type="text" formControlName="nameFr" lang="fr" dir="ltr" maxlength="120" [attr.aria-invalid]="c.nameFr.invalid && c.nameFr.touched" />
+          @if (c.nameFr.invalid && c.nameFr.touched) {
+            <p class="field-error" data-error="nameFr">{{ c.nameFr.getError('server') ?? t('documents.form.required') }}</p>
+          }
+        </div>
+        <div class="field">
+          <label for="nt-ar">{{ t('documents.templates.nameAr') }}</label>
+          <input id="nt-ar" type="text" formControlName="nameAr" lang="ar" dir="rtl" maxlength="120" [attr.aria-invalid]="c.nameAr.invalid && c.nameAr.touched" />
+          @if (c.nameAr.invalid && c.nameAr.touched) {
+            <p class="field-error" data-error="nameAr">{{ c.nameAr.getError('server') ?? t('documents.form.required') }}</p>
+          }
+        </div>
+        <div class="field">
+          <label for="nt-en">{{ t('documents.templates.nameEn') }}</label>
+          <input id="nt-en" type="text" formControlName="nameEn" lang="en" dir="ltr" maxlength="120" />
+        </div>
+        <fieldset class="field">
+          <legend>{{ t('documents.templates.subject') }}</legend>
+          <div class="radios">
+            @for (s of subjects; track s) {
+              <div class="check">
+                <input type="radio" formControlName="subject" [id]="'nt-subject-' + s" [value]="s" />
+                <label [for]="'nt-subject-' + s">{{ t('documents.templates.subjects.' + s) }}</label>
+              </div>
+            }
+          </div>
+        </fieldset>
+        @if (subject() === 'employment') {
+          <div class="field">
+            <label for="nt-rule">{{ t('documents.templates.employmentRule') }}</label>
+            <select id="nt-rule" formControlName="employmentRule">
+              @for (r of rules; track r) {
+                <option [value]="r">{{ t('documents.templates.rules.' + r) }}</option>
+              }
+            </select>
+          </div>
+        }
+        <div class="field">
+          <label for="nt-format">{{ t('documents.types.numberFormat') }}</label>
+          <input id="nt-format" type="text" formControlName="numberFormat" dir="ltr" class="uppercase code" autocomplete="off" placeholder="OM-{YYYY}-{SEQ:4}"
+            [attr.aria-invalid]="c.numberFormat.invalid && c.numberFormat.touched" aria-describedby="nt-format-hint nt-format-preview" />
+          <p class="field-hint" id="nt-format-hint">{{ t('documents.types.formatHint') }}</p>
+          <p class="field-hint" id="nt-format-preview" aria-live="polite">
+            @if (formatPreview(); as next) {
+              {{ t('documents.types.preview') }} <span class="code preview-number" dir="ltr">{{ next }}</span>
+            }
+          </p>
+          @if (c.numberFormat.invalid && (c.numberFormat.touched || c.numberFormat.dirty)) {
+            <p class="field-error" data-error="numberFormat">
+              @if (c.numberFormat.hasError('serverKey')) {
+                {{ t(c.numberFormat.getError('serverKey')) }}
+              } @else if (c.numberFormat.hasError('server')) {
+                {{ c.numberFormat.getError('server') }}
+              } @else if (c.numberFormat.hasError('numberFormat')) {
+                {{ t('documents.types.formatErrors.' + c.numberFormat.getError('numberFormat')) }}
+              } @else {
+                {{ t('documents.form.required') }}
+              }
+            </p>
+          }
+        </div>
+        <fieldset class="field" formGroupName="languages">
+          <legend>{{ t('documents.types.languages') }}</legend>
+          <div class="radios">
+            <div class="check">
+              <input id="nt-lang-fr" type="checkbox" formControlName="fr" />
+              <label for="nt-lang-fr">{{ t('documents.languages.fr') }}</label>
+            </div>
+            <div class="check">
+              <input id="nt-lang-ar" type="checkbox" formControlName="ar" />
+              <label for="nt-lang-ar">{{ t('documents.languages.ar') }}</label>
+            </div>
+          </div>
+          @if (c.languages.invalid) {
+            <p class="field-error" data-error="languages">{{ t('documents.types.languagesRequired') }}</p>
+          }
+        </fieldset>
+        <p class="field-hint">{{ t('documents.templates.newTypeHint') }}</p>
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="create-type" [disabled]="createBusy()">{{ t('documents.templates.createAndDesign') }}</button>
+          <button class="btn secondary" type="button" (click)="cancelCreate()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    }
+  }
+
+  <div class="table-scroll">
+    <table class="data" data-table="templates">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('documents.fields.type') }}</th>
+          <th scope="col">{{ t('documents.templates.kindHeader') }}</th>
+          <th scope="col">{{ t('documents.templates.template') }}</th>
+          <th scope="col"><span class="visually-hidden">{{ t('documents.settings.actions') }}</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (type of catalog.types(); track type.id) {
+          <tr [attr.data-type]="type.code" [class.muted]="!type.active">
+            <td>
+              {{ catalog.labelOf(type.labels) }}
+              @if (!type.active) {
+                <span class="badge" data-badge="inactive">{{ t('documents.templates.inactive') }}</span>
+              }
+            </td>
+            <td><span class="badge" [attr.data-kind]="type.kind ?? 'system'">{{ t('documents.templates.kind.' + (type.kind ?? 'system')) }}</span></td>
+            <td data-field="mode">
+              {{ t(modeKey(type), { version: type.template?.version ?? '' }) }}
+              @if (draftOf(type); as draft) {
+                <span class="badge" data-badge="draft">{{ t('documents.templates.draftBadge', { version: draft }) }}</span>
+              }
+            </td>
+            <td>
+              <div class="form-actions">
+                <a class="btn secondary" [routerLink]="['/documents/settings/templates', type.id]" data-action="design">{{ t(wide() ? 'documents.templates.design' : 'documents.templates.versionsAndPreviews') }}</a>
+                @if (type.templateMode === 'designed' && type.template) {
+                  <button class="btn secondary" type="button" data-action="preview" [disabled]="previewing() === type.id" (click)="preview(type)">
+                    {{ t('documents.templates.preview') }}
+                  </button>
+                  @if (!isCustom(type)) {
+                    <button class="btn secondary" type="button" data-action="revert" (click)="openRevert(type)">{{ t('documents.templates.revert') }}</button>
+                  }
+                }
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="4" class="muted">{{ catalog.loaded() ? t('documents.types.empty') : t('common.loading') }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <dialog #revertDialog class="modal" aria-labelledby="revert-title">
+    <h2 id="revert-title">{{ t('documents.templates.revertTitle') }}</h2>
+    <p>{{ t('documents.templates.revertIntro', { name: catalog.labelOf(reverting()?.labels) }) }}</p>
+    @if (revertError(); as e) {
+      <p class="form-error" role="alert">{{ 'key' in e ? t(e.key) : e.text }}</p>
+    }
+    <div class="form-actions">
+      <button class="btn danger" type="button" data-action="confirm-revert" [disabled]="revertBusy()" (click)="confirmRevert()">{{ t('documents.templates.revert') }}</button>
+      <button class="btn secondary" type="button" (click)="closeRevert()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+</section>

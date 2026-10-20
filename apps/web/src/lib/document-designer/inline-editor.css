@@ -1,0 +1,49 @@
+.dd-inline-editor { display: block; position: relative; }
+.dd-inline-editor .dd-editable .ProseMirror { outline: none; white-space: pre-wrap; word-wrap: break-word; min-block-size: 1.4em; }
+.dd-inline-editor .dd-editable.dd-empty::before {
+  content: attr(data-placeholder);
+  color: #9aa1ad;
+  pointer-events: none;
+  position: absolute;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+.dd-inline-editor .dd-chip {
+  display: inline-block;
+  background: #e7efff;
+  color: #1a3d8f;
+  border: 1px solid #b9cdf7;
+  border-radius: 4px;
+  padding-inline: 0.2em;
+  margin-inline: 0.05em;
+  font-size: 0.95em;
+  line-height: 1.3;
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+.dd-inline-editor .dd-chip.dd-gender { background: #f3ecff; color: #5b2a99; border-color: #d8c4f5; }
+.dd-inline-editor .dd-chip.dd-optional { background: #fff6e0; color: #7a4d00; border-color: #f0d79c; }
+.dd-inline-editor .dd-chip.dd-bold { font-weight: 700; }
+.dd-inline-editor .dd-chip.dd-italic { font-style: italic; }
+.dd-inline-editor .dd-chip.dd-underline { text-decoration: underline; }
+.dd-inline-editor .ProseMirror-selectednode.dd-chip { outline: 2px solid var(--color-primary, #1d4ed8); }
+.dd-inline-editor .dd-suggest {
+  position: absolute;
+  z-index: 5;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  min-inline-size: 14rem;
+  max-block-size: 16rem;
+  overflow: auto;
+  background: #fff;
+  color: #111;
+  border: 1px solid var(--color-border, #d0d4dc);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-align: start;
+}
+.dd-inline-editor .dd-suggest li { padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; }
+.dd-inline-editor .dd-suggest li.active { background: var(--color-primary, #1d4ed8); color: #fff; }

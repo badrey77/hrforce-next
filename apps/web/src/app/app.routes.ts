@@ -124,7 +124,7 @@ export const routes: Routes = [
     // nothing to users who never open them.
     path: 'documents',
     canMatch: [...signedIn, permissionGuard()],
-    data: { permission: ['document.read', 'document.issue', 'document.configure'] },
+    data: { permission: ['document.read', 'document.issue', 'document.configure', 'document.design'] },
     loadChildren: () => import('./features/documents/documents.routes').then((m) => m.DOCUMENTS_ROUTES),
   },
   {
@@ -201,6 +201,14 @@ export const routes: Routes = [
     path: 'me/recruitment',
     canMatch: signedIn,
     loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_RECRUITMENT_ROUTES),
+  },
+  {
+    // Deadlines (docs/contracts/contracts-deadlines.md › Web): the board needs deadline.read, the policy
+    // deadline.configure — checked per child (features/deadlines/deadlines.routes.ts).
+    path: 'deadlines',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['deadline.read', 'deadline.configure'] },
+    loadChildren: () => import('./features/deadlines/deadlines.routes').then((m) => m.DEADLINES_ROUTES),
   },
   {
     // Settings: notification preferences for everyone; the branding section checks `settings.branding` on its own

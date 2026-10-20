@@ -47,6 +47,14 @@ describe('employeeListParams', () => {
   });
 });
 
+describe('employeeListParams › contractType', () => {
+  it('sends the contract type filter only when set (a type or none)', () => {
+    expect(employeeListParams(DEFAULT_EMPLOYEE_QUERY)).not.toHaveProperty('contractType');
+    expect(employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, contractType: 'cdd' })['contractType']).toBe('cdd');
+    expect(employeeListParams({ ...DEFAULT_EMPLOYEE_QUERY, contractType: 'none' })['contractType']).toBe('none');
+  });
+});
+
 describe('employeeListParams › lang', () => {
   it('adds lang=ar only for an Arabic sort language', () => {
     expect(employeeListParams(DEFAULT_EMPLOYEE_QUERY, 'ar')['lang']).toBe('ar');

@@ -12,5 +12,5 @@ export {
   type UserEmploymentView,
 } from './application/staffing.service.js';
 export type { ManagerResolution } from './domain/manager.js';
-export { scopeAssignmentSql } from './infra/staffing.repository.js';
+export { scopeAssignmentSql, StaffingRepository } from './infra/staffing.repository.js';
 export { seedHeads, seedLinks, type SeedHead, type SeedLink } from './infra/staffing-seed.js';

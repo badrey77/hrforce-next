@@ -1,5 +1,6 @@
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { json, type NextFunction, type Request, type Response } from 'express';
 import { Logger } from 'nestjs-pino';
 import { END_SESSION_SCRIPT_PATH, endSessionScript, OIDC_HTTP_HANDLER, OIDC_RUNTIME, oidcAccessLog, oidcHostCheck, type OidcRuntime } from './modules/sso/index.js';
 import { ENV } from './platform/config/config.module.js';
@@ -31,6 +32,14 @@ export function configureApp(app: NestExpressApplication): NestExpressApplicatio
   app.use(END_SESSION_SCRIPT_PATH, oidcAccessLog, endSessionScript);
   app.use('/oidc', oidcAccessLog, oidcHostCheck(app.get<OidcRuntime>(OIDC_RUNTIME).issuer), app.get(OIDC_HTTP_HANDLER));
 
+  // A designed document template may weigh up to 256 KB of JSON (docs/contracts/document-templates.md › assumption 7):
+  // its save route gets a larger body limit than the 100 KB default of every other route (parsed once: Nest's own
+  // JSON parser skips a body already read). Wrapped under another name: Nest does not register its own parser when
+  // it finds one called `jsonParser` in the stack, and every other route would lose its body.
+  const templateBody = json({ limit: '600kb' });
+  app.use(`/${API_PREFIX}/documents/templates`, function documentTemplateBody(req: Request, res: Response, next: NextFunction) {
+    templateBody(req, res, next);
+  });
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalFilters(app.get(ProblemDetailsFilter));
   app.useGlobalPipes(app.get(ZodValidationPipe));

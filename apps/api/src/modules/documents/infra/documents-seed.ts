@@ -18,8 +18,10 @@ import { DEMO_ORGANIZATION } from '../../organization/index.js';
 import { seedWorkflowDefinitions, type SeedDefinition } from '../../workflow/index.js';
 import { DocumentIssuer } from '../application/document-issuer.js';
 import { SYSTEM_FILE_CATEGORIES } from '../domain/employee-files.js';
-import { DEFAULT_DOCUMENT_TYPES, DOCUMENT_WORKFLOW_CODE, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
+import { DEFAULT_DOCUMENT_TYPES, DOCUMENT_WORKFLOW_CODE, SYSTEM_TYPE_RULES, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
 import { DocumentsRepository } from './documents.repository.js';
+import { TemplatesRepository } from './templates.repository.js';
+import { seedDemoTemplates } from './templates-seed.js';
 
 type Executor = Kysely<DB> | Transaction<DB>;
 
@@ -44,8 +46,9 @@ export async function seedDocumentDefaults(db: Executor, companyId: string): Pro
   }
   for (const t of DEFAULT_DOCUMENT_TYPES) {
     await sql`
-      insert into document_type (company_id, code, name_fr, name_ar, name_en, number_format, languages, self_service, sort_order)
-      values (${companyId}::uuid, ${t.code}, ${t.names.fr}, ${t.names.ar}, ${t.names.en}, ${t.numberFormat}, '{fr,ar}', ${t.selfService}, ${t.sortOrder})
+      insert into document_type (company_id, code, name_fr, name_ar, name_en, number_format, languages, self_service, sort_order, subject, employment_rule)
+      values (${companyId}::uuid, ${t.code}, ${t.names.fr}, ${t.names.ar}, ${t.names.en}, ${t.numberFormat}, '{fr,ar}', ${t.selfService}, ${t.sortOrder},
+              ${SYSTEM_TYPE_RULES[t.code].subject}, ${SYSTEM_TYPE_RULES[t.code].employmentRule})
       on conflict (company_id, code) do nothing`.execute(db);
   }
   const rows = await db.selectFrom('document_type').select(['id', 'code']).where('company_id', '=', companyId).execute();
@@ -209,7 +212,7 @@ export async function seedDemoDocuments(db: Transaction<DB>, renderer: PdfRender
   if (existing) return { documents: 0, requests: 0 };
   const admin = DEMO_USERS.find((u) => u.email === 'rh.admin@demo.dz')?.id ?? '';
   const repo = new DocumentsRepository();
-  const issuer = new DocumentIssuer(repo, renderer, new NoAuditEvents(), new LeaveFacts());
+  const issuer = new DocumentIssuer(repo, renderer, new NoAuditEvents(), new LeaveFacts(), new TemplatesRepository());
   const approvedLeave = '0190a5d0-0000-7000-8010-000000000001'; // leave demo request n°1 (approved, agent.annaba)
   const hasLeave = (await db.selectFrom('leave_request').select('id').where('company_id', '=', companyId).where('id', '=', approvedLeave).executeTakeFirst()) !== undefined;
   const plan: { type: DocumentTypeCode; employee: number; lang: DocumentLanguage; leave?: string; void?: string }[] = [
@@ -255,5 +258,7 @@ export async function seedDemoDocuments(db: Transaction<DB>, renderer: PdfRender
     values (${fixed(103)}::uuid, ${companyId}::uuid, ${instanceId}::uuid, 'hr', 0, 'permission', 'document.issue', ${unitId('AG-ANNABA')}::uuid,
             '2026-09-25T09:00:00Z')`.execute(db);
   await sql`update document_request set workflow_instance_id = ${instanceId}::uuid where id = ${requestId}::uuid`.execute(db);
+  // designed templates after the demo documents (those keep the built-in templates they were issued with)
+  await seedDemoTemplates(db, companyId, admin);
   return { documents, requests: 1 };
 }

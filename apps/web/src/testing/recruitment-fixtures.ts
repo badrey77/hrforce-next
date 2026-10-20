@@ -390,6 +390,8 @@ export function hirePrefill(overrides: Partial<HirePrefillView> = {}): HirePrefi
     opening: OPENING_REF,
     candidateId: 'cand-1',
     expectedStage: 'offer',
+    // The accepted offer's type (contracts-deadlines contract): a CDI asks for no end date.
+    contractType: 'cdi',
     ...overrides,
   };
 }

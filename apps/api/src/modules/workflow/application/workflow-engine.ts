@@ -9,10 +9,10 @@ import { WorkflowRepository, type InstanceRow, type TaskRow } from '../infra/wor
 import { WorkflowSubjects } from './workflow-subjects.js';
 import type { AssigneeView, OpenTaskView, TaskActionView, TaskHistoryView, UserRef, WorkflowProgressView } from './workflow-views.js';
 
-/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011, 0014, 0017 and 0019). */
-export type WorkflowSubjectType = 'leave_request' | 'document_request' | 'attendance_correction' | 'recruitment_opening';
+/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011, 0014, 0017, 0019 and 0023). */
+export type WorkflowSubjectType = 'leave_request' | 'document_request' | 'attendance_correction' | 'recruitment_opening' | 'contract_decision';
 
-const SUBJECT_TYPES: readonly WorkflowSubjectType[] = ['leave_request', 'document_request', 'attendance_correction', 'recruitment_opening'];
+const SUBJECT_TYPES: readonly WorkflowSubjectType[] = ['leave_request', 'document_request', 'attendance_correction', 'recruitment_opening', 'contract_decision'];
 
 /** The 409 slug of a cancellation refused because the instance is already finished, per subject type. */
 const NOT_CANCELLABLE: Record<WorkflowSubjectType, string> = {
@@ -20,6 +20,7 @@ const NOT_CANCELLABLE: Record<WorkflowSubjectType, string> = {
   document_request: 'document-request-not-cancellable',
   attendance_correction: 'attendance-correction-not-cancellable',
   recruitment_opening: 'recruitment-opening-not-cancellable',
+  contract_decision: 'contract-decision-not-cancellable',
 };
 
 export interface StartInput {
@@ -39,6 +40,12 @@ export interface DefinitionView {
   isSystem: boolean;
   steps: StepDef[];
 }
+
+/**
+ * The `started_by` of an instance opened by the system (the worker's daily job, no user): a fixed id that no account
+ * has, so it never excludes a real approver (docs/contracts/contracts-deadlines.md › Contract decisions).
+ */
+export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
 function caller(): { companyId: string; userId: string } {
   const { companyId, userId } = requireContext();
@@ -88,6 +95,20 @@ export class WorkflowEngine {
 
   async start(input: StartInput): Promise<string> {
     const { companyId, userId } = caller();
+    return this.startAs(companyId, userId, input);
+  }
+
+  /**
+   * {@link start} by the system (no user in the context: the worker's jobs, app.user_id empty). The instance's
+   * `started_by` is {@link SYSTEM_ACTOR_ID}; notifications carry no actor name.
+   */
+  async startAsSystem(input: StartInput): Promise<string> {
+    const { companyId } = requireContext();
+    if (!companyId) throw new Error('workflow: startAsSystem needs a company in the context');
+    return this.startAs(companyId, SYSTEM_ACTOR_ID, input);
+  }
+
+  private async startAs(companyId: string, userId: string, input: StartInput): Promise<string> {
     const definition = await this.repo.definition(companyId, input.definitionId);
     if (!definition) throw new Error(`workflow definition ${input.definitionId} not found`);
     const steps = parseSteps(definition.steps);
@@ -139,14 +160,17 @@ export class WorkflowEngine {
       subject: subjectOf(instance),
       data: { instanceId: instance.id, step: step.key, reason },
     });
-    // the requester is told even when they are the actor: the engine, not they, decided to skip the manager
-    await this.notifier.notify({
-      type: 'task.escalated',
-      subject: subjectOf(instance),
-      data: { ...(await this.notificationData(instance)), stepKey: step.key, escalationReason: reason },
-      recipients: [{ userId: instance.startedBy, audience: instance.startedBy === instance.subjectUserId ? 'employee' : 'requester' }],
-      includeActor: true,
-    });
+    // the requester is told even when they are the actor: the engine, not they, decided to skip the manager; an
+    // instance started by the system has no requester to tell (SYSTEM_ACTOR_ID is no account)
+    if (instance.startedBy !== SYSTEM_ACTOR_ID) {
+      await this.notifier.notify({
+        type: 'task.escalated',
+        subject: subjectOf(instance),
+        data: { ...(await this.notificationData(instance)), stepKey: step.key, escalationReason: reason },
+        recipients: [{ userId: instance.startedBy, audience: instance.startedBy === instance.subjectUserId ? 'employee' : 'requester' }],
+        includeActor: true,
+      });
+    }
     await this.openStep(companyId, instance, steps, index + 1, scopeUnitId);
   }
 
@@ -154,9 +178,9 @@ export class WorkflowEngine {
 
   /** Subject data + the acting user's name. */
   private async notificationData(instance: InstanceRow): Promise<Record<string, string | number | null>> {
-    const { userId } = caller();
+    const { userId } = requireContext();
     const data = await this.subjects.get(instance.subjectType).notificationData(instance.subjectId);
-    return { ...data, actorName: (await this.displayName(userId)) || null };
+    return { ...data, actorName: userId ? (await this.displayName(userId)) || null : null };
   }
 
   /**
@@ -210,9 +234,10 @@ export class WorkflowEngine {
     }
     if (task.status !== 'open') throw new ProblemException(409, 'workflow-task-closed', 'This task has already been handled.');
 
-    await this.repo.closeTask(companyId, task.id, { outcome: action, actedBy: userId, comment });
     const subject = this.subjects.get(instance.subjectType);
     const context = { instanceId: instance.id, subjectId: instance.subjectId, actorUserId: userId };
+    if (action === 'approve' && subject.beforeApprove) await subject.beforeApprove({ ...context, stepKey: task.stepKey, stepIndex: task.stepIndex });
+    await this.repo.closeTask(companyId, task.id, { outcome: action, actedBy: userId, comment });
     await this.audit.record({
       type: `workflow.${action}`,
       subject: subjectOf(instance),

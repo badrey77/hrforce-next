@@ -52,12 +52,16 @@ export class ProblemException extends HttpException {
     super(detail ?? slug, status);
     this.hasDetail = detail !== undefined;
     this.headers = options.headers ?? {};
+    this.extensions = options.extensions ?? {};
   }
   readonly hasDetail: boolean;
   /** Extra response headers (e.g. `Retry-After`), set by the problem filter. */
   readonly headers: Readonly<Record<string, string>>;
+  /** RFC 9457 extension members added to the body (4xx only), e.g. the current revision of a changed draft. */
+  readonly extensions: Readonly<Record<string, unknown>>;
 }
 
 export interface ProblemOptions {
   headers?: Record<string, string>;
+  extensions?: Record<string, unknown>;
 }

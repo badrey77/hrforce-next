@@ -1,16 +1,33 @@
 /**
  * Issuing rules (docs/contracts/documents.md › Issuing rules) and small pure helpers. No Nest, no Kysely.
  */
-import { DocumentRuleViolation, type DocumentLanguage, type DocumentTypeCode } from './types.js';
+import { DocumentRuleViolation, isDocumentTypeCode, type DocumentLanguage, type EmploymentRule } from './types.js';
 
-/** The employment state a type needs on the issue date, else 409. */
-export function checkEmploymentFor(type: DocumentTypeCode, employment: { endDate: string | null }, issueDate: string): void {
+/** The employment state a rule needs on the issue date, else 409 (`active`: as the attestation; `ended`: as the certificat). */
+export function checkEmploymentRule(rule: EmploymentRule, employment: { endDate: string | null }, issueDate: string): void {
+  if (rule === 'active' && employment.endDate !== null && employment.endDate < issueDate) {
+    throw new DocumentRuleViolation('document-employment-ended', 'This employment has ended: this document is issued for current employees only.');
+  }
+  if (rule === 'ended' && (employment.endDate === null || employment.endDate > issueDate)) {
+    throw new DocumentRuleViolation('document-employment-not-ended', 'This document needs a recorded end date on or before today.');
+  }
+}
+
+/** The employment state a SYSTEM type needs (attestation: active; certificat: ended), else 409. */
+export function checkEmploymentFor(type: string, employment: { endDate: string | null }, issueDate: string): void {
+  if (!isDocumentTypeCode(type)) return;
   if (type === 'attestation_travail' && employment.endDate !== null && employment.endDate < issueDate) {
     throw new DocumentRuleViolation('document-employment-ended', 'This employment has ended: issue a certificat de travail instead.');
   }
   if (type === 'certificat_travail' && (employment.endDate === null || employment.endDate > issueDate)) {
     throw new DocumentRuleViolation('document-employment-not-ended', 'A certificat de travail needs a recorded end date on or before today.');
   }
+}
+
+/** The employment check of a type: a system type's own wording, else its employment rule. */
+export function checkEmploymentOf(type: { code: string; employmentRule: EmploymentRule }, employment: { endDate: string | null }, issueDate: string): void {
+  if (isDocumentTypeCode(type.code)) checkEmploymentFor(type.code, employment, issueDate);
+  else checkEmploymentRule(type.employmentRule, employment, issueDate);
 }
 
 export function checkLanguage(languages: readonly string[], language: DocumentLanguage): void {

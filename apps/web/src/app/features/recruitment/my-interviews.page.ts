@@ -38,8 +38,11 @@ import { loadErrorKey } from './recruitment-view';
                   </a>
                   @if (i.evaluation.submittedAt) {
                     <span class="badge" data-status="approved" data-state="submitted">{{ t('recruitment.myInterviews.submitted') }}</span>
-                  } @else {
+                  } @else if (i._actions.includes('evaluate')) {
                     <span class="badge" data-status="pending" data-state="todo">{{ t('recruitment.myInterviews.todo') }}</span>
+                  } @else {
+                    <!-- not held yet: it cannot be evaluated before its time (the API's « evaluate » action) -->
+                    <span class="badge" data-state="upcoming">{{ t('recruitment.interviews.state.upcoming') }}</span>
                   }
                 </p>
                 <p>

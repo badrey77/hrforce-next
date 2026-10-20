@@ -15,6 +15,7 @@ import type { DB } from '../platform/db/schema.js';
 import { seedGrants, seedSecurityPolicy, seedSystemRoles } from '../modules/authorization/index.js';
 import { seedAttendanceDefaults } from '../modules/attendance/index.js';
 import { seedBrandingDefaults } from '../modules/branding/index.js';
+import { seedContractDefaults } from '../modules/contracts/index.js';
 import { seedDocumentDefaults } from '../modules/documents/index.js';
 import { inviteUser, type InviteResult } from '../modules/identity/index.js';
 import { seedLeaveDefaults } from '../modules/leave/index.js';
@@ -84,6 +85,8 @@ export async function bootstrapCompany(tx: Transaction<DB>, input: BootstrapInpu
   await seedAttendanceDefaults(tx, companyId);
   // docs/contracts/recruitment.md › Seeded per company: the policy, the approval chains and the rejection reasons
   await seedRecruitmentDefaults(tx, companyId);
+  // docs/contracts/contracts-deadlines.md: the end-of-contract decision chain (manager then HR)
+  await seedContractDefaults(tx, companyId);
   // docs/contracts/branding.md › Owning company: the first company created owns the installation branding
   await seedBrandingDefaults(tx, companyId);
 

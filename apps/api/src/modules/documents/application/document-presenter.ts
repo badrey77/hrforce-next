@@ -3,9 +3,15 @@ import { ScopeService } from '../../../platform/authz/scope-service.js';
 import { StaffingService } from '../../staffing/index.js';
 import { DOCUMENT_PERMISSIONS as P } from '../domain/types.js';
 import { DocumentsRepository, type DocumentRow, type SignatoryRow, type TypeRow } from '../infra/documents.repository.js';
-import type { DocumentEmployee, IssuedDocumentView, SignatoryView } from './document-views.js';
+import { TemplatesRepository, type TemplateVersionRow } from '../infra/templates.repository.js';
+import type { DocumentEmployee, DocumentTypeView, IssuedDocumentView, SignatoryView } from './document-views.js';
 
 export const labelsOf = (t: Pick<TypeRow, 'nameFr' | 'nameAr' | 'nameEn'>) => ({ fr: t.nameFr, ar: t.nameAr, en: t.nameEn });
+
+/** DocumentTypeView.template: the published version and its fields (the issue form). */
+export function templateRef(row: TemplateVersionRow | undefined): DocumentTypeView['template'] {
+  return row ? { id: row.id, version: row.version, fields: row.fields } : null;
+}
 
 export function signatoryView(s: SignatoryRow, types: readonly TypeRow[]): SignatoryView {
   return {
@@ -25,15 +31,17 @@ export class DocumentPresenter {
     private readonly repo: DocumentsRepository,
     private readonly staffing: StaffingService,
     private readonly scopes: ScopeService,
+    private readonly templates: TemplatesRepository,
   ) {}
 
   async views(companyId: string, rows: readonly DocumentRow[], options: { actions?: boolean } = {}): Promise<IssuedDocumentView[]> {
     if (rows.length === 0) return [];
-    const [cards, types, names, signatories] = await Promise.all([
+    const [cards, types, names, signatories, versions] = await Promise.all([
       this.staffing.cards(rows.map((r) => r.employmentId)),
       this.repo.types(companyId),
       this.repo.names(companyId),
       this.repo.signatories(companyId, rows[0]?.issueDate ?? '2000-01-01'),
+      this.templates.numbers(companyId, [...new Set(rows.flatMap((r) => (r.templateVersionId ? [r.templateVersionId] : [])))]),
     ]);
     const typeById = new Map(types.map((t) => [t.id, t]));
     const signatoryById = new Map(signatories.map((s) => [s.id, s]));
@@ -59,6 +67,8 @@ export class DocumentPresenter {
         leaveRequestId: r.leaveRequestId,
         documentRequestId: r.documentRequestId,
         signatory: { id: r.signatoryId, names: { fr: signatory?.nameFr ?? '', ar: signatory?.nameAr ?? '' } },
+        templateVersion: r.templateVersion,
+        template: r.templateVersionId ? { id: r.templateVersionId, version: versions.get(r.templateVersionId) ?? 0 } : null,
         sizeBytes: r.sizeBytes,
         sha256: r.sha256,
         void: r.status === 'void' && r.voidedAt ? { at: r.voidedAt, by: ref(r.voidedBy), reason: r.voidReason ?? '' } : null,

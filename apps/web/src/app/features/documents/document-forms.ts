@@ -18,6 +18,8 @@ export const ISSUE_SLUGS: SlugTable = {
   'document-render-failed': { key: 'documents.problems.renderFailed' },
   'document-client-request-reused': { key: 'documents.problems.clientRequestReused' },
   'document-number-taken': { key: 'documents.problems.numberTaken' },
+  'document-template-missing': { key: 'documents.problems.templateMissing', field: 'typeCode' },
+  'document-template-too-long': { key: 'documents.templates.problems.tooLong' },
   'forbidden-scope': { key: 'documents.problems.forbiddenScope' },
 };
 
@@ -59,6 +61,7 @@ export function missingProfileFields(error: unknown): readonly string[] | null {
 export const CONFIG_SLUGS: SlugTable = {
   'forbidden-scope': { key: 'documents.problems.companyWide' },
   'document-format-taken': { key: 'documents.problems.formatTaken', field: 'numberFormat' },
+  'document-template-missing': { key: 'documents.problems.templateMissing', field: 'active' },
 };
 
 /** What is wrong with the chosen logo file; shown under the file input (`documents.profile.logo*` keys). */

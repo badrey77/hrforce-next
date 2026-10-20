@@ -70,6 +70,8 @@
     <p class="field-hint">{{ t('employees.hints.firstAssignment') }}</p>
   </fieldset>
 
+  <app-contract-fields [group]="form.controls.contract" idPrefix="rehire" [start]="hireDate() || null" [hire]="isHire()" [lockedType]="offerContractType()" />
+
   @if (canSalary()) {
     @let salary = form.controls.salary.controls;
     <fieldset class="section sensitive" formGroupName="salary" data-section="salary">

@@ -13,6 +13,18 @@ const names: AuditNameResolver = (kind, value) => NAMES[kind]?.[value];
 const LEAVE_NAMES: AuditNameResolver = (kind, value) =>
   kind === 'leaveType' && value === 't-annual' ? 'Congé annuel' : kind === 'step' && value === 'hr' ? 'RH régionales' : undefined;
 
+/** The value line of an issued document's `type_code`, named by `resolve`. */
+function typeCodeLine(resolve: AuditNameResolver) {
+  const [group] = buildTimeline(
+    [{ id: 'c:11', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'issued_document', op: 'insert',
+      changes: [{ field: 'type_code', before: null, after: 'ordre_mission', masked: false }] }],
+    resolve,
+    NOW,
+  );
+  const change = group?.entries[0] as ChangeView | undefined;
+  return change?.lines[0]?.after;
+}
+
 describe('buildTimeline (pure view model)', () => {
   it('groups by local day, newest first, keeping API order inside a day; tags today / yesterday', () => {
     const groups = buildTimeline([RENAMED, GRANTED, GRANT_ROW, MASKED, CREATED], NO_NAMES, NOW);
@@ -22,6 +34,27 @@ describe('buildTimeline (pure view model)', () => {
       ['2026-09-20', null, ['c:12']],
       ['2026-09-01', null, ['c:3']],
     ]);
+  });
+
+  it('names a document type by the page’s name (custom types), else by its built-in translation key', () => {
+    expect(typeCodeLine((kind, value) => (kind === 'documentType' && value === 'ordre_mission' ? 'Ordre de mission' : undefined))).toEqual({ kind: 'text', text: 'Ordre de mission' });
+    expect(typeCodeLine(NO_NAMES)).toEqual({ kind: 'key', key: 'documents.typeNames.ordre_mission', text: 'ordre_mission' });
+  });
+
+  it('contracts: an end reason in words, a decision without its updated_at line (verification 2026-10-19)', () => {
+    const [group] = buildTimeline(
+      [
+        { id: 'c:21', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'employment', op: 'update',
+          changes: [{ field: 'end_reason', before: null, after: 'end_of_contract', masked: false }] },
+        { id: 'c:22', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'contract_decision', op: 'update',
+          changes: [{ field: 'proposal', before: null, after: 'end', masked: false }, { field: 'updated_at', before: '2026-09-26T09:00:00Z', after: '2026-09-26T10:00:00Z', masked: false }] },
+      ],
+      NO_NAMES,
+      NOW,
+    );
+    const [employment, decision] = (group?.entries ?? []) as ChangeView[];
+    expect(employment?.lines[0]?.after).toEqual({ kind: 'key', key: 'employees.endReasons.end_of_contract', text: 'end_of_contract' });
+    expect(decision?.lines.map((l) => l.field)).toEqual(['proposal']);
   });
 
   it('update: one line per changed field (id hidden), label keys per table, ids resolved to names', () => {
@@ -198,6 +231,9 @@ describe('buildTimeline (pure view model)', () => {
             { field: 'number', before: null, after: 'ATT-2026-0001', masked: false },
             { field: 'leave_request_id', before: null, after: 'lr-1', masked: false },
             { field: 'document_request_id', before: null, after: 'dr-1', masked: false },
+            // designed templates (migration 0022): the type's subject and the version's bare id repeat other lines
+            { field: 'subject', before: null, after: 'employment', masked: false },
+            { field: 'template_version_id', before: null, after: 'tv-1', masked: false },
           ] },
         { id: 'c:12', at: '2026-09-26T10:00:01Z', actor: null, requestId: null, kind: 'change', table: 'document_request', op: 'update',
           changes: [{ field: 'issued_document_id', before: null, after: 'd-1', masked: false }] },
@@ -210,5 +246,7 @@ describe('buildTimeline (pure view model)', () => {
     expect(fields).not.toContain('leave_request_id');
     expect(fields).not.toContain('document_request_id');
     expect(fields).not.toContain('issued_document_id');
+    expect(fields).not.toContain('subject');
+    expect(fields).not.toContain('template_version_id');
   });
 });

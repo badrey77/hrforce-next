@@ -694,6 +694,11 @@ npm run typecheck -w @hrforce/api
   - unset → starts `postgres:18-alpine` with Testcontainers (Docker required).
   - If the roles already exist on that cluster with other passwords, set `TEST_MIGRATOR_PASSWORD` / `TEST_APP_PASSWORD`
     / `TEST_WORKER_PASSWORD` (`hrforce_worker`, default `hrforce_worker_test`; `db.workerUrl` in the tests).
+    This is the case on the **dev Postgres** of `docker-compose.yml` / `scripts/dev-up.*` (roles created with the
+    passwords of `.env`): without them about 25 e2e files fail at set-up. For example
+    `TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres TEST_MIGRATOR_PASSWORD=hrforce_migrator_dev
+    TEST_APP_PASSWORD=hrforce_app_dev TEST_WORKER_PASSWORD=hrforce_worker_dev npm test` (the same variables for
+    `npm run guard:db`).
   - The harness also installs the job queue schema (like `npm run migrate`).
 - `test/support/test-app.ts` adds test-only routes and header-driven identity (`X-Test-User`, `X-Test-Company`);
   `createTestApp(db, { devAuth: true })` uses the real wiring instead (session cookie, else `X-Dev-*` headers, and

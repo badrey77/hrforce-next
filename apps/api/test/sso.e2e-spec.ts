@@ -236,7 +236,9 @@ describe('SSO: discovery and keys', () => {
     for (const r of rows) expect(r.jwk).not.toContain('"d"');
   });
 
-  it('two processes booting on an empty key table create one key (advisory lock)', async () => {
+  // Creates and migrates a whole scratch database inside the test (not in a hook): under a full parallel run that
+  // alone can pass the default 30 s (seen on Windows), so this test gets the hooks' allowance.
+  it('two processes booting on an empty key table create one key (advisory lock)', { timeout: 180_000 }, async () => {
     const aead = deriveOidcKeys(Buffer.from(DEV_OIDC_KEY, 'base64')).aead;
     const scratch = await createTestDatabase();
     const a = createDatabase({ connectionString: scratch.appUrl, maxConnections: 1 });

@@ -19,6 +19,7 @@
 import type { Routes } from '@angular/router';
 import { permissionGuard } from '../../core/auth/permission.guard';
 import { NOT_FOUND_ROUTE } from '../../shared/not-found/not-found.route';
+import { unsavedTemplateGuard } from './templates/unsaved-template.guard';
 
 export const DOCUMENTS_ROUTES: Routes = [
   {
@@ -33,8 +34,16 @@ export const DOCUMENTS_ROUTES: Routes = [
   },
   { ...NOT_FOUND_ROUTE, path: 'new' },
   {
+    // The template designer (docs/contracts/document-templates.md › Web): its code, ProseMirror included, loads here only.
+    path: 'settings/templates/:typeId',
+    canMatch: [permissionGuard('document.design')],
+    canDeactivate: [unsavedTemplateGuard],
+    loadComponent: () => import('./templates/template-designer.page').then((m) => m.TemplateDesignerPage),
+  },
+  { ...NOT_FOUND_ROUTE, path: 'settings/templates/:typeId' },
+  {
     path: 'settings',
-    canMatch: [permissionGuard('document.configure')],
+    canMatch: [permissionGuard(['document.configure', 'document.design'])],
     loadComponent: () => import('./settings.page').then((m) => m.DocumentSettingsPage),
   },
   { ...NOT_FOUND_ROUTE, path: 'settings' },

@@ -79,6 +79,12 @@ describe('notificationMessage', () => {
     }
   });
 
+  it('documents: a custom type code (document-templates.md) is named by a generic word', () => {
+    const ready = notificationMessage({ type: 'document.ready', data: { documentType: 'ordre_mission' } }, FORMAT);
+    expect(ready.documentTypeKey).toBe('documents.typeNames.custom');
+    for (const file of [fr, ar, en]) expect(typeof at(file, 'documents.typeNames.custom')).toBe('string');
+  });
+
   it('missing or null data shows an ellipsis, never a raw {{placeholder}}', () => {
     const message = notificationMessage({ type: 'leave.rejected', data: { actorName: null } }, FORMAT);
     expect(message.params['actorName']).toBe('…');

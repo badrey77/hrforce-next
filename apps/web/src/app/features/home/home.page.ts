@@ -5,6 +5,7 @@ import { AttendanceApi } from '../../core/attendance/attendance-api';
 import { DEFAULT_PRESENCE_QUERY, type BoardStatus } from '../../core/attendance/attendance.models';
 import { Session } from '../../core/auth/session';
 import { BrandingService } from '../../core/branding/branding.service';
+import { DeadlinesBadge } from '../../core/deadlines/deadlines-badge';
 import { EmployeesApi } from '../../core/employees/employees-api';
 import { DEFAULT_EMPLOYEE_QUERY } from '../../core/employees/employees.models';
 import { LeaveApi } from '../../core/leave/leave-api';
@@ -96,6 +97,24 @@ import { TasksBadge } from '../../core/tasks/tasks-badge';
         </section>
       }
 
+      <!-- Deadlines (deadline.read): the shared summary of the nav badge; each count opens the board. -->
+      @if (deadlines.summary(); as d) {
+        <section class="panel" aria-labelledby="home-deadlines-title" data-card="deadlines">
+          <h2 id="home-deadlines-title">{{ t('nav.deadlines') }}</h2>
+          <ul class="counts">
+            <li>
+              <a routerLink="/deadlines" class="tile" data-count="deadlines-overdue"><strong>{{ d.overdue }}</strong><span>{{ t('deadlines.home.overdue') }}</span></a>
+            </li>
+            <li>
+              <a routerLink="/deadlines" class="tile" data-count="deadlines-critical"><strong>{{ d.critical }}</strong><span>{{ t('deadlines.home.critical') }}</span></a>
+            </li>
+            <li>
+              <a routerLink="/deadlines" [queryParams]="{ within: 30 }" class="tile" data-count="deadlines-next30"><strong>{{ d.next30 }}</strong><span>{{ t('deadlines.home.next30') }}</span></a>
+            </li>
+          </ul>
+        </section>
+      }
+
       <!-- Recruitment counts: scoped by the API to what the caller may read; each one opens the filtered list. -->
       @if (summary.hasValue()) {
         @let s = summary.value();
@@ -128,7 +147,12 @@ import { TasksBadge } from '../../core/tasks/tasks-badge';
       }
       @if (mine.showInterviewsNav()) {
         <p class="panel" data-card="my-interviews">
-          <a routerLink="/me/interviews" class="action">{{ t('recruitment.home.interviewsLink', { count: mine.interviews() }) }}</a>
+          <!-- The count is what the linked tab lists: the interviews still to evaluate, else the evaluated ones. -->
+          @if (mine.interviewsTodo() > 0) {
+            <a routerLink="/me/interviews" class="action" data-link="interviews-todo">{{ t('recruitment.home.interviewsLink', { count: mine.interviewsTodo() }) }}</a>
+          } @else {
+            <a routerLink="/me/interviews" [queryParams]="{ filter: 'done' }" class="action" data-link="interviews-done">{{ t('recruitment.home.interviewsDoneLink', { count: mine.interviews() }) }}</a>
+          }
           <!-- Two different counts: interviews assigned to the caller, and evaluations that can be entered now
                (an upcoming interview is listed but cannot be evaluated before its time). -->
           <span class="action-note" data-count="evaluations-todo">
@@ -166,6 +190,7 @@ export class HomePage {
   private readonly attendance = inject(AttendanceApi);
   private readonly leave = inject(LeaveApi);
   protected readonly tasks = inject(TasksBadge);
+  protected readonly deadlines = inject(DeadlinesBadge);
 
   // Self-service figures need the permission AND a linked employment (as the « Pointage » and « Mes congés » pages).
   private readonly canPunch = computed(() => this.session.can(ATTENDANCE_SELF_SERVICE_PERMISSION) && this.me.linked() === true);

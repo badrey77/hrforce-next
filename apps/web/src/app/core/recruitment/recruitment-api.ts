@@ -3,7 +3,6 @@ import { Injectable, inject } from '@angular/core';
 import { filter, map, type Observable } from 'rxjs';
 import { UPLOAD_HTTP_CLIENT } from '../http/upload-http';
 import type { AppLanguage } from '../i18n/languages';
-import type { CreateEmployee } from '../employees/employees.models';
 import type { Labels } from '../leave/leave.models';
 import {
   type ApplicationDetailView,
@@ -22,6 +21,7 @@ import {
   type CriterionView,
   type EvaluationInput,
   type FileKind,
+  type HireEmployeeBody,
   type HirePrefillView,
   type HireResult,
   type InterviewerOption,
@@ -368,7 +368,7 @@ export class RecruitmentApi {
   }
 
   /** The body of `POST /employees` plus the stage on screen and the candidate files to copy into the employee file. */
-  hire(applicationId: string, body: CreateEmployee & { readonly expectedStage: 'offer'; readonly copyFileIds: readonly string[] }): Observable<HireResult> {
+  hire(applicationId: string, body: HireEmployeeBody & { readonly expectedStage: 'offer'; readonly copyFileIds: readonly string[] }): Observable<HireResult> {
     return this.http.post<HireResult>(`${RECRUITMENT_API_BASE}/applications/${enc(applicationId)}/hire`, body);
   }
 

@@ -5,7 +5,7 @@
  *
  * Templates are files of the assets directory (`<PDF_ASSETS_DIR>/templates/<template>.typ`); they receive `data` as
  * ONE JSON string (`sys.inputs.data`) and `options` as another (`sys.inputs.render`) — strings are never evaluated as
- * markup. Binary assets (the company logo) are virtual files at `assets[].path` (absolute, from the templates root).
+ * markup (a designed layout arrives as a third JSON string, `sys.inputs.layout`). Binary assets (the company logo) are virtual files at `assets[].path` (absolute, from the templates root).
  */
 
 export interface RenderAsset {
@@ -21,6 +21,11 @@ export interface RenderInput {
   data: unknown;
   /** rendering options that are not part of the record (`sys.inputs.render`), e.g. `{specimen: true, logo: '/…'}` */
   options?: Record<string, unknown>;
+  /**
+   * A resolved designed layout (`sys.inputs.layout`, template `designed`; docs/contracts/document-templates.md ›
+   * Rendering). Absent for the built-in templates, whose inputs stay exactly as before.
+   */
+  layout?: unknown;
   assets?: readonly RenderAsset[];
   /** PDF standard; ADR 008: PDF/A-2b for issued documents */
   standard?: 'a-2b' | null;

@@ -47,7 +47,7 @@
 
     <div class="field">
       <label for="issue-employee">{{ t('documents.fields.employee') }}</label>
-      <app-employee-picker formControlName="employmentId" inputId="issue-employee"
+      <app-employee-picker formControlName="employmentId" inputId="issue-employee" [status]="pickerStatus()"
         [invalid]="c.employmentId.invalid && c.employmentId.touched" describedBy="issue-employee-error" />
       @if (c.employmentId.invalid && c.employmentId.touched) {
         <p class="field-error" id="issue-employee-error" data-error="employmentId">
@@ -101,6 +101,60 @@
         }
       </div>
     </fieldset>
+
+    @if (issueFields().length) {
+      <fieldset class="field template-fields" formGroupName="fields" data-section="fields">
+        <legend>{{ t('documents.issue.fields') }}</legend>
+        @for (f of issueFields(); track f.key) {
+          @let control = fieldControls.controls[f.key];
+          @if (control) {
+            <div class="field" [attr.data-field]="'fields.' + f.key">
+              <label [for]="'issue-field-' + f.key">{{ fieldLabel(f.labels) }}@if (!f.required) { <span class="muted"> {{ t('documents.issue.optional') }}</span> }</label>
+              @switch (f.kind) {
+                @case ('longText') {
+                  <textarea [id]="'issue-field-' + f.key" [formControlName]="f.key" rows="3" maxlength="2000" dir="auto"
+                    [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'issue-field-' + f.key + '-error'"></textarea>
+                }
+                @case ('date') {
+                  <input [id]="'issue-field-' + f.key" type="date" [formControlName]="f.key"
+                    [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'issue-field-' + f.key + '-error'" />
+                }
+                @case ('number') {
+                  <input [id]="'issue-field-' + f.key" type="text" inputmode="decimal" dir="ltr" [formControlName]="f.key"
+                    [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'issue-field-' + f.key + '-error'" />
+                }
+                @case ('choice') {
+                  <select [id]="'issue-field-' + f.key" [formControlName]="f.key"
+                    [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'issue-field-' + f.key + '-error'">
+                    <option value="">{{ f.required ? t('documents.issue.choose') : '—' }}</option>
+                    @for (o of f.options ?? []; track o.value) {
+                      <option [value]="o.value">{{ fieldLabel(o.labels) }}</option>
+                    }
+                  </select>
+                }
+                @default {
+                  <input [id]="'issue-field-' + f.key" type="text" maxlength="500" dir="auto" [formControlName]="f.key"
+                    [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'issue-field-' + f.key + '-error'" />
+                }
+              }
+              @if (control.invalid && control.touched) {
+                <p class="field-error" [id]="'issue-field-' + f.key + '-error'" [attr.data-error]="'fields.' + f.key">
+                  @if (control.hasError('server')) {
+                    {{ control.getError('server') }}
+                  } @else if (control.hasError('pattern')) {
+                    {{ t('documents.issue.numberInvalid') }}
+                  } @else if (control.hasError('maxlength')) {
+                    {{ t('documents.issue.tooLong') }}
+                  } @else {
+                    {{ t('documents.form.required') }}
+                  }
+                </p>
+              }
+            </div>
+          }
+        }
+      </fieldset>
+    }
 
     <div class="field">
       <label for="issue-signatory">{{ t('documents.fields.signatory') }}</label>

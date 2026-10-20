@@ -27,6 +27,8 @@ const ICONS = {
     'M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6',
   ],
   menu: ['M4 6.5h16', 'M4 12h16', 'M4 17.5h16'],
+  // An hourglass: the deadlines board.
+  hourglass: ['M6.5 3.5h11', 'M6.5 20.5h11', 'M8 3.5c0 4.5 8 4.5 8 8.5s-8 4-8 8.5', 'M16 3.5c0 4.5-8 4.5-8 8.5s8 4 8 8.5'],
 } as const;
 
 export type NavIconName = keyof typeof ICONS;

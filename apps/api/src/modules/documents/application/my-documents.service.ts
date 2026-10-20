@@ -4,7 +4,7 @@ import { ProblemException, ValidationProblemException } from '../../../platform/
 import { Notifier, type NotificationData } from '../../../platform/notifications/notifier.js';
 import { StaffingService } from '../../staffing/index.js';
 import { WorkflowEngine, WorkflowSubjects, type HookContext } from '../../workflow/index.js';
-import { checkEmploymentFor } from '../domain/rules.js';
+import { checkEmploymentOf } from '../domain/rules.js';
 import { DOCUMENT_WORKFLOW_CODE, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
 import { DocumentsRepository, pgError, type RequestRow } from '../infra/documents.repository.js';
 import { DocumentIssuer, documentProblem, documentProblems } from './document-issuer.js';
@@ -81,7 +81,7 @@ export class MyDocumentsService implements OnModuleInit {
     const today = this.clock.today();
     const employee = await this.repo.employee(companyId, employmentId, today);
     if (!employee) throw notLinked();
-    await documentProblems(() => Promise.resolve(checkEmploymentFor(type.code, employee, today)));
+    await documentProblems(() => Promise.resolve(checkEmploymentOf(type, employee, today)));
     if (await this.repo.pendingRequestExists(companyId, employmentId, type.id)) {
       throw new ProblemException(409, 'document-request-pending', 'You already have a pending request for this document.');
     }

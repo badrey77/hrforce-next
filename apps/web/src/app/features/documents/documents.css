@@ -73,6 +73,16 @@ h2 {
   border: 0;
 }
 
+/* a long-text field keeps its line breaks on the document page */
+.field-value {
+  white-space: pre-line;
+}
+
+/* e.g. (ordre_mission.designed@1): one long token, wider than a phone's value column */
+.template-code {
+  overflow-wrap: anywhere;
+}
+
 .preview-number {
   font-weight: 600;
 }

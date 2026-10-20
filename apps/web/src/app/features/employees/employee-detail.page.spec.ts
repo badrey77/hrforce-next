@@ -109,7 +109,7 @@ describe('EmployeeDetailPage', () => {
     expect(text('h1')).toBe('BENALI Amina');
     expect(text('[data-field="matricule"]')).toBe('EMP-0001');
     expect(text('[data-field="status"]')).toBe('En poste');
-    expect(tabs()).toEqual(['identity', 'assignments', 'pay', 'bank', 'history']);
+    expect(tabs()).toEqual(['identity', 'assignments', 'contracts', 'pay', 'bank', 'history']);
     expect(el().querySelector('[data-action="end"]')).not.toBeNull();
     expect(el().querySelector('[data-action="edit-person"]')).not.toBeNull();
 
@@ -145,7 +145,7 @@ describe('EmployeeDetailPage', () => {
   it('hides Pay and Bank & NSS when redacted, History without audit.read, and buttons without _actions', async () => {
     TestBed.inject(Session).set(meWith(['employee.read']));
     await open(redactedDetail());
-    expect(tabs()).toEqual(['identity', 'assignments']);
+    expect(tabs()).toEqual(['identity', 'assignments', 'contracts']);
     expect(el().querySelector('[data-action]')).toBeNull();
     await tab('assignments');
     expect(el().querySelector('[data-action="assign"]')).toBeNull();
@@ -154,7 +154,7 @@ describe('EmployeeDetailPage', () => {
   it('adds a Leave tab for leave.read holders (balances and ledger load only when it is opened)', async () => {
     TestBed.inject(Session).set(meWith(['employee.read', 'leave.read']));
     await open(redactedDetail());
-    expect(tabs()).toEqual(['identity', 'assignments', 'leave']);
+    expect(tabs()).toEqual(['identity', 'assignments', 'contracts', 'leave']);
     http.expectNone('/api/employees/e-1/leave/balances');
     await tab('leave');
     http.expectOne('/api/leave/types').flush({ items: [] });
@@ -167,7 +167,7 @@ describe('EmployeeDetailPage', () => {
   it('adds a Dossier tab for employee_file.read holders (the file loads only when it is opened)', async () => {
     TestBed.inject(Session).set(meWith(['employee.read', 'employee_file.read']));
     await open(redactedDetail());
-    expect(tabs()).toEqual(['identity', 'assignments', 'file']);
+    expect(tabs()).toEqual(['identity', 'assignments', 'contracts', 'file']);
     http.expectNone((r) => r.url === '/api/employees/e-1/files');
     await tab('file');
     http.expectOne((r) => r.url === '/api/employees/e-1/files').flush({ items: [], _redacted: [], _actions: [] });

@@ -66,6 +66,13 @@ describe('EmployeeRehirePage', () => {
     input(id).dispatchEvent(new Event('blur'));
   }
 
+  async function choose(id: string, value: string): Promise<void> {
+    const select = el().querySelector(`#${id}`) as HTMLSelectElement;
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    await settle();
+  }
+
   async function submit(): Promise<void> {
     el().querySelector('form')?.dispatchEvent(new Event('submit'));
     await settle();
@@ -93,6 +100,8 @@ describe('EmployeeRehirePage', () => {
     fill('rehire-matricule', 'emp-0100');
     fill('rehire-hire-date', '2025-09-01');
     fill('rehire-salary', '90000');
+    await choose('rehire-contract-type', 'cdd');
+    fill('rehire-contract-end', '2026-08-31');
     expect(input('rehire-matricule').value).toBe('EMP-0100');
     await submit();
 
@@ -106,6 +115,7 @@ describe('EmployeeRehirePage', () => {
       siteId: null,
       jobTitle: 'Chargée de clientèle',
       salary: { baseSalary: '90000.00' },
+      contract: { contractType: 'cdd', endDate: '2026-08-31' },
     });
     post.flush(detail({ id: 'e-9' }), { status: 201, statusText: 'Created' });
     const router = TestBed.inject(Router);
@@ -133,6 +143,7 @@ describe('EmployeeRehirePage', () => {
     await open();
     fill('rehire-matricule', 'EMP-0100');
     fill('rehire-hire-date', '2025-09-01');
+    await choose('rehire-contract-type', 'cdi');
 
     await submit();
     http

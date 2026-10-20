@@ -258,6 +258,48 @@ export interface CompanyProfile {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ContractDecision {
+  comment: string | null;
+  company_id: string;
+  contract_id: string;
+  created_at: Generated<Timestamp>;
+  employment_id: string;
+  id: Generated<string>;
+  opened_by: string;
+  proposal: string | null;
+  proposed_at: Timestamp | null;
+  proposed_by: string | null;
+  proposed_end_date: Timestamp | null;
+  proposed_start_date: Timestamp | null;
+  result_contract_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  workflow_instance_id: string | null;
+}
+
+export interface DeadlineAck {
+  acked_at: Generated<Timestamp>;
+  acked_by: string;
+  company_id: string;
+  due_date: Timestamp;
+  id: Generated<string>;
+  kind: string;
+  note: string | null;
+  subject_id: string;
+}
+
+export interface DeadlinePolicy {
+  company_id: string;
+  contract_notice_days: Generated<number>;
+  decision_notice_days: Generated<number>;
+  digest_enabled: Generated<boolean>;
+  document_notice_days: Generated<number>;
+  probation_notice_days: Generated<number>;
+  retirement_age: Generated<number>;
+  retirement_notice_months: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DocumentRequest {
   company_id: string;
   document_type_id: string;
@@ -291,20 +333,44 @@ export interface DocumentSignatory {
   title_fr: string;
 }
 
+export interface DocumentTemplateVersion {
+  based_on: string | null;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  created_by: string;
+  document_type_id: string;
+  fields: Generated<Json>;
+  id: Generated<string>;
+  layouts: Generated<Json>;
+  note: string | null;
+  published_at: Timestamp | null;
+  published_by: string | null;
+  revision: Generated<number>;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+  version: number;
+}
+
 export interface DocumentType {
   active: Generated<boolean>;
   code: string;
   company_id: string;
   created_at: Generated<Timestamp>;
   default_signatory_id: string | null;
+  employment_rule: Generated<string>;
   id: Generated<string>;
+  kind: Generated<string>;
   languages: Generated<string[]>;
   name_ar: string;
   name_en: string;
   name_fr: string;
   number_format: string;
+  published_template_id: string | null;
   self_service: Generated<boolean>;
   sort_order: Generated<number>;
+  subject: Generated<string>;
+  template_mode: Generated<string>;
 }
 
 export interface EmployeeFile {
@@ -361,6 +427,24 @@ export interface Employment {
   person_id: string;
 }
 
+export interface EmploymentContract {
+  company_id: string;
+  contract_type: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  decision_id: string | null;
+  employment_id: string;
+  end_date: Timestamp | null;
+  id: Generated<string>;
+  kind: string;
+  note: string | null;
+  probation_end: Timestamp | null;
+  reason: string | null;
+  reference: string | null;
+  seq: number;
+  start_date: Timestamp;
+}
+
 export interface EmploymentSalary {
   base_salary: Numeric;
   company_id: string;
@@ -414,7 +498,9 @@ export interface IssuedDocument {
   size_bytes: number;
   snapshot: Json;
   status: Generated<string>;
+  subject: string;
   template_version: string;
+  template_version_id: string | null;
   type_code: string;
   void_reason: string | null;
   voided_at: Timestamp | null;
@@ -1004,14 +1090,19 @@ export interface DB {
   company: Company;
   company_branding: CompanyBranding;
   company_profile: CompanyProfile;
+  contract_decision: ContractDecision;
+  deadline_ack: DeadlineAck;
+  deadline_policy: DeadlinePolicy;
   document_request: DocumentRequest;
   document_sequence: DocumentSequence;
   document_signatory: DocumentSignatory;
+  document_template_version: DocumentTemplateVersion;
   document_type: DocumentType;
   employee_file: EmployeeFile;
   employee_file_category: EmployeeFileCategory;
   employee_file_content: EmployeeFileContent;
   employment: Employment;
+  employment_contract: EmploymentContract;
   employment_salary: EmploymentSalary;
   installation_branding: InstallationBranding;
   issued_document: IssuedDocument;

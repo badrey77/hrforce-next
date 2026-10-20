@@ -1,0 +1,214 @@
+<ng-container *transloco="let t">
+  <div class="toolbar">
+    <h2>{{ t('contracts.tab.title') }}</h2>
+    <div class="header-actions">
+      @if (canOpenDecision() && editing() === null) {
+        <button class="btn secondary" type="button" data-action="open-decision" [disabled]="decisionSubmitting()" (click)="openDecision()">
+          {{ t('contracts.decision.open') }}
+        </button>
+      }
+      @if (canManage() && editing() === null) {
+        <button class="btn" type="button" data-action="new-contract" (click)="openNew()">{{ t('contracts.tab.new') }}</button>
+      }
+    </div>
+  </div>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status">{{ t(key) }}</p>
+  }
+  @if (decisionError(); as error) {
+    <p class="form-error" role="alert" data-error="decision" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+
+  <!-- New contract ------------------------------------------------------------------------------------------- -->
+  @if (editing() === 'new') {
+    <form class="section" [formGroup]="newForm" (ngSubmit)="submitNew()" novalidate data-form="new-contract">
+      <h3>{{ t('contracts.tab.new') }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let c = newForm.controls;
+      <div class="grid">
+        <div class="field">
+          <label for="contract-kind">{{ t('contracts.fields.kind') }}</label>
+          <select id="contract-kind" formControlName="kind" aria-describedby="contract-kind-hint">
+            @for (kind of kinds(); track kind) {
+              <option [value]="kind">{{ t('contracts.kind.' + kind) }}</option>
+            }
+          </select>
+          <p class="field-hint" id="contract-kind-hint">{{ t('contracts.kindHint.' + c.kind.value) }}</p>
+        </div>
+        <div class="field">
+          <label for="contract-type">{{ t('contracts.fields.contractType') }}</label>
+          <select id="contract-type" formControlName="contractType" required
+            [attr.aria-invalid]="c.contractType.invalid && c.contractType.touched" aria-describedby="contract-type-error">
+            <option value="" disabled>{{ t('contracts.form.typePlaceholder') }}</option>
+            @for (type of types; track type) {
+              <option [value]="type">{{ t('contracts.type.' + type) }}</option>
+            }
+          </select>
+          <app-field-error [control]="c.contractType" errorId="contract-type-error" />
+        </div>
+        <div class="field">
+          <label for="contract-start">{{ t('contracts.fields.startDate') }}</label>
+          <input id="contract-start" type="date" formControlName="startDate" required [readonly]="c.kind.value === 'initial'"
+            [attr.aria-invalid]="c.startDate.invalid && c.startDate.touched" aria-describedby="contract-start-error" />
+          <app-field-error [control]="c.startDate" errorId="contract-start-error" />
+        </div>
+        @if (fixedTerm(newType())) {
+          <div class="field">
+            <label for="contract-end">{{ t('contracts.fields.endDate') }}</label>
+            <input id="contract-end" type="date" formControlName="endDate" aria-required="true" [min]="newStartValue()"
+              [attr.aria-invalid]="c.endDate.invalid && c.endDate.touched" aria-describedby="contract-end-hint contract-end-error" />
+            <p class="field-hint" id="contract-end-hint">{{ t('contracts.form.endHint') }}</p>
+            <app-field-error [control]="c.endDate" errorId="contract-end-error" />
+          </div>
+        }
+        <div class="field">
+          <label for="contract-probation">{{ t('contracts.fields.probationEnd') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="contract-probation" type="date" formControlName="probationEnd" [min]="newStartValue()" [max]="probationMax()"
+            [attr.aria-invalid]="c.probationEnd.invalid && c.probationEnd.touched" aria-describedby="contract-probation-hint contract-probation-error" />
+          <p class="field-hint" id="contract-probation-hint">{{ t('contracts.form.probationHint') }}</p>
+          <app-field-error [control]="c.probationEnd" errorId="contract-probation-error" />
+        </div>
+        <div class="field">
+          <label for="contract-reference">{{ t('contracts.fields.reference') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="contract-reference" type="text" formControlName="reference" autocomplete="off" dir="auto" [maxlength]="referenceMax"
+            aria-describedby="contract-reference-error" />
+          <app-field-error [control]="c.reference" errorId="contract-reference-error" />
+        </div>
+        <div class="field">
+          <label for="contract-reason">{{ t('contracts.fields.reason') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="contract-reason" type="text" formControlName="reason" autocomplete="off" dir="auto" [maxlength]="reasonMax"
+            aria-describedby="contract-reason-error" />
+          <app-field-error [control]="c.reason" errorId="contract-reason-error" />
+        </div>
+        <div class="field">
+          <label for="contract-note">{{ t('contracts.fields.note') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <textarea id="contract-note" formControlName="note" rows="2" dir="auto" [maxlength]="noteMax" aria-describedby="contract-note-error"></textarea>
+          <app-field-error [control]="c.note" errorId="contract-note-error" />
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-contract" [disabled]="submitting()">
+          {{ submitting() ? t('employees.form.saving') : t('contracts.tab.save') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <!-- Correct the latest contract ----------------------------------------------------------------------------- -->
+  @if (editing() === 'correct' && latest(); as l) {
+    <form class="section" [formGroup]="correctForm" (ngSubmit)="submitCorrect()" novalidate data-form="correct-contract">
+      <h3>{{ t('contracts.correct.title', { type: t('contracts.type.' + l.contractType), date: l.startDate }) }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      @let c = correctForm.controls;
+      <div class="grid">
+        @if (fixedTerm(l.contractType)) {
+          <div class="field">
+            <label for="correct-end">{{ t('contracts.fields.endDate') }}</label>
+            <input id="correct-end" type="date" formControlName="endDate" aria-required="true" [min]="l.startDate"
+              [attr.aria-invalid]="c.endDate.invalid && c.endDate.touched" aria-describedby="correct-end-error" />
+            <app-field-error [control]="c.endDate" errorId="correct-end-error" />
+          </div>
+        }
+        <div class="field">
+          <label for="correct-probation">{{ t('contracts.fields.probationEnd') }} <span class="field-hint">{{ t('employees.form.optional') }}</span></label>
+          <input id="correct-probation" type="date" formControlName="probationEnd" [min]="l.startDate"
+            [attr.aria-invalid]="c.probationEnd.invalid && c.probationEnd.touched" aria-describedby="correct-probation-error" />
+          <app-field-error [control]="c.probationEnd" errorId="correct-probation-error" />
+        </div>
+        <div class="field">
+          <label for="correct-reference">{{ t('contracts.fields.reference') }}</label>
+          <input id="correct-reference" type="text" formControlName="reference" autocomplete="off" dir="auto" [maxlength]="referenceMax" />
+        </div>
+        <div class="field">
+          <label for="correct-reason">{{ t('contracts.fields.reason') }}</label>
+          <input id="correct-reason" type="text" formControlName="reason" autocomplete="off" dir="auto" [maxlength]="reasonMax" />
+        </div>
+        <div class="field">
+          <label for="correct-note">{{ t('contracts.fields.note') }}</label>
+          <textarea id="correct-note" formControlName="note" rows="2" dir="auto" [maxlength]="noteMax"></textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-correction" [disabled]="submitting()">
+          {{ submitting() ? t('employees.form.saving') : t('contracts.correct.save') }}
+        </button>
+        <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  <!-- The contracts ----------------------------------------------------------------------------------------- -->
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(loadErrorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <div class="table-scroll">
+        <table class="data" data-table="contracts">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('contracts.fields.contractType') }}</th>
+              <th scope="col">{{ t('contracts.fields.kind') }}</th>
+              <th scope="col">{{ t('contracts.fields.startDate') }}</th>
+              <th scope="col">{{ t('contracts.fields.endDate') }}</th>
+              <th scope="col">{{ t('contracts.fields.probationEnd') }}</th>
+              <th scope="col">{{ t('contracts.fields.reference') }}</th>
+              <th scope="col"><span class="visually-hidden">{{ t('contracts.tab.actions') }}</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (k of items(); track k.id; let first = $first) {
+              <tr [attr.data-contract]="k.id">
+                <td>
+                  {{ t('contracts.type.' + k.contractType) }}
+                  @if (k.current) {
+                    &ngsp;<span class="badge" data-badge="current">{{ t('contracts.tab.current') }}</span>
+                  }
+                  @if (k.pendingDecision?.status === 'pending') {
+                    &ngsp;<span class="badge" data-badge="decision">{{ t('contracts.decision.pending') }}</span>
+                  }
+                </td>
+                <td>{{ t('contracts.kind.' + k.kind) }}</td>
+                <td class="nowrap">{{ k.startDate }}</td>
+                <td class="nowrap">{{ k.endDate ?? t('contracts.tab.noEnd') }}</td>
+                <td class="nowrap">{{ k.probationEnd ?? '—' }}</td>
+                <td><bdi>{{ k.reference ?? '—' }}</bdi>
+                  @if (k.reason) {
+                    <span class="field-hint"><bdi>{{ k.reason }}</bdi></span>
+                  }
+                </td>
+                <td class="nowrap">
+                  @if (first && canEdit(k) && editing() === null) {
+                    <button class="btn secondary" type="button" data-action="correct-contract" (click)="openCorrect()">{{ t('contracts.correct.action') }}</button>
+                  }
+                  @if (k.pendingDecision?.status === 'pending' && canDeadlines()) {
+                    <a routerLink="/deadlines" [queryParams]="{ kind: 'contract_end', q: employee().matricule }" data-link="decision">{{ t('contracts.decision.see') }}</a>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" data-state="no-contract">{{ t('contracts.tab.empty') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @for (k of items(); track k.id) {
+        @if (k.note) {
+          <p class="field-hint" [attr.data-note]="k.id">{{ t('contracts.tab.noteOf', { type: t('contracts.type.' + k.contractType), date: k.startDate }) }} <bdi>{{ k.note }}</bdi></p>
+        }
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

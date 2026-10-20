@@ -64,6 +64,7 @@ import { todayIso } from '../../core/date/iso-date';
 import { DocumentsApi } from '../../core/documents/documents-api';
 import { DEFAULT_DOCUMENT_QUERY } from '../../core/documents/documents.models';
 import { EmployeeFilesApi } from '../../core/employee-files/employee-files-api';
+import { isFixedTerm } from '../../core/contracts/contracts.models';
 import { EmployeesApi } from '../../core/employees/employees-api';
 import {
   END_REASONS,
@@ -84,6 +85,7 @@ import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
 import { AssignmentForm } from './assignment-form';
 import { employeeProblemToForm, END_SLUGS, isoDate, notBefore } from './employee-forms';
 import { EmployeeAttendanceTab } from './employee-attendance-tab';
+import { EmployeeContractsTab } from './employee-contracts-tab';
 import { EmployeeDocumentsTab } from './employee-documents-tab';
 import { EmployeeFileTab } from './employee-file-tab';
 import { EmployeeLeaveTab } from './employee-leave-tab';
@@ -91,8 +93,8 @@ import { FieldError } from './field-error';
 import { PersonForm } from './person-form';
 import { BankForm, NssForm, SalaryForm } from './sensitive-forms';
 
-export type EmployeeTab = 'identity' | 'assignments' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'attendance' | 'history';
-const EMPLOYEE_TABS: readonly string[] = ['identity', 'assignments', 'pay', 'bank', 'leave', 'documents', 'file', 'attendance', 'history'];
+export type EmployeeTab = 'identity' | 'assignments' | 'contracts' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'attendance' | 'history';
+const EMPLOYEE_TABS: readonly string[] = ['identity', 'assignments', 'contracts', 'pay', 'bank', 'leave', 'documents', 'file', 'attendance', 'history'];
 type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
 /** Documents read to name signatories in the History: the API's page maximum (documents contract › GET /documents). */
 const DOCUMENTS_FOR_NAMES = 100;
@@ -116,6 +118,7 @@ const DOCUMENTS_FOR_NAMES = 100;
     EmployeeDocumentsTab,
     EmployeeFileTab,
     EmployeeAttendanceTab,
+    EmployeeContractsTab,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-detail.page.html',
@@ -169,7 +172,7 @@ export class EmployeeDetailPage {
   /** Tabs this caller may see for this employee. */
   protected readonly tabs = computed<readonly EmployeeTab[]>(() => {
     const e = this.detail();
-    const tabs: EmployeeTab[] = ['identity', 'assignments'];
+    const tabs: EmployeeTab[] = ['identity', 'assignments', 'contracts'];
     if (e && !isRedacted(e, 'salary')) tabs.push('pay');
     if (e && (!isRedacted(e, 'bank') || !isRedacted(e, 'nss'))) tabs.push('bank');
     if (this.canLeave()) tabs.push('leave');
@@ -219,6 +222,11 @@ export class EmployeeDetailPage {
       const category = this.fileCategories.hasValue() ? this.fileCategories.value().items.find((c) => c.id === value) : undefined;
       return category ? pickLabel(category.labels, this.lang()) : undefined;
     }
+    if (kind === 'documentType') {
+      const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
+      const type = documents.find((d) => d.type.code === value)?.type;
+      return type ? pickLabel(type.labels, this.lang()) : undefined;
+    }
     if (kind === 'signatory') {
       const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
       const signatory = documents.find((d) => d.signatory.id === value)?.signatory;
@@ -234,6 +242,9 @@ export class EmployeeDetailPage {
   };
 
   protected readonly redacted = isRedacted;
+  protected readonly fixedTerm = isFixedTerm;
+  /** The header names the probation only while it runs. */
+  protected readonly today = todayIso();
 
   protected can(action: EmployeeAction): boolean {
     return this.actions().includes(action);

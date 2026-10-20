@@ -4,7 +4,7 @@ import type { UnitIdQuery } from '../../../platform/authz/scope-service.js';
 import { currentTx } from '../../../platform/context/request-context.js';
 import { scopeAssignmentSql } from '../../staffing/index.js';
 import type { AssignmentFacts, DocumentSnapshot, EmployeeFacts, ProfileFacts } from '../domain/snapshot.js';
-import type { DocumentLanguage, DocumentTypeCode } from '../domain/types.js';
+import type { DocumentLanguage, DocumentSubject, DocumentTypeCode, EmploymentRule, TemplateMode } from '../domain/types.js';
 
 /** Postgres error raised by a constraint (pg's DatabaseError fields). */
 export function pgError(error: unknown): { code: string; constraint?: string } | undefined {
@@ -26,6 +26,11 @@ export interface TypeRow {
   defaultSignatoryId: string | null;
   active: boolean;
   sortOrder: number;
+  kind: 'system' | 'custom';
+  subject: DocumentSubject;
+  employmentRule: EmploymentRule;
+  templateMode: TemplateMode;
+  publishedTemplateId: string | null;
 }
 
 export type ProfileRow = ProfileFacts;
@@ -85,6 +90,8 @@ export interface DocumentRow {
   orgUnitId: string;
   signatoryId: string;
   templateVersion: string;
+  templateVersionId: string | null;
+  subject: DocumentSubject;
   renderer: string;
   sha256: string;
   sizeBytes: number;
@@ -114,6 +121,8 @@ export interface NewDocument {
   signatoryId: string;
   snapshot: DocumentSnapshot;
   templateVersion: string;
+  templateVersionId: string | null;
+  subject: DocumentSubject;
   renderer: string;
   sha256: Buffer;
   sizeBytes: number;
@@ -156,7 +165,8 @@ export interface RequestRow {
 const TS = (column: string) => sql<string>`to_char(${sql.ref(column)} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
 const TYPE_COLUMNS = sql`t.id, t.code, t.name_fr as "nameFr", t.name_ar as "nameAr", t.name_en as "nameEn", t.number_format as "numberFormat",
-  t.languages, t.self_service as "selfService", t.default_signatory_id as "defaultSignatoryId", t.active, t.sort_order as "sortOrder"`;
+  t.languages, t.self_service as "selfService", t.default_signatory_id as "defaultSignatoryId", t.active, t.sort_order as "sortOrder",
+  t.kind, t.subject, t.employment_rule as "employmentRule", t.template_mode as "templateMode", t.published_template_id as "publishedTemplateId"`;
 
 const PROFILE_COLUMNS = sql`legal_name_fr as "legalNameFr", legal_name_ar as "legalNameAr", address_fr as "addressFr", address_ar as "addressAr",
   city_fr as "cityFr", city_ar as "cityAr", phone, email, nif, nis, rc, ai, footer_fr as "footerFr", footer_ar as "footerAr",
@@ -164,7 +174,8 @@ const PROFILE_COLUMNS = sql`legal_name_fr as "legalNameFr", legal_name_ar as "le
 
 const DOCUMENT_COLUMNS = sql`d.id, d.document_type_id as "documentTypeId", d.type_code as "typeCode", d.year, d.seq, d.number, d.language,
   d.employment_id as "employmentId", d.leave_request_id as "leaveRequestId", d.document_request_id as "documentRequestId",
-  d.org_unit_id as "orgUnitId", d.signatory_id as "signatoryId", d.template_version as "templateVersion", d.renderer,
+  d.org_unit_id as "orgUnitId", d.signatory_id as "signatoryId", d.template_version as "templateVersion",
+  d.template_version_id as "templateVersionId", d.subject, d.renderer,
   encode(d.content_sha256, 'hex') as sha256, d.size_bytes as "sizeBytes", d.issue_date::text as "issueDate", d.issued_by as "issuedBy",
   ${TS('d.issued_at')} as "issuedAt", d.client_request_id as "clientRequestId", d.status, d.voided_by as "voidedBy",
   ${TS('d.voided_at')} as "voidedAt", d.void_reason as "voidReason",
@@ -199,6 +210,22 @@ export class DocumentsRepository {
 
   async typeByCode(companyId: string, code: string): Promise<TypeRow | undefined> {
     return (await this.types(companyId)).find((t) => t.code === code);
+  }
+
+  /** A custom type (inactive, not self-service): document-templates.md › Endpoints POST /documents/types. */
+  async insertType(
+    companyId: string,
+    t: { code: string; nameFr: string; nameAr: string; nameEn: string; subject: string; employmentRule: string; numberFormat: string; languages: string[]; sortOrder: number | null },
+  ): Promise<string> {
+    const { rows } = await sql<{ id: string }>`
+      insert into document_type (company_id, code, kind, template_mode, name_fr, name_ar, name_en, subject, employment_rule, number_format, languages, self_service, active, sort_order)
+      values (${companyId}::uuid, ${t.code}, 'custom', 'designed', ${t.nameFr}, ${t.nameAr}, ${t.nameEn}, ${t.subject}, ${t.employmentRule}, ${t.numberFormat},
+              ${t.languages}::text[], false, false,
+              coalesce(${t.sortOrder}::int, (select coalesce(max(sort_order), 0) + 10 from document_type where company_id = ${companyId}::uuid)))
+      returning id`.execute(currentTx());
+    const id = rows[0]?.id;
+    if (!id) throw new Error('document_type: no id returned');
+    return id;
   }
 
   async updateType(companyId: string, id: string, patch: Record<string, unknown>): Promise<void> {
@@ -397,6 +424,8 @@ export class DocumentsRepository {
         signatory_id: d.signatoryId,
         snapshot: JSON.stringify(d.snapshot),
         template_version: d.templateVersion,
+        template_version_id: d.templateVersionId,
+        subject: d.subject,
         renderer: d.renderer,
         content_sha256: d.sha256,
         size_bytes: d.sizeBytes,

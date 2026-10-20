@@ -16,13 +16,16 @@ export type AuditSubjectType =
   | 'leave_request'
   | 'document_request'
   | 'issued_document'
+  | 'document_template_version'
   | 'employee_file'
   | 'attendance_device'
   | 'attendance_correction'
   | 'sso_client'
   | 'recruitment_opening'
   | 'recruitment_candidate'
-  | 'recruitment_application';
+  | 'recruitment_application'
+  | 'contract_decision'
+  | 'employment_contract';
 
 export interface AuditEventInput {
   /** `<area>.<event>`, e.g. `auth.login`, `access.grant_created` */

@@ -132,7 +132,11 @@ export class InterviewDialog {
   }
 
   protected onSearch(event: Event): void {
-    this.searches.next(event.target instanceof HTMLInputElement ? event.target.value.trim() : '');
+    const q = event.target instanceof HTMLInputElement ? event.target.value.trim() : '';
+    // The previous search's options go at once: they no longer match what is typed (the answer comes after the debounce).
+    this.results.set([]);
+    this.searchState.set(q.length >= SEARCH_MIN ? 'loading' : 'idle');
+    this.searches.next(q);
   }
 
   protected add(option: InterviewerOption, search: HTMLInputElement): void {

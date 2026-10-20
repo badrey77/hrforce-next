@@ -43,6 +43,11 @@ a.btn {
   margin-block-start: calc(1lh + var(--space-1));
 }
 
+/* Wrapped alone onto its own line (shared/filter-bar): level with nothing, so no label line above it. */
+.filters .clear.no-label-line {
+  margin-block-start: 0;
+}
+
 .check {
   display: flex;
   align-items: center;

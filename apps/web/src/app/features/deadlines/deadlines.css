@@ -1,0 +1,100 @@
+/* The deadlines board: a summary strip, one table per group; severity is a pill WITH its text (never colour alone). */
+.deadline-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-block: 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.deadline-summary strong {
+  color: var(--color-primary);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.deadline-group {
+  margin-block-start: var(--space-4);
+}
+
+.deadline-group h2 {
+  font-size: 1.1rem;
+}
+
+.due .date,
+.due .relative,
+.who a,
+.who .code,
+.who .muted,
+.detail > span,
+.detail > a {
+  display: block;
+}
+
+.due .relative {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+tr[data-severity='critical'] .due .relative {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.kind {
+  display: block;
+}
+
+.pill {
+  display: inline-block;
+  margin-block-start: var(--space-1);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.pill--critical {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.pill--warning {
+  border-color: #9a6700;
+  background: #fff8c5;
+  color: #6b4700;
+}
+
+.pill--info {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+
+.decision,
+.ack {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.actions {
+  white-space: nowrap;
+}
+
+.actions .btn + .btn {
+  margin-inline-start: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .actions {
+    white-space: normal;
+  }
+
+  .actions .btn {
+    margin-block-end: var(--space-1);
+  }
+}

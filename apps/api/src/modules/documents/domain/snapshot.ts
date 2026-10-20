@@ -10,7 +10,8 @@
 import type { DocumentLanguage, DocumentTypeCode } from './types.js';
 
 export interface DocumentSnapshot {
-  v: 1;
+  /** 1: a built-in template; 2: a designed template (adds fields, fieldValues, vars — document-templates.md › Variables) */
+  v: 1 | 2;
   type: DocumentTypeCode;
   lang: DocumentLanguage;
   /** set just before rendering (the allocated number) */
@@ -53,6 +54,12 @@ export interface DocumentSnapshot {
   };
   signatory: { name: string; title: string };
   ref: { employmentId: string; leaveRequestId?: string; signatoryId: string };
+  /** designed documents: the fields typed at issue time, formatted as printed (null = left empty) */
+  fields?: Record<string, string | null>;
+  /** designed documents: the fields as typed (replays of a clientRequestId compare them) */
+  fieldValues?: Record<string, string>;
+  /** designed documents: every variable the layout uses, exactly as printed (null = unknown, printed as nothing) */
+  vars?: Record<string, string | null>;
 }
 
 const MONTHS: Readonly<Record<DocumentLanguage, readonly string[]>> = {
@@ -70,6 +77,25 @@ export function dateText(iso: string, lang: DocumentLanguage): string {
   if (!month) throw new Error(`not an ISO date: ${iso}`);
   const dayText = lang === 'fr' && day === 1 ? '1er' : String(day);
   return `${dayText} ${month} ${m[1]}`;
+}
+
+/**
+ * A day count with its noun (designer variable `leave.daysText`): fr « 1 jour », « 0,5 jour », « 15 jours »; ar with the
+ * counted noun agreeing with the number (nominative, as after « أي ما مجموعه » in titre_conge@2): 1 → يوم واحد,
+ * 2 → يومان, 3–10 → N أيام, 11–99 → N يومًا, and for 100 and more by the last two digits (00–02 → N يوم, 03–10 →
+ * N أيام, 11–99 → N يومًا). Half days: 0.5 → نصف يوم, otherwise N يوم (e.g. 2.5 يوم). `days` is already formatted
+ * (daysText).
+ */
+export function daysPhrase(days: string, lang: DocumentLanguage): string {
+  if (lang === 'fr') return `${days} ${days === '1' || days === '0,5' ? 'jour' : 'jours'}`;
+  if (days.includes('.')) return days === '0.5' ? 'نصف يوم' : `${days} يوم`;
+  const n = Number(days);
+  const tail = n % 100;
+  if (n === 1) return 'يوم واحد';
+  if (n === 2) return 'يومان';
+  if (tail >= 3 && tail <= 10) return `${days} أيام`;
+  if (tail >= 11) return `${days} يومًا`;
+  return `${days} يوم`;
 }
 
 /** "2.5" → "2,5" (fr) / "2.5" (ar); whole numbers without decimals. */
@@ -172,6 +198,8 @@ export interface SignatoryFacts {
 
 export interface SnapshotInput {
   type: DocumentTypeCode;
+  /** print the positions held (the certificat always does; a designed layout with a `positions` block too) */
+  positions?: boolean;
   lang: DocumentLanguage;
   issueDate: string;
   /** must be complete for `lang` (missingProfileFields empty) */
@@ -267,14 +295,17 @@ export function buildSnapshot(input: SnapshotInput): DocumentSnapshot {
     signatory: { name: ar ? input.signatory.nameAr : input.signatory.nameFr, title: ar ? input.signatory.titleAr : input.signatory.titleFr },
     ref: { employmentId: e.employmentId, signatoryId: input.signatory.id },
   };
-  if (input.type === 'certificat_travail') {
-    snapshot.employee.positions = positionsOf(e.assignments, e.endDate).map((pos) => ({
+  if (input.type === 'certificat_travail' || input.positions) {
+    // a designed layout may list the positions of someone still employed: the position held today runs to the date of
+    // the document (the certificat is issued after the end date, which closes its last position)
+    const lastDay = e.endDate ?? (input.type === 'certificat_travail' ? null : input.issueDate);
+    snapshot.employee.positions = positionsOf(e.assignments, lastDay).map((pos) => ({
       jobTitle: pos.jobTitle,
       fromText: dateText(pos.from, lang),
       toText: dateText(pos.to, lang),
     }));
   }
-  if (input.type === 'titre_conge' && input.leave) {
+  if (input.leave) {
     const l = input.leave;
     const start = dateText(l.startDate, lang);
     const resumption = dateText(l.resumption.date, lang);

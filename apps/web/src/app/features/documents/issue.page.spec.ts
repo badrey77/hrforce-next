@@ -7,6 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { meWith } from '../../../testing/auth-fixtures';
 import { DOCUMENT_TYPES, issuedDocument, SIGNATORY_DG, SIGNATORY_EST, UNIT_ANNABA } from '../../../testing/document-fixtures';
 import { leaveSummary, PERSON } from '../../../testing/leave-fixtures';
+import { TYPE_OM } from '../../../testing/template-fixtures';
 import { translocoTesting } from '../../../testing/transloco-testing';
 import { Session } from '../../core/auth/session';
 import { apiProblemInterceptor } from '../../core/http/api-problem.interceptor';
@@ -40,8 +41,10 @@ const EMPLOYEE = {
 describe('IssuePage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
+  let types: readonly unknown[];
 
   beforeEach(async () => {
+    types = DOCUMENT_TYPES;
     await TestBed.configureTestingModule({
       imports: [translocoTesting()],
       providers: [
@@ -73,7 +76,7 @@ describe('IssuePage', () => {
         if (req.cancelled) continue;
         const url = req.request.url;
         if (extra(req)) continue;
-        if (url === '/api/documents/types') req.flush({ items: DOCUMENT_TYPES });
+        if (url === '/api/documents/types') req.flush({ items: types });
         else if (url === '/api/leave/types') req.flush({ items: [] });
         else if (url === '/api/employees/e-1') req.flush(EMPLOYEE);
         else if (url === '/api/documents/signatories') req.flush({ items: [SIGNATORY_EST, SIGNATORY_DG] });
@@ -85,6 +88,27 @@ describe('IssuePage', () => {
   function click(action: string): void {
     (el().querySelector(`[data-action="${action}"]`) as HTMLButtonElement).click();
   }
+
+  async function searchStatus(url: string): Promise<string | null> {
+    await harness.navigateByUrl(url);
+    await answerAll();
+    const input = el().querySelector('#issue-employee') as HTMLInputElement;
+    input.value = 'ben';
+    input.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const req = http.expectOne((r) => r.url === '/api/employees');
+    const status = req.request.params.get('status');
+    req.flush({ items: [], total: 0, page: 1, pageSize: 10 });
+    return status;
+  }
+
+  it('searches active employees for an attestation', async () => {
+    expect(await searchStatus('/documents/new?type=attestation_travail')).toBe('active');
+  });
+
+  it('also searches ended employments for a certificat', async () => {
+    expect(await searchStatus('/documents/new?type=certificat_travail')).toBe('all');
+  });
 
   it('preselects the first active type, the employee from ?employee=, French and the nearest signatory', async () => {
     await harness.navigateByUrl('/documents/new?employee=e-1');
@@ -168,5 +192,57 @@ describe('IssuePage', () => {
       .flush({ type: 'urn:hrforce:problem:document-employment-ended', title: 'Conflict', status: 409 }, { status: 409, statusText: 'Conflict' });
     await settle();
     expect(el().querySelector('[data-error="employmentId"]')?.textContent).toContain('certificat de travail');
+  });
+
+  it('shows the fields of a designed template and sends their values', async () => {
+    types = [...DOCUMENT_TYPES, TYPE_OM];
+    await harness.navigateByUrl('/documents/new?type=ordre_mission&employee=e-1');
+    await answerAll();
+    expect(el().querySelector('[data-section="fields"]')).not.toBeNull();
+    expect(el().querySelector('#issue-field-transport option[value="avion"]')?.textContent).toContain('Avion');
+    expect(el().querySelector('#issue-leave')).toBeNull();
+
+    click('issue');
+    http.expectNone('/api/documents');
+    await settle();
+    expect(el().querySelector('[data-error="fields.destination"]')?.textContent).toContain('Ce champ est obligatoire.');
+
+    const set = (selector: string, value: string, event = 'input') => {
+      const input = el().querySelector(selector) as HTMLInputElement | HTMLSelectElement;
+      input.value = value;
+      input.dispatchEvent(new Event(event));
+    };
+    set('#issue-field-destination', '  Oran ');
+    set('#issue-field-depart', '2026-10-20');
+    set('#issue-field-transport', 'avion', 'change');
+    click('issue');
+    const req = http.expectOne('/api/documents');
+    expect(req.request.body).toMatchObject({
+      typeCode: 'ordre_mission',
+      employmentId: 'e-1',
+      fields: { destination: 'Oran', depart: '2026-10-20', transport: 'avion' },
+    });
+    req.flush(
+      {
+        type: 'urn:hrforce:problem:validation-error',
+        title: 'Invalid',
+        status: 422,
+        errors: [{ field: 'fields.depart', code: 'invalid_value', message: 'Date in the past' }],
+      },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    await settle();
+    expect(el().querySelector('[data-error="fields.depart"]')?.textContent).toContain('Date in the past');
+  });
+
+  it('sends no fields for a built-in template', async () => {
+    await harness.navigateByUrl('/documents/new?employee=e-1');
+    await answerAll();
+    expect(el().querySelector('[data-section="fields"]')).toBeNull();
+    click('issue');
+    const req = http.expectOne('/api/documents');
+    expect((req.request.body as Record<string, unknown>)['fields']).toBeUndefined();
+    req.flush(issuedDocument());
+    await settle();
   });
 });

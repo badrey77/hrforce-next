@@ -64,6 +64,14 @@ interface Facts {
   time: string;
   /** the appointment changed (date, time or place) */
   rescheduled: boolean;
+  /** the subject is an end-of-contract decision (docs/contracts/contracts-deadlines.md › Notifications) */
+  decision: boolean;
+  /** the end date of the contract the decision is about */
+  contractEnd: string;
+  /** deadline.digest (docs/contracts/contracts-deadlines.md › Notifications): counts only, never a name */
+  newCount: number;
+  overdueCount: number;
+  criticalCount: number;
 }
 
 interface Wording {
@@ -82,7 +90,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Bonjour ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — décision de fin de contrat à prendre : ${f.employee}`
+          : f.opening
           ? `HRForce — ouverture de poste à approuver : ${f.title} (${f.reference})`
           : f.correction
           ? `HRForce — correction de pointage à traiter : ${f.employee} (${f.date})`
@@ -90,7 +100,9 @@ const WORDING: Record<MailLocale, Wording> = {
             ? `HRForce — demande ${deFr(f.docType)} à traiter : ${f.employee}`
             : `HRForce — demande de congé à traiter : ${f.employee}`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — décision de fin de contrat de ${f.employee} transmise aux RH`
+          : f.opening
           ? 'HRForce — votre demande d’ouverture de poste est transmise aux RH'
           : f.correction
           ? f.own
@@ -112,10 +124,13 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': (f) => `HRForce — entretien ${f.rescheduled ? 'modifié' : 'à mener'} le ${f.date} à ${f.time} : ${f.title}`,
       'recruitment.interview_cancelled': (f) => `HRForce — entretien du ${f.date} annulé : ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — évaluations de l’entretien du ${f.date} saisies : ${f.title}`,
+      'deadline.digest': (f) => `HRForce — ${f.newCount} ${f.newCount === 1 ? 'nouvelle échéance' : 'nouvelles échéances'} à traiter`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `Le contrat de ${f.employee} se termine le ${f.contractEnd} : une décision est attendue (renouveler, passer en CDI ou ne pas renouveler).`
+          : f.opening
           ? `Ouverture de poste à approuver : ${f.title} (${f.reference}, ${f.unit}). La demande attend votre décision.`
           : f.correction
           ? `La correction de pointage de ${f.employee} pour le ${f.date} attend votre décision.`
@@ -123,7 +138,9 @@ const WORDING: Record<MailLocale, Wording> = {
           ? `La demande ${deFr(f.docType)} de ${f.employee} attend votre décision.`
           : `La demande de congé de ${f.employee} (${f.type}, du ${f.start} au ${f.end}, ${f.days}) attend votre décision.`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `L’étape du responsable n’a pas pu être attribuée pour la décision de fin de contrat de ${f.employee} : elle est transmise directement aux ressources humaines.`
+          : f.opening
           ? `L’étape du responsable hiérarchique n’a pas pu être attribuée pour votre demande d’ouverture de poste ${f.title} (${f.reference}) : elle est transmise directement aux ressources humaines.`
           : f.correction
           ? `L’étape du responsable hiérarchique n’a pas pu être attribuée pour ${f.own ? 'votre correction de pointage' : `la correction de pointage de ${f.employee}`} du ${f.date} : elle est transmise directement aux ressources humaines.`
@@ -145,6 +162,8 @@ const WORDING: Record<MailLocale, Wording> = {
           : `Entretien à mener le ${f.date} à ${f.time} — ${f.title} (${f.reference}). Le dossier et la grille d’évaluation sont dans l’application.`,
       'recruitment.interview_cancelled': (f) => `Entretien du ${f.date} annulé — ${f.title} (${f.reference}).`,
       'recruitment.evaluations_complete': (f) => `Toutes les évaluations de l’entretien du ${f.date} sont saisies — ${f.title} (${f.reference}).`,
+      'deadline.digest': (f) =>
+        `${f.newCount === 1 ? 'Une nouvelle échéance arrive' : `${f.newCount} nouvelles échéances arrivent`} dans votre périmètre (fins de contrat, périodes d’essai, documents, départs à la retraite). Échéances dépassées : ${f.overdueCount}, dont ${f.criticalCount} ${f.criticalCount === 1 ? 'critique' : 'critiques'}.`,
     },
     action: {
       'task.assigned': 'Ouvrir la tâche',
@@ -162,6 +181,7 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': 'Voir l’entretien',
       'recruitment.interview_cancelled': 'Voir mes entretiens',
       'recruitment.evaluations_complete': 'Voir les évaluations',
+      'deadline.digest': 'Ouvrir les échéances',
     },
     footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
     signature: 'L’équipe HRForce',
@@ -172,7 +192,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `مرحبًا ${name}،`,
     subjects: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — قرار بشأن نهاية العقد: ${f.employee}`
+          : f.opening
           ? `HRForce — طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference})`
           : f.correction
           ? `HRForce — طلب تصحيح تسجيل الحضور للمعالجة: ${f.employee} (${f.date})`
@@ -180,7 +202,9 @@ const WORDING: Record<MailLocale, Wording> = {
             ? `HRForce — طلب ${f.docType} للمعالجة: ${f.employee}`
             : `HRForce — طلب عطلة في انتظار قرارك: ${f.employee}`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — أُحيل قرار نهاية عقد ${f.employee} إلى الموارد البشرية`
+          : f.opening
           ? 'HRForce — تمت إحالة طلب فتح المنصب إلى الموارد البشرية'
           : f.correction
           ? f.own
@@ -202,10 +226,13 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': (f) => `HRForce — ${f.rescheduled ? 'تم تعديل موعد مقابلة' : 'مقابلة مبرمجة'} يوم ${f.date} على الساعة ${f.time}: ${f.title}`,
       'recruitment.interview_cancelled': (f) => `HRForce — تم إلغاء مقابلة يوم ${f.date}: ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — تم إدخال تقييمات مقابلة يوم ${f.date}: ${f.title}`,
+      'deadline.digest': (f) => `HRForce — آجال جديدة للمعالجة: ${f.newCount}`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `ينتهي عقد ${f.employee} في ${f.contractEnd}: يُنتظر قرار (التجديد، أو التحويل إلى عقد غير محدد المدة، أو عدم التجديد).`
+          : f.opening
           ? `طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference}، ${f.unit}).`
           : f.correction
           ? `طلب تصحيح تسجيل الحضور الخاص بـ${f.employee} ليوم ${f.date} في انتظار القرار.`
@@ -213,7 +240,9 @@ const WORDING: Record<MailLocale, Wording> = {
           ? `طلب ${f.docType} من ${f.employee} في انتظار قرارك.`
           : `طلب عطلة ${f.employee} (${f.type}، من ${f.start} إلى ${f.end}، ${f.days}) في انتظار قرارك.`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `تعذّر إسناد مرحلة المسؤول لقرار نهاية عقد ${f.employee}: أُحيل مباشرة إلى الموارد البشرية.`
+          : f.opening
           ? `تعذر إسناد خطوة المسؤول المباشر لطلب فتح المنصب ${f.title} (${f.reference})، فأحيل مباشرة إلى الموارد البشرية.`
           : f.correction
           ? `تعذر إسناد خطوة المسؤول المباشر ${f.own ? 'لطلب تصحيح تسجيل الحضور' : `لطلب تصحيح تسجيل الحضور الخاص بـ${f.employee}`} ليوم ${f.date}، فأحيل مباشرة إلى الموارد البشرية.`
@@ -236,6 +265,8 @@ const WORDING: Record<MailLocale, Wording> = {
           : `مقابلة مبرمجة يوم ${f.date} على الساعة ${f.time} — ${f.title} (${f.reference}). الملف وشبكة التقييم متاحان في التطبيق.`,
       'recruitment.interview_cancelled': (f) => `تم إلغاء مقابلة يوم ${f.date} — ${f.title} (${f.reference}).`,
       'recruitment.evaluations_complete': (f) => `تم إدخال جميع تقييمات مقابلة يوم ${f.date} — ${f.title} (${f.reference}).`,
+      'deadline.digest': (f) =>
+        `توجد آجال جديدة للمعالجة ضمن نطاق الصلاحيات (نهاية العقود، فترات التجربة، الوثائق، الإحالة على التقاعد): ${f.newCount}. عدد الآجال المتجاوزة: ${f.overdueCount}، منها ${f.criticalCount} حرجة.`,
     },
     action: {
       'task.assigned': 'فتح المهمة',
@@ -253,6 +284,7 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': 'عرض المقابلة',
       'recruitment.interview_cancelled': 'عرض مقابلاتي',
       'recruitment.evaluations_complete': 'عرض التقييمات',
+      'deadline.digest': 'عرض الآجال',
     },
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
     signature: 'فريق HRForce',
@@ -263,7 +295,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Hello ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — end-of-contract decision to make: ${f.employee}`
+          : f.opening
           ? `HRForce — opening request awaiting approval: ${f.title} (${f.reference})`
           : f.correction
           ? `HRForce — attendance correction awaiting your decision: ${f.employee} (${f.date})`
@@ -271,7 +305,9 @@ const WORDING: Record<MailLocale, Wording> = {
             ? `HRForce — ${f.docType} request awaiting your decision: ${f.employee}`
             : `HRForce — leave request awaiting your decision: ${f.employee}`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `HRForce — end-of-contract decision for ${f.employee} passed to HR`
+          : f.opening
           ? 'HRForce — your opening request went straight to HR'
           : f.correction
           ? f.own
@@ -293,10 +329,13 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': (f) => `HRForce — interview ${f.rescheduled ? 'rescheduled to' : 'to conduct on'} ${f.date} at ${f.time}: ${f.title}`,
       'recruitment.interview_cancelled': (f) => `HRForce — interview of ${f.date} cancelled: ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — evaluations of the interview of ${f.date} are in: ${f.title}`,
+      'deadline.digest': (f) => `HRForce — ${f.newCount} new deadline${f.newCount === 1 ? '' : 's'} to handle`,
     },
     bodies: {
       'task.assigned': (f) =>
-        f.opening
+        f.decision
+          ? `The contract of ${f.employee} ends on ${f.contractEnd}: a decision is awaited (renew, convert to a permanent contract or end).`
+          : f.opening
           ? `Opening request awaiting approval: ${f.title} (${f.reference}, ${f.unit}).`
           : f.correction
           ? `The attendance correction of ${f.employee} for ${f.date} is awaiting your decision.`
@@ -304,7 +343,9 @@ const WORDING: Record<MailLocale, Wording> = {
           ? `The ${f.docType} request of ${f.employee} is awaiting your decision.`
           : `The leave request of ${f.employee} (${f.type}, ${f.start} to ${f.end}, ${f.days}) is awaiting your decision.`,
       'task.escalated': (f) =>
-        f.opening
+        f.decision
+          ? `The manager step could not be assigned for the end-of-contract decision of ${f.employee}: it goes straight to human resources.`
+          : f.opening
           ? `The line-manager step could not be assigned for your opening request ${f.title} (${f.reference}); it went straight to human resources.`
           : f.correction
           ? `The line-manager step could not be assigned for ${f.own ? 'your attendance correction' : `the attendance correction of ${f.employee}`} for ${f.date}; it went straight to human resources.`
@@ -326,6 +367,8 @@ const WORDING: Record<MailLocale, Wording> = {
           : `Interview to conduct on ${f.date} at ${f.time} — ${f.title} (${f.reference}). The file and the evaluation form are in the app.`,
       'recruitment.interview_cancelled': (f) => `The interview of ${f.date} is cancelled — ${f.title} (${f.reference}).`,
       'recruitment.evaluations_complete': (f) => `All evaluations of the interview of ${f.date} are in — ${f.title} (${f.reference}).`,
+      'deadline.digest': (f) =>
+        `${f.newCount === 1 ? 'A new deadline is coming up' : `${f.newCount} new deadlines are coming up`} in your scope (contract ends, probation periods, documents, retirements). Overdue: ${f.overdueCount}, of which ${f.criticalCount} critical.`,
     },
     action: {
       'task.assigned': 'Open the task',
@@ -343,6 +386,7 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_assigned': 'View the interview',
       'recruitment.interview_cancelled': 'View my interviews',
       'recruitment.evaluations_complete': 'View the evaluations',
+      'deadline.digest': 'Open the deadlines',
     },
     footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
     signature: 'The HRForce team',
@@ -397,6 +441,8 @@ export function formatDays(days: unknown, locale: MailLocale): string {
   return locale === 'fr' ? text.replace('.', ',') : text;
 }
 
+const count = (value: unknown): number => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0);
+
 export function renderNotificationMail(input: NotificationMailInput): NotificationMail {
   const w = WORDING[input.locale];
   const d = input.data;
@@ -415,11 +461,16 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
     correction: d['subjectType'] === 'attendance_correction' || input.subjectType === 'attendance_correction',
     date: formatDate(str(d['date']), input.locale),
     opening: d['subjectType'] === 'recruitment_opening' || input.subjectType === 'recruitment_opening',
+    decision: d['subjectType'] === 'contract_decision' || input.subjectType === 'contract_decision',
+    contractEnd: formatDate(str(d['contractEndDate']), input.locale),
     title: str(d['title']),
     reference: str(d['reference']),
     unit: (input.locale === 'ar' && str(d['unitNameAr'])) || str(d['unitName']),
     time: str(d['time']),
     rescheduled: d['rescheduled'] === 1,
+    newCount: count(d['newCount']),
+    overdueCount: count(d['overdueCount']),
+    criticalCount: count(d['criticalCount']),
   };
   const subject = w.subjects[input.type](facts);
   const body = w.bodies[input.type](facts);

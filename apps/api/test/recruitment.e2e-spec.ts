@@ -1013,8 +1013,8 @@ describe('the heads’ restricted view and the home counts', () => {
     expect(chef.canRequestOpening).toBe(true);
     expect(chef.openings).toBeGreaterThanOrEqual(3);
     expect(chef.pendingOpenings).toBeGreaterThanOrEqual(1);
-    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 });
-    expect(await ok('ouest', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, evaluationsTodo: 0 });
+    expect(await ok('agent', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, interviewsTodo: 0, evaluationsTodo: 0 });
+    expect(await ok('ouest', 'get', '/api/me/recruitment/summary')).toEqual({ canRequestOpening: false, openings: 0, pendingOpenings: 0, interviews: 0, interviewsTodo: 0, evaluationsTodo: 0 });
     expect(await ok('acces', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: false });
     expect(await ok('admin', 'get', '/api/me/recruitment/summary')).toMatchObject({ canRequestOpening: true }); // recruitment.manage
     expect((await ok('est', 'get', '/api/me/recruitment/summary')).canRequestOpening).toBe(true);

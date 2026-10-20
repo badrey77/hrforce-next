@@ -6,10 +6,23 @@ import { readImageHeader, withinImageLimits } from '../../../platform/pdf/image-
 import { PdfRenderError, PdfRenderer } from '../../../platform/pdf/pdf-renderer.js';
 import { LeaveFacts, type LeaveRequestFacts } from '../../leave/index.js';
 import { formatNumber, specimenNumber } from '../domain/numbering.js';
-import { checkEmploymentFor, checkLanguage, chooseSignatory } from '../domain/rules.js';
-import { buildSnapshot, missingProfileFields, type DocumentSnapshot } from '../domain/snapshot.js';
-import { DocumentRuleViolation, TEMPLATE_VERSIONS, type DocumentLanguage, type DocumentTypeCode } from '../domain/types.js';
+import { checkEmploymentOf, checkLanguage, chooseSignatory } from '../domain/rules.js';
+import { buildSnapshot, missingProfileFields, type DocumentSnapshot, type EmployeeFacts, type LeaveSnapshotFacts, type ProfileFacts, type SnapshotInput } from '../domain/snapshot.js';
+import { checkFieldValues, formatFieldValues } from '../domain/template-fields.js';
+import { hasPositions, layoutKeys, LAYOUT_LIMITS, type TemplateLayout } from '../domain/template-layout.js';
+import { resolveLayout } from '../domain/template-resolve.js';
+import { pickValues, variableValues } from '../domain/template-variables.js';
+import {
+  DESIGNED_TEMPLATE,
+  designedTemplateVersion,
+  DocumentRuleViolation,
+  isDocumentTypeCode,
+  TEMPLATE_VERSIONS,
+  type DocumentLanguage,
+  type DocumentTypeCode,
+} from '../domain/types.js';
 import { DocumentsRepository, pgError, type EmployeeRow, type LogoRow, type SignatoryRow, type TypeRow } from '../infra/documents.repository.js';
+import { TemplatesRepository, type TemplateVersionRow } from '../infra/templates.repository.js';
 
 /** What to issue, after the caller's access was checked. */
 export interface IssueSpec {
@@ -19,16 +32,33 @@ export interface IssueSpec {
   language: DocumentLanguage;
   signatoryId?: string | undefined;
   issueDate: string;
+  /** values of the designed template's fields, as typed (document-templates.md › Issuing) */
+  fields?: Record<string, string> | undefined;
+}
+
+/** A preview of a template version that is not (or not yet) the published one: the designer's preview. */
+export interface PrepareOptions {
+  template?: TemplateVersionRow;
+}
+
+/** The designed template a document renders, and the layout of its language. */
+export interface DesignedTemplate {
+  version: TemplateVersionRow;
+  layout: TemplateLayout;
 }
 
 /** Everything checked and formatted: what a preview renders and an issue numbers. */
 export interface PreparedDocument {
   type: TypeRow;
-  employee: EmployeeRow;
-  signatory: SignatoryRow;
+  employee: Pick<EmployeeRow, 'employmentId' | 'unitId'>;
+  signatory: Pick<SignatoryRow, 'id'>;
   leave: LeaveRequestFacts | null;
   snapshot: DocumentSnapshot;
   logo: { path: string; bytes: Buffer } | null;
+  /** null: the built-in template of a system type */
+  template: DesignedTemplate | null;
+  /** the facts some placeholders need besides the snapshot (designed templates) */
+  sources: { profile: Pick<ProfileFacts, 'nif' | 'nis' | 'rc' | 'ai'>; employee: Pick<EmployeeFacts, 'firstName' | 'lastName' | 'firstNameAr' | 'lastNameAr'> };
 }
 
 export interface IssueContext {
@@ -38,10 +68,16 @@ export interface IssueContext {
   clientRequestId: string | null;
 }
 
+/** The marker `designed.typ` panics with when a document runs past the page cap. */
+const TOO_LONG = 'document-template-too-long';
+
 /** Rule violations and database / renderer failures → problem+json. */
 export function documentProblem(error: unknown): unknown {
   if (error instanceof DocumentRuleViolation) return new ProblemException(error.status, error.slug, error.message, error.errors);
   if (error instanceof PdfRenderError) {
+    if (error.reason === 'error' && error.message.includes(TOO_LONG)) {
+      return new ProblemException(422, TOO_LONG, `The document would be longer than ${LAYOUT_LIMITS.pages} pages: shorten the template.`);
+    }
     return new ProblemException(503, 'document-render-failed', 'The document could not be rendered; nothing was issued. Try again.', undefined, {
       headers: { 'Retry-After': '5' },
     });
@@ -66,11 +102,34 @@ export async function documentProblems<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/** The designed layout of `lang` in a version, or 409 document-template-missing. */
+export function layoutOf(version: TemplateVersionRow, lang: DocumentLanguage): TemplateLayout {
+  const layout = version.layouts[lang];
+  if (!layout) throw new DocumentRuleViolation('document-template-missing', `The template of this document type has no ${lang === 'ar' ? 'Arabic' : 'French'} layout yet.`);
+  return layout;
+}
+
+/** The snapshot facts of a leave request. */
+export function leaveSnapshotFacts(leave: LeaveRequestFacts): LeaveSnapshotFacts {
+  return {
+    requestId: leave.id,
+    typeLabels: leave.type.labels,
+    startDate: leave.startDate,
+    endDate: leave.endDate,
+    days: leave.days,
+    halfDayStart: leave.halfDayStart,
+    halfDayEnd: leave.halfDayEnd,
+    resumption: leave.resumption,
+  };
+}
+
 /**
  * The issuing core (ADR 008 › Decision 4 and 6): prepare (every check, the snapshot — no lock yet), then allocate the
  * number (row lock held until commit), render, store the register row + the PDF, record `document.issued`. Any failure
  * after the allocation rolls the whole request transaction back, the counter included: a number exists only if its
  * register row and its PDF exist. The caller checks access first (HR scope, or the workflow engine for self-service).
+ * A type renders its built-in template (system types, `template_mode = builtin`) or its published designed version
+ * (document-templates.md › Rendering).
  */
 @Injectable()
 export class DocumentIssuer {
@@ -81,23 +140,53 @@ export class DocumentIssuer {
     private readonly renderer: PdfRenderer,
     private readonly audit: AuditEvents,
     private readonly leaves: LeaveFacts,
+    private readonly templates: TemplatesRepository,
   ) {}
 
-  async prepare(companyId: string, spec: IssueSpec): Promise<PreparedDocument> {
+  /** The designed template a type issues with (its published version), or null for a built-in one. */
+  private async templateOf(companyId: string, type: TypeRow, options: PrepareOptions): Promise<TemplateVersionRow | null> {
+    if (options.template) return options.template;
+    if (type.templateMode === 'builtin' && type.kind === 'system') return null;
+    const version = type.publishedTemplateId ? (await this.templates.published(companyId, [type.publishedTemplateId])).get(type.publishedTemplateId) : undefined;
+    if (!version) throw new DocumentRuleViolation('document-template-missing', 'This document type has no published template yet.');
+    return version;
+  }
+
+  async prepare(companyId: string, spec: IssueSpec, options: PrepareOptions = {}): Promise<PreparedDocument> {
     const type = await this.repo.typeByCode(companyId, spec.typeCode);
     if (!type) throw new NotFoundException('Document type not found');
-    if (!type.active) throw new DocumentRuleViolation('document-type-inactive', 'This document type is not active.');
+    // the designer previews drafts of types not active yet
+    if (!type.active && !options.template) throw new DocumentRuleViolation('document-type-inactive', 'This document type is not active.');
     checkLanguage(type.languages, spec.language);
+    const version = await this.templateOf(companyId, type, options);
+    const layout = version ? layoutOf(version, spec.language) : null;
+
+    // the fields typed at issue time: only a designed template has them
+    let fieldValues: Record<string, string> = {};
+    if (version) {
+      const checked = checkFieldValues(version.fields, spec.fields);
+      if (checked.errors.length) throw new DocumentRuleViolation('validation-error', 'Some fields of the document are missing or invalid.', 422, checked.errors);
+      fieldValues = checked.values;
+    } else if (spec.fields && Object.keys(spec.fields).length > 0) {
+      throw new DocumentRuleViolation(
+        'validation-error',
+        'This document has no fields to fill in.',
+        422,
+        Object.keys(spec.fields).map((key) => ({ field: `fields.${key}`, code: 'unknown_field', message: 'This template has no such field.' })),
+      );
+    }
 
     let leave: LeaveRequestFacts | null = null;
-    if (spec.typeCode === 'titre_conge') {
+    if (type.subject === 'leave_request') {
       leave = (spec.leaveRequestId ? await this.leaves.request(companyId, spec.leaveRequestId) : undefined) ?? null;
       if (!leave || leave.employmentId !== spec.employmentId) throw new NotFoundException('Leave request not found');
-      if (leave.status !== 'approved') throw new DocumentRuleViolation('document-leave-not-approved', 'A titre de congé is issued for an approved leave request only.');
+      if (leave.status !== 'approved') {
+        throw new DocumentRuleViolation('document-leave-not-approved', 'This document is issued for an approved leave request only.');
+      }
     }
     const employee = await this.repo.employee(companyId, spec.employmentId, spec.issueDate);
     if (!employee) throw new NotFoundException('Employee not found');
-    checkEmploymentFor(spec.typeCode, employee, spec.issueDate);
+    checkEmploymentOf(type, employee, spec.issueDate);
 
     const profile = await this.repo.profile(companyId);
     const missing = missingProfileFields(profile ?? null, spec.language);
@@ -116,29 +205,51 @@ export class DocumentIssuer {
       type.defaultSignatoryId,
     );
     const logo = this.renderableLogo(companyId, profile.hasLogo ? await this.repo.logo(companyId) : undefined);
-    const snapshot = buildSnapshot({
+    const input: SnapshotInput = {
       type: spec.typeCode,
       lang: spec.language,
       issueDate: spec.issueDate,
       profile: { ...profile, hasLogo: logo !== null },
       employee,
       signatory,
-      ...(leave
-        ? {
-            leave: {
-              requestId: leave.id,
-              typeLabels: leave.type.labels,
-              startDate: leave.startDate,
-              endDate: leave.endDate,
-              days: leave.days,
-              halfDayStart: leave.halfDayStart,
-              halfDayEnd: leave.halfDayEnd,
-              resumption: leave.resumption,
-            },
-          }
-        : {}),
-    });
-    return { type, employee, signatory, leave, snapshot, logo };
+      ...(layout && hasPositions(layout) ? { positions: true } : {}),
+      ...(leave ? { leave: leaveSnapshotFacts(leave) } : {}),
+    };
+    return this.prepared({ type, employee, signatory, leave, logo, input, profile, version, layout, fieldValues });
+  }
+
+  /** The snapshot of a prepared document (also the designer's sample preview, with fictitious facts). */
+  prepared(p: {
+    type: TypeRow;
+    employee: EmployeeFacts & { unitId: string };
+    signatory: Pick<SignatoryRow, 'id'>;
+    leave: LeaveRequestFacts | null;
+    logo: { path: string; bytes: Buffer } | null;
+    input: SnapshotInput;
+    profile: ProfileFacts;
+    version: TemplateVersionRow | null;
+    layout: TemplateLayout | null;
+    fieldValues: Record<string, string>;
+  }): PreparedDocument {
+    const snapshot = buildSnapshot(p.input);
+    if (p.version && p.layout) {
+      snapshot.v = 2;
+      snapshot.fieldValues = p.fieldValues;
+      snapshot.fields = formatFieldValues(p.version.fields, p.fieldValues, p.input.lang);
+    }
+    return {
+      type: p.type,
+      employee: { employmentId: p.employee.employmentId, unitId: p.employee.unitId },
+      signatory: { id: p.signatory.id },
+      leave: p.leave,
+      snapshot,
+      logo: p.logo,
+      template: p.version && p.layout ? { version: p.version, layout: p.layout } : null,
+      sources: {
+        profile: { nif: p.profile.nif, nis: p.profile.nis, rc: p.profile.rc, ai: p.profile.ai },
+        employee: { firstName: p.employee.firstName, lastName: p.employee.lastName, firstNameAr: p.employee.firstNameAr, lastNameAr: p.employee.lastNameAr },
+      },
+    };
   }
 
   /**
@@ -147,7 +258,7 @@ export class DocumentIssuer {
    * gigabytes, and an out-of-memory there aborts the whole API. Such a logo is left out of the document (the snapshot
    * then says `hasLogo: false`, which is what was printed) and a warning is logged; the document is still issued.
    */
-  private renderableLogo(companyId: string, row: LogoRow | undefined): { path: string; bytes: Buffer } | null {
+  renderableLogo(companyId: string, row: LogoRow | undefined): { path: string; bytes: Buffer } | null {
     if (!row) return null;
     const header = readImageHeader(row.bytes);
     if (!header.ok || !withinImageLimits(header)) {
@@ -158,20 +269,38 @@ export class DocumentIssuer {
     return { path: `/__assets/logo-${row.sha256.toString('hex')}.${header.type === 'image/png' ? 'png' : 'jpg'}`, bytes: row.bytes };
   }
 
-  private render(prepared: PreparedDocument, snapshot: DocumentSnapshot, specimen: boolean): Promise<Buffer> {
-    return this.renderer.render({
-      template: prepared.type.code,
-      data: snapshot,
-      options: { specimen, logo: prepared.logo?.path ?? null },
-      assets: prepared.logo ? [prepared.logo] : [],
-      standard: 'a-2b',
+  /** The snapshot with its number and, for a designed template, the variables exactly as printed. */
+  private numbered(prepared: PreparedDocument, number: string): DocumentSnapshot {
+    const snapshot: DocumentSnapshot = { ...prepared.snapshot, number };
+    if (prepared.template) {
+      const values = variableValues({ snapshot, ...prepared.sources });
+      snapshot.vars = pickValues(values, layoutKeys(prepared.template.layout));
+    }
+    return snapshot;
+  }
+
+  private async render(prepared: PreparedDocument, snapshot: DocumentSnapshot, specimen: boolean): Promise<Buffer> {
+    const options = { specimen, logo: prepared.logo?.path ?? null };
+    const assets = prepared.logo ? [prepared.logo] : [];
+    if (!prepared.template) {
+      return this.renderer.render({ template: prepared.type.code, data: snapshot, options, assets, standard: 'a-2b' });
+    }
+    const values = variableValues({ snapshot, ...prepared.sources });
+    const layout = resolveLayout(prepared.template.layout, {
+      lang: snapshot.lang,
+      values,
+      sex: snapshot.employee.sex,
+      jobTitle: snapshot.employee.jobTitle,
+      positions: snapshot.employee.positions ?? [],
     });
+    const title = snapshot.lang === 'ar' ? prepared.type.nameAr : prepared.type.nameFr;
+    return this.renderer.render({ template: DESIGNED_TEMPLATE, data: snapshot, options: { ...options, title }, layout, assets, standard: 'a-2b' });
   }
 
   /** The preview: same rendering, number `<prefix>-…`, a SPÉCIMEN watermark; no counter, no row, no audit. */
   async preview(prepared: PreparedDocument): Promise<Buffer> {
     const year = Number(prepared.snapshot.issueDate.slice(0, 4));
-    return this.render(prepared, { ...prepared.snapshot, number: specimenNumber(prepared.type.numberFormat, year) }, true);
+    return this.render(prepared, this.numbered(prepared, specimenNumber(prepared.type.numberFormat, year)), true);
   }
 
   /** Allocates the number, renders, stores; returns the new document id. */
@@ -179,14 +308,20 @@ export class DocumentIssuer {
     const year = Number(prepared.snapshot.issueDate.slice(0, 4));
     const seq = await this.repo.allocate(companyId, prepared.type.id, year);
     const number = formatNumber(prepared.type.numberFormat, year, seq);
-    const snapshot: DocumentSnapshot = { ...prepared.snapshot, number };
+    const snapshot = this.numbered(prepared, number);
     const pdf = await this.render(prepared, snapshot, false);
     const sha256 = createHash('sha256').update(pdf).digest();
+    const code = prepared.type.code;
+    const templateVersion = prepared.template
+      ? designedTemplateVersion(code, prepared.template.version.version)
+      : isDocumentTypeCode(code)
+        ? TEMPLATE_VERSIONS[code]
+        : code;
     const id = await this.repo.insertDocument(
       companyId,
       {
         documentTypeId: prepared.type.id,
-        typeCode: prepared.type.code,
+        typeCode: code,
         year,
         seq,
         number,
@@ -197,7 +332,9 @@ export class DocumentIssuer {
         orgUnitId: prepared.employee.unitId,
         signatoryId: prepared.signatory.id,
         snapshot,
-        templateVersion: TEMPLATE_VERSIONS[prepared.type.code],
+        templateVersion,
+        templateVersionId: prepared.template?.version.id ?? null,
+        subject: prepared.type.subject,
         renderer: this.renderer.engine,
         sha256,
         sizeBytes: pdf.length,
@@ -212,7 +349,7 @@ export class DocumentIssuer {
       subject: { type: 'issued_document', id },
       data: {
         number,
-        typeCode: prepared.type.code,
+        typeCode: code,
         language: snapshot.lang,
         employmentId: prepared.employee.employmentId,
         sha256: sha256.toString('hex'),

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Notifier, type NotificationData, type NotificationType } from '../../../platform/notifications/notifier.js';
-import { algiersDateTime, interviewState, rawMean, round1, type Recommendation } from '../domain/rules.js';
+import { algiersDateTime, autoCancelCode, interviewState, rawMean, round1, type Recommendation } from '../domain/rules.js';
 import { InterviewsRepository, type InterviewerRow, type InterviewRow, type OpeningCriterionRow, type ScoreRow } from '../infra/interviews.repository.js';
 import { caller, RecruitmentAccess, RecruitmentClock } from './recruitment-access.js';
 import type { CriterionRef, EvaluationView, InterviewView, UserRef } from './recruitment-views.js';
@@ -134,6 +134,7 @@ export class InterviewReads {
       status: row.status,
       state: interviewState(row, submitted.length, interviewers.length, this.clock.nowMs()),
       cancelReason: row.cancelReason,
+      cancelCode: autoCancelCode(row.cancelReason),
       createdBy: ref(row.createdBy),
       evaluations: interviewers.map((w) => {
         const evaluation = evaluationOf(w, criteria);

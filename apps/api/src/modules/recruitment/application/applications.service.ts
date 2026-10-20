@@ -5,6 +5,7 @@ import { currentTx } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException, type FieldError } from '../../../platform/http/problem-details.js';
 import { EMPLOYEE_PERMISSIONS, EmployeesService } from '../../employment/index.js';
 import {
+  AUTO_CANCEL_TEXT,
   BOARD_MAX_APPLICATIONS,
   isActiveStage,
   isFinalStage,
@@ -431,7 +432,9 @@ export class ApplicationsService {
     await this.repo.setStage(companyId, id, input.toStage, isFinalStage(input.toStage));
     await this.repo.insertStage(companyId, { applicationId: id, from: row.stage, to: input.toStage, reasonId, comment: input.comment ?? null, movedBy: userId });
     // an application that leaves the pipeline: its offer in progress and its interviews to come are cancelled
-    if (isFinalStage(input.toStage)) await this.notices.applicationsClosed(companyId, [id], input.toStage === 'rejected' ? 'Candidature refusée' : 'Désistement');
+    if (isFinalStage(input.toStage)) {
+      await this.notices.applicationsClosed(companyId, [id], AUTO_CANCEL_TEXT[input.toStage === 'rejected' ? 'application_rejected' : 'application_withdrawn']);
+    }
     return this.detailOf(companyId, id);
   }
 

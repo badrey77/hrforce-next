@@ -58,15 +58,16 @@ import { OrgApi } from '../../core/org/org-api';
 import type { Site } from '../../core/org/org.models';
 import { CanDirective } from '../../shared/can/can.directive';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
+import { FilterBar } from '../../shared/filter-bar/filter-bar.directive';
 import { OrgUnitPicker } from '../../shared/org-unit-picker/org-unit-picker';
-import { resolveQuery, toQueryParams } from './employee-list-state';
+import { CONTRACT_TYPE_FILTERS, resolveQuery, toQueryParams } from './employee-list-state';
 
 /** How long typing must pause before the search reaches the URL (and the API). */
 export const EMPLOYEE_SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   selector: 'app-employees-page',
-  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, OrgUnitPicker, CanDirective, DisplayNamePipe],
+  imports: [TranslocoDirective, RouterLink, ReactiveFormsModule, OrgUnitPicker, CanDirective, DisplayNamePipe, FilterBar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employees.page.html',
   styleUrl: './employees.css',
@@ -84,6 +85,7 @@ export class EmployeesPage {
   readonly siteId = input<string>();
   readonly status = input<string>();
   readonly asOf = input<string>();
+  readonly contractType = input<string>();
   readonly sort = input<string>();
   readonly dir = input<string>();
   readonly page = input<string>();
@@ -98,6 +100,7 @@ export class EmployeesPage {
       siteId: this.siteId(),
       status: this.status(),
       asOf: this.asOf(),
+      contractType: this.contractType(),
       // oxlint-disable-next-line unicorn/no-array-sort -- a signal input named after the `sort` query param, not Array#sort
       sort: this.sort(),
       dir: this.dir(),
@@ -114,8 +117,8 @@ export class EmployeesPage {
   protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.total() / this.query().pageSize)));
   /** Any filter away from its default (drives "no match" vs "no employee yet", and "clear filters"). */
   protected readonly filtered = computed(() => {
-    const { q, unitId, siteId, status } = this.query();
-    return q.trim() !== '' || unitId !== null || siteId !== null || status !== DEFAULT_EMPLOYEE_QUERY.status;
+    const { q, unitId, siteId, status, contractType } = this.query();
+    return q.trim() !== '' || unitId !== null || siteId !== null || contractType !== null || status !== DEFAULT_EMPLOYEE_QUERY.status;
   });
 
   protected readonly canUnits = this.session.allows('org_unit.read');
@@ -124,6 +127,7 @@ export class EmployeesPage {
   protected readonly sites = computed<readonly Site[]>(() => (this.sitesResource.hasValue() ? this.sitesResource.value().items : []));
 
   protected readonly statuses = STATUS_FILTERS;
+  protected readonly contractTypes = CONTRACT_TYPE_FILTERS;
   protected readonly pageSizes = EMPLOYEE_PAGE_SIZES;
   protected readonly columns: readonly { key: EmployeeSort; labelKey: string }[] = [
     { key: 'matricule', labelKey: 'employees.list.matricule' },
@@ -176,9 +180,10 @@ export class EmployeesPage {
     this.searches.next(event.target instanceof HTMLInputElement ? event.target.value : '');
   }
 
-  protected onSelect(key: 'siteId' | 'status' | 'pageSize', event: Event): void {
+  protected onSelect(key: 'siteId' | 'status' | 'pageSize' | 'contractType', event: Event): void {
     const value = event.target instanceof HTMLSelectElement ? event.target.value : '';
     if (key === 'pageSize') this.update({ pageSize: Number(value) });
+    else if (key === 'contractType') this.update({ contractType: resolveQuery({ contractType: value }).contractType });
     else if (key === 'status') this.update({ status: resolveQuery({ status: value }).status });
     else this.update({ siteId: value || null });
   }
@@ -204,6 +209,6 @@ export class EmployeesPage {
   }
 
   protected clearFilters(): void {
-    this.update({ q: '', unitId: null, includeSubUnits: true, siteId: null, status: DEFAULT_EMPLOYEE_QUERY.status });
+    this.update({ q: '', unitId: null, includeSubUnits: true, siteId: null, contractType: null, status: DEFAULT_EMPLOYEE_QUERY.status });
   }
 }

@@ -832,12 +832,13 @@ describe('owning company: seed, bootstrap, CLI, migration', () => {
       await query(old.superuserUrl, `insert into role (company_id, code, name_fr, name_ar, name_en, is_system) values ($1, 'admin_rh_central', 'A', 'أ', 'A', true), ($1, 'lecture', 'L', 'ل', 'L', true)`, [elder]);
       await query(old.superuserUrl, `insert into security_policy (company_id, mfa_enforced, mfa_required_permissions) values ($1, true, '{access.grant}'), ($2, false, '{access.grant,leave.configure}')`, [young, elder]);
       const result = await runMigrations({ connectionString: old.migratorUrl });
-      expect(result.applied).toEqual(['0021_branding.sql']);
+      // (later migrations run too; 0022 appends document.design to every policy the same way)
+      expect(result.applied[0]).toBe('0021_branding.sql');
       expect(await query(old.superuserUrl, 'select company_id, color, app_title_fr from installation_branding')).toEqual([{ company_id: elder, color: 'blue', app_title_fr: null }]);
       expect(await query(old.superuserUrl, `select r.code from role_permission rp join role r on r.id = rp.role_id where rp.permission_code = 'settings.branding'`)).toEqual([{ code: 'admin_rh_central' }]);
       expect(await query(old.superuserUrl, 'select mfa_required_permissions as codes from security_policy order by company_id')).toEqual([
-        { codes: ['access.grant', 'settings.branding'] },
-        { codes: ['access.grant', 'leave.configure', 'settings.branding'] },
+        { codes: ['access.grant', 'settings.branding', 'document.design'] },
+        { codes: ['access.grant', 'leave.configure', 'settings.branding', 'document.design'] },
       ]);
       expect(await query(old.superuserUrl, `select group_code, sensitive, sort_order from permission where code = 'settings.branding'`)).toEqual([{ group_code: 'settings', sensitive: false, sort_order: 1010 }]);
     } finally {
@@ -859,7 +860,7 @@ describe('permission and two-step sign-in', () => {
     expect(defaults?.codes).toEqual(expect.arrayContaining(['access.grant', 'sso.manage_apps', 'employee.salary.read']));
     expect(defaults?.codes).not.toContain('employee.read');
     const catalogue = await client('admin').get('/api/access/permissions').expect(200);
-    expect((catalogue.body.items as { code: string; group: string; sensitive: boolean; labels: Record<string, string> }[]).at(-1)).toEqual({
+    expect((catalogue.body.items as { code: string; group: string; sensitive: boolean; labels: Record<string, string> }[]).find((p) => p.code === 'settings.branding')).toEqual({
       code: 'settings.branding',
       group: 'settings',
       sensitive: false,

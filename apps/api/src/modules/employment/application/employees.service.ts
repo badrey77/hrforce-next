@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, type OnModuleInit } from '@nestjs/common';
 import { ScopeService } from '../../../platform/authz/scope-service.js';
+import { ContractHooks, ContractsService, type ContractSummary, type InitialContractInput } from '../../contracts/index.js';
 import { requireContext } from '../../../platform/context/request-context.js';
 import { ProblemException, ValidationProblemException, type FieldError } from '../../../platform/http/problem-details.js';
 import {
@@ -57,6 +58,7 @@ export interface ListEmployeesInput {
   includeSubUnits: boolean;
   siteId?: string | undefined;
   status: StatusFilter;
+  contractType?: string | undefined;
   asOf?: string | undefined;
   sort: EmployeeSort;
   dir: 'asc' | 'desc';
@@ -89,6 +91,8 @@ export interface CreateEmployeeInput extends Partial<PersonInput> {
   salary?: { baseSalary: string } | undefined;
   bank?: { rib: string | null; bankName: string | null } | undefined;
   nss?: { nss: string | null } | undefined;
+  /** the initial contract (starts on the hire date) */
+  contract?: InitialContractInput | undefined;
 }
 
 export interface AssignInput {
@@ -165,12 +169,21 @@ interface Loaded {
  * writable → 403 `forbidden-scope`; a sensitive block without its permission → 403 `forbidden-field`.
  */
 @Injectable()
-export class EmployeesService {
+export class EmployeesService implements OnModuleInit {
   constructor(
     private readonly repo: EmployeeRepository,
     private readonly scopes: ScopeService,
     private readonly clock: EmploymentClock,
+    private readonly contracts: ContractsService,
+    private readonly contractHooks: ContractHooks,
   ) {}
+
+  /** An approved « end » contract decision ends the employment through this module's rules. */
+  onModuleInit(): void {
+    this.contractHooks.registerEndEmployment(async (employmentId, endDate) => {
+      await this.end(employmentId, { endDate, reason: 'end_of_contract' });
+    });
+  }
 
   // ── reads ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -185,13 +198,15 @@ export class EmployeesService {
       includeSubUnits: input.includeSubUnits,
       siteId: input.siteId,
       status: input.status,
+      contractType: input.contractType,
       sort: input.sort,
       dir: input.dir,
       lang: input.lang ?? 'fr',
       limit: input.pageSize,
       offset: (input.page - 1) * input.pageSize,
     });
-    return { items: rows.map((r) => listItem(r, asOf)), total, page: input.page, pageSize: input.pageSize };
+    const contracts = await this.contracts.summaries(rows.map((r) => r.id), asOf);
+    return { items: rows.map((r) => listItem(r, asOf, contracts.get(r.id) ?? null)), total, page: input.page, pageSize: input.pageSize };
   }
 
   async get(id: string): Promise<EmployeeDetail> {
@@ -251,6 +266,7 @@ export class EmployeesService {
       if (input.bank || input.nss) {
         await this.repo.upsertSensitive(companyId, personId, { ...input.bank, ...input.nss });
       }
+      if (input.contract) await this.contracts.createInitial(id, input.hireDate, input.contract);
       // employee.create does not imply employee.read: the creator gets the detail of what they just wrote
       return this.detail({ companyId, employment: await this.mustFind(companyId, id), assignments: await this.repo.listAssignments(companyId, id), unitId: input.orgUnitId }, { skipRead: true });
     });
@@ -455,8 +471,9 @@ export class EmployeesService {
     ]);
     if (!person) throw notFound();
     const can = async (code: string) => this.scopes.inScope(code, unitId);
-    const [read, salaryRead, bankRead, nssRead, update, salaryUpdate, bankUpdate, nssUpdate] = await Promise.all([
+    const [read, salaryRead, bankRead, nssRead, update, salaryUpdate, bankUpdate, nssUpdate, manageContract] = await Promise.all([
       can(P.read), can(P.salaryRead), can(P.bankRead), can(P.nssRead), can(P.update), can(P.salaryUpdate), can(P.bankUpdate), can(P.nssUpdate),
+      this.contracts.canManageUnit(unitId),
     ]);
     if (!read && !options.skipRead) throw notFound();
 
@@ -495,9 +512,10 @@ export class EmployeesService {
       endDate: employment.endDate,
       status: statusOf(employment.hireDate, employment.endDate, today),
       endReason: employment.endReason,
+      contract: (await this.contracts.summaries([employment.id], today)).get(employment.id) ?? null,
       assignments,
       _redacted: redacted,
-      _actions: employeeActions(employment.endDate === null, { update, salaryUpdate, bankUpdate, nssUpdate }),
+      _actions: employeeActions(employment.endDate === null, { update, salaryUpdate, bankUpdate, nssUpdate, manageContract }),
     };
     if (salaryRead) {
       const current = salaries.find((s) => s.validFrom <= today && (s.validTo === null || today < s.validTo));
@@ -533,7 +551,7 @@ function personView(p: PersonRow): Omit<EmployeeDetail['person'], 'hasOpenEmploy
   };
 }
 
-function listItem(r: ListRow, asOf: string): EmployeeListItem {
+function listItem(r: ListRow, asOf: string, contract: ContractSummary | null): EmployeeListItem {
   return {
     id: r.id,
     matricule: r.matricule,
@@ -544,5 +562,6 @@ function listItem(r: ListRow, asOf: string): EmployeeListItem {
     hireDate: r.hire_date,
     endDate: r.end_date,
     status: statusOf(r.hire_date, r.end_date, asOf),
+    contract,
   };
 }

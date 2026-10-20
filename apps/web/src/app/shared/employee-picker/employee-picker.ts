@@ -42,7 +42,7 @@ import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { catchError, debounceTime, map, of, Subject, switchMap } from 'rxjs';
 import { EmployeesApi, sortLanguageOf } from '../../core/employees/employees-api';
-import type { EmployeeListItem } from '../../core/employees/employees.models';
+import type { EmployeeListItem, StatusFilter } from '../../core/employees/employees.models';
 import { LanguageService } from '../../core/i18n/language.service';
 import type { AppLanguage } from '../../core/i18n/languages';
 import { DisplayNamePipe, displayNameOf } from '../display-name/display-name.pipe';
@@ -79,6 +79,8 @@ export class EmployeePicker implements ControlValueAccessor {
   readonly invalid = input(false);
   /** id(s) of an outside error/hint element, forwarded to `aria-describedby`. */
   readonly describedBy = input<string | null>(null);
+  /** Which employments the search offers: active ones (default), or also ended ones (`'all'`). */
+  readonly status = input<StatusFilter>('active');
   /** The whole list item of the employee the user picked (the form only gets the id). */
   readonly picked = output<EmployeeListItem | null>();
 
@@ -118,7 +120,7 @@ export class EmployeePicker implements ControlValueAccessor {
         switchMap((q) => {
           this.state.set('loading');
           // Same name order as the list: Arabic in an Arabic UI (`lang=ar`), Latin otherwise.
-          return this.api.search(q, undefined, sortLanguageOf(this.lang())).pipe(
+          return this.api.search(q, undefined, sortLanguageOf(this.lang()), untracked(this.status)).pipe(
             map((page) => page.items),
             catchError(() => of(null)),
           );

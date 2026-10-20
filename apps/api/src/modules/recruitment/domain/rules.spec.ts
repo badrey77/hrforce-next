@@ -4,6 +4,7 @@ import {
   algiersDate,
   algiersDateTime,
   algiersInstant,
+  autoCancelCode,
   interviewState,
   isClockTime,
   isPositiveMoney,
@@ -21,6 +22,16 @@ import {
 } from './rules.js';
 
 describe('recruitment rules', () => {
+  it('autoCancelCode: the automatic cancellation texts (stored before and after the code existed) map to a code; a typed reason does not', () => {
+    expect(autoCancelCode('Poste pourvu')).toBe('position_filled');
+    expect(autoCancelCode('Recrutement clôturé')).toBe('opening_closed');
+    expect(autoCancelCode('Désistement')).toBe('application_withdrawn');
+    expect(autoCancelCode('Candidature refusée')).toBe('application_rejected');
+    expect(autoCancelCode('Offre déclinée')).toBe('offer_declined');
+    expect(autoCancelCode('Candidat indisponible')).toBeNull();
+    expect(autoCancelCode(null)).toBeNull();
+  });
+
   it('moveTargets: free moves between received / shortlisted / interview, reject or withdraw from them; nothing from a final stage', () => {
     expect(moveTargets('received')).toEqual(['shortlisted', 'interview', 'rejected', 'withdrawn']);
     expect(moveTargets('shortlisted')).toEqual(['received', 'interview', 'rejected', 'withdrawn']);

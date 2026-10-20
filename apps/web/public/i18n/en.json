@@ -26,7 +26,10 @@
     "myRecruitment": "My openings",
     "recruitmentSettings": "Recruitment settings",
     "myInterviews": "My interviews",
-    "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter"
+    "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter",
+    "deadlines": "Deadlines",
+    "deadlinesWithCount": "Deadlines, {{count}} overdue",
+    "deadlineSettings": "Deadline settings"
   },
   "language": {
     "label": "Language",
@@ -518,7 +521,9 @@
       "recruitment_policy": "Recruitment policy",
       "recruitment_rejection_reason": "Rejection reason",
       "recruitment_criterion": "Evaluation criterion",
-      "recruitment_opening_criterion": "Opening criterion"
+      "recruitment_opening_criterion": "Opening criterion",
+      "employment_contract": "Employment contract",
+      "contract_decision": "End-of-contract decision"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -863,6 +868,29 @@
         "opening_id": "Opening",
         "criterion_id": "Criterion",
         "position": "Position"
+      },
+      "employment_contract": {
+        "seq": "Sequence",
+        "kind": "Kind",
+        "contract_type": "Contract type",
+        "start_date": "Start",
+        "end_date": "End",
+        "probation_end": "End of probation",
+        "reference": "Reference",
+        "reason": "Reason",
+        "note": "Note",
+        "created_by": "Recorded by",
+        "created_at": "Recorded"
+      },
+      "contract_decision": {
+        "status": "Status",
+        "proposal": "Proposal",
+        "proposed_start_date": "Proposed start",
+        "proposed_end_date": "Proposed end",
+        "comment": "Comment",
+        "proposed_by": "Proposed by",
+        "proposed_at": "Proposed",
+        "created_at": "Opened"
       }
     },
     "events": {
@@ -975,6 +1003,10 @@
         "offer_reopened": "Offer proposed again (hire undone)",
         "hired": "Hired through recruitment {{reference}}",
         "hire_undone": "Hire undone in recruitment {{reference}}"
+      },
+      "contract": {
+        "decision_opened": "End-of-contract decision opened",
+        "decision_applied": "End-of-contract decision applied"
       }
     },
     "values": {
@@ -1137,7 +1169,8 @@
       "history": "History",
       "documents": "Documents",
       "file": "File",
-      "attendance": "Presence"
+      "attendance": "Presence",
+      "contracts": "Contracts"
     },
     "identity": {
       "edit": "Edit",
@@ -1483,9 +1516,45 @@
       "documentNoSignatory": "Cannot issue {{name}}'s document: no signatory covers their unit.",
       "documentTypeInactive": "Cannot issue {{name}}'s document: this document type is disabled.",
       "documentRetry": "{{name}}'s document could not be generated right now. Try again in a moment.",
-      "correctionStale": "A punch to remove in {{name}}’s request was voided meanwhile: the correction can no longer be approved as is. Please reject it and explain why."
+      "correctionStale": "A punch to remove in {{name}}’s request was voided meanwhile: the correction can no longer be approved as is. Please reject it and explain why.",
+      "decisionNoProposal": "Cannot approve the decision for {{name}} without a saved proposal.",
+      "decisionApplyFailed": "Could not apply the decision for {{name}}: check their contracts and employment."
     },
-    "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you."
+    "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you.",
+    "decision": {
+      "title": "End-of-contract decision",
+      "endsOn": "ends on {{date}}",
+      "contract": "Contract",
+      "current": "Recorded proposal",
+      "none": "No proposal yet.",
+      "legendManager": "Your proposal",
+      "legendHr": "Proposal (HR may change it)",
+      "proposals": {
+        "renew": "Renew the contract",
+        "convert_cdi": "Convert to a permanent contract (CDI)",
+        "end": "End the contract at its term"
+      },
+      "start": "Start date",
+      "startHint": "By default, the day after the current contract ends.",
+      "end": "End of the new contract (last day)",
+      "comment": "Comment (optional)",
+      "save": "Save the proposal",
+      "saved": "Proposal saved.",
+      "approveNeedsProposal": "Save a proposal before approving.",
+      "approveApplies": "Approving will apply: {{what}}.",
+      "approveSends": "Approving sends the proposal to HR.",
+      "summary": {
+        "renew": "renewal from {{from}} to {{to}}",
+        "convert_cdi": "conversion to CDI from {{from}}",
+        "end": "end of the contract at its term"
+      },
+      "errors": {
+        "endRequired": "Enter the end of the new contract.",
+        "endAfterStart": "The end must be after the start.",
+        "commentTooLong": "The comment is too long.",
+        "proposalRequired": "Choose a proposal."
+      }
+    }
   },
   "workflow": {
     "title": "Approval chain",
@@ -1546,7 +1615,8 @@
         "assigned_attendance": "Attendance correction to handle: {{employeeName}} ({{date}}).",
         "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available).",
         "assigned_recruitment": "Opening request to approve: {{title}} ({{reference}}, {{unitName}}).",
-        "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available)."
+        "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available).",
+        "assigned_contract": "End-of-contract decision to take: {{employeeName}}."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1570,6 +1640,9 @@
         "interview_assigned_rescheduled": "Interview changed: {{date}} at {{time}} — {{title}} ({{reference}})",
         "interview_cancelled": "Interview of {{date}} cancelled — {{title}} ({{reference}})",
         "evaluations_complete": "All evaluations of the interview of {{date}} are in — {{title}} ({{reference}})"
+      },
+      "deadline": {
+        "digest": "New deadlines to handle: {{newCount}} (overdue: {{overdueCount}}, critical: {{criticalCount}})."
       }
     },
     "typesNamed": {
@@ -1607,6 +1680,9 @@
         "interview_assigned": "An interview is assigned to me or rescheduled",
         "interview_cancelled": "An interview I was to hold is cancelled",
         "evaluations_complete": "All evaluations of an interview I scheduled are in"
+      },
+      "deadline": {
+        "digest": "The daily deadline digest"
       }
     }
   },
@@ -1723,7 +1799,8 @@
     "typeNames": {
       "attestation_travail": "Employment attestation",
       "certificat_travail": "Employment certificate",
-      "titre_conge": "Leave certificate"
+      "titre_conge": "Leave certificate",
+      "custom": "Document"
     },
     "languages": {
       "fr": "French",
@@ -1760,7 +1837,8 @@
       "leaveRequest": "Leave request",
       "origin": "Origin",
       "size": "Size",
-      "sha256": "Fingerprint (SHA-256)"
+      "sha256": "Fingerprint (SHA-256)",
+      "template": "Template"
     },
     "form": {
       "required": "This field is required.",
@@ -1797,7 +1875,9 @@
       "selfService": "Employee request (self-service)",
       "kb": "KB",
       "leaveCancelled": "The leave of this certificate was cancelled after it was issued. Void the certificate if it must no longer be used.",
-      "voidedOn": "Voided on {{date}} by {{by}}."
+      "voidedOn": "Voided on {{date}} by {{by}}.",
+      "designedVersion": "Designed template, version {{version}}",
+      "builtinTemplate": "Built-in template"
     },
     "feedback": {
       "issued": "Document {{number}} issued. Open the PDF to print, sign and stamp it.",
@@ -1837,7 +1917,12 @@
       "previewing": "Preparing the preview…",
       "previewHint": "The preview opens a specimen in a new tab; no number is used.",
       "submit": "Issue",
-      "issuing": "Issuing…"
+      "issuing": "Issuing…",
+      "fields": "Information to print",
+      "optional": "(optional)",
+      "choose": "Choose…",
+      "numberInvalid": "Invalid number (e.g. 1250 or 12.5).",
+      "tooLong": "Text too long."
     },
     "problems": {
       "profileIncomplete": "The company letterhead is incomplete for this language. Missing fields:",
@@ -1856,7 +1941,8 @@
       "subjectNotFound": "Employee or request not found (or outside your scope).",
       "alreadyVoid": "This document is already void.",
       "companyWide": "Only an administrator holding this right over the whole company can change these settings.",
-      "formatTaken": "This format is already used by another document type."
+      "formatTaken": "This format is already used by another document type.",
+      "templateMissing": "This type has no published template yet."
     },
     "employee": {
       "title": "Issued documents",
@@ -1874,13 +1960,14 @@
     },
     "settings": {
       "title": "Document settings",
-      "intro": "The letterhead, signatories and numbering are company data; the legal wording of each document is fixed.",
+      "intro": "The letterhead, signatories, numbering and document templates are company data.",
       "tabs": "Settings sections",
       "tab": {
         "profile": "Letterhead",
         "signatories": "Signatories",
         "types": "Types",
-        "categories": "File categories"
+        "categories": "File categories",
+        "templates": "Templates"
       },
       "actions": "Actions",
       "edit": "Edit",
@@ -2103,6 +2190,144 @@
       "loadError": "The categories could not be loaded.",
       "created": "Category created.",
       "saved": "Category saved."
+    },
+    "templates": {
+      "title": "Document templates",
+      "intro": "Layout and wording of each document type. A published template applies to the next documents; documents already issued keep their PDF.",
+      "newType": "New document type",
+      "newTypeHint": "The type stays inactive until its first template is published; then activate it on the “Types” tab.",
+      "createAndDesign": "Create and design the template",
+      "code": "Code",
+      "codeHint": "Lower-case letters, digits and “_”, 3 to 40 characters, starting with a letter (e.g. ordre_mission). Cannot be changed later.",
+      "codeInvalid": "Invalid code: lower-case letters, digits and “_”, 3 to 40 characters, starting with a letter.",
+      "codeReserved": "This code is reserved for a built-in type.",
+      "nameFr": "Name (French)",
+      "nameAr": "Name (Arabic)",
+      "nameEn": "Name (English, optional)",
+      "subject": "The document is about",
+      "subjects": {
+        "employment": "An employee",
+        "leave_request": "An approved leave request"
+      },
+      "employmentRule": "Employment",
+      "rules": {
+        "any": "Current or ended",
+        "active": "Current only",
+        "ended": "Ended only"
+      },
+      "kindHeader": "Origin",
+      "kind": {
+        "system": "Built-in",
+        "custom": "Custom"
+      },
+      "template": "Template",
+      "inactive": "Inactive",
+      "mode": {
+        "builtin": "Built-in template",
+        "designed": "Version {{version}} published",
+        "none": "No published template"
+      },
+      "draftBadge": "Draft v{{version}}",
+      "design": "Design",
+      "versionsAndPreviews": "Versions and previews",
+      "preview": "Preview",
+      "revert": "Back to the built-in template",
+      "revertTitle": "Back to the built-in template?",
+      "revertIntro": "The next “{{name}}” documents will use the built-in template again. The published version is archived; documents already issued do not change.",
+      "reverted": "The built-in template is used again.",
+      "activateHint": "This type can be activated only once its first template is published.",
+      "back": "Back to templates",
+      "versionN": "Version {{version}}",
+      "version": "Version",
+      "statusHeader": "Status",
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "archived": "Archived"
+      },
+      "save": {
+        "pending": "Changes pending…",
+        "saving": "Saving…",
+        "saved": "Saved at {{time}}",
+        "invalid": "Not saved: problems to fix",
+        "error": "Not saved"
+      },
+      "editLanguage": "Template language",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "publishTitle": "Publish this template?",
+      "publishIntro": "After publishing:",
+      "publishEffect1": "the next documents of this type use this template;",
+      "publishEffect2": "the version published until now is archived; documents already issued keep their PDF.",
+      "note": "Note (optional): what changes",
+      "published": "Template published.",
+      "discard": "Discard the draft",
+      "discardTitle": "Discard this draft?",
+      "discardIntro": "The draft is deleted. The published version, if any, stays in force.",
+      "discarded": "Draft discarded.",
+      "versions": "Versions",
+      "reload": "Reload",
+      "narrow": "Designing a template needs a screen at least 900 pixels wide. The versions and their previews remain available here.",
+      "changedBy": "Changed by",
+      "issuedCount": "Documents issued",
+      "open": "Open",
+      "previewIn": "Preview ({{lang}})",
+      "duplicate": "New draft",
+      "noVersion": "No version.",
+      "readonlyPublished": "Published version: read-only. Changes are made in a new draft.",
+      "readonlyArchived": "Archived version: read-only.",
+      "openDraft": "Open draft v{{version}}",
+      "duplicateFrom": "Create a draft from this version",
+      "previewWith": "Preview with:",
+      "previewSample": "sample data",
+      "previewEmployee": "an employee",
+      "previewLeave": "an approved leave request",
+      "noLayout": "This draft has no {{lang}} layout yet.",
+      "startTitle": "Design the first template",
+      "startIntroSystem": "This type uses the built-in template. A draft can start from its wording or from a blank page.",
+      "startIntroCustom": "This type has no template yet: a draft starts from a blank page.",
+      "startBlank": "Blank page",
+      "startBuiltin": "Built-in wording",
+      "loadError": "The templates of this type could not be loaded.",
+      "leaveConfirm": "Some changes are not saved yet. Leave anyway?",
+      "problems": {
+        "codeTaken": "Another type already uses this code.",
+        "noBuiltin": "This type has no built-in template.",
+        "changed": "This draft was changed elsewhere (another tab or person). Reload it to continue; your last unsaved changes will be lost.",
+        "notDraft": "This version is no longer a draft (published or discarded elsewhere). Reload the page.",
+        "draftExists": "This type already has a draft: open it from “Versions”.",
+        "tooLong": "The document would exceed 5 pages: shorten the template.",
+        "selfService": "This type is self-service: its template cannot have a required field.",
+        "invalid": "The template has problems (listed beside it).",
+        "notFound": "This version does not exist."
+      },
+      "codes": {
+        "invalid": "Unknown or malformed element.",
+        "required": "This language has no layout yet.",
+        "empty": "The layout of this language is empty: add at least one block.",
+        "too_many_blocks": "Too many blocks (150 at most).",
+        "text_too_long": "The text is too long.",
+        "invalid_text": "The text contains characters that are not allowed.",
+        "unknown_variable": "This placeholder does not exist for this kind of document.",
+        "unknown_field": "This field to fill in does not exist (any more) in the template.",
+        "empty_gender": "Enter at least one of the three forms.",
+        "invalid_id": "Invalid block identifier.",
+        "duplicate_id": "Two blocks have the same identifier.",
+        "too_many_items": "Too many list items (30 at most).",
+        "table_too_large": "The table is too large (2 to 6 columns, 40 rows at most).",
+        "invalid_width": "Invalid column width (1 to 10).",
+        "invalid_row": "Each row needs one cell per column.",
+        "positions_not_allowed": "Positions held exist only for a document about an employee.",
+        "layout_too_large": "The template is too large (20,000 characters per language, 256 KB in all).",
+        "too_many_fields": "Too many fields to fill in (10 at most).",
+        "invalid_key": "Invalid field code (lower-case letters, digits and “_”, starting with a letter).",
+        "duplicate_key": "Two fields have the same code.",
+        "invalid_label": "A label is required in French and in Arabic (80 characters at most).",
+        "invalid_options": "A choice list has 1 to 20 choices.",
+        "invalid_value": "Invalid choice value (lower-case letters, digits and “_”).",
+        "duplicate_value": "Two choices have the same value.",
+        "not_allowed": "Not allowed for this document type."
+      }
     }
   },
   "attendance": {
@@ -3208,6 +3433,7 @@
       "interviewsNext7Days": "interview(s) in the next 7 days",
       "offersPending": "offer(s) in progress",
       "interviewsLink": "My interviews ({{count}})",
+      "interviewsDoneLink": "My evaluated interviews ({{count}})",
       "evaluationsTodo": "{{count}} evaluation(s) to enter",
       "evaluationsNone": "No evaluation to enter for now"
     },
@@ -3281,6 +3507,13 @@
       "cancelTitle": "Cancel the interview",
       "cancelIntro": "The interviewers are told. A cancelled interview no longer counts in the averages.",
       "cancelReason": "Reason for cancelling",
+      "autoCancel": {
+        "application_rejected": "Application rejected",
+        "application_withdrawn": "Withdrawn",
+        "offer_declined": "Offer declined",
+        "position_filled": "Position filled",
+        "opening_closed": "Recruitment closed"
+      },
       "cancelledBecause": "Cancelled:",
       "date": "Date",
       "time": "Time",
@@ -3554,6 +3787,245 @@
     "preview": {
       "caption": "Preview before saving",
       "button": "Primary button"
+    }
+  },
+  "contracts": {
+    "type": {
+      "cdi": "Permanent (CDI)",
+      "cdd": "Fixed-term (CDD)",
+      "pre_emploi": "Pre-employment (DAIP / CTA)",
+      "apprentissage": "Apprenticeship",
+      "stage": "Internship"
+    },
+    "kind": {
+      "initial": "Initial contract",
+      "renewal": "Renewal",
+      "conversion": "Change of type",
+      "amendment": "Amendment"
+    },
+    "kindHint": {
+      "initial": "The first contract of this employment; it starts on the hire date.",
+      "renewal": "Same contract type, from the day after the current contract ends.",
+      "conversion": "A new type (e.g. permanent), from the day after the current contract ends.",
+      "amendment": "New terms; the current contract ends the day before."
+    },
+    "filter": {
+      "label": "Contract",
+      "all": "All contracts",
+      "none": "No contract recorded"
+    },
+    "list": {
+      "column": "Contract",
+      "until": "until {{date}}",
+      "none": "Not recorded"
+    },
+    "header": {
+      "until": "{{type}} until {{date}}",
+      "probation": "probation until {{date}}",
+      "none": "No contract recorded: no contract covers today."
+    },
+    "fields": {
+      "contractType": "Contract type",
+      "kind": "Kind",
+      "startDate": "Start",
+      "endDate": "End (last day)",
+      "probationEnd": "End of probation",
+      "reference": "Contract reference",
+      "reason": "Reason for the fixed-term contract",
+      "note": "Note"
+    },
+    "form": {
+      "legend": "Contract",
+      "typePlaceholder": "Choose a type",
+      "typeFromOffer": "The contract type is the accepted offer’s.",
+      "endHint": "Last day worked under this contract.",
+      "probationHint": "At most 12 months after the contract starts.",
+      "reasonHint": "For example: replacement, temporary extra work, seasonal work.",
+      "startsOnHire": "The contract starts on the hire date.",
+      "errors": {
+        "probationRange": "Probation must end between {{from}} and {{to}}."
+      }
+    },
+    "tab": {
+      "title": "Contracts",
+      "new": "New contract",
+      "save": "Save the contract",
+      "current": "Current",
+      "noEnd": "Open-ended",
+      "actions": "Actions",
+      "empty": "No contract recorded for this employment.",
+      "noteOf": "Note ({{type}} of {{date}}):",
+      "loadError": "The contracts could not be loaded."
+    },
+    "correct": {
+      "title": "Correct the {{type}} contract of {{date}}",
+      "action": "Correct",
+      "save": "Save the correction"
+    },
+    "decision": {
+      "open": "Open an end-of-contract decision",
+      "pending": "Decision pending",
+      "see": "See the deadline",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "proposal": {
+        "renew": "Renew",
+        "convert_cdi": "Convert to permanent",
+        "end": "Do not renew"
+      }
+    },
+    "feedback": {
+      "created": "Contract saved.",
+      "corrected": "Contract corrected.",
+      "decisionOpened": "Decision opened: the unit head is asked first, then HR."
+    },
+    "problems": {
+      "overlap": "This contract overlaps another contract of this employment.",
+      "notLatest": "Only the latest contract can be corrected.",
+      "decisionPending": "A decision is already pending for this contract.",
+      "notFixedTerm": "A decision only concerns a fixed-term contract.",
+      "mustFollowPrevious": "The start date does not follow the previous contract: a renewal starts the day after it ends, a change of type or an amendment after it starts.",
+      "mustMatchPrevious": "A renewal keeps the type of the contract it renews.",
+      "mustEqualHireDate": "The initial contract starts on the hire date.",
+      "afterEmploymentEnd": "The contract would start after the end of the employment.",
+      "probationOutOfRange": "The probation must end between the contract start and 12 months later, within the contract.",
+      "endBeforeStart": "The end date is before the start date.",
+      "endNotAllowed": "A permanent contract has no end date.",
+      "renewNotFixedTerm": "Only a fixed-term contract can be renewed: choose an amendment or a change of type.",
+      "initialExists": "This employment already has its initial contract.",
+      "initialMissing": "Record the initial contract first.",
+      "changed": "The contracts of this employment changed meanwhile: reload the page and try again.",
+      "decisionNotLatest": "A later contract already follows this one: there is nothing to decide."
+    }
+  },
+  "deadlines": {
+    "title": "Deadlines",
+    "loadError": "Could not load the deadlines.",
+    "total": "{{count}} deadline(s)",
+    "empty": "No deadline to handle for now.",
+    "noMatch": "No deadline matches these filters.",
+    "missingHint": "No contract covers today: record it.",
+    "range": "from {{from}} to {{to}}",
+    "since": "since {{from}}",
+    "ackBy": "Handled on {{date}} by {{name}}",
+    "summary": {
+      "label": "Deadline summary",
+      "overdue": "overdue",
+      "critical": "critical",
+      "next30": "in the next 30 days"
+    },
+    "filters": {
+      "label": "Deadline filters",
+      "search": "Search",
+      "searchPlaceholder": "Name or employee number",
+      "kind": "Type",
+      "allKinds": "All types",
+      "status": "Status",
+      "within": "Period",
+      "withinDays": "Next {{count}} days",
+      "unit": "Unit"
+    },
+    "statusFilter": {
+      "open": "To handle",
+      "handled": "Handled",
+      "all": "All"
+    },
+    "kinds": {
+      "contract_end": "End of a fixed-term contract",
+      "probation_end": "End of probation",
+      "contract_missing": "No contract recorded",
+      "document_expiry": "Document expiring",
+      "retirement": "Retirement age"
+    },
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Information"
+    },
+    "groups": {
+      "overdue": "Overdue",
+      "soon": "Next 30 days",
+      "later": "Later",
+      "handled": "Handled"
+    },
+    "columns": {
+      "due": "Due",
+      "kind": "Type",
+      "employee": "Employee",
+      "detail": "Detail",
+      "actions": "Actions"
+    },
+    "relative": {
+      "in": "in {{count}} d",
+      "today": "today",
+      "late": "{{count}} d overdue"
+    },
+    "decision": {
+      "pending": "Decision pending",
+      "approved": "Decision approved",
+      "rejected": "Decision rejected",
+      "cancelled": "Decision cancelled"
+    },
+    "actions": {
+      "ack": "Handle",
+      "unack": "Undo",
+      "openDecision": "Start the decision"
+    },
+    "ack": {
+      "title": "Mark the deadline as handled",
+      "note": "Note (optional)",
+      "noteHint": "{{max}} characters at most.",
+      "tooLong": "The note is longer than {{max}} characters.",
+      "confirm": "Mark as handled"
+    },
+    "feedback": {
+      "handled": "Deadline marked as handled.",
+      "reopened": "Deadline back to handle.",
+      "decisionOpened": "Decision started: a task was sent to the manager."
+    },
+    "problems": {
+      "alreadyHandled": "This deadline was already handled.",
+      "decisionPending": "A decision is already in progress for this contract.",
+      "notFixedTerm": "This contract is not fixed-term.",
+      "employmentEnded": "This employment has ended.",
+      "changed": "This deadline changed since it was shown: the list is updated."
+    },
+    "home": {
+      "overdue": "overdue deadline(s)",
+      "critical": "critical deadline(s)",
+      "next30": "deadline(s) in the next 30 days"
+    },
+    "settings": {
+      "title": "Deadline settings",
+      "back": "Back to deadlines",
+      "intro": "How long before each deadline HR is warned, the retirement age and the daily digest sent to HR.",
+      "loadError": "Could not load the settings.",
+      "saved": "Settings saved.",
+      "required": "Required.",
+      "outOfRange": "Enter a whole number between {{min}} and {{max}}.",
+      "companyWide": "These settings need a right over the whole company.",
+      "fields": {
+        "contractNoticeDays": "Warning before a fixed-term contract ends (days)",
+        "decisionNoticeDays": "Decision opened before the contract ends (days)",
+        "probationNoticeDays": "Warning before probation ends (days)",
+        "documentNoticeDays": "Warning before a document expires (days)",
+        "retirementAge": "Retirement age (years)",
+        "retirementNoticeMonths": "Warning before retirement age (months)",
+        "digestEnabled": "Send HR a daily digest"
+      },
+      "hints": {
+        "contractNoticeDays": "Between {{min}} and {{max}}.",
+        "decisionNoticeDays": "Between {{min}} and {{max}}; 0 = no decision opened automatically.",
+        "probationNoticeDays": "Between {{min}} and {{max}}.",
+        "documentNoticeDays": "Between {{min}} and {{max}}.",
+        "retirementAge": "Between {{min}} and {{max}}.",
+        "retirementNoticeMonths": "Between {{min}} and {{max}}.",
+        "digestEnabled": "One notification a day, when new deadlines appear."
+      }
     }
   }
 }

@@ -13,7 +13,7 @@
   </header>
 
   @let current = query();
-  <form class="filters" role="search" [attr.aria-label]="t('employees.filters.label')" (submit)="$event.preventDefault()">
+  <form class="filters" appFilterBar role="search" [attr.aria-label]="t('employees.filters.label')" (submit)="$event.preventDefault()">
     <div class="field">
       <label for="employees-q">{{ t('employees.filters.search') }}</label>
       <input
@@ -65,6 +65,16 @@
       </select>
     </div>
 
+    <div class="field">
+      <label for="employees-contract-type">{{ t('contracts.filter.label') }}</label>
+      <select id="employees-contract-type" (change)="onSelect('contractType', $event)">
+        <option value="" [selected]="!current.contractType">{{ t('contracts.filter.all') }}</option>
+        @for (type of contractTypes; track type) {
+          <option [value]="type" [selected]="type === current.contractType">{{ t(type === 'none' ? 'contracts.filter.none' : 'contracts.type.' + type) }}</option>
+        }
+      </select>
+    </div>
+
     @if (filtered()) {
       <button class="btn secondary clear" type="button" data-action="clear" (click)="clearFilters()">
         {{ t('employees.filters.clear') }}
@@ -109,6 +119,7 @@
                     }}</span>
                   </button>
                 </th>
+                <th scope="col">{{ t('contracts.list.column') }}</th>
                 <th scope="col">{{ t('employees.list.status') }}</th>
               </tr>
             </thead>
@@ -123,6 +134,18 @@
                   <td>{{ item.site?.name ?? '—' }}</td>
                   <td>{{ item.jobTitle }}</td>
                   <td class="nowrap">{{ item.hireDate }}</td>
+                  <td data-field="contract">
+                    @if (item.contract; as c) {
+                      <span class="nowrap">{{ t('contracts.type.' + c.type) }}</span>
+                      @if (c.endDate) {
+                        <span class="field-hint nowrap">{{ t('contracts.list.until', { date: c.endDate }) }}</span>
+                      }
+                    } @else if (item.contract === null && item.status !== 'ended' && item.status !== 'future') {
+                      <span class="muted">{{ t('contracts.list.none') }}</span>
+                    } @else {
+                      —
+                    }
+                  </td>
                   <td><span class="badge" [attr.data-status]="item.status">{{ t('employees.status.' + item.status) }}</span></td>
                 </tr>
               }

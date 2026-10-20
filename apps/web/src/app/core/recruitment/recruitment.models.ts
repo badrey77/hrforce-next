@@ -1,8 +1,10 @@
 /** Shapes of docs/contracts/recruitment.md (Phases A and B). */
-import type { EmployeeDetail, NamePair, UnitRef } from '../employees/employees.models';
+import type { CreateEmployee, EmployeeDetail, NamePair, UnitRef } from '../employees/employees.models';
 import type { AppLanguage } from '../i18n/languages';
 import type { Labels, WorkflowProgress, WorkflowTaskHistory } from '../leave/leave.models';
 import type { SiteRef } from '../org/org.models';
+
+export type AutoCancelCode = 'application_rejected' | 'application_withdrawn' | 'offer_declined' | 'position_filled' | 'opening_closed';
 
 export const OPENING_STATUSES = ['pending', 'open', 'filled', 'closed', 'rejected', 'cancelled'] as const;
 export type OpeningStatus = (typeof OPENING_STATUSES)[number];
@@ -160,6 +162,8 @@ export interface MySummaryView {
   /** Interviews the caller can see as an interviewer, and those still waiting for their evaluation. */
   readonly interviews: number;
   readonly evaluationsTodo: number;
+  /** Interviews whose evaluation by the caller is not submitted yet (the default « À venir et à évaluer » tab). */
+  readonly interviewsTodo?: number;
 }
 
 export interface NewOpening {
@@ -509,6 +513,8 @@ export interface InterviewView {
   readonly status: 'scheduled' | 'cancelled';
   readonly state: InterviewState;
   readonly cancelReason: string | null;
+  /** An automatic cancellation (the application left the pipeline): shown in the UI language instead of `cancelReason`. */
+  readonly cancelCode?: AutoCancelCode | null;
   readonly createdBy: UserRef | null;
   /** One per interviewer, submitted or not. */
   readonly evaluations: readonly EvaluationView[];
@@ -640,6 +646,21 @@ export interface HirePrefillView {
   /** The candidate page « back » and « cancel » lead to. */
   readonly candidateId: string;
   readonly expectedStage: 'offer';
+  /**
+   * The accepted offer's contract type: the initial contract of the hire takes it (contracts-deadlines contract). Not
+   * in the contract's prefill view: when the API leaves it out, the form asks for the type (not sent: the offer's wins).
+   */
+  readonly contractType?: ContractType;
+}
+
+/**
+ * The employee part of `POST …/hire`: the create-employee body without its `contract` block, plus the dates of the
+ * initial contract (its type is the offer's; contracts-deadlines contract › Contracts).
+ */
+export interface HireEmployeeBody extends Omit<CreateEmployee, 'contract'> {
+  /** Required when the offer's type is fixed-term (422 `contractEndDate` `required`). */
+  readonly contractEndDate?: string;
+  readonly probationEnd?: string;
 }
 
 /** `POST …/hire` → 201. */

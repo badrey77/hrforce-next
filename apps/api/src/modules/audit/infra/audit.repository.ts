@@ -267,7 +267,9 @@ export class AuditRepository {
       or (e.subject_type = 'attendance_punch' and not (e.type = 'attendance.punch_recorded' and e.data ->> 'source' = 'qr') and e.subject_id in (
       select p.id from attendance_punch p where p.company_id = ${companyId}::uuid and p.employment_id = ${subject.id}::uuid))
       or (e.subject_type = 'attendance_correction' and e.subject_id in (
-      select c.id from attendance_correction c where c.company_id = ${companyId}::uuid and c.employment_id = ${subject.id}::uuid)))`;
+      select c.id from attendance_correction c where c.company_id = ${companyId}::uuid and c.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'contract_decision' and e.subject_id in (
+      select d.id from contract_decision d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -308,6 +310,10 @@ export class AuditRepository {
                 select d.id from issued_document d where d.company_id = ${companyId}::uuid and d.employment_id = ${id}::uuid))
           or (c.table_name = 'document_request' and c.row_id in (
                 select q.id from document_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${id}::uuid))
+          or (c.table_name = 'employment_contract' and c.row_id in (
+                select k.id from employment_contract k where k.company_id = ${companyId}::uuid and k.employment_id = ${id}::uuid))
+          or (c.table_name = 'contract_decision' and c.row_id in (
+                select d.id from contract_decision d where d.company_id = ${companyId}::uuid and d.employment_id = ${id}::uuid))
           or (c.table_name in ('assignment', 'employment_salary') and c.row_id in (
                 select a.id from assignment a where a.company_id = ${companyId}::uuid and a.employment_id = ${id}::uuid
                 union

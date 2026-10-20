@@ -74,6 +74,7 @@ describe('system roles', () => {
       'employee_file.read', 'employee_file.upload',
       'attendance.read', 'attendance.manage',
       'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire',
+      'employee.contract.manage', 'deadline.read', 'deadline.handle',
     ]);
     expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self', 'attendance.punch_self']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'attendance.read']);

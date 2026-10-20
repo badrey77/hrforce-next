@@ -181,7 +181,7 @@ describe('notifications.email', () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('cron', () => {
-  it('schedule: the eight contract jobs, parseable by Graphile', () => {
+  it('schedule: the nine contract jobs, parseable by Graphile', () => {
     expect(CRON_ITEMS.map((c) => [c.task, c.match])).toEqual([
       ['audit.ensure_partitions', '10 0 1 * *'],
       ['leave.accruals', '0 1 1 * *'],
@@ -191,8 +191,9 @@ describe('cron', () => {
       ['attendance.retention', '30 2 1 * *'],
       ['oidc.cleanup', '15 3 * * *'],
       ['recruitment.retention', '45 2 1 * *'],
+      ['deadlines.daily', '0 5 * * *'],
     ]);
-    expect(parsedCronItems()).toHaveLength(8);
+    expect(parsedCronItems()).toHaveLength(9);
     expect(Object.keys(buildTaskList(deps)).toSorted()).toEqual(Object.values(TASKS).toSorted());
   });
 
@@ -292,7 +293,10 @@ describe('the hrforce_worker role', () => {
     await expect(query(db.workerUrl, 'select * from auth.user_account')).rejects.toThrow(/permission denied/);
     await expect(query(db.workerUrl, `select * from auth.me('${USERS.admin.id}', '${COMPANY_A}')`)).rejects.toThrow(/permission denied/);
     await expect(query(db.workerUrl, `update leave_type set active = false`)).rejects.toThrow(/permission denied/);
-    await expect(query(db.workerUrl, `insert into notification (company_id, user_id, type, subject_type, subject_id) values ('${COMPANY_A}', '${USERS.admin.id}', 'x.y', 'leave_request', gen_random_uuid())`)).rejects.toThrow(/permission denied/);
+    // notifications (the deadline digest, the contract-decision tasks; migration 0023): only inside a company context (RLS)
+    await expect(query(db.workerUrl, `insert into notification (company_id, user_id, type, subject_type, subject_id) values ('${COMPANY_A}', '${USERS.admin.id}', 'x.y', 'leave_request', gen_random_uuid())`)).rejects.toThrow(/row-level security/);
+    await expect(query(db.workerUrl, `insert into deadline_ack (company_id, kind, subject_id, due_date, acked_by) values ('${COMPANY_A}', 'retirement', gen_random_uuid(), '2030-01-01', '${USERS.admin.id}')`)).rejects.toThrow(/permission denied/);
+    await expect(query(db.workerUrl, `update deadline_policy set digest_enabled = false`)).rejects.toThrow(/permission denied/);
     await expect(query(db.appUrl, 'select * from graphile_worker._private_jobs')).rejects.toThrow(/permission denied/);
     await expect(query(db.appUrl, 'select graphile_worker.complete_jobs(array[1]::bigint[])')).rejects.toThrow(/permission denied/);
     await expect(query(db.appUrl, 'select public.job_company_ids()')).rejects.toThrow(/permission denied/);

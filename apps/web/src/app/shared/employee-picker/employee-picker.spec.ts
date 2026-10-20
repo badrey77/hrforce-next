@@ -114,3 +114,35 @@ describe('EmployeePicker (ControlValueAccessor)', () => {
     expect(control.touched).toBe(true);
   });
 });
+
+@Component({
+  imports: [ReactiveFormsModule, EmployeePicker],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<app-employee-picker [formControl]="control" inputId="emp-all" status="all" />`,
+})
+class HostAll {
+  readonly control = new FormControl<string | null>(null);
+}
+
+describe('EmployeePicker with status="all"', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('also searches ended employments', async () => {
+    vi.useFakeTimers();
+    await TestBed.configureTestingModule({
+      imports: [HostAll, translocoTesting()],
+      providers: [provideHttpClient(withInterceptors([apiProblemInterceptor])), provideHttpClientTesting()],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(HostAll);
+    fixture.detectChanges();
+    const input = (fixture.nativeElement as HTMLElement).querySelector('#emp-all') as HTMLInputElement;
+    input.value = 'ben';
+    input.dispatchEvent(new Event('input'));
+    vi.advanceTimersByTime(EMPLOYEE_PICKER_DEBOUNCE_MS);
+    const http = TestBed.inject(HttpTestingController);
+    const req = http.expectOne(isSearch);
+    expect(req.request.params.get('status')).toBe('all');
+    req.flush(page([]));
+    http.verify();
+  });
+});

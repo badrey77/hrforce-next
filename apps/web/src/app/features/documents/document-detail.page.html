@@ -75,6 +75,21 @@
                 — {{ title }}
               }
             </dd>
+            @if (d.templateVersion) {
+              <dt>{{ t('documents.fields.template') }}</dt>
+              <dd data-field="template">
+                @if (d.template; as tpl) {
+                  {{ t('documents.detail.designedVersion', { version: tpl.version }) }}
+                } @else {
+                  {{ t('documents.detail.builtinTemplate') }}
+                }
+                <span class="code muted template-code" dir="ltr">({{ d.templateVersion }})</span>
+              </dd>
+            }
+            @for (entry of fieldEntries(); track entry.key) {
+              <dt>{{ entry.label }}</dt>
+              <dd class="field-value" [attr.data-field]="'fields.' + entry.key" [attr.lang]="d.language" dir="auto">{{ entry.value }}</dd>
+            }
             @if (d.leaveRequestId) {
               <dt>{{ t('documents.fields.leaveRequest') }}</dt>
               <dd>

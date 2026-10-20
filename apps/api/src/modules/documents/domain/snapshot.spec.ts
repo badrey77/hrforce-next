@@ -109,6 +109,21 @@ describe('buildSnapshot', () => {
     expect(positionsOf([], '2026-06-30')).toEqual([]);
   });
 
+  it('positions of someone still employed (a designed layout): the position held today runs to the date of the document', () => {
+    const active: EmployeeFacts = {
+      ...employee,
+      assignments: [
+        { jobTitle: 'Agent', validFrom: '2019-09-01', validTo: '2022-04-01' },
+        { jobTitle: 'Chef d’agence', validFrom: '2022-04-01', validTo: null },
+      ],
+    };
+    const s = buildSnapshot({ type: 'ordre_mission', lang: 'fr', issueDate: '2026-10-09', profile, employee: active, signatory, positions: true });
+    expect(s.employee.positions).toEqual([
+      { jobTitle: 'Agent', fromText: '1er septembre 2019', toText: '31 mars 2022' },
+      { jobTitle: 'Chef d’agence', fromText: '1er avril 2022', toText: '9 octobre 2026' },
+    ]);
+  });
+
   it('titre de congé: leave facts, half days, resumption', () => {
     const s = buildSnapshot({
       type: 'titre_conge',

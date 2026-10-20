@@ -80,6 +80,7 @@ import { DayStatusBadge } from '../../shared/attendance/day-badges';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { BalanceCards } from '../../shared/leave/balance-cards';
 import { LeaveRequestView } from '../../shared/leave/leave-request-view';
+import { ContractDecisionPanel } from './contract-decision-panel';
 
 export const COMMENT_MAX = 500;
 
@@ -104,11 +105,23 @@ const DOCUMENT_APPROVAL_KEYS: Readonly<Record<string, string>> = {
   'document-render-failed': 'tasks.problems.documentRetry',
 };
 
+/**
+ * Approving the HR step of a contract decision APPLIES it (contracts-deadlines.md › Contract decisions): a renewal or
+ * conversion creates a contract, an end records the end of employment; their refusals fail the approval.
+ */
+const DECISION_APPROVAL_KEYS: Readonly<Record<string, string>> = {
+  'contract-decision-no-proposal': 'tasks.problems.decisionNoProposal',
+  'contract-overlap': 'tasks.problems.decisionApplyFailed',
+  'employment-ended': 'tasks.problems.decisionApplyFailed',
+  'employment-open': 'tasks.problems.decisionApplyFailed',
+  'validation-error': 'tasks.problems.decisionApplyFailed',
+};
+
 /** Translation key for a failed decision. */
 export function decisionErrorKey(error: unknown): string {
   if (!isApiProblemError(error)) return 'errors.generic';
   const slug = problemSlug(error.problem.type);
-  const documentKey = slug === undefined ? undefined : DOCUMENT_APPROVAL_KEYS[slug];
+  const documentKey = slug === undefined ? undefined : (DOCUMENT_APPROVAL_KEYS[slug] ?? DECISION_APPROVAL_KEYS[slug]);
   if (documentKey) return documentKey;
   switch (slug) {
     case 'attendance-correction-stale':
@@ -136,6 +149,7 @@ export function decisionErrorKey(error: unknown): string {
     BalanceCards,
     CorrectionPreviewView,
     DayStatusBadge,
+    ContractDecisionPanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tasks.page.html',
@@ -199,6 +213,13 @@ export class TasksPage {
 
   protected readonly feedback = signal<Feedback | null>(null);
   protected readonly acting = signal(false);
+  /** The contract-decision form holds changes not saved yet: approving would apply the saved proposal instead. */
+  protected readonly decisionDirty = signal(false);
+
+  /** A saved proposal: the task list's summary is re-read so the panel and the Approve button follow it. */
+  protected onDecisionSaved(): void {
+    this.store.refresh();
+  }
 
   private readonly panelHeading = viewChild<ElementRef<HTMLElement>>('panelHeading');
   private readonly listHeading = viewChild.required<ElementRef<HTMLElement>>('listHeading');
@@ -217,6 +238,7 @@ export class TasksPage {
 
   protected select(task: OpenTask): void {
     this.selectedId.set(task.id);
+    this.decisionDirty.set(false);
   }
 
   protected approve(task: OpenTask): void {

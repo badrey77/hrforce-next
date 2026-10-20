@@ -17,6 +17,9 @@ const link = 'https://hr.example.dz/tasks?task=0190a5d0-0000-7000-8000-000000000
 const approvedSubject = (audience: string) =>
   renderNotificationMail({ type: 'leave.approved', locale: 'fr', recipientName: 'Nadia', data: { ...data, audience }, leaveTypeLabel: null, link }).subject;
 
+const digest = (locale: MailLocale, newCount: number) =>
+  renderNotificationMail({ type: 'deadline.digest', locale, recipientName: 'N', data: { newCount, overdueCount: 3, criticalCount: 1, date: '2026-10-19', audience: 'approver' }, leaveTypeLabel: null, subjectType: 'deadline_digest', link: 'https://hr.example.dz/deadlines' });
+
 describe('notification mails', () => {
   it.each(NOTIFICATION_TYPES.flatMap((type) => (['fr', 'ar', 'en'] as MailLocale[]).map((locale) => [type, locale] as const)))('%s in %s: subject, greeting, link, no reason/balance', (type, locale) => {
     const mail = renderNotificationMail({ type, locale, recipientName: 'Nadia', data, leaveTypeLabel: 'Congé annuel', link });
@@ -187,6 +190,37 @@ describe('notification mails', () => {
     for (const locale of ['fr', 'ar', 'en'] as MailLocale[]) {
       for (const mail of [task(locale), outcome('attendance.correction_approved', locale), outcome('attendance.correction_rejected', locale)]) {
         expect(`${mail.subject}${mail.text}`).not.toMatch(/MUST NOT LEAK|08:05|congé|عطلة|leave/i);
+      }
+    }
+  });
+
+  it('deadline.digest: counts only, plural in French and English, neutral Arabic (contracts-deadlines.md › Notifications)', () => {
+    expect(digest('fr', 1).subject).toBe('HRForce — 1 nouvelle échéance à traiter');
+    expect(digest('fr', 4).subject).toBe('HRForce — 4 nouvelles échéances à traiter');
+    expect(digest('fr', 4).text).toContain('Échéances dépassées : 3, dont 1 critique.');
+    expect(digest('fr', 4).text).toContain('Ouvrir les échéances : https://hr.example.dz/deadlines');
+    expect(digest('en', 1).subject).toBe('HRForce — 1 new deadline to handle');
+    expect(digest('en', 2).subject).toBe('HRForce — 2 new deadlines to handle');
+    const ar = digest('ar', 2);
+    expect(ar.subject).toBe('HRForce — آجال جديدة للمعالجة: 2');
+    expect(ar.text).toContain('عدد الآجال المتجاوزة: 3، منها 1 حرجة.');
+    expect(ar.html).toContain('dir="rtl"');
+  });
+
+  it('task.assigned / task.escalated for an end-of-contract decision: decision wording, never the leave one (verification 2026-10-19)', () => {
+    const decision = { subjectType: 'contract_decision', employeeName: 'Lina Testeur', employeeNameAr: 'لينة', contractEndDate: '2026-12-04', audience: 'approver', taskId: 't' };
+    const fr = renderNotificationMail({ type: 'task.assigned', locale: 'fr', recipientName: 'M', data: decision, leaveTypeLabel: null, link });
+    expect(fr.subject).toBe('HRForce — décision de fin de contrat à prendre : Lina Testeur');
+    expect(fr.text).toContain('Le contrat de Lina Testeur se termine le 04/12/2026');
+    const ar = renderNotificationMail({ type: 'task.assigned', locale: 'ar', recipientName: 'M', data: decision, leaveTypeLabel: null, link });
+    expect(ar.subject).toBe('HRForce — قرار بشأن نهاية العقد: لينة');
+    expect(ar.text).toContain('04/12/2026');
+    const escalated = renderNotificationMail({ type: 'task.escalated', locale: 'fr', recipientName: 'M', data: decision, leaveTypeLabel: null, subjectType: 'contract_decision', link });
+    expect(escalated.subject).toBe('HRForce — décision de fin de contrat de Lina Testeur transmise aux RH');
+    for (const locale of ['fr', 'ar', 'en'] as MailLocale[]) {
+      for (const type of ['task.assigned', 'task.escalated'] as const) {
+        const mail = renderNotificationMail({ type, locale, recipientName: 'M', data: decision, leaveTypeLabel: null, subjectType: 'contract_decision', link });
+        expect(`${mail.subject}${mail.text}`).not.toMatch(/congé|عطلة|leave/i);
       }
     }
   });

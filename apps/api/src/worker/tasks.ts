@@ -3,10 +3,12 @@ import type { JobHelpers, TaskList } from 'graphile-worker';
 import type { Logger } from 'pino';
 import { algiersDate, runAttendanceRetention } from '../modules/attendance/index.js';
 import { PgAuditEvents } from '../modules/audit/index.js';
+import { openDueContractDecisions } from '../modules/contracts/index.js';
+import { deadlinesToday, runDeadlineDigest } from '../modules/deadlines/index.js';
 import { algiersToday, runEmployeeFileRetention } from '../modules/documents/index.js';
 import { runAccruals } from '../modules/leave/index.js';
 import { recruitmentAlgiersDate, runRecruitmentRetention } from '../modules/recruitment/index.js';
-import { cleanupReadNotifications, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
+import { cleanupReadNotifications, createWorkerNotifier, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
 import { runOidcCleanup } from '../modules/sso/index.js';
 import type { Database } from '../platform/db/database.js';
 import { forEachCompany, inCompany } from './company-loop.js';
@@ -40,6 +42,7 @@ export const TASKS = {
   attendanceRetention: 'attendance.retention',
   oidcCleanup: 'oidc.cleanup',
   recruitmentRetention: 'recruitment.retention',
+  deadlinesDaily: 'deadlines.daily',
 } as const;
 
 const requestIdOf = (task: string, job: JobInfo) => `job:${task}:${job.id}`;
@@ -161,6 +164,39 @@ export async function recruitmentRetentionTask(deps: WorkerDeps, payload: unknow
   return { today, companies: results.length, applications: sum((r) => r.applications), candidates: sum((r) => r.candidates), files: sum((r) => r.files) };
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function dayBefore(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * `deadlines.daily` (daily, 05:00 UTC ≈ 06:00 Algiers) — company by company (docs/contracts/contracts-deadlines.md ›
+ * Worker): (1) opens the contract-decision tasks of the fixed-term contracts ending within the policy's decision
+ * notice (contracts module), then (2) sends each holder of `deadline.read` one `deadline.digest` when items entered
+ * their notice window or became overdue since the previous day. `payload.today` (YYYY-MM-DD) overrides the Algiers date and `payload.since`
+ * the previous run's date (default: the day before `today`), for a manual run or a test. Idempotent per user and day.
+ */
+export async function deadlinesDailyTask(deps: WorkerDeps, payload: unknown, job: JobInfo): Promise<Record<string, unknown>> {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  const given = p['today'];
+  const givenSince = p['since'];
+  if (given !== undefined && (typeof given !== 'string' || !ISO_DAY.test(given))) throw new Error('deadlines.daily: payload.today must be YYYY-MM-DD');
+  if (givenSince !== undefined && (typeof givenSince !== 'string' || !ISO_DAY.test(givenSince))) throw new Error('deadlines.daily: payload.since must be YYYY-MM-DD');
+  const today = typeof given === 'string' ? given : deadlinesToday();
+  const since = typeof givenSince === 'string' ? givenSince : dayBefore(today);
+  const notifier = createWorkerNotifier();
+  const results = await forEachCompany(deps.db, requestIdOf(TASKS.deadlinesDaily, job), async (tx, companyId) => {
+    const decisions = await openDueContractDecisions(deps.db, companyId, today);
+    const digest = await runDeadlineDigest(tx, companyId, today, since, notifier);
+    return { decisions, digests: digest.notified };
+  });
+  const sum = (pick: (r: { decisions: number; digests: number }) => number) => results.reduce((n, r) => n + (r.result ? pick(r.result) : 0), 0);
+  return { today, since, companies: results.length, decisions: sum((r) => r.decisions), digests: sum((r) => r.digests) };
+}
+
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;
 
 const HANDLERS: Record<string, TaskFn> = {
@@ -173,6 +209,7 @@ const HANDLERS: Record<string, TaskFn> = {
   [TASKS.attendanceRetention]: attendanceRetentionTask,
   [TASKS.oidcCleanup]: oidcCleanupTask,
   [TASKS.recruitmentRetention]: recruitmentRetentionTask,
+  [TASKS.deadlinesDaily]: deadlinesDailyTask,
 };
 
 /** Graphile Worker task list: every handler with structured logging (a thrown error = a retry with back-off). */

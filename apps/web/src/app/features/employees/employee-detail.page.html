@@ -17,6 +17,16 @@
           <span>{{ e.jobTitle }}</span>
           <span class="badge" data-field="status" [attr.data-status]="e.status">{{ t('employees.status.' + e.status) }}</span>
         </p>
+        @if (e.contract; as k) {
+          <p class="meta" data-field="contract">
+            {{ fixedTerm(k.type) && k.endDate ? t('contracts.header.until', { type: t('contracts.type.' + k.type), date: k.endDate }) : t('contracts.type.' + k.type) }}
+            @if (k.probationEnd && k.probationEnd >= today) {
+              <span class="field-hint" data-field="probation">{{ t('contracts.header.probation', { date: k.probationEnd }) }}</span>
+            }
+          </p>
+        } @else if (e.contract === null && e.status !== 'ended' && e.status !== 'future') {
+          <p class="meta warning" data-field="contract" data-state="no-contract">{{ t('contracts.header.none') }}</p>
+        }
       </div>
       <div class="header-actions">
         @if (can('end') && e.status !== 'ended') {
@@ -157,6 +167,13 @@
                 }
               </tbody>
             </table>
+          </div>
+        }
+
+        <!-- Contracts: the employment's contracts, renewals and decisions (employee-contracts-tab.ts). -->
+        @case ('contracts') {
+          <div data-panel="contracts">
+            <app-employee-contracts-tab [employee]="e" (changed)="employee.reload()" />
           </div>
         }
 

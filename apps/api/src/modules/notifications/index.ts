@@ -4,6 +4,7 @@ export type { NotificationPage, NotificationView, PreferenceView } from './appli
 export { EMAIL_DEFAULTS, linkOf, NOTIFICATION_TYPES } from './domain/notification-rules.js';
 export { renderNotificationMail, type MailLocale, type NotificationMail } from './domain/mail-templates.js';
 export { EMAIL_JOB } from './infra/pg-notifier.js';
+export { createWorkerNotifier } from './infra/worker-notifier.js';
 export { LISTENER_APPLICATION_NAME, NotificationHub } from './infra/notification-hub.js';
 export { NotificationStreams } from './application/notification-stream.js';
 export {

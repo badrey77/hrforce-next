@@ -11,8 +11,10 @@
  * - **Write only what differs from the default** (`null` removes a param with `queryParamsHandling: 'merge'`). The
  *   plain list stays `/employees`, and a shared link carries only what the sender chose.
  */
+import { CONTRACT_TYPES } from '../../core/contracts/contracts.models';
 import { isIsoDate } from '../../core/date/iso-date';
 import {
+  type ContractTypeFilter,
   DEFAULT_EMPLOYEE_QUERY,
   EMPLOYEE_SORTS,
   type EmployeeQuery,
@@ -31,11 +33,15 @@ export interface ListParams {
   readonly siteId?: string;
   readonly status?: string;
   readonly asOf?: string;
+  readonly contractType?: string;
   readonly sort?: string;
   readonly dir?: string;
   readonly page?: string;
   readonly pageSize?: string;
 }
+
+/** The contract type filter values: a type of the current contract, or `none`. */
+export const CONTRACT_TYPE_FILTERS: readonly ContractTypeFilter[] = [...CONTRACT_TYPES, 'none'];
 
 function positiveInt(value: string | undefined, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
   if (!value || !/^\d+$/.test(value)) return fallback;
@@ -57,6 +63,7 @@ export function resolveQuery(params: ListParams): EmployeeQuery {
     siteId: params.siteId || null,
     status: oneOf<StatusFilter>(params.status, STATUS_FILTERS, d.status),
     asOf: isIsoDate(params.asOf) ? params.asOf : null,
+    contractType: oneOf<ContractTypeFilter | ''>(params.contractType, CONTRACT_TYPE_FILTERS, '') || null,
     sort: oneOf<EmployeeSort>(params.sort, EMPLOYEE_SORTS, d.sort),
     dir: oneOf<SortDir>(params.dir, ['asc', 'desc'], d.dir),
     page: positiveInt(params.page, d.page),

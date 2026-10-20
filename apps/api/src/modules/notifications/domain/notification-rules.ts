@@ -23,6 +23,7 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'recruitment.interview_assigned': true,
   'recruitment.interview_cancelled': true,
   'recruitment.evaluations_complete': false,
+  'deadline.digest': true,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -54,6 +55,7 @@ export interface LinkSource {
  *   recruitment_interview    → /me/interviews/<id> (assigned), /me/interviews (cancelled: the interview is gone from the
  *                              interviewer's list), /recruitment/candidates/<candidate id>?application=<id> (evaluations
  *                              complete, to the HR user who scheduled it — ids only, never a name)
+ *   deadline_digest          → /deadlines (docs/contracts/contracts-deadlines.md › Notifications)
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
@@ -73,6 +75,7 @@ export function linkOf(n: LinkSource): string {
       ? `/recruitment/candidates/${encodeURIComponent(candidateId)}?application=${encodeURIComponent(applicationId)}`
       : '/recruitment';
   }
+  if (n.subjectType === 'deadline_digest') return '/deadlines';
   return '/notifications';
 }
 

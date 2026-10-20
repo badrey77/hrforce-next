@@ -54,6 +54,7 @@ import { filter, map } from 'rxjs';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { Session } from './core/auth/session';
 import { BrandingService } from './core/branding/branding.service';
+import { DeadlinesBadge } from './core/deadlines/deadlines-badge';
 import { MyEmployment } from './core/leave/my-employment';
 import { MyRecruitment } from './core/recruitment/my-recruitment';
 import { TasksBadge } from './core/tasks/tasks-badge';
@@ -101,6 +102,7 @@ export class App {
   private readonly myEmployment = inject(MyEmployment);
   private readonly myRecruitment = inject(MyRecruitment);
   protected readonly tasks = inject(TasksBadge);
+  private readonly deadlines = inject(DeadlinesBadge);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
 
@@ -198,6 +200,23 @@ export class App {
       exact: false,
       permission: 'recruitment.configure',
       visible: () => !this.session.can('recruitment.read'),
+    },
+    // Deadlines (docs/contracts/contracts-deadlines.md › Web): the badge counts what is past its date.
+    {
+      path: '/deadlines',
+      icon: 'hourglass',
+      labelKey: 'nav.deadlines',
+      exact: true,
+      permission: 'deadline.read',
+      badge: { name: 'deadlines', count: () => this.deadlines.overdue(), labelKey: 'nav.deadlinesWithCount' },
+    },
+    {
+      path: '/deadlines/settings',
+      icon: 'sliders',
+      labelKey: 'nav.deadlineSettings',
+      exact: false,
+      permission: 'deadline.configure',
+      visible: () => !this.session.can('deadline.read'),
     },
     { path: '/organization', icon: 'organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     // Access holds users/roles (access.read) and connected apps (sso.read): either one shows the link.

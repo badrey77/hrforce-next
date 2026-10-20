@@ -60,6 +60,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     '/recruitment/applications/a-1/hire',
     '/settings/branding',
     '/settings/nope',
+    '/deadlines',
+    '/deadlines/settings',
   ])('%s without its permission', async (url) => {
     const harness = await open(ME_LECTURE, url);
 
@@ -77,6 +79,8 @@ describe('app routes: refused URLs show the 404 page', () => {
     ['/documents/a/b', ['document.read']],
     ['/attendance', ['attendance.configure']],
     ['/attendance/settings', ['attendance.read']],
+    ['/deadlines', ['deadline.configure']],
+    ['/deadlines/settings', ['deadline.read']],
     ['/attendance/corrections', ['attendance.configure']],
     ['/attendance/reports', ['attendance.configure']],
     ['/access/users', ['sso.read']],

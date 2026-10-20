@@ -26,7 +26,10 @@
     "myRecruitment": "My openings",
     "recruitmentSettings": "Recruitment settings",
     "myInterviews": "My interviews",
-    "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter"
+    "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter",
+    "deadlines": "Deadlines",
+    "deadlinesWithCount": "Deadlines, {{count}} overdue",
+    "deadlineSettings": "Deadline settings"
   },
   "language": {
     "label": "Language",
@@ -518,7 +521,9 @@
       "recruitment_policy": "Recruitment policy",
       "recruitment_rejection_reason": "Rejection reason",
       "recruitment_criterion": "Evaluation criterion",
-      "recruitment_opening_criterion": "Opening criterion"
+      "recruitment_opening_criterion": "Opening criterion",
+      "employment_contract": "Employment contract",
+      "contract_decision": "End-of-contract decision"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -863,6 +868,29 @@
         "opening_id": "Opening",
         "criterion_id": "Criterion",
         "position": "Position"
+      },
+      "employment_contract": {
+        "seq": "Sequence",
+        "kind": "Kind",
+        "contract_type": "Contract type",
+        "start_date": "Start",
+        "end_date": "End",
+        "probation_end": "End of probation",
+        "reference": "Reference",
+        "reason": "Reason",
+        "note": "Note",
+        "created_by": "Recorded by",
+        "created_at": "Recorded"
+      },
+      "contract_decision": {
+        "status": "Status",
+        "proposal": "Proposal",
+        "proposed_start_date": "Proposed start",
+        "proposed_end_date": "Proposed end",
+        "comment": "Comment",
+        "proposed_by": "Proposed by",
+        "proposed_at": "Proposed",
+        "created_at": "Opened"
       }
     },
     "events": {
@@ -975,6 +1003,10 @@
         "offer_reopened": "Offer proposed again (hire undone)",
         "hired": "Hired through recruitment {{reference}}",
         "hire_undone": "Hire undone in recruitment {{reference}}"
+      },
+      "contract": {
+        "decision_opened": "End-of-contract decision opened",
+        "decision_applied": "End-of-contract decision applied"
       }
     },
     "values": {
@@ -1137,7 +1169,8 @@
       "history": "History",
       "documents": "Documents",
       "file": "File",
-      "attendance": "Presence"
+      "attendance": "Presence",
+      "contracts": "Contracts"
     },
     "identity": {
       "edit": "Edit",
@@ -1483,9 +1516,45 @@
       "documentNoSignatory": "Cannot issue {{name}}'s document: no signatory covers their unit.",
       "documentTypeInactive": "Cannot issue {{name}}'s document: this document type is disabled.",
       "documentRetry": "{{name}}'s document could not be generated right now. Try again in a moment.",
-      "correctionStale": "A punch to remove in {{name}}’s request was voided meanwhile: the correction can no longer be approved as is. Please reject it and explain why."
+      "correctionStale": "A punch to remove in {{name}}’s request was voided meanwhile: the correction can no longer be approved as is. Please reject it and explain why.",
+      "decisionNoProposal": "Cannot approve the decision for {{name}} without a saved proposal.",
+      "decisionApplyFailed": "Could not apply the decision for {{name}}: check their contracts and employment."
     },
-    "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you."
+    "notOpen": "The task in the link is no longer open: it was already handled or is no longer assigned to you.",
+    "decision": {
+      "title": "End-of-contract decision",
+      "endsOn": "ends on {{date}}",
+      "contract": "Contract",
+      "current": "Recorded proposal",
+      "none": "No proposal yet.",
+      "legendManager": "Your proposal",
+      "legendHr": "Proposal (HR may change it)",
+      "proposals": {
+        "renew": "Renew the contract",
+        "convert_cdi": "Convert to a permanent contract (CDI)",
+        "end": "End the contract at its term"
+      },
+      "start": "Start date",
+      "startHint": "By default, the day after the current contract ends.",
+      "end": "End of the new contract (last day)",
+      "comment": "Comment (optional)",
+      "save": "Save the proposal",
+      "saved": "Proposal saved.",
+      "approveNeedsProposal": "Save a proposal before approving.",
+      "approveApplies": "Approving will apply: {{what}}.",
+      "approveSends": "Approving sends the proposal to HR.",
+      "summary": {
+        "renew": "renewal from {{from}} to {{to}}",
+        "convert_cdi": "conversion to CDI from {{from}}",
+        "end": "end of the contract at its term"
+      },
+      "errors": {
+        "endRequired": "Enter the end of the new contract.",
+        "endAfterStart": "The end must be after the start.",
+        "commentTooLong": "The comment is too long.",
+        "proposalRequired": "Choose a proposal."
+      }
+    }
   },
   "workflow": {
     "title": "Approval chain",
@@ -1546,7 +1615,8 @@
         "assigned_attendance": "Attendance correction to handle: {{employeeName}} ({{date}}).",
         "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available).",
         "assigned_recruitment": "Opening request to approve: {{title}} ({{reference}}, {{unitName}}).",
-        "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available)."
+        "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available).",
+        "assigned_contract": "End-of-contract decision to take: {{employeeName}}."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1570,6 +1640,9 @@
         "interview_assigned_rescheduled": "Interview changed: {{date}} at {{time}} — {{title}} ({{reference}})",
         "interview_cancelled": "Interview of {{date}} cancelled — {{title}} ({{reference}})",
         "evaluations_complete": "All evaluations of the interview of {{date}} are in — {{title}} ({{reference}})"
+      },
+      "deadline": {
+        "digest": "New deadlines to handle: {{newCount}} (overdue: {{overdueCount}}, critical: {{criticalCount}})."
       }
     },
     "typesNamed": {
@@ -1607,6 +1680,9 @@
         "interview_assigned": "An interview is assigned to me or rescheduled",
         "interview_cancelled": "An interview I was to hold is cancelled",
         "evaluations_complete": "All evaluations of an interview I scheduled are in"
+      },
+      "deadline": {
+        "digest": "The daily deadline digest"
       }
     }
   },
@@ -3711,6 +3787,245 @@
     "preview": {
       "caption": "Preview before saving",
       "button": "Primary button"
+    }
+  },
+  "contracts": {
+    "type": {
+      "cdi": "Permanent (CDI)",
+      "cdd": "Fixed-term (CDD)",
+      "pre_emploi": "Pre-employment (DAIP / CTA)",
+      "apprentissage": "Apprenticeship",
+      "stage": "Internship"
+    },
+    "kind": {
+      "initial": "Initial contract",
+      "renewal": "Renewal",
+      "conversion": "Change of type",
+      "amendment": "Amendment"
+    },
+    "kindHint": {
+      "initial": "The first contract of this employment; it starts on the hire date.",
+      "renewal": "Same contract type, from the day after the current contract ends.",
+      "conversion": "A new type (e.g. permanent), from the day after the current contract ends.",
+      "amendment": "New terms; the current contract ends the day before."
+    },
+    "filter": {
+      "label": "Contract",
+      "all": "All contracts",
+      "none": "No contract recorded"
+    },
+    "list": {
+      "column": "Contract",
+      "until": "until {{date}}",
+      "none": "Not recorded"
+    },
+    "header": {
+      "until": "{{type}} until {{date}}",
+      "probation": "probation until {{date}}",
+      "none": "No contract recorded: no contract covers today."
+    },
+    "fields": {
+      "contractType": "Contract type",
+      "kind": "Kind",
+      "startDate": "Start",
+      "endDate": "End (last day)",
+      "probationEnd": "End of probation",
+      "reference": "Contract reference",
+      "reason": "Reason for the fixed-term contract",
+      "note": "Note"
+    },
+    "form": {
+      "legend": "Contract",
+      "typePlaceholder": "Choose a type",
+      "typeFromOffer": "The contract type is the accepted offer’s.",
+      "endHint": "Last day worked under this contract.",
+      "probationHint": "At most 12 months after the contract starts.",
+      "reasonHint": "For example: replacement, temporary extra work, seasonal work.",
+      "startsOnHire": "The contract starts on the hire date.",
+      "errors": {
+        "probationRange": "Probation must end between {{from}} and {{to}}."
+      }
+    },
+    "tab": {
+      "title": "Contracts",
+      "new": "New contract",
+      "save": "Save the contract",
+      "current": "Current",
+      "noEnd": "Open-ended",
+      "actions": "Actions",
+      "empty": "No contract recorded for this employment.",
+      "noteOf": "Note ({{type}} of {{date}}):",
+      "loadError": "The contracts could not be loaded."
+    },
+    "correct": {
+      "title": "Correct the {{type}} contract of {{date}}",
+      "action": "Correct",
+      "save": "Save the correction"
+    },
+    "decision": {
+      "open": "Open an end-of-contract decision",
+      "pending": "Decision pending",
+      "see": "See the deadline",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "proposal": {
+        "renew": "Renew",
+        "convert_cdi": "Convert to permanent",
+        "end": "Do not renew"
+      }
+    },
+    "feedback": {
+      "created": "Contract saved.",
+      "corrected": "Contract corrected.",
+      "decisionOpened": "Decision opened: the unit head is asked first, then HR."
+    },
+    "problems": {
+      "overlap": "This contract overlaps another contract of this employment.",
+      "notLatest": "Only the latest contract can be corrected.",
+      "decisionPending": "A decision is already pending for this contract.",
+      "notFixedTerm": "A decision only concerns a fixed-term contract.",
+      "mustFollowPrevious": "The start date does not follow the previous contract: a renewal starts the day after it ends, a change of type or an amendment after it starts.",
+      "mustMatchPrevious": "A renewal keeps the type of the contract it renews.",
+      "mustEqualHireDate": "The initial contract starts on the hire date.",
+      "afterEmploymentEnd": "The contract would start after the end of the employment.",
+      "probationOutOfRange": "The probation must end between the contract start and 12 months later, within the contract.",
+      "endBeforeStart": "The end date is before the start date.",
+      "endNotAllowed": "A permanent contract has no end date.",
+      "renewNotFixedTerm": "Only a fixed-term contract can be renewed: choose an amendment or a change of type.",
+      "initialExists": "This employment already has its initial contract.",
+      "initialMissing": "Record the initial contract first.",
+      "changed": "The contracts of this employment changed meanwhile: reload the page and try again.",
+      "decisionNotLatest": "A later contract already follows this one: there is nothing to decide."
+    }
+  },
+  "deadlines": {
+    "title": "Deadlines",
+    "loadError": "Could not load the deadlines.",
+    "total": "{{count}} deadline(s)",
+    "empty": "No deadline to handle for now.",
+    "noMatch": "No deadline matches these filters.",
+    "missingHint": "No contract covers today: record it.",
+    "range": "from {{from}} to {{to}}",
+    "since": "since {{from}}",
+    "ackBy": "Handled on {{date}} by {{name}}",
+    "summary": {
+      "label": "Deadline summary",
+      "overdue": "overdue",
+      "critical": "critical",
+      "next30": "in the next 30 days"
+    },
+    "filters": {
+      "label": "Deadline filters",
+      "search": "Search",
+      "searchPlaceholder": "Name or employee number",
+      "kind": "Type",
+      "allKinds": "All types",
+      "status": "Status",
+      "within": "Period",
+      "withinDays": "Next {{count}} days",
+      "unit": "Unit"
+    },
+    "statusFilter": {
+      "open": "To handle",
+      "handled": "Handled",
+      "all": "All"
+    },
+    "kinds": {
+      "contract_end": "End of a fixed-term contract",
+      "probation_end": "End of probation",
+      "contract_missing": "No contract recorded",
+      "document_expiry": "Document expiring",
+      "retirement": "Retirement age"
+    },
+    "severity": {
+      "critical": "Critical",
+      "warning": "Warning",
+      "info": "Information"
+    },
+    "groups": {
+      "overdue": "Overdue",
+      "soon": "Next 30 days",
+      "later": "Later",
+      "handled": "Handled"
+    },
+    "columns": {
+      "due": "Due",
+      "kind": "Type",
+      "employee": "Employee",
+      "detail": "Detail",
+      "actions": "Actions"
+    },
+    "relative": {
+      "in": "in {{count}} d",
+      "today": "today",
+      "late": "{{count}} d overdue"
+    },
+    "decision": {
+      "pending": "Decision pending",
+      "approved": "Decision approved",
+      "rejected": "Decision rejected",
+      "cancelled": "Decision cancelled"
+    },
+    "actions": {
+      "ack": "Handle",
+      "unack": "Undo",
+      "openDecision": "Start the decision"
+    },
+    "ack": {
+      "title": "Mark the deadline as handled",
+      "note": "Note (optional)",
+      "noteHint": "{{max}} characters at most.",
+      "tooLong": "The note is longer than {{max}} characters.",
+      "confirm": "Mark as handled"
+    },
+    "feedback": {
+      "handled": "Deadline marked as handled.",
+      "reopened": "Deadline back to handle.",
+      "decisionOpened": "Decision started: a task was sent to the manager."
+    },
+    "problems": {
+      "alreadyHandled": "This deadline was already handled.",
+      "decisionPending": "A decision is already in progress for this contract.",
+      "notFixedTerm": "This contract is not fixed-term.",
+      "employmentEnded": "This employment has ended.",
+      "changed": "This deadline changed since it was shown: the list is updated."
+    },
+    "home": {
+      "overdue": "overdue deadline(s)",
+      "critical": "critical deadline(s)",
+      "next30": "deadline(s) in the next 30 days"
+    },
+    "settings": {
+      "title": "Deadline settings",
+      "back": "Back to deadlines",
+      "intro": "How long before each deadline HR is warned, the retirement age and the daily digest sent to HR.",
+      "loadError": "Could not load the settings.",
+      "saved": "Settings saved.",
+      "required": "Required.",
+      "outOfRange": "Enter a whole number between {{min}} and {{max}}.",
+      "companyWide": "These settings need a right over the whole company.",
+      "fields": {
+        "contractNoticeDays": "Warning before a fixed-term contract ends (days)",
+        "decisionNoticeDays": "Decision opened before the contract ends (days)",
+        "probationNoticeDays": "Warning before probation ends (days)",
+        "documentNoticeDays": "Warning before a document expires (days)",
+        "retirementAge": "Retirement age (years)",
+        "retirementNoticeMonths": "Warning before retirement age (months)",
+        "digestEnabled": "Send HR a daily digest"
+      },
+      "hints": {
+        "contractNoticeDays": "Between {{min}} and {{max}}.",
+        "decisionNoticeDays": "Between {{min}} and {{max}}; 0 = no decision opened automatically.",
+        "probationNoticeDays": "Between {{min}} and {{max}}.",
+        "documentNoticeDays": "Between {{min}} and {{max}}.",
+        "retirementAge": "Between {{min}} and {{max}}.",
+        "retirementNoticeMonths": "Between {{min}} and {{max}}.",
+        "digestEnabled": "One notification a day, when new deadlines appear."
+      }
     }
   }
 }

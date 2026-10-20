@@ -11,6 +11,6 @@ import { StaffingRepository } from './infra/staffing.repository.js';
 @Module({
   controllers: [StaffingController],
   providers: [StaffingService, StaffingRepository, StaffingClock],
-  exports: [StaffingService],
+  exports: [StaffingService, StaffingClock],
 })
 export class StaffingModule {}

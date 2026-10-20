@@ -31,6 +31,9 @@ export type UpdateOfferInput = Partial<Omit<OfferInput, 'expectedStage'>>;
 export interface HireInput extends CreateEmployeeInput {
   expectedStage: Stage;
   copyFileIds: string[];
+  /** the initial contract's last day — required when the offer's contract type is fixed-term */
+  contractEndDate?: string | null | undefined;
+  probationEnd?: string | null | undefined;
 }
 
 const applicationNotFound = () => new NotFoundException('Application not found');
@@ -226,6 +229,7 @@ export class HireService {
       siteId: offer.siteId,
       jobTitle: offer.jobTitle,
       hireDate: offer.startDate,
+      contractType: offer.contractType,
       files: files.map((f) => fileView(f, ref, false)),
       defaultCopyFileIds: files.filter((f) => f.kind === 'cv').map((f) => f.id),
       opening: await this.openings.openingRef({ id: application.openingId, reference: application.reference, title: application.title, orgUnitId: application.unitId, status: application.openingStatus }),
@@ -269,9 +273,26 @@ export class HireService {
     }
     if (errors.length > 0) throw new ValidationProblemException(errors);
 
-    // 3. the employee — POST /employees' own use case, unchanged
-    const { expectedStage: _stage, copyFileIds, ...body } = input;
-    const employee = await this.employees.create(body);
+    // 3. the employee — POST /employees' own use case, unchanged — with its initial contract of the offer's type
+    const { expectedStage: _stage, copyFileIds, contractEndDate, probationEnd, ...body } = input;
+    if (offer.contractType !== 'cdi' && !contractEndDate) {
+      throw invalid('contractEndDate', 'required', 'A fixed-term contract needs its end date.');
+    }
+    if (offer.contractType === 'cdi' && contractEndDate) throw invalid('contractEndDate', 'not_allowed', 'A CDI has no end date.');
+    const contract = { contractType: offer.contractType, endDate: contractEndDate ?? null, probationEnd: probationEnd ?? null };
+    let employee;
+    try {
+      employee = await this.employees.create({ ...body, contract });
+    } catch (error) {
+      // the contract block's fields are the hire body's own (contract.endDate → contractEndDate)
+      if (error instanceof ValidationProblemException) {
+        throw new ValidationProblemException(
+          error.errors.map((e) => ({ ...e, field: e.field === 'contract.endDate' ? 'contractEndDate' : e.field === 'contract.probationEnd' ? 'probationEnd' : e.field })),
+          typeof error.message === 'string' ? error.message : undefined,
+        );
+      }
+      throw error;
+    }
 
     // 4. the chosen candidate files, into the employee file
     const copies: ImportedFile[] = [];

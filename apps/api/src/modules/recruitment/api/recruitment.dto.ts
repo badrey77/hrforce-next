@@ -363,6 +363,11 @@ export class HireDto extends createZodDto(
   z
     .object({
       ...createEmployeeShape,
+      // the initial contract takes the offer's type; its end (fixed-term) and probation come with the hire
+      // (docs/contracts/contracts-deadlines.md › Contracts); the employee form's own `contract` block is not used here
+      contract: z.undefined({ message: 'Not accepted here: send contractEndDate / probationEnd' }).optional(),
+      contractEndDate: isoDate.nullable().optional(),
+      probationEnd: isoDate.nullable().optional(),
       expectedStage: stage,
       copyFileIds: z.array(uuid).max(COPY_FILES_MAX, { message: `At most ${COPY_FILES_MAX} files` }).default([]),
     })

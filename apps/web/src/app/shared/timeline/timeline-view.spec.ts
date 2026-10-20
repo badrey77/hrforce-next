@@ -41,6 +41,22 @@ describe('buildTimeline (pure view model)', () => {
     expect(typeCodeLine(NO_NAMES)).toEqual({ kind: 'key', key: 'documents.typeNames.ordre_mission', text: 'ordre_mission' });
   });
 
+  it('contracts: an end reason in words, a decision without its updated_at line (verification 2026-10-19)', () => {
+    const [group] = buildTimeline(
+      [
+        { id: 'c:21', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'employment', op: 'update',
+          changes: [{ field: 'end_reason', before: null, after: 'end_of_contract', masked: false }] },
+        { id: 'c:22', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change', table: 'contract_decision', op: 'update',
+          changes: [{ field: 'proposal', before: null, after: 'end', masked: false }, { field: 'updated_at', before: '2026-09-26T09:00:00Z', after: '2026-09-26T10:00:00Z', masked: false }] },
+      ],
+      NO_NAMES,
+      NOW,
+    );
+    const [employment, decision] = (group?.entries ?? []) as ChangeView[];
+    expect(employment?.lines[0]?.after).toEqual({ kind: 'key', key: 'employees.endReasons.end_of_contract', text: 'end_of_contract' });
+    expect(decision?.lines.map((l) => l.field)).toEqual(['proposal']);
+  });
+
   it('update: one line per changed field (id hidden), label keys per table, ids resolved to names', () => {
     const [today] = buildTimeline([RENAMED], names, NOW);
     const change = today?.entries[0] as ChangeView;

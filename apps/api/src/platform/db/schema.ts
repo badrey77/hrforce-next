@@ -258,6 +258,48 @@ export interface CompanyProfile {
   updated_at: Generated<Timestamp>;
 }
 
+export interface ContractDecision {
+  comment: string | null;
+  company_id: string;
+  contract_id: string;
+  created_at: Generated<Timestamp>;
+  employment_id: string;
+  id: Generated<string>;
+  opened_by: string;
+  proposal: string | null;
+  proposed_at: Timestamp | null;
+  proposed_by: string | null;
+  proposed_end_date: Timestamp | null;
+  proposed_start_date: Timestamp | null;
+  result_contract_id: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  workflow_instance_id: string | null;
+}
+
+export interface DeadlineAck {
+  acked_at: Generated<Timestamp>;
+  acked_by: string;
+  company_id: string;
+  due_date: Timestamp;
+  id: Generated<string>;
+  kind: string;
+  note: string | null;
+  subject_id: string;
+}
+
+export interface DeadlinePolicy {
+  company_id: string;
+  contract_notice_days: Generated<number>;
+  decision_notice_days: Generated<number>;
+  digest_enabled: Generated<boolean>;
+  document_notice_days: Generated<number>;
+  probation_notice_days: Generated<number>;
+  retirement_age: Generated<number>;
+  retirement_notice_months: Generated<number>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface DocumentRequest {
   company_id: string;
   document_type_id: string;
@@ -383,6 +425,24 @@ export interface Employment {
   matricule: string;
   matricule_search: Generated<string | null>;
   person_id: string;
+}
+
+export interface EmploymentContract {
+  company_id: string;
+  contract_type: string;
+  created_at: Generated<Timestamp>;
+  created_by: string | null;
+  decision_id: string | null;
+  employment_id: string;
+  end_date: Timestamp | null;
+  id: Generated<string>;
+  kind: string;
+  note: string | null;
+  probation_end: Timestamp | null;
+  reason: string | null;
+  reference: string | null;
+  seq: number;
+  start_date: Timestamp;
 }
 
 export interface EmploymentSalary {
@@ -1030,6 +1090,9 @@ export interface DB {
   company: Company;
   company_branding: CompanyBranding;
   company_profile: CompanyProfile;
+  contract_decision: ContractDecision;
+  deadline_ack: DeadlineAck;
+  deadline_policy: DeadlinePolicy;
   document_request: DocumentRequest;
   document_sequence: DocumentSequence;
   document_signatory: DocumentSignatory;
@@ -1039,6 +1102,7 @@ export interface DB {
   employee_file_category: EmployeeFileCategory;
   employee_file_content: EmployeeFileContent;
   employment: Employment;
+  employment_contract: EmploymentContract;
   employment_salary: EmploymentSalary;
   installation_branding: InstallationBranding;
   issued_document: IssuedDocument;

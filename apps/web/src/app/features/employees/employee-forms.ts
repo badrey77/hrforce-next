@@ -143,6 +143,7 @@ export function fieldErrorKey(control: AbstractControl): string {
   if (control.hasError('digits')) return 'employees.form.errors.digits';
   if (control.hasError('money')) return 'employees.form.errors.money';
   if (control.hasError('notBefore')) return 'employees.form.errors.notBefore';
+  if (control.hasError('probationRange')) return 'contracts.form.errors.probationRange';
   return 'errors.generic';
 }
 
@@ -155,6 +156,8 @@ export function fieldErrorParams(control: AbstractControl): Record<string, strin
   }
   const bound: unknown = control.getError('notBefore');
   if (bound && typeof bound === 'object') return { date: (bound as { min: string }).min };
+  const probation: unknown = control.getError('probationRange');
+  if (probation && typeof probation === 'object') return probation as { from: string; to: string };
   return {};
 }
 
@@ -185,6 +188,14 @@ export const CREATE_FIELD_PATHS: FieldPaths = {
   rib: 'bank.rib',
   bankName: 'bank.bankName',
   nss: 'nss.nss',
+  // The initial contract (`contract.endDate`… on POST /employees; flat names on the recruitment hire).
+  contract: 'contract.contractType',
+  contractType: 'contract.contractType',
+  contractEndDate: 'contract.endDate',
+  endDate: 'contract.endDate',
+  probationEnd: 'contract.probationEnd',
+  reference: 'contract.reference',
+  reason: 'contract.reason',
 };
 
 /** Resolves an API field name (`nin`, `person.nin`, `salary.baseSalary`) to a control of `form`. */
@@ -206,7 +217,8 @@ function markServerKey(control: AbstractControl, key: string): void {
  * Applies a failed write to `form` and returns the form-level message, if any.
  * - A known slug (409 or 403 `forbidden-*`): its translated message on each field named by `errors[]` (through
  *   `paths`), else on the table's `field`, else above the form.
- * - 422 `errors[]`: the server's text on the mapped controls (field names rewritten through `paths`).
+ * - 422 `errors[]`: the translated message of a code listed in `codeKeys`, else the server's text, on the mapped
+ *   controls (field names rewritten through `paths`).
  * - Anything else: `problemToForm()` (403 → forbidden, 404 → `notFoundKey`, network…).
  */
 export function employeeProblemToForm(
@@ -215,6 +227,7 @@ export function employeeProblemToForm(
   slugs: SlugTable,
   paths: FieldPaths = {},
   notFoundKey = 'employees.problems.notFound',
+  codeKeys: Readonly<Record<string, string>> = {},
 ): FormMessage | null {
   if (!isApiProblemError(error)) return { key: 'errors.generic' };
   const { problem } = error;
@@ -238,12 +251,19 @@ export function employeeProblemToForm(
     const unmatched = problem.errors.filter((e) => {
       const control = controlFor(form, e.field, paths);
       if (!control) return true;
-      control.setErrors({ ...control.errors, server: e.message });
-      control.markAsTouched();
+      const key = codeKeys[e.code];
+      if (key) markServerKey(control, key);
+      else {
+        control.setErrors({ ...control.errors, server: e.message });
+        control.markAsTouched();
+      }
       return false;
     });
     if (unmatched.length === 0) return null;
-    return { text: unmatched[0]?.message || problem.detail || problem.title };
+    const first = unmatched[0];
+    const firstKey = first ? codeKeys[first.code] : undefined;
+    if (firstKey) return { key: firstKey };
+    return { text: first?.message || problem.detail || problem.title };
   }
 
   return problemToForm(form, error, {}, notFoundKey);

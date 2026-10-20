@@ -203,6 +203,14 @@ export const routes: Routes = [
     loadChildren: () => import('./features/recruitment/recruitment.routes').then((m) => m.MY_RECRUITMENT_ROUTES),
   },
   {
+    // Deadlines (docs/contracts/contracts-deadlines.md › Web): the board needs deadline.read, the policy
+    // deadline.configure — checked per child (features/deadlines/deadlines.routes.ts).
+    path: 'deadlines',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['deadline.read', 'deadline.configure'] },
+    loadChildren: () => import('./features/deadlines/deadlines.routes').then((m) => m.DEADLINES_ROUTES),
+  },
+  {
     // Settings: notification preferences for everyone; the branding section checks `settings.branding` on its own
     // child (features/settings/settings.routes.ts, docs/contracts/branding.md).
     path: 'settings',

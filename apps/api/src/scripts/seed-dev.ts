@@ -21,10 +21,12 @@ import { TypstPdfRenderer } from '../platform/pdf/typst-renderer.js';
 import { DEMO_GRANTS, SYSTEM_ROLES, seedDemoAccess, seedSecurityPolicy } from '../modules/authorization/index.js';
 import { seedDemoAttendance } from '../modules/attendance/index.js';
 import { seedDemoBranding } from '../modules/branding/index.js';
+import { seedContractDefaults, seedDemoContracts } from '../modules/contracts/index.js';
+import { seedDemoDeadlineAcks } from '../modules/deadlines/index.js';
 import { algiersToday, demoLogoPng, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
-import { seedDemoEmployees } from '../modules/employment/index.js';
+import { demoEmployees, seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
-import { LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
+import { LEAVE_DEMO, LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
 import { seedDemoRecruitment } from '../modules/recruitment/index.js';
 import { DEMO_SSO_CLIENT, seedDemoSso } from '../modules/sso/index.js';
@@ -51,13 +53,31 @@ async function main(): Promise<void> {
       const employees = await seedDemoEmployees(tx);
       const leave = await seedDemoLeave(tx, { requests: true });
       const documents = await seedDemoDocuments(tx, renderer, algiersToday());
-      const employeeFiles = await seedDemoEmployeeFiles(tx);
+      const employeeFiles = await seedDemoEmployeeFiles(tx, algiersToday());
       const attendance = await seedDemoAttendance(tx, Date.now());
       const sso = await seedDemoSso(tx, env.OIDC_KEY);
       const recruitment = await seedDemoRecruitment(tx, Date.now());
       // docs/contracts/branding.md › Seed: DEMO owns the installation default (sample footer and sign-in message)
       // and shows a sample welcome message with the letterhead's generated logo as company logo
       await seedDemoBranding(tx, DEMO_ORGANIZATION.company.id, demoLogoPng());
+      // docs/contracts/contracts-deadlines.md › Seed: contracts (CDI, CDD, pré-emploi) placed around today, one pending
+      // end-of-contract decision at chef.annaba's step
+      await seedContractDefaults(tx, DEMO_ORGANIZATION.company.id);
+      const annaba = DEMO_ORGANIZATION.units.find((u) => u.code === 'AG-ANNABA');
+      if (!annaba) throw new Error('seed: AG-ANNABA missing');
+      const contracts = await seedDemoContracts(tx, {
+        companyId: DEMO_ORGANIZATION.company.id,
+        today: algiersToday(),
+        employees: demoEmployees(),
+        annabaHeadUserId: LEAVE_DEMO.chef.userId,
+        annabaUnitId: annaba.id,
+      });
+      logger.info(contracts, 'contracts demo seeded (deadlines around today, a pending end-of-contract decision for chef.annaba)');
+      // docs/contracts/contracts-deadlines.md › Seed: DEMO's stored deadline policy and one item marked handled by rh.admin
+      const rhAdmin = DEMO_USERS.find((u) => u.email === 'rh.admin@demo.dz');
+      if (!rhAdmin) throw new Error('seed: rh.admin missing');
+      const deadlines = await seedDemoDeadlineAcks(tx, DEMO_ORGANIZATION.company.id, rhAdmin.id, algiersToday());
+      logger.info(deadlines, 'deadlines demo seeded (policy, one handled item)');
       return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso, recruitment };
     }).then(({ employees, leave, documents, attendance, sso, recruitment }) => {
       logger.info(recruitment, 'recruitment demo seeded (openings in every status, fictitious candidates across the stages, an already purged opening)');

@@ -23,7 +23,9 @@ export type AuditSubjectType =
   | 'sso_client'
   | 'recruitment_opening'
   | 'recruitment_candidate'
-  | 'recruitment_application';
+  | 'recruitment_application'
+  | 'contract_decision'
+  | 'employment_contract';
 
 export interface AuditEventInput {
   /** `<area>.<event>`, e.g. `auth.login`, `access.grant_created` */

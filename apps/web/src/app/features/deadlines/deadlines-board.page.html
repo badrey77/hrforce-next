@@ -1,0 +1,210 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('deadlines.title') }}</h1>
+    <div class="form-actions">
+      <a *appCan="'deadline.configure'" class="btn secondary" routerLink="/deadlines/settings" data-action="settings">{{ t('deadlines.settings.title') }}</a>
+    </div>
+  </header>
+
+  @if (badge.summary(); as s) {
+    <ul class="deadline-summary" data-summary [attr.aria-label]="t('deadlines.summary.label')">
+      <li data-count="overdue"><strong>{{ s.overdue }}</strong> {{ t('deadlines.summary.overdue') }}</li>
+      <li data-count="critical"><strong>{{ s.critical }}</strong> {{ t('deadlines.summary.critical') }}</li>
+      <li data-count="next30"><strong>{{ s.next30 }}</strong> {{ t('deadlines.summary.next30') }}</li>
+    </ul>
+  }
+
+  @let current = query();
+  <form class="filters" role="search" [attr.aria-label]="t('deadlines.filters.label')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="dl-q">{{ t('deadlines.filters.search') }}</label>
+      <input id="dl-q" type="search" autocomplete="off" dir="auto" [value]="current.q" [placeholder]="t('deadlines.filters.searchPlaceholder')" (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="dl-kind">{{ t('deadlines.filters.kind') }}</label>
+      <select id="dl-kind" (change)="onField('kind', $event)">
+        <option value="" [selected]="!current.kind">{{ t('deadlines.filters.allKinds') }}</option>
+        @for (kind of kinds; track kind) {
+          <option [value]="kind" [selected]="kind === current.kind">{{ t('deadlines.kinds.' + kind) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="dl-status">{{ t('deadlines.filters.status') }}</label>
+      <select id="dl-status" (change)="onField('status', $event)">
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('deadlines.statusFilter.' + status) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="dl-within">{{ t('deadlines.filters.within') }}</label>
+      <select id="dl-within" (change)="onField('within', $event)">
+        @for (days of withinOptions; track days) {
+          <option [value]="days" [selected]="days === current.within">{{ t('deadlines.filters.withinDays', { count: days }) }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field">
+        <label for="dl-unit">{{ t('deadlines.filters.unit') }}</label>
+        <app-org-unit-picker inputId="dl-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="dl-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="dl-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    @if (filtered()) {
+      <button class="btn secondary" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  @if (feedback(); as message) {
+    <p [class]="message.kind === 'ok' ? 'feedback' : 'warning'" role="status" data-feedback>{{ t(message.key) }}</p>
+  }
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status">{{ t('deadlines.total', { count: total() }) }}</p>
+      @for (g of groups(); track g.group) {
+        <section class="deadline-group" [attr.data-group]="g.group" [attr.aria-labelledby]="'dl-group-' + g.group">
+          <h2 [id]="'dl-group-' + g.group">{{ t('deadlines.groups.' + g.group) }} <span class="muted">({{ g.items.length }})</span></h2>
+          <div class="table-scroll">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('deadlines.columns.due') }}</th>
+                  <th scope="col">{{ t('deadlines.columns.kind') }}</th>
+                  <th scope="col">{{ t('deadlines.columns.employee') }}</th>
+                  <th scope="col">{{ t('deadlines.columns.detail') }}</th>
+                  <th scope="col"><span class="visually-hidden">{{ t('deadlines.columns.actions') }}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of g.items; track item.key) {
+                  <tr [attr.data-item]="item.key" [attr.data-severity]="item.severity">
+                    <td class="due">
+                      <span class="date">{{ item.dueDate | date: 'mediumDate' : undefined : locale() }}</span>
+                      <span class="relative" data-field="relative">
+                        @if (item.daysLeft > 0) {
+                          {{ t('deadlines.relative.in', { count: item.daysLeft }) }}
+                        } @else if (item.daysLeft === 0) {
+                          {{ t('deadlines.relative.today') }}
+                        } @else {
+                          {{ t('deadlines.relative.late', { count: -item.daysLeft }) }}
+                        }
+                      </span>
+                    </td>
+                    <td>
+                      <span class="kind">{{ t('deadlines.kinds.' + item.kind) }}</span>
+                      <span [class]="'pill pill--' + item.severity" data-field="severity">{{ t('deadlines.severity.' + item.severity) }}</span>
+                    </td>
+                    <td class="who">
+                      <a [routerLink]="['/employees', item.employee.id]" [queryParams]="employeeTab(item) ? { tab: employeeTab(item) } : {}" data-link="employee"
+                        ><bdi>{{ item.employee.person | displayName: lang() }}</bdi></a
+                      >
+                      <span class="code" dir="ltr">{{ item.employee.matricule }}</span>
+                      <span class="muted"><bdi>{{ item.employee.unit | displayName: lang() }}</bdi> · <bdi>{{ item.employee.jobTitle }}</bdi></span>
+                    </td>
+                    <td class="detail">
+                      @if (item.contract; as c) {
+                        <span data-field="contract">
+                          {{ t('contracts.type.' + c.contractType) }} ·
+                          @if (c.endDate) {
+                            {{ t('deadlines.range', { from: (c.startDate | date: 'mediumDate' : undefined : locale()), to: (c.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                          } @else {
+                            {{ t('deadlines.since', { from: (c.startDate | date: 'mediumDate' : undefined : locale()) }) }}
+                          }
+                        </span>
+                      }
+                      @if (item.file; as f) {
+                        <a [routerLink]="['/employees', item.employee.id]" [queryParams]="{ tab: 'file' }" data-link="file"><bdi>{{ f.title }}</bdi></a>
+                        <span class="muted">{{ f.category.names[lang()] || f.category.names.fr }}</span>
+                      }
+                      @if (item.kind === 'contract_missing') {
+                        <span data-field="missing">{{ t('deadlines.missingHint') }}</span>
+                      }
+                      @if (item.decision; as d) {
+                        <span class="decision" data-field="decision">{{ t('deadlines.decision.' + d.status) }}</span>
+                      }
+                      @if (item.ack; as a) {
+                        <span class="ack" data-field="ack">
+                          {{ t('deadlines.ackBy', { date: (a.at | date: 'mediumDate' : undefined : locale()), name: a.by?.displayName ?? '—' }) }}
+                          @if (a.note) {
+                            — <bdi>{{ a.note }}</bdi>
+                          }
+                        </span>
+                      }
+                    </td>
+                    <td class="actions">
+                      @if (item._actions.includes('ack')) {
+                        <button class="btn secondary" type="button" data-action="ack" [disabled]="isBusy(item)" (click)="openAck(item)">{{ t('deadlines.actions.ack') }}</button>
+                      }
+                      @if (item._actions.includes('unack')) {
+                        <button class="btn secondary" type="button" data-action="unack" [disabled]="isBusy(item)" (click)="unack(item)">{{ t('deadlines.actions.unack') }}</button>
+                      }
+                      @if (item._actions.includes('open_decision')) {
+                        <button class="btn secondary" type="button" data-action="open-decision" [disabled]="isBusy(item)" (click)="openDecision(item)">
+                          {{ t('deadlines.actions.openDecision') }}
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      } @empty {
+        <p class="muted" data-state="empty">{{ filtered() ? t('deadlines.noMatch') : t('deadlines.empty') }}</p>
+      }
+      @if (items().length) {
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">{{ t('employees.pager.previous') }}</button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">{{ t('employees.pager.next') }}</button>
+          <label for="dl-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="dl-page-size" (change)="onField('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+
+  <dialog #ackDialog class="modal" aria-labelledby="ack-title" (close)="onAckClosed()">
+    @if (acking(); as item) {
+      <form [formGroup]="ackForm" (ngSubmit)="submitAck()" novalidate>
+        <h2 id="ack-title">{{ t('deadlines.ack.title') }}</h2>
+        <p>
+          <bdi>{{ item.employee.person | displayName: lang() }}</bdi> — {{ t('deadlines.kinds.' + item.kind) }},
+          {{ item.dueDate | date: 'mediumDate' : undefined : locale() }}
+        </p>
+        @let note = ackForm.controls.note;
+        <div class="field">
+          <label for="ack-note">{{ t('deadlines.ack.note') }}</label>
+          <textarea id="ack-note" formControlName="note" rows="3" dir="auto" [attr.maxlength]="noteMax"
+            [attr.aria-invalid]="note.invalid && note.touched" aria-describedby="ack-note-hint"></textarea>
+          <p class="field-hint" id="ack-note-hint">{{ t('deadlines.ack.noteHint', { max: noteMax }) }}</p>
+          @if (note.invalid && note.touched) {
+            <p class="field-error" data-error="note">{{ t('deadlines.ack.tooLong', { max: noteMax }) }}</p>
+          }
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="confirm-ack">{{ t('deadlines.ack.confirm') }}</button>
+          <button class="btn secondary" type="button" (click)="closeAck()">{{ t('common.cancel') }}</button>
+        </div>
+      </form>
+    }
+  </dialog>
+</ng-container>

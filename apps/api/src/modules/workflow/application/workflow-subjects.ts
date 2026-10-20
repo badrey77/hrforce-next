@@ -17,6 +17,11 @@ export interface HookContext {
  */
 export interface WorkflowSubject {
   resolveManager(subjectId: string): Promise<ManagerCandidate>;
+  /**
+   * Optional: called before any step is approved (inside the transaction, before the task closes) — throw to refuse
+   * the approval, e.g. a contract decision's manager step without a proposal (contracts-deadlines.md).
+   */
+  beforeApprove?(context: HookContext & { stepKey: string; stepIndex: number }): Promise<void>;
   onApproved(context: HookContext): Promise<void>;
   onRejected(context: HookContext): Promise<void>;
   /**

@@ -1,3 +1,4 @@
+import type { ContractSummary } from '../../contracts/index.js';
 /** Response shapes of docs/contracts/employment.md (the API layer returns them as-is). */
 import type { EmployeeAction, EmployeeStatus, FieldBlock } from '../domain/employee.js';
 
@@ -45,6 +46,8 @@ export interface EmployeeListItem {
   hireDate: string;
   endDate: string | null;
   status: EmployeeStatus;
+  /** the contract covering asOf (today for the detail), null = none (docs/contracts/contracts-deadlines.md) */
+  contract: ContractSummary | null;
 }
 
 export interface EmployeeListView {

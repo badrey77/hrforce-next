@@ -446,6 +446,8 @@ export interface HirePrefillView {
   siteId: string | null;
   jobTitle: string;
   hireDate: string;
+  /** the offer's contract type: the initial contract of the hire (contracts-deadlines.md) */
+  contractType: ContractType;
   /** only with recruitment.salary.read AND employee.salary.update over the offer's unit */
   salary?: { baseSalary: string | null };
   files: CandidateFileView[];

@@ -51,6 +51,8 @@ import {
   notBlank,
   REHIRE_SLUGS,
 } from './employee-forms';
+import { ContractFields } from './contract-fields';
+import { contractFormGroup, initialContractBody } from './contract-forms';
 import { FieldError } from './field-error';
 import type { HireMode } from './hire-mode';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
@@ -71,7 +73,7 @@ export interface RehirePrevious {
 
 @Component({
   selector: 'app-rehire-form',
-  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError, ContractFields],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './rehire-form.html',
   styleUrl: './employees.css',
@@ -86,6 +88,9 @@ export class RehireForm implements OnInit {
   readonly previous = input.required<RehirePrevious>();
   /** Set by the hire page of a recruitment: the values start from the offer and the body goes to the hire endpoint. */
   readonly hire = input<HireMode>();
+  protected readonly isHire = computed(() => this.hire() !== undefined);
+  /** In a hire, the offer's contract type when the prefill carries it. */
+  protected readonly offerContractType = computed(() => this.hire()?.prefill.contractType ?? null);
 
   /** First allowed hire date: the day after the previous employment ended. */
   protected readonly minHireDate = computed(() => {
@@ -105,6 +110,7 @@ export class RehireForm implements OnInit {
       jobTitle: ['', [Validators.required, notBlank, Validators.maxLength(JOB_TITLE_MAX)]],
     }),
     salary: this.fb.group({ baseSalary: ['', money] }),
+    contract: contractFormGroup(this.fb, () => this.contractStart()),
   });
 
   protected readonly canSalary = this.session.allows('employee.salary.update');
@@ -136,6 +142,12 @@ export class RehireForm implements OnInit {
       assignment: { orgUnitId: prefill?.orgUnitId ?? previous.unit.id, siteId: prefill?.siteId ?? null, jobTitle: prefill?.jobTitle ?? previous.jobTitle },
       salary: { baseSalary: prefill?.salary?.baseSalary ?? '' },
     });
+  }
+
+  /** The initial contract starts on the hire date (read by the contract block's validators). */
+  private contractStart(): string | null {
+    // The validators run once while the form is being built, before `form` is assigned.
+    return (this.form as typeof this.form | undefined)?.controls.employment.controls.hireDate.value || null;
   }
 
   /** `(blur)` of the matricule input: show the value as it will be saved. */
@@ -183,6 +195,8 @@ export class RehireForm implements OnInit {
       jobTitle: assignment.jobTitle.trim(),
     };
     if (this.form.controls.salary.enabled && salary.baseSalary.trim()) body.salary = { baseSalary: normaliseMoney(salary.baseSalary) };
+    const contract = initialContractBody(this.form.controls.contract, { withTexts: !this.hire() });
+    if (contract) body.contract = contract;
     return body;
   }
 }

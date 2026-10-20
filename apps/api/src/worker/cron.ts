@@ -21,6 +21,8 @@ export const CRON_ITEMS: readonly CronItem[] = [
   { task: TASKS.oidcCleanup, identifier: TASKS.oidcCleanup, match: '15 3 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
   // docs/contracts/recruitment.md › Retention, erasure and worker: day 1 of the month, 02:45
   { task: TASKS.recruitmentRetention, identifier: TASKS.recruitmentRetention, match: '45 2 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
+  // docs/contracts/contracts-deadlines.md › Worker: daily, 05:00 UTC (06:00 in Algiers)
+  { task: TASKS.deadlinesDaily, identifier: TASKS.deadlinesDaily, match: '0 5 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
 ];
 
 export function parsedCronItems(): ParsedCronItem[] {

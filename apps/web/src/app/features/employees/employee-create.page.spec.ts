@@ -65,6 +65,13 @@ describe('EmployeeCreatePage', () => {
     input.dispatchEvent(new Event('blur'));
   }
 
+  async function choose(id: string, value: string): Promise<void> {
+    const select = el().querySelector(`#${id}`) as HTMLSelectElement;
+    select.value = value;
+    select.dispatchEvent(new Event('change'));
+    await settle();
+  }
+
   async function submit(): Promise<void> {
     el().querySelector('form')?.dispatchEvent(new Event('submit'));
     await settle();
@@ -89,24 +96,25 @@ describe('EmployeeCreatePage', () => {
     fill('new-matricule', 'emp-0042'); // lower case is accepted: the form upper-cases it, like the API
     fill('new-hire-date', '2025-02-01');
     fill('new-job-title', 'Chargée de clientèle');
+    await choose('new-contract-type', 'cdi');
     await settle();
     await pickUnit();
   }
 
   it('shows the sensitive sections only with the matching .update permission', async () => {
     await setup(['employee.read', 'employee.create', 'employee.salary.update']);
-    expect(sections()).toEqual(['identity', 'employment', 'assignment', 'salary']);
+    expect(sections()).toEqual(['identity', 'employment', 'assignment', 'contract', 'salary']);
   });
 
   it('without any sensitive .update permission: only the three base sections, and no site select without site.read', async () => {
     await setup(['employee.read', 'employee.create', 'org_unit.read']);
-    expect(sections()).toEqual(['identity', 'employment', 'assignment']);
+    expect(sections()).toEqual(['identity', 'employment', 'assignment', 'contract']);
     expect(el().querySelector('#new-site')).toBeNull();
   });
 
   it('validates on the client: required fields, NIN/RIB/NSS digits, money, bank both-or-neither, birth before hire', async () => {
     await setup([...ADMIN_PERMISSIONS, ...SENSITIVE_WRITE]);
-    expect(sections()).toEqual(['identity', 'employment', 'assignment', 'salary', 'bank', 'nss']);
+    expect(sections()).toEqual(['identity', 'employment', 'assignment', 'contract', 'salary', 'bank', 'nss']);
     fill('new-nin', '123');
     fill('new-rib', '0040 0123');
     fill('new-nss', '12');
@@ -155,6 +163,7 @@ describe('EmployeeCreatePage', () => {
       siteId: null,
       jobTitle: 'Chargée de clientèle',
       salary: { baseSalary: '85000.50' },
+      contract: { contractType: 'cdi' },
     });
     post.flush(detail({ id: 'e-42' }), { status: 201, statusText: 'Created' });
     const router = TestBed.inject(Router);
@@ -203,5 +212,60 @@ describe('EmployeeCreatePage', () => {
     http.expectOne('/api/employees').flush(...problem(403, 'forbidden-scope'));
     await settle();
     expect(text('#new-unit-error')).toBe("Vous n'avez pas le droit d'affecter un employé à cette unité.");
+  });
+
+  it('the contract block: type required, a fixed-term type needs an end date, probation within 12 months of the hire date', async () => {
+    await setup([...ADMIN_PERMISSIONS]);
+    fill('new-last-name', 'BENALI');
+    fill('new-first-name', 'Amina');
+    fill('new-matricule', 'EMP-0042');
+    fill('new-hire-date', '2025-02-01');
+    fill('new-job-title', 'Chargée de clientèle');
+    await settle();
+    await pickUnit();
+    await submit();
+    http.expectNone('/api/employees');
+    expect(text('#new-contract-type-error')).toBe('Ce champ est obligatoire.');
+    // A CDI has no end date field.
+    await choose('new-contract-type', 'cdi');
+    expect(el().querySelector('#new-contract-end')).toBeNull();
+    expect(el().querySelector('#new-contract-reason')).toBeNull();
+
+    await choose('new-contract-type', 'cdd');
+    expect(el().querySelector('#new-contract-end')).not.toBeNull();
+    fill('new-contract-probation', '2026-03-01');
+    await submit();
+    http.expectNone('/api/employees');
+    expect(text('#new-contract-end-error')).toBe('Ce champ est obligatoire.');
+    expect(text('#new-contract-probation-error')).toBe('La période d’essai doit se terminer entre le 2025-02-01 et le 2026-01-31.');
+
+    fill('new-contract-end', '2025-01-15');
+    await submit();
+    http.expectNone('/api/employees');
+    expect(text('#new-contract-end-error')).toBe('La date doit être au plus tôt le 2025-02-01.');
+  });
+
+  it('posts the contract block of a fixed-term contract and maps its 422 onto the block', async () => {
+    await setup([...ADMIN_PERMISSIONS]);
+    await fillRequired();
+    await choose('new-contract-type', 'cdd');
+    fill('new-contract-end', '2026-01-31');
+    fill('new-contract-probation', '2025-04-30');
+    fill('new-contract-reference', ' CT-2025-17 ');
+    fill('new-contract-reason', 'Remplacement');
+    await submit();
+    const post = http.expectOne('/api/employees');
+    expect(post.request.body.contract).toEqual({
+      contractType: 'cdd',
+      endDate: '2026-01-31',
+      probationEnd: '2025-04-30',
+      reference: 'CT-2025-17',
+      reason: 'Remplacement',
+    });
+    post.flush(
+      ...problem(422, 'validation-error', [{ field: 'contract.endDate', code: 'required', message: 'Une date de fin est requise.' }]),
+    );
+    await settle();
+    expect(text('#new-contract-end-error')).toBe('Une date de fin est requise.');
   });
 });

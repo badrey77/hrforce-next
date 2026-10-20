@@ -31,6 +31,8 @@ import { BETA_KIOSK, kioskCookie, qrToken, scanReceipt } from './support/attenda
 import { DEMO_OPENINGS, demoApplication, demoCandidateFile } from '../src/modules/recruitment/index.js';
 import { StaffingClock } from '../src/modules/staffing/index.js';
 import { REC_FX, type RecTarget } from './support/recruitment-fixture.js';
+import { insertAck, insertContract, insertExpiringFile, plusDays } from './support/deadlines-fixture.js';
+import { deadlinesToday } from '../src/modules/deadlines/index.js';
 import { seedTemplateFixture, SIMPLE_LAYOUT, type TemplateFixture } from './support/templates-fixture.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
@@ -302,6 +304,53 @@ const READERS: readonly Row[] = [
   ['ouest', '-', 200],
   ['acces', '-', 200],
   ['beta', '-', 200],
+];
+
+// ── deadlines (docs/contracts/contracts-deadlines.md) ──────────────────────────────────────────────────────────
+/** Filled in beforeAll: per target, employee files expiring in 10 days (items to mark handled) and acknowledgements to remove. */
+const DL = { expiry: '', files: { est: [] as string[], ouest: [] as string[], other: [] as string[] }, acks: { est: [] as string[], ouest: [] as string[], other: [] as string[] } };
+const dlNext = (pool: Record<'est' | 'ouest' | 'other', string[]>, t: Target): string => (t === '-' ? MISSING : (pool[t].shift() ?? MISSING));
+const DL_READ_ROWS: readonly Row[] = [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]];
+const DL_HANDLE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
+  ['est', 'est', ok], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+
+// ── contracts (docs/contracts/contracts-deadlines.md › Authorization matrix rows) ───────────────────────────────
+/**
+ * Filled in beforeAll: per target, the CDD of employeeOf(t) (corrected; amendments follow it), pools of employments
+ * with a CDD to open a decision on (each success takes the next one; the last one stays for the refusals), and one
+ * pending decision per company — Est: EMP-0033 at chef.annaba's manager step; BETA: escalated to its HR step.
+ */
+const CT = {
+  contract: { est: '', ouest: '', other: '' },
+  decisionPools: { est: [] as { employmentId: string; contractId: string }[], ouest: [] as { employmentId: string; contractId: string }[], other: [] as { employmentId: string; contractId: string }[] },
+  decision: { est: '', other: '' },
+};
+const ctOf = (t: Target): string => (t === '-' ? MISSING : CT.contract[t]);
+const ctDecisionTarget = (t: Target): { employmentId: string; contractId: string } => {
+  if (t === '-') return { employmentId: MISSING, contractId: MISSING };
+  const pool = CT.decisionPools[t];
+  return (pool.length > 1 ? pool.shift() : pool[0]) ?? { employmentId: MISSING, contractId: MISSING };
+};
+const ctDecisionOf = (t: Target): string => (t === 'other' ? CT.decision.other : t === '-' ? MISSING : CT.decision.est);
+const CT_WRITE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
+  ['est', 'est', ok], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+const CT_READ_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 200], ['ouest', 'est', 404],
+  ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+  ['agent', 'est', 403],
 ];
 
 // prettier-ignore
@@ -1418,7 +1467,7 @@ const MATRIX: Record<string, RouteSpec> = {
     access: 'recruitment.hire',
     request: (t, n) => ({
       path: `/api/recruitment/applications/${recNext(REC_FX.toHire, t)}/hire`,
-      body: { lastName: 'Matrice', firstName: `Embauche ${n}`, matricule: `MXH-${n}`, hireDate: '2026-11-01', orgUnitId: unitOf(t), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [] },
+      body: { lastName: 'Matrice', firstName: `Embauche ${n}`, matricule: `MXH-${n}`, hireDate: '2026-11-01', orgUnitId: unitOf(t), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [], contractEndDate: '2031-12-31' },
     }),
     rows: REC_HIRE_ROWS(201),
   },
@@ -1440,6 +1489,63 @@ const MATRIX: Record<string, RouteSpec> = {
     access: 'recruitment.configure',
     request: (t, n) => ({ path: `/api/recruitment/rejection-reasons/${t === 'other' ? REC_REASON.other : REC_REASON.est}`, body: { sortOrder: 80 + (n % 9) } }),
     rows: REC_CONFIG_ROWS(200),
+  },
+
+  // ── contracts (docs/contracts/contracts-deadlines.md › Authorization matrix rows) ────────────────────────────
+  'GET /api/employees/:id/contracts': { access: 'employee.read', request: (t) => ({ path: `/api/employees/${employeeOf(t)}/contracts` }), rows: CT_READ_ROWS },
+  // before the amendments below: the seeded CDD is still the latest contract
+  'PATCH /api/employees/:id/contracts/:contractId': {
+    access: 'employee.contract.manage',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/contracts/${ctOf(t)}`, body: { reference: `CDD-M-${n}` } }),
+    rows: CT_WRITE_ROWS(200),
+  },
+  'POST /api/employees/:id/contracts/:contractId/decision': {
+    access: 'employee.contract.manage',
+    request: (t) => {
+      const target = ctDecisionTarget(t);
+      return { path: `/api/employees/${target.employmentId}/contracts/${target.contractId}/decision` };
+    },
+    rows: [
+      ['admin', 'est', 201], ['admin', 'ouest', 201], ['est', 'est', 201],
+      ['admin', 'other', 404], ['est', 'ouest', 404], ['ouest', 'ouest', 403], ['acces', 'est', 403], ['beta', 'est', 404], ['agent', 'est', 403],
+    ],
+  },
+  // an amendment from day(n) (later each time): the previous contract is cut the day before
+  'POST /api/employees/:id/contracts': {
+    access: 'employee.contract.manage',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/contracts`, body: { kind: 'amendment', contractType: 'cdd', startDate: t === 'other' ? '2028-01-03' : day(n), endDate: '2099-12-31' } }), // BETA's employee ends on 2030-12-31 (the end route above)
+    rows: CT_WRITE_ROWS(201),
+  },
+  // the step's candidates (chef.annaba at the manager step of the Est decision; beta at BETA's HR step); the others
+  // read the employee (403) or not (404)
+  'GET /api/contract-decisions/:id': {
+    access: 'authenticated',
+    request: (t) => ({ path: `/api/contract-decisions/${ctDecisionOf(t)}` }),
+    rows: [['chef', 'est', 200], ['admin', 'est', 200], ['est', 'est', 200], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['admin', 'other', 404], ['beta', 'other', 200]],
+  },
+  'PUT /api/contract-decisions/:id/proposal': {
+    access: 'authenticated',
+    request: (t, n) => ({ path: `/api/contract-decisions/${ctDecisionOf(t)}/proposal`, body: { proposal: 'renew', proposedEndDate: `2034-0${(n % 9) + 1}-15` } }),
+    rows: [['chef', 'est', 200], ['admin', 'est', 403], ['est', 'est', 403], ['ouest', 'est', 404], ['acces', 'est', 404], ['beta', 'est', 404], ['agent', 'est', 404], ['admin', 'other', 404], ['beta', 'other', 200]],
+  },
+
+  // ── deadlines (docs/contracts/contracts-deadlines.md › Authorization matrix rows) ────────────────────────────
+  'GET /api/deadlines': { access: 'deadline.read', request: () => ({ path: '/api/deadlines' }), rows: DL_READ_ROWS },
+  'GET /api/deadlines/summary': { access: 'deadline.read', request: () => ({ path: '/api/deadlines/summary' }), rows: DL_READ_ROWS },
+  'POST /api/deadlines/acks': {
+    access: 'deadline.handle',
+    request: (t) => {
+      const fileId = dlNext(DL.files, t);
+      return { path: '/api/deadlines/acks', body: { kind: 'document_expiry', subjectId: fileId, dueDate: DL.expiry } };
+    },
+    rows: DL_HANDLE_ROWS(201),
+  },
+  'DELETE /api/deadlines/acks/:id': { access: 'deadline.handle', request: (t) => ({ path: `/api/deadlines/acks/${dlNext(DL.acks, t)}` }), rows: DL_HANDLE_ROWS(204) },
+  'GET /api/deadlines/settings': { access: 'deadline.configure', request: () => ({ path: '/api/deadlines/settings' }), rows: [...CONFIG_ROWS(200), ['agent', '-', 403]] },
+  'PUT /api/deadlines/settings': {
+    access: 'deadline.configure',
+    request: (_t, n) => ({ path: '/api/deadlines/settings', body: { contractNoticeDays: 20 + (n % 30) } }),
+    rows: [...CONFIG_ROWS(200), ['agent', '-', 403]],
   },
 
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -1532,6 +1638,29 @@ describe('Authorization matrix (e2e, real grants)', () => {
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [COMPANY_B, demoLogoPng()]);
     await query(db.superuserUrl, `update company_profile set logo = $2, logo_mime = 'image/png', logo_sha256 = sha256($2) where company_id = $1`, [unitCompany, demoLogoPng()]);
     expect(Object.values(DOC).every((v) => v !== ''), JSON.stringify(DOC)).toBe(true);
+    // contracts: a CDD per target, decision pools, one pending decision per company (see CT)
+    const hireOf = async (e: string) => (await query<{ d: string }>(db.superuserUrl, `select to_char(hire_date, 'YYYY-MM-DD') as d from employment where id = $1`, [e]))[0]?.d ?? '';
+    const cdd = async (company: string, employmentId: string) =>
+      insertContract(db.superuserUrl, { companyId: company, employmentId, seq: 1, contractType: 'cdd', startDate: await hireOf(employmentId), endDate: '2032-12-31' });
+    CT.contract.est = await cdd(unitCompany, employeeOf('est'));
+    CT.contract.ouest = await cdd(unitCompany, employeeOf('ouest'));
+    CT.contract.other = await cdd(COMPANY_B, employeeOf('other'));
+    for (const n of [24, 26, 28]) CT.decisionPools.est.push({ employmentId: employeeA(n), contractId: await cdd(unitCompany, employeeA(n)) });
+    for (const n of [35, 39]) CT.decisionPools.ouest.push({ employmentId: employeeA(n), contractId: await cdd(unitCompany, employeeA(n)) });
+    CT.decisionPools.other.push({ employmentId: employeeOf('other'), contractId: CT.contract.other });
+    const est33 = await cdd(unitCompany, employeeA(33));
+    CT.decision.est = ((await as(app, 'admin', xsrf).post(`/api/employees/${employeeA(33)}/contracts/${est33}/decision`).send({}).expect(201)).body as { id: string }).id;
+    CT.decision.other = ((await as(app, 'beta', xsrf).post(`/api/employees/${employeeOf('other')}/contracts/${CT.contract.other}/decision`).send({}).expect(201)).body as { id: string }).id;
+    // deadlines: per target, files expiring in 10 days (real "today": DeadlinesClock is not pinned) and acknowledgements
+    DL.expiry = plusDays(deadlinesToday(), 10);
+    for (const t of ['est', 'ouest', 'other'] as const) {
+      const company = t === 'other' ? COMPANY_B : unitCompany;
+      const by = t === 'other' ? USERS.beta.id : USERS.admin.id;
+      for (let k = 0; k < 6; k += 1) {
+        DL.files[t].push(await insertExpiringFile(db.superuserUrl, { companyId: company, employmentId: employeeOf(t), uploadedBy: by, expiresOn: DL.expiry, title: `Pièce ${t} ${k}` }));
+        DL.acks[t].push(await insertAck(db.superuserUrl, { companyId: company, kind: 'retirement', subjectId: employeeOf(t), dueDate: `2041-01-${String(k + 1).padStart(2, '0')}`, ackedBy: by }));
+      }
+    }
     TPL.a = await seedTemplateFixture(db.superuserUrl, unitCompany, USERS.admin.id, 'a');
     TPL.b = await seedTemplateFixture(db.superuserUrl, COMPANY_B, USERS.beta.id, 'b');
     // employee files: categories, then one file to read and one to delete per target

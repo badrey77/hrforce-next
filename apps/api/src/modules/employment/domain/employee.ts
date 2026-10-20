@@ -31,7 +31,7 @@ export type ListLang = (typeof LIST_LANGS)[number];
 export const FIELD_BLOCKS = ['salary', 'bank', 'nss'] as const;
 export type FieldBlock = (typeof FIELD_BLOCKS)[number];
 
-export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss';
+export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss' | 'manage_contract';
 
 export type EmploymentProblemSlug =
   | 'matricule-taken'
@@ -178,7 +178,7 @@ export function isPositiveMoney(value: string): boolean {
  */
 export function employeeActions(
   open: boolean,
-  can: { update: boolean; salaryUpdate: boolean; bankUpdate: boolean; nssUpdate: boolean },
+  can: { update: boolean; salaryUpdate: boolean; bankUpdate: boolean; nssUpdate: boolean; manageContract?: boolean },
 ): EmployeeAction[] {
   if (!open) return [];
   const actions: EmployeeAction[] = [];
@@ -186,6 +186,7 @@ export function employeeActions(
   if (can.salaryUpdate) actions.push('update_salary');
   if (can.bankUpdate) actions.push('update_bank');
   if (can.nssUpdate) actions.push('update_nss');
+  if (can.manageContract) actions.push('manage_contract');
   return actions;
 }
 

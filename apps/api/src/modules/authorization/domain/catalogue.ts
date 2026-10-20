@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022, 0023), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -24,6 +24,7 @@ export const PERMISSION_CODES = [
   'employee.read',
   'employee.create',
   'employee.update',
+  'employee.contract.manage',
   'employee.salary.read',
   'employee.salary.update',
   'employee.bank.read',
@@ -63,6 +64,9 @@ export const PERMISSION_CODES = [
   'recruitment.erase',
   'recruitment.configure',
   'settings.branding',
+  'deadline.read',
+  'deadline.handle',
+  'deadline.configure',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -103,6 +107,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'attendance.read', 'attendance.manage',
       // the pipeline in its region, without the salaries (docs/contracts/recruitment.md › Permissions)
       'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire',
+      // contracts and their deadlines in its region (docs/contracts/contracts-deadlines.md › Permissions)
+      'employee.contract.manage', 'deadline.read', 'deadline.handle',
     ],
   },
   {

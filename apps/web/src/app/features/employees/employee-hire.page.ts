@@ -9,7 +9,7 @@ import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-pro
 import { problemSlug } from '../../core/http/problem-form';
 import { LanguageService } from '../../core/i18n/language.service';
 import { RecruitmentApi } from '../../core/recruitment/recruitment-api';
-import { COPY_FILES_MAX, type HirePrefillView } from '../../core/recruitment/recruitment.models';
+import { COPY_FILES_MAX, type HireEmployeeBody, type HirePrefillView } from '../../core/recruitment/recruitment.models';
 import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { FileSizePipe } from '../../shared/file-size/file-size.pipe';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
@@ -29,6 +29,18 @@ const HIRE_PROBLEMS: Readonly<Record<string, string>> = {
 interface BackTarget {
   readonly link: readonly string[];
   readonly query: Readonly<Record<string, string>>;
+}
+
+/**
+ * The employee form's body as the hire endpoint reads it: the contract type is the offer's, so the `contract` block
+ * becomes the flat `contractEndDate` / `probationEnd` (contracts-deadlines contract › Contracts).
+ */
+export function hireBody(body: CreateEmployee): HireEmployeeBody {
+  const { contract, ...rest } = body;
+  const out: { -readonly [K in keyof HireEmployeeBody]: HireEmployeeBody[K] } = { ...rest };
+  if (contract?.endDate) out.contractEndDate = contract.endDate;
+  if (contract?.probationEnd) out.probationEnd = contract.probationEnd;
+  return out;
 }
 
 function slugOf(error: unknown): string | undefined {
@@ -128,7 +140,7 @@ export class EmployeeHirePage {
         this.hireError.set(null);
         // Files of the list on screen only, in its order.
         const copyFileIds = prefill.files.map((f) => f.id).filter((id) => this.copyIds().has(id));
-        return this.api.hire(this.id(), { ...body, expectedStage: prefill.expectedStage, copyFileIds }).pipe(map((result) => result.employee));
+        return this.api.hire(this.id(), { ...hireBody(body), expectedStage: prefill.expectedStage, copyFileIds }).pipe(map((result) => result.employee));
       },
       failed: (error: unknown) => this.onHireFailed(error),
       cancelLink: back.link,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { createZodDto } from '../../../platform/http/zod-validation.pipe.js';
+import { CONTRACT_TYPES, initialContractBlock } from '../../contracts/index.js';
 import { isIsoDate } from '../../organization/index.js';
 import {
   END_REASONS,
@@ -72,6 +73,7 @@ export class ListEmployeesQueryDto extends createZodDto(
       .transform((v) => v === 'true'),
     siteId: uuid.optional(),
     status: z.enum(['active', 'ended', 'all']).default('active'),
+    contractType: z.enum([...CONTRACT_TYPES, 'none']).optional(),
     asOf: isoDate.optional(),
     sort: z.enum(['name', 'matricule', 'hireDate', 'unit']).default('name'),
     dir: z.enum(['asc', 'desc']).default('asc'),
@@ -111,6 +113,8 @@ export const createEmployeeShape = {
       salary: salaryBlock.optional(),
       bank: bankBlock.optional(),
       nss: nssBlock.optional(),
+      // the initial contract, starting on the hire date (docs/contracts/contracts-deadlines.md › Contracts)
+      contract: initialContractBlock.optional(),
 };
 
 /** With `personId` (rehire) no person field is accepted; without it lastName and firstName are required. */

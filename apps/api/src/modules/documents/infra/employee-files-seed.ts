@@ -49,7 +49,16 @@ export const DEMO_EMPLOYEE_FILES = {
   idCardEst: fixed(2),
   medicalEst: fixed(3),
   contractOuest: fixed(4),
+  passportEst: fixed(5),
+  licenceOuest: fixed(6),
 } as const;
+
+/** `iso` + `days` (YYYY-MM-DD, calendar arithmetic in UTC). */
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 function employmentOf(n: number): string {
   const e = demoEmployees()[n - 1];
@@ -93,10 +102,39 @@ export async function seedEmployeeFiles(db: Executor, companyId: string, files: 
  * DEMO: EMP-0027 (Est) has a diploma (PDF), an identity card (PNG, expiring) and a MEDICAL fitness certificate that no
  * seeded role can see (docs/contracts/documents.md › Assumptions 14); EMP-0036 (Ouest) has a contract (PDF).
  */
-export async function seedDemoEmployeeFiles(db: Executor): Promise<number> {
+export async function seedDemoEmployeeFiles(db: Executor, today?: string): Promise<number> {
   const companyId = DEMO_ORGANIZATION.company.id;
   const admin = DEMO_USERS.find((u) => u.email === 'rh.admin@demo.dz')?.id ?? '';
+  // seed:dev passes today (docs/contracts/contracts-deadlines.md › Seed): an Est passport expiring in 2 weeks (open on
+  // the deadlines board) and an Ouest driving licence expiring in 5 days (the seed's handled item)
+  const expiring: SeedEmployeeFile[] = today
+    ? [
+        {
+          id: DEMO_EMPLOYEE_FILES.passportEst,
+          employmentId: employmentOf(27),
+          categoryCode: 'id_document',
+          title: 'Passeport',
+          originalFilename: 'passeport.png',
+          mime: 'image/png',
+          content: demoLogoPng(),
+          expiresOn: addDays(today, 14),
+          uploadedBy: admin,
+        },
+        {
+          id: DEMO_EMPLOYEE_FILES.licenceOuest,
+          employmentId: employmentOf(36),
+          categoryCode: 'id_document',
+          title: 'Permis de conduire',
+          originalFilename: 'permis.png',
+          mime: 'image/png',
+          content: demoLogoPng(),
+          expiresOn: addDays(today, 5),
+          uploadedBy: admin,
+        },
+      ]
+    : [];
   return seedEmployeeFiles(db, companyId, [
+    ...expiring,
     {
       id: DEMO_EMPLOYEE_FILES.diplomaEst,
       employmentId: employmentOf(27),

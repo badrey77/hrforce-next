@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ContractsModule } from '../contracts/index.js';
 import { EmployeesController } from './api/employees.controller.js';
 import { EmployeesService } from './application/employees.service.js';
 import { EmploymentClock } from './application/employment-clock.js';
@@ -9,6 +10,7 @@ import { EmployeeRepository } from './infra/employee.repository.js';
  * data (NSS, RIB) behind field-level permissions. Scope and permissions come from the platform ScopeService.
  */
 @Module({
+  imports: [ContractsModule],
   controllers: [EmployeesController],
   providers: [EmployeesService, EmployeeRepository, EmploymentClock],
   exports: [EmployeesService],

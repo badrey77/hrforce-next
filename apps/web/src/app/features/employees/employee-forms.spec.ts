@@ -131,6 +131,12 @@ describe('employeeProblemToForm', () => {
 describe('list state ⇄ URL', () => {
   it('resolves defaults and ignores garbage', () => {
     expect(resolveQuery({})).toMatchObject({ status: 'active', sort: 'name', dir: 'asc', page: 1, pageSize: 25, includeSubUnits: true });
+    expect(resolveQuery({}).contractType).toBeNull();
+    expect(resolveQuery({ contractType: 'cdd' }).contractType).toBe('cdd');
+    expect(resolveQuery({ contractType: 'none' }).contractType).toBe('none');
+    expect(resolveQuery({ contractType: 'freelance' }).contractType).toBeNull();
+    expect(toQueryParams({ contractType: null })).toEqual({ contractType: null });
+    expect(toQueryParams({ contractType: 'cdi' })).toEqual({ contractType: 'cdi' });
     expect(resolveQuery({ page: '-3', pageSize: '500', sort: 'salary', dir: 'up', status: 'x', asOf: '2025-02-30' })).toMatchObject({
       page: 1,
       pageSize: 25,

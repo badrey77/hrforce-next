@@ -14,6 +14,7 @@
  * The purged form has no employee: `subjectPerson()` below is what list rows use to name anyone.
  */
 import type { CorrectionChange, DayStatus, PunchTime } from '../attendance/attendance.models';
+import type { DecisionContract, DecisionProposal } from '../deadlines/deadlines.models';
 import type { NamePair } from '../employees/employees.models';
 import type { DocumentLanguage } from '../documents/documents.models';
 import type { Labels, LeaveEmployee } from '../leave/leave.models';
@@ -51,7 +52,29 @@ export interface PurgedCorrectionTaskSubject {
   readonly id?: string;
 }
 
-export type TaskSubject = LeaveTaskSubject | DocumentTaskSubject | CorrectionTaskSubject | PurgedCorrectionTaskSubject | OpeningTaskSummary;
+/**
+ * A contract decision (docs/contracts/contracts-deadlines.md › Contract decisions): a fixed-term contract is ending;
+ * the unit head proposes renew / convert to CDI / end, HR approves and the decision is applied. `id` is the decision id
+ * (`PUT /contract-decisions/:id/proposal`).
+ */
+export interface ContractDecisionTaskSubject {
+  readonly type: 'contract_decision';
+  readonly id: string;
+  readonly employee: LeaveEmployee;
+  readonly contract: DecisionContract;
+  readonly proposal: DecisionProposal | null;
+  readonly proposedEndDate: string | null;
+  readonly proposedStartDate: string | null;
+  readonly comment: string | null;
+}
+
+export type TaskSubject =
+  | LeaveTaskSubject
+  | DocumentTaskSubject
+  | CorrectionTaskSubject
+  | PurgedCorrectionTaskSubject
+  | OpeningTaskSummary
+  | ContractDecisionTaskSubject;
 
 /** The person a task is about, or `null` for a purged subject (the only kind without one). */
 export function subjectPerson(subject: TaskSubject): NamePair | null {

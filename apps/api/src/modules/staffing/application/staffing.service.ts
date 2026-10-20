@@ -82,6 +82,13 @@ export function toCard(r: EmployeeCardRow): EmployeeCard {
   };
 }
 
+/** The company of the context, for reads that do not depend on the caller (also run by the worker, no user). */
+function companyOnly(): { companyId: string } {
+  const { companyId } = requireContext();
+  if (!companyId) throw new NotFoundException();
+  return { companyId };
+}
+
 function conflict(slug: string, message: string, field?: string): ProblemException {
   return new ProblemException(409, slug, message, field ? [{ field, code: slug.replace(/-/g, '_'), message }] : undefined);
 }
@@ -125,13 +132,13 @@ export class StaffingService {
 
   /** employmentId → linked user id. */
   async linkedUsersOf(employmentIds: readonly string[]): Promise<Map<string, string>> {
-    const { companyId } = tenant();
+    const { companyId } = companyOnly();
     return this.repo.usersOfEmployments(companyId, [...new Set(employmentIds)]);
   }
 
   /** Employee cards (person + scope unit as of `date`, default today), by id. */
   async cards(ids: readonly string[], date = this.clock.today()): Promise<Map<string, EmployeeCard>> {
-    const { companyId } = tenant();
+    const { companyId } = companyOnly();
     const rows = await this.repo.cards(companyId, [...new Set(ids)], date);
     return new Map(rows.map((r) => [r.id, toCard(r)]));
   }
@@ -144,7 +151,7 @@ export class StaffingService {
 
   /** The manager of an employment on `date` (contract rule; see domain/manager.ts). */
   async managerOf(employmentId: string, date: string): Promise<ManagerResolution> {
-    const { companyId } = tenant();
+    const { companyId } = companyOnly();
     const [card] = await this.repo.cards(companyId, [employmentId], date);
     if (!card) return { kind: 'none', reason: 'no-manager' };
     return pickManager(await this.repo.chain(companyId, card.unitId, date), employmentId);

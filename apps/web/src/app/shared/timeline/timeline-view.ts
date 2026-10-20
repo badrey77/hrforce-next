@@ -86,6 +86,8 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   closed_by: 'user',
   // Documents: the type of an issued document (also in ENUM_FIELDS: the page's name wins, else the built-in name).
   type_code: 'documentType',
+  // Contracts (contracts-deadlines contract › Audit): who proposed a contract decision.
+  proposed_by: 'user',
 };
 
 /**
@@ -132,6 +134,13 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   // Recruitment: the same words as the recruitment screens.
   'recruitment_opening.status': 'recruitment.status.',
   'recruitment_opening.contract_type': 'recruitment.contractType.',
+  // Contracts: the same words as the « Contrats » tab.
+  'employment_contract.contract_type': 'contracts.type.',
+  'employment_contract.kind': 'contracts.kind.',
+  'contract_decision.status': 'contracts.decision.status.',
+  'contract_decision.proposal': 'contracts.decision.proposal.',
+  // An employment ended by an approved « end » decision (or by hand): the same words as the end-of-employment form.
+  'employment.end_reason': 'employees.endReasons.',
 };
 
 /**
@@ -169,6 +178,10 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   sso_app_role: ['sso_client_id'],
   // Recruitment: the link to the approval flow is a bare id (the flow's own rows follow in the same history).
   recruitment_opening: ['workflow_instance_id'],
+  // Contracts: the links repeat the subject or are bare ids (the decision's own rows follow in the same history);
+  // `opened_by` is `system` or a user id, shown by the decision event.
+  employment_contract: ['employment_id', 'decision_id'],
+  contract_decision: ['employment_id', 'contract_id', 'workflow_instance_id', 'result_contract_id', 'opened_by', 'updated_at'],
 };
 
 export type DisplayValue =

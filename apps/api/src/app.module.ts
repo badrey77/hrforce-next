@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { AttendanceModule } from './modules/attendance/index.js';
 import { AuditModule } from './modules/audit/index.js';
 import { AuthorizationModule } from './modules/authorization/index.js';
+import { DeadlinesModule } from './modules/deadlines/index.js';
 import { BrandingModule } from './modules/branding/index.js';
+import { ContractsModule } from './modules/contracts/index.js';
 import { DocumentsModule } from './modules/documents/index.js';
 import { EmploymentModule } from './modules/employment/index.js';
 import { IdentityModule } from './modules/identity/index.js';
@@ -32,6 +34,8 @@ import { PlatformModule } from './platform/platform.module.js';
     SsoModule,
     RecruitmentModule,
     BrandingModule,
+    ContractsModule,
+    DeadlinesModule,
   ],
 })
 export class AppModule {}

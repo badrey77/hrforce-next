@@ -57,6 +57,8 @@ import {
   normaliseMoney,
   notBlank,
 } from './employee-forms';
+import { ContractFields } from './contract-fields';
+import { contractFormGroup, initialContractBody } from './contract-forms';
 import { FieldError } from './field-error';
 import { asHireMode } from './hire-mode';
 import { RevealAlert } from '../../shared/reveal-alert/reveal-alert.directive';
@@ -68,7 +70,7 @@ function orNull(value: string): string | null {
 
 @Component({
   selector: 'app-employee-create-page',
-  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError],
+  imports: [RevealAlert, TranslocoDirective, ReactiveFormsModule, RouterLink, OrgUnitPicker, FieldError, ContractFields],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-create.page.html',
   styleUrl: './employees.css',
@@ -86,6 +88,9 @@ export class EmployeeCreatePage implements OnInit {
    */
   readonly hireMode = input<unknown>();
   protected readonly hire = computed(() => asHireMode(this.hireMode()));
+  protected readonly isHire = computed(() => this.hire() !== undefined);
+  /** In a hire, the offer's contract type when the prefill carries it. */
+  protected readonly offerContractType = computed(() => this.hire()?.prefill.contractType ?? null);
 
   protected readonly form = this.fb.group(
     {
@@ -117,6 +122,8 @@ export class EmployeeCreatePage implements OnInit {
         { validators: bothOrNeither('rib', 'bankName') },
       ),
       nss: this.fb.group({ nss: ['', digits(10, 15)] }),
+      // The initial contract, starting on the hire date (contracts-deadlines contract › Web builder 1).
+      contract: contractFormGroup(this.fb, () => this.contractStart()),
     },
     { validators: birthBeforeHire },
   );
@@ -167,6 +174,12 @@ export class EmployeeCreatePage implements OnInit {
       assignment: { orgUnitId: prefill.orgUnitId, siteId: prefill.siteId, jobTitle: prefill.jobTitle },
       salary: { baseSalary: prefill.salary?.baseSalary ?? '' },
     });
+  }
+
+  /** The initial contract starts on the hire date (read by the contract block's validators). */
+  private contractStart(): string | null {
+    // The validators run once while the form is being built, before `form` is assigned.
+    return (this.form as typeof this.form | undefined)?.controls.employment.controls.hireDate.value || null;
   }
 
   /** `(blur)` of the matricule input: show the value as it will be saved (employee-forms.ts › `matricule`). */
@@ -225,6 +238,8 @@ export class EmployeeCreatePage implements OnInit {
     if (controls.salary.enabled && salary.baseSalary.trim()) body.salary = { baseSalary: normaliseMoney(salary.baseSalary) };
     if (controls.bank.enabled && bank.rib.trim()) body.bank = { rib: digitsOnly(bank.rib), bankName: orNull(bank.bankName) };
     if (controls.nss.enabled && nss.nss.trim()) body.nss = { nss: digitsOnly(nss.nss) };
+    const contract = initialContractBody(controls.contract, { withTexts: !this.hire() });
+    if (contract) body.contract = contract;
     return body;
   }
 }

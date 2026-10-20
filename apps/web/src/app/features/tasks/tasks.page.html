@@ -52,6 +52,13 @@
                     {{ t('recruitment.tasks.title') }} · <span dir="ltr">{{ task.subject.reference }}</span> ·
                     <bdi>{{ task.subject.unit | displayName: lang() }}</bdi>
                   </span>
+                } @else if (task.subject.type === 'contract_decision') {
+                  <span class="what" data-subject="contract_decision">
+                    {{ t('tasks.decision.title') }} · {{ t('contracts.type.' + task.subject.contract.contractType) }}
+                    @if (task.subject.contract.endDate) {
+                      · {{ t('tasks.decision.endsOn', { date: (task.subject.contract.endDate | date: 'mediumDate' : undefined : locale()) }) }}
+                    }
+                  </span>
                 } @else if (task.subject.type === 'leave_request') {
                   <span class="what">
                     {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
@@ -140,6 +147,8 @@
             <dd data-field="requester"><bdi>{{ task.subject.requestedBy.displayName }}</bdi></dd>
           </dl>
           <p class="field-hint">{{ t('recruitment.tasks.approveHint') }}</p>
+        } @else if (task.subject.type === 'contract_decision') {
+          <app-contract-decision-panel [subject]="task.subject" [stepKey]="task.stepKey" (saved)="onDecisionSaved()" (dirtyChange)="decisionDirty.set($event)" />
         } @else if (task.subject.type === 'document_request') {
           <dl class="facts" data-panel="document-request">
             <dt>{{ t('documents.fields.employee') }}</dt>
@@ -178,7 +187,9 @@
         <div class="form-actions decide">
           <!-- A purged correction has nothing left to apply: only a rejection closes its task. -->
           @if (!(task.subject.type === 'attendance_correction' && task.subject.purged)) {
-            <button class="btn" type="button" data-action="approve" [disabled]="acting()" (click)="approve(task)">{{ t('tasks.approve') }}</button>
+            <button class="btn" type="button" data-action="approve"
+              [disabled]="acting() || (task.subject.type === 'contract_decision' && (!task.subject.proposal || decisionDirty()))"
+              (click)="approve(task)">{{ t('tasks.approve') }}</button>
           }
           <button class="btn secondary" type="button" data-action="reject" [disabled]="acting()" (click)="openReject(task)">{{ t('tasks.reject') }}</button>
         </div>
@@ -199,6 +210,8 @@
           }
           @if (task.subject.type === 'attendance_correction') {
             {{ t('attendance.corrections.taskTitle', { date: task.subject.purged ? '' : (task.subject.date | date: 'mediumDate' : undefined : locale()) }) }}
+          } @else if (task.subject.type === 'contract_decision') {
+            {{ t('tasks.decision.title') }}
           } @else {
             {{ subjectLabel(task) }}
           }

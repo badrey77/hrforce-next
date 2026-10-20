@@ -22,10 +22,11 @@ export const NOTIFICATION_TYPES = [
   'recruitment.interview_assigned',
   'recruitment.interview_cancelled',
   'recruitment.evaluations_complete',
+  'deadline.digest',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview';
+export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview' | 'deadline_digest' | 'contract_decision';
 
 /**
  * Who the recipient is to the subject — decides the link: `approver` (a task candidate: /tasks…), `employee` (the

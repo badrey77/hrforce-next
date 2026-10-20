@@ -103,6 +103,8 @@ export interface ListParams {
   includeSubUnits: boolean;
   siteId?: string | undefined;
   status: StatusFilter;
+  /** the type of the contract covering asOf, or `none` (no contract covers it) — docs/contracts/contracts-deadlines.md */
+  contractType?: string | undefined;
   sort: EmployeeSort;
   dir: 'asc' | 'desc';
   lang: ListLang;
@@ -165,6 +167,11 @@ export class EmployeeRepository {
     }
     if (p.unitId) filters.push(sql`a.org_unit_id in (select id from under)`);
     if (p.siteId) filters.push(sql`coalesce(a.site_id, eff.site_id) = ${p.siteId}::uuid`);
+    if (p.contractType) {
+      const covering = sql`select 1 from employment_contract k where k.company_id = e.company_id and k.employment_id = e.id
+        and k.start_date <= ${d}::date and (k.end_date is null or k.end_date >= ${d}::date)`;
+      filters.push(p.contractType === 'none' ? sql`not exists (${covering})` : sql`exists (${covering} and k.contract_type = ${p.contractType})`);
+    }
     const where = filters.length ? sql`and ${sql.join(filters, sql` and `)}` : sql``;
     return sql`
       with recursive

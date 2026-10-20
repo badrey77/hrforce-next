@@ -8,6 +8,7 @@ import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/ident
 import { LEAVE_DEMO_USERS, seedDemoLeave, seedLeaveDefaults } from '../../src/modules/leave/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
 import { seedRecruitmentDefaults } from '../../src/modules/recruitment/index.js';
+import { seedContractDefaults } from '../../src/modules/contracts/index.js';
 import { createDatabase } from '../../src/platform/db/database.js';
 import { query, type TestDatabase } from './test-database.js';
 import { seedAttendanceFixture } from './attendance-fixture.js';
@@ -198,6 +199,9 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
       // the policy, approval chains and rejection reasons of both companies (created after migration 0019)
       await seedRecruitmentDefaults(tx, COMPANY_A);
       await seedRecruitmentDefaults(tx, COMPANY_B);
+      // the end-of-contract decision chain of both companies (created after migration 0023)
+      await seedContractDefaults(tx, COMPANY_A);
+      await seedContractDefaults(tx, COMPANY_B);
       if (options.recruitment) await seedRecruitmentFixture(tx);
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },

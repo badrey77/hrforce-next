@@ -860,7 +860,7 @@ describe('permission and two-step sign-in', () => {
     expect(defaults?.codes).toEqual(expect.arrayContaining(['access.grant', 'sso.manage_apps', 'employee.salary.read']));
     expect(defaults?.codes).not.toContain('employee.read');
     const catalogue = await client('admin').get('/api/access/permissions').expect(200);
-    expect((catalogue.body.items as { code: string; group: string; sensitive: boolean; labels: Record<string, string> }[]).at(-1)).toEqual({
+    expect((catalogue.body.items as { code: string; group: string; sensitive: boolean; labels: Record<string, string> }[]).find((p) => p.code === 'settings.branding')).toEqual({
       code: 'settings.branding',
       group: 'settings',
       sensitive: false,

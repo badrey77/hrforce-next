@@ -26,7 +26,10 @@
     "myRecruitment": "Mes recrutements",
     "recruitmentSettings": "Paramètres du recrutement",
     "myInterviews": "Mes entretiens",
-    "myInterviewsWithCount": "Mes entretiens, {{count}} évaluation(s) à saisir"
+    "myInterviewsWithCount": "Mes entretiens, {{count}} évaluation(s) à saisir",
+    "deadlines": "Échéances",
+    "deadlinesWithCount": "Échéances, {{count}} en retard",
+    "deadlineSettings": "Paramètres des échéances"
   },
   "language": {
     "label": "Langue",
@@ -518,7 +521,9 @@
       "recruitment_policy": "Politique de recrutement",
       "recruitment_rejection_reason": "Motif de refus",
       "recruitment_criterion": "Critère d’évaluation",
-      "recruitment_opening_criterion": "Critère du poste"
+      "recruitment_opening_criterion": "Critère du poste",
+      "employment_contract": "Contrat de travail",
+      "contract_decision": "Décision de fin de contrat"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -863,6 +868,29 @@
         "opening_id": "Poste à pourvoir",
         "criterion_id": "Critère",
         "position": "Position"
+      },
+      "employment_contract": {
+        "seq": "Numéro d’ordre",
+        "kind": "Nature",
+        "contract_type": "Type de contrat",
+        "start_date": "Début",
+        "end_date": "Fin",
+        "probation_end": "Fin de la période d’essai",
+        "reference": "Référence",
+        "reason": "Motif",
+        "note": "Note",
+        "created_by": "Enregistré par",
+        "created_at": "Enregistré le"
+      },
+      "contract_decision": {
+        "status": "Statut",
+        "proposal": "Proposition",
+        "proposed_start_date": "Début proposé",
+        "proposed_end_date": "Fin proposée",
+        "comment": "Commentaire",
+        "proposed_by": "Proposé par",
+        "proposed_at": "Proposé le",
+        "created_at": "Ouverte le"
       }
     },
     "events": {
@@ -975,6 +1003,10 @@
         "offer_reopened": "Offre de nouveau proposée (embauche annulée)",
         "hired": "Embauche issue du recrutement {{reference}}",
         "hire_undone": "Embauche annulée dans le recrutement {{reference}}"
+      },
+      "contract": {
+        "decision_opened": "Décision de fin de contrat ouverte",
+        "decision_applied": "Décision de fin de contrat appliquée"
       }
     },
     "values": {
@@ -1137,7 +1169,8 @@
       "history": "Historique",
       "documents": "Documents",
       "file": "Dossier",
-      "attendance": "Présence"
+      "attendance": "Présence",
+      "contracts": "Contrats"
     },
     "identity": {
       "edit": "Modifier",
@@ -1483,9 +1516,45 @@
       "documentNoSignatory": "Impossible d’émettre le document de {{name}} : aucun signataire ne couvre son unité.",
       "documentTypeInactive": "Impossible d’émettre le document de {{name}} : ce type de document est désactivé.",
       "documentRetry": "Le document de {{name}} n’a pas pu être généré pour l’instant. Réessayez dans un moment.",
-      "correctionStale": "Un pointage à retirer de la demande de {{name}} a déjà été annulé entre-temps : la correction ne peut plus être acceptée telle quelle. Veuillez la refuser en l’expliquant."
+      "correctionStale": "Un pointage à retirer de la demande de {{name}} a déjà été annulé entre-temps : la correction ne peut plus être acceptée telle quelle. Veuillez la refuser en l’expliquant.",
+      "decisionNoProposal": "Impossible d’approuver la décision de {{name}} sans proposition enregistrée.",
+      "decisionApplyFailed": "Impossible d’appliquer la décision pour {{name}} : vérifiez ses contrats et son emploi."
     },
-    "notOpen": "La tâche du lien n’est plus ouverte : elle a déjà été traitée ou ne vous est plus attribuée."
+    "notOpen": "La tâche du lien n’est plus ouverte : elle a déjà été traitée ou ne vous est plus attribuée.",
+    "decision": {
+      "title": "Décision de fin de contrat",
+      "endsOn": "fin le {{date}}",
+      "contract": "Contrat",
+      "current": "Proposition enregistrée",
+      "none": "Aucune proposition pour l’instant.",
+      "legendManager": "Votre proposition",
+      "legendHr": "Proposition (modifiable par les RH)",
+      "proposals": {
+        "renew": "Renouveler le contrat",
+        "convert_cdi": "Passer en CDI",
+        "end": "Mettre fin au contrat à son terme"
+      },
+      "start": "Date de début",
+      "startHint": "Par défaut : le lendemain de la fin du contrat actuel.",
+      "end": "Fin du nouveau contrat (dernier jour)",
+      "comment": "Commentaire (facultatif)",
+      "save": "Enregistrer la proposition",
+      "saved": "Proposition enregistrée.",
+      "approveNeedsProposal": "Enregistrez une proposition avant d’approuver.",
+      "approveApplies": "Approuver appliquera : {{what}}.",
+      "approveSends": "Approuver transmet la proposition aux RH.",
+      "summary": {
+        "renew": "renouvellement du {{from}} au {{to}}",
+        "convert_cdi": "passage en CDI à partir du {{from}}",
+        "end": "fin du contrat à son terme"
+      },
+      "errors": {
+        "endRequired": "Indiquez la fin du nouveau contrat.",
+        "endAfterStart": "La fin doit être après le début.",
+        "commentTooLong": "Le commentaire est trop long.",
+        "proposalRequired": "Choisissez une proposition."
+      }
+    }
   },
   "workflow": {
     "title": "Circuit d'approbation",
@@ -1546,7 +1615,8 @@
         "assigned_attendance": "Correction de pointage à traiter : {{employeeName}} ({{date}}).",
         "escalated_attendance": "Votre correction de pointage du {{date}} passe directement à l’étape RH (aucun responsable disponible).",
         "assigned_recruitment": "Ouverture de poste à approuver : {{title}} ({{reference}}, {{unitName}}).",
-        "escalated_recruitment": "Votre demande d'ouverture de poste {{title}} ({{reference}}) passe directement à l’étape RH (aucun responsable disponible)."
+        "escalated_recruitment": "Votre demande d'ouverture de poste {{title}} ({{reference}}) passe directement à l’étape RH (aucun responsable disponible).",
+        "assigned_contract": "Décision de fin de contrat à prendre : {{employeeName}}."
       },
       "leave": {
         "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1570,6 +1640,9 @@
         "interview_assigned_rescheduled": "Entretien modifié : le {{date}} à {{time}} — {{title}} ({{reference}})",
         "interview_cancelled": "Entretien du {{date}} annulé — {{title}} ({{reference}})",
         "evaluations_complete": "Toutes les évaluations de l’entretien du {{date}} sont saisies — {{title}} ({{reference}})"
+      },
+      "deadline": {
+        "digest": "Nouvelles échéances à traiter : {{newCount}} (en retard : {{overdueCount}}, critiques : {{criticalCount}})."
       }
     },
     "typesNamed": {
@@ -1607,6 +1680,9 @@
         "interview_assigned": "Un entretien m’est confié ou change de date",
         "interview_cancelled": "Un entretien que je devais mener est annulé",
         "evaluations_complete": "Toutes les évaluations d’un entretien que j’ai planifié sont saisies"
+      },
+      "deadline": {
+        "digest": "Le résumé quotidien des échéances"
       }
     }
   },
@@ -3711,6 +3787,245 @@
     "preview": {
       "caption": "Aperçu avant enregistrement",
       "button": "Bouton principal"
+    }
+  },
+  "contracts": {
+    "type": {
+      "cdi": "CDI",
+      "cdd": "CDD",
+      "pre_emploi": "Pré-emploi (DAIP / CTA)",
+      "apprentissage": "Apprentissage",
+      "stage": "Stage"
+    },
+    "kind": {
+      "initial": "Contrat initial",
+      "renewal": "Renouvellement",
+      "conversion": "Changement de type",
+      "amendment": "Avenant"
+    },
+    "kindHint": {
+      "initial": "Le premier contrat de cet emploi ; il commence à la date d’embauche.",
+      "renewal": "Même type de contrat, à partir du lendemain de la fin du contrat actuel.",
+      "conversion": "Nouveau type (par exemple CDI), à partir du lendemain de la fin du contrat actuel.",
+      "amendment": "Nouvelles conditions ; le contrat actuel se termine la veille."
+    },
+    "filter": {
+      "label": "Contrat",
+      "all": "Tous les contrats",
+      "none": "Contrat non renseigné"
+    },
+    "list": {
+      "column": "Contrat",
+      "until": "jusqu’au {{date}}",
+      "none": "Non renseigné"
+    },
+    "header": {
+      "until": "{{type}} jusqu’au {{date}}",
+      "probation": "période d’essai jusqu’au {{date}}",
+      "none": "Contrat non renseigné : aucun contrat ne couvre la date du jour."
+    },
+    "fields": {
+      "contractType": "Type de contrat",
+      "kind": "Nature",
+      "startDate": "Début",
+      "endDate": "Fin (dernier jour)",
+      "probationEnd": "Fin de la période d’essai",
+      "reference": "Référence du contrat",
+      "reason": "Motif du contrat à durée déterminée",
+      "note": "Note"
+    },
+    "form": {
+      "legend": "Contrat",
+      "typePlaceholder": "Choisir un type",
+      "typeFromOffer": "Le type de contrat est celui de l’offre acceptée.",
+      "endHint": "Dernier jour travaillé au titre de ce contrat.",
+      "probationHint": "Au plus 12 mois après le début du contrat.",
+      "reasonHint": "Par exemple : remplacement, surcroît de travail, travaux saisonniers.",
+      "startsOnHire": "Le contrat commence à la date d’embauche.",
+      "errors": {
+        "probationRange": "La période d’essai doit se terminer entre le {{from}} et le {{to}}."
+      }
+    },
+    "tab": {
+      "title": "Contrats",
+      "new": "Nouveau contrat",
+      "save": "Enregistrer le contrat",
+      "current": "En cours",
+      "noEnd": "Sans fin",
+      "actions": "Actions",
+      "empty": "Aucun contrat enregistré pour cet emploi.",
+      "noteOf": "Note ({{type}} du {{date}}) :",
+      "loadError": "Impossible de charger les contrats."
+    },
+    "correct": {
+      "title": "Corriger le contrat {{type}} du {{date}}",
+      "action": "Corriger",
+      "save": "Enregistrer la correction"
+    },
+    "decision": {
+      "open": "Ouvrir une décision de fin de contrat",
+      "pending": "Décision en cours",
+      "see": "Voir l’échéance",
+      "status": {
+        "pending": "En attente",
+        "approved": "Approuvée",
+        "rejected": "Refusée",
+        "cancelled": "Annulée"
+      },
+      "proposal": {
+        "renew": "Renouveler",
+        "convert_cdi": "Passer en CDI",
+        "end": "Ne pas renouveler"
+      }
+    },
+    "feedback": {
+      "created": "Contrat enregistré.",
+      "corrected": "Contrat corrigé.",
+      "decisionOpened": "Décision ouverte : le responsable de l’unité est sollicité, puis les RH."
+    },
+    "problems": {
+      "overlap": "Ce contrat chevauche un autre contrat de cet emploi.",
+      "notLatest": "Seul le dernier contrat peut être corrigé.",
+      "decisionPending": "Une décision est déjà en cours pour ce contrat.",
+      "notFixedTerm": "Une décision ne concerne qu’un contrat à durée déterminée.",
+      "mustFollowPrevious": "La date de début ne suit pas le contrat précédent : un renouvellement commence le lendemain de sa fin, un changement de type ou un avenant après son début.",
+      "mustMatchPrevious": "Un renouvellement garde le type du contrat renouvelé.",
+      "mustEqualHireDate": "Le contrat initial commence à la date d’embauche.",
+      "afterEmploymentEnd": "Le contrat commencerait après la fin de l’emploi.",
+      "probationOutOfRange": "La période d’essai doit se terminer entre le début du contrat et 12 mois plus tard, sans dépasser sa fin.",
+      "endBeforeStart": "La date de fin est antérieure à la date de début.",
+      "endNotAllowed": "Un CDI n’a pas de date de fin.",
+      "renewNotFixedTerm": "Seul un contrat à durée déterminée peut être renouvelé : choisissez un avenant ou un changement de type.",
+      "initialExists": "Cet emploi a déjà son contrat initial.",
+      "initialMissing": "Enregistrez d’abord le contrat initial.",
+      "changed": "Les contrats de cet emploi ont changé entre-temps : rechargez la page et réessayez.",
+      "decisionNotLatest": "Un contrat plus récent suit déjà celui-ci : il n’y a rien à décider."
+    }
+  },
+  "deadlines": {
+    "title": "Échéances",
+    "loadError": "Impossible de charger les échéances.",
+    "total": "{{count}} échéance(s)",
+    "empty": "Aucune échéance à traiter pour l’instant.",
+    "noMatch": "Aucune échéance ne correspond à ces filtres.",
+    "missingHint": "Aucun contrat ne couvre la date du jour : enregistrez-le.",
+    "range": "du {{from}} au {{to}}",
+    "since": "depuis le {{from}}",
+    "ackBy": "Traitée le {{date}} par {{name}}",
+    "summary": {
+      "label": "Résumé des échéances",
+      "overdue": "en retard",
+      "critical": "critique(s)",
+      "next30": "dans les 30 jours"
+    },
+    "filters": {
+      "label": "Filtres des échéances",
+      "search": "Recherche",
+      "searchPlaceholder": "Nom ou matricule",
+      "kind": "Type",
+      "allKinds": "Tous les types",
+      "status": "Statut",
+      "within": "Période",
+      "withinDays": "{{count}} prochains jours",
+      "unit": "Unité"
+    },
+    "statusFilter": {
+      "open": "À traiter",
+      "handled": "Traitées",
+      "all": "Toutes"
+    },
+    "kinds": {
+      "contract_end": "Fin de contrat à durée déterminée",
+      "probation_end": "Fin de période d’essai",
+      "contract_missing": "Contrat non renseigné",
+      "document_expiry": "Document qui expire",
+      "retirement": "Âge de la retraite"
+    },
+    "severity": {
+      "critical": "Critique",
+      "warning": "Attention",
+      "info": "Information"
+    },
+    "groups": {
+      "overdue": "En retard",
+      "soon": "Dans les 30 jours",
+      "later": "Plus tard",
+      "handled": "Traitées"
+    },
+    "columns": {
+      "due": "Échéance",
+      "kind": "Type",
+      "employee": "Employé(e)",
+      "detail": "Détail",
+      "actions": "Actions"
+    },
+    "relative": {
+      "in": "dans {{count}} j",
+      "today": "aujourd’hui",
+      "late": "{{count}} j de retard"
+    },
+    "decision": {
+      "pending": "Décision en attente",
+      "approved": "Décision approuvée",
+      "rejected": "Décision refusée",
+      "cancelled": "Décision annulée"
+    },
+    "actions": {
+      "ack": "Traiter",
+      "unack": "Annuler",
+      "openDecision": "Lancer la décision"
+    },
+    "ack": {
+      "title": "Marquer l’échéance comme traitée",
+      "note": "Note (facultative)",
+      "noteHint": "{{max}} caractères au plus.",
+      "tooLong": "La note dépasse {{max}} caractères.",
+      "confirm": "Marquer comme traitée"
+    },
+    "feedback": {
+      "handled": "Échéance marquée comme traitée.",
+      "reopened": "Échéance remise à traiter.",
+      "decisionOpened": "Décision lancée : une tâche a été envoyée au responsable."
+    },
+    "problems": {
+      "alreadyHandled": "Cette échéance a déjà été traitée.",
+      "decisionPending": "Une décision est déjà en cours pour ce contrat.",
+      "notFixedTerm": "Ce contrat n’est pas à durée déterminée.",
+      "employmentEnded": "Cet emploi est terminé.",
+      "changed": "Cette échéance a changé depuis l’affichage : la liste est mise à jour."
+    },
+    "home": {
+      "overdue": "échéance(s) en retard",
+      "critical": "échéance(s) critique(s)",
+      "next30": "échéance(s) dans les 30 jours"
+    },
+    "settings": {
+      "title": "Paramètres des échéances",
+      "back": "Retour aux échéances",
+      "intro": "Le délai d’alerte avant chaque échéance, l’âge de la retraite et le résumé quotidien envoyé aux RH.",
+      "loadError": "Impossible de charger les paramètres.",
+      "saved": "Paramètres enregistrés.",
+      "required": "Champ obligatoire.",
+      "outOfRange": "Entrez un nombre entier entre {{min}} et {{max}}.",
+      "companyWide": "Ces paramètres se modifient avec un droit sur toute l’entreprise.",
+      "fields": {
+        "contractNoticeDays": "Alerte avant la fin d’un contrat à durée déterminée (jours)",
+        "decisionNoticeDays": "Ouverture de la décision avant la fin du contrat (jours)",
+        "probationNoticeDays": "Alerte avant la fin de la période d’essai (jours)",
+        "documentNoticeDays": "Alerte avant l’expiration d’un document (jours)",
+        "retirementAge": "Âge de la retraite (ans)",
+        "retirementNoticeMonths": "Alerte avant l’âge de la retraite (mois)",
+        "digestEnabled": "Envoyer un résumé quotidien aux RH"
+      },
+      "hints": {
+        "contractNoticeDays": "Entre {{min}} et {{max}}.",
+        "decisionNoticeDays": "Entre {{min}} et {{max}} ; 0 = aucune décision ouverte automatiquement.",
+        "probationNoticeDays": "Entre {{min}} et {{max}}.",
+        "documentNoticeDays": "Entre {{min}} et {{max}}.",
+        "retirementAge": "Entre {{min}} et {{max}}.",
+        "retirementNoticeMonths": "Entre {{min}} et {{max}}.",
+        "digestEnabled": "Une notification par jour, quand de nouvelles échéances apparaissent."
+      }
     }
   }
 }

@@ -12,6 +12,8 @@
  */
 
 /** Latin names are required; Arabic ones optional (contract: "optional Arabic names for people and org units"). */
+import type { ContractSummary, ContractType, InitialContract } from '../contracts/contracts.models';
+
 export interface NamePair {
   readonly lastName: string;
   readonly firstName: string;
@@ -50,6 +52,8 @@ export interface EmployeeListItem {
   readonly hireDate: string;
   readonly endDate: string | null;
   readonly status: EmployeeStatus;
+  /** The current contract (as of `asOf`/today), `null` when none covers it (contracts-deadlines contract). */
+  readonly contract?: ContractSummary | null;
 }
 
 export interface EmployeePerson extends NamePair {
@@ -107,7 +111,7 @@ export interface EmployeeNss {
 
 /** A block the caller may not read: omitted from the payload and named here. */
 export type RedactedBlock = 'salary' | 'bank' | 'nss';
-export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss';
+export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss' | 'manage_contract';
 
 export interface EmployeeDetail extends EmployeeListItem {
   readonly person: EmployeePerson;
@@ -140,6 +144,8 @@ export const EMPLOYEE_SORTS: readonly EmployeeSort[] = ['name', 'matricule', 'hi
 export type SortDir = 'asc' | 'desc';
 export type StatusFilter = 'active' | 'ended' | 'all';
 export const STATUS_FILTERS: readonly StatusFilter[] = ['active', 'ended', 'all'];
+/** `GET /employees?contractType=`: a type of the current contract, or `none` (no contract covers the date). */
+export type ContractTypeFilter = ContractType | 'none';
 
 export const EMPLOYEE_PAGE_SIZES: readonly number[] = [10, 25, 50, 100];
 export const DEFAULT_PAGE_SIZE = 25;
@@ -153,6 +159,7 @@ export interface EmployeeQuery {
   readonly siteId: string | null;
   readonly status: StatusFilter;
   readonly asOf: string | null;
+  readonly contractType: ContractTypeFilter | null;
   readonly sort: EmployeeSort;
   readonly dir: SortDir;
   /** 1-based. */
@@ -167,6 +174,7 @@ export const DEFAULT_EMPLOYEE_QUERY: EmployeeQuery = {
   siteId: null,
   status: 'active',
   asOf: null,
+  contractType: null,
   sort: 'name',
   dir: 'asc',
   page: 1,
@@ -221,6 +229,8 @@ export interface CreateEmployee extends Partial<PersonInput> {
   readonly salary?: { readonly baseSalary: string };
   readonly bank?: { readonly rib: string; readonly bankName: string | null };
   readonly nss?: { readonly nss: string };
+  /** The `initial` contract, starting on the hire date (required by the web form, optional for the API). */
+  readonly contract?: InitialContract;
 }
 
 export type EndReason = 'resignation' | 'retirement' | 'dismissal' | 'end_of_contract' | 'death' | 'other';

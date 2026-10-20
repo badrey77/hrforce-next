@@ -68,6 +68,7 @@ export function employeeListParams(query: EmployeeQuery, sortLanguage: EmployeeS
   if (query.siteId) params['siteId'] = query.siteId;
   params['status'] = query.status;
   if (query.asOf) params['asOf'] = query.asOf;
+  if (query.contractType) params['contractType'] = query.contractType;
   params['sort'] = query.sort;
   params['dir'] = query.dir;
   params['page'] = String(query.page);

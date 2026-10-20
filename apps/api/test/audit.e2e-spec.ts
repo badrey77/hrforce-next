@@ -13,6 +13,7 @@ import request from 'supertest';
 import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } from '../src/modules/identity/index.js';
 import { createDatabase } from '../src/platform/db/database.js';
 import { DEMO_SIGNATORIES, demoPdf } from '../src/modules/documents/index.js';
+import { deadlinesToday } from '../src/modules/deadlines/index.js';
 import { DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf } from '../src/modules/attendance/index.js';
 import { REC_FX } from './support/recruitment-fixture.js';
 import { scanReceipt } from './support/attendance-fixture.js';
@@ -21,6 +22,7 @@ import { assertNoSecrets } from './support/assert-no-secrets.js';
 import { Browser } from './support/cookie-jar.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
+import { insertAck, insertContract, insertExpiringFile, plusDays } from './support/deadlines-fixture.js';
 import { seedTemplateFixture, SIMPLE_LAYOUT, type TemplateFixture } from './support/templates-fixture.js';
 import { fetchXsrf, type XsrfPair } from './support/xsrf.js';
 
@@ -68,8 +70,9 @@ const M1_TABLES = [
 const AUDITED_TABLES = [
   'assignment',
   'attendance_device', 'attendance_policy', 'attendance_schedule', 'attendance_schedule_assignment', 'attendance_schedule_override', 'attendance_schedule_version',
-  'company', 'company_branding', 'company_profile', 'document_request', 'document_signatory', 'document_template_version', 'document_type', 'employee_file', 'employee_file_category',
-  'employment', 'employment_salary',
+  'company', 'company_branding', 'company_profile', 'contract_decision', 'deadline_ack', 'deadline_policy',
+  'document_request', 'document_signatory', 'document_template_version', 'document_type', 'employee_file', 'employee_file_category',
+  'employment', 'employment_contract', 'employment_salary',
   'installation_branding', 'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
   'recruitment_criterion', 'recruitment_opening', 'recruitment_opening_criterion', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
@@ -490,8 +493,21 @@ describe('exit criterion: every write through the API produces an audit row with
     expect(Object.values(LV).every((v) => v !== '')).toBe(true);
     // designed templates: drafts to save, publish and discard, and the certificat in designed mode (to revert)
     TPL = await seedTemplateFixture(db.superuserUrl, COMPANY_A, USERS.admin.id, 'aud', { designedCertificat: true });
+    // deadlines: a document expiring in 10 days (an item to mark handled) and an acknowledgement to remove
+    const today = deadlinesToday();
+    DL.fileExpiry = plusDays(today, 10);
+    DL.file = await insertExpiringFile(db.superuserUrl, { companyId: COMPANY_A, employmentId: employeeA(27), uploadedBy: USERS.admin.id, expiresOn: DL.fileExpiry });
+    DL.ackToDelete = await insertAck(db.superuserUrl, { companyId: COMPANY_A, kind: 'retirement', subjectId: employeeA(28), dueDate: '2040-01-01', ackedBy: USERS.admin.id });
+    // contracts: a CDD to correct and to open a decision on (EMP-0026), and a decision at the HR step (EMP-0001, the
+    // head of DG: nobody above, so the manager step is escalated) whose proposal rh.admin records
+    const hire = async (e: string) => (await query<{ d: string }>(db.superuserUrl, `select to_char(hire_date, 'YYYY-MM-DD') as d from employment where id = $1`, [e]))[0]?.d ?? '';
+    CT.contract = await insertContract(db.superuserUrl, { companyId: COMPANY_A, employmentId: employeeA(26), seq: 1, contractType: 'cdd', startDate: await hire(employeeA(26)), endDate: '2032-12-31' });
+    const dgContract = await insertContract(db.superuserUrl, { companyId: COMPANY_A, employmentId: employeeA(1), seq: 1, contractType: 'cdd', startDate: await hire(employeeA(1)), endDate: '2032-12-31' });
+    CT.decision = (await client('admin').post(`/api/employees/${employeeA(1)}/contracts/${dgContract}/decision`).expect(201)).body.id;
   });
+  const CT = { contract: '', decision: '' };
   let TPL: TemplateFixture;
+  const DL = { file: '', fileExpiry: '', ackToDelete: '' };
 
   interface Write {
     request: () => { path: string; body: object; upload?: Buffer; fields?: Record<string, string> };
@@ -768,6 +784,18 @@ describe('exit criterion: every write through the API produces an audit row with
     'PUT /api/branding/installation/logo': { request: () => ({ path: '/api/branding/installation/logo', body: {}, upload: Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0, 11, 8, 0, 1, 0, 1, 1, 1, 0x11, 0, 0xff, 0xd9]) }), tables: ['installation_branding'] },
     'DELETE /api/branding/installation/logo': { request: () => ({ path: '/api/branding/installation/logo', body: {} }), tables: ['installation_branding'] },
     'DELETE /api/branding/installation': { request: () => ({ path: '/api/branding/installation', body: {} }), tables: ['installation_branding'] },
+    // deadlines (docs/contracts/contracts-deadlines.md › Audit): row triggers
+    'POST /api/deadlines/acks': { request: () => ({ path: '/api/deadlines/acks', body: { kind: 'document_expiry', subjectId: DL.file, dueDate: DL.fileExpiry, note: 'Audit' } }), tables: ['deadline_ack'] },
+    'DELETE /api/deadlines/acks/:id': { request: () => ({ path: `/api/deadlines/acks/${DL.ackToDelete}`, body: {} }), tables: ['deadline_ack'] },
+    'PUT /api/deadlines/settings': { request: () => ({ path: '/api/deadlines/settings', body: { contractNoticeDays: 25 } }), tables: ['deadline_policy'] },
+    // contracts (docs/contracts/contracts-deadlines.md › Audit): row triggers
+    'POST /api/employees/:id/contracts': { request: () => ({ path: `/api/employees/${employeeA(24)}/contracts`, body: { kind: 'initial', contractType: 'cdi' } }), tables: ['employment_contract'] },
+    'PATCH /api/employees/:id/contracts/:contractId': { request: () => ({ path: `/api/employees/${employeeA(26)}/contracts/${CT.contract}`, body: { reference: 'CDD-AUDIT' } }), tables: ['employment_contract'] },
+    'POST /api/employees/:id/contracts/:contractId/decision': {
+      request: () => ({ path: `/api/employees/${employeeA(26)}/contracts/${CT.contract}/decision`, body: {} }),
+      tables: ['contract_decision', 'workflow_instance', 'workflow_task'],
+    },
+    'PUT /api/contract-decisions/:id/proposal': { request: () => ({ path: `/api/contract-decisions/${CT.decision}/proposal`, body: { proposal: 'convert_cdi' } }), tables: ['contract_decision'] },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -827,11 +855,11 @@ describe('exit criterion: every write through the API produces an audit row with
     await run('POST /api/recruitment/applications/:id/offer/cancel', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toOffer.est[0]}/offer/cancel`).set('X-Request-Id', id).send({ expectedStage: 'offer', comment: 'Confidentiel' }));
     await run('POST /api/recruitment/applications/:id/offer/decline', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toDecline.est[0]}/offer/decline`).set('X-Request-Id', id).send({ expectedStage: 'offer', comment: 'Confidentiel' }));
     const hired = await run('POST /api/recruitment/applications/:id/hire', (id) =>
-      admin.post(`/api/recruitment/applications/${REC_FX.toHire.est[0]}/hire`).set('X-Request-Id', id).send({ lastName: 'Auditée', firstName: 'Embauchée', matricule: 'AUD-HIRE', hireDate: '2026-11-01', orgUnitId: unitA('AG-CNE'), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [] }),
+      admin.post(`/api/recruitment/applications/${REC_FX.toHire.est[0]}/hire`).set('X-Request-Id', id).send({ lastName: 'Auditée', firstName: 'Embauchée', matricule: 'AUD-HIRE', hireDate: '2026-11-01', orgUnitId: unitA('AG-CNE'), jobTitle: 'Agent', expectedStage: 'offer', copyFileIds: [], contractEndDate: '2031-12-31' }),
     );
     await run('POST /api/recruitment/applications/:id/undo-hire', (id) => admin.post(`/api/recruitment/applications/${REC_FX.toUndo.est[0]}/undo-hire`).set('X-Request-Id', id).send({ reason: 'Motif Confidentiel' }));
     // the hire wrote the employee's audited rows in the same request, and its event is on the employee
-    expect((await changes('request_id = $1', [hired.requestId])).map((c) => c.table_name).toSorted()).toEqual(['assignment', 'employment', 'person', 'recruitment_opening']);
+    expect((await changes('request_id = $1', [hired.requestId])).map((c) => c.table_name).toSorted()).toEqual(['assignment', 'employment', 'employment_contract', 'person', 'recruitment_opening']);
     expect((await events('request_id = $1 and type = $2', [hired.requestId, 'recruitment.hired']))[0]).toMatchObject({ subject_type: 'employee', subject_id: hired.res.body.employee.id });
     expect(runs.map(([key]) => key).toSorted()).toEqual(Object.keys(RECRUITMENT_EVENT_WRITES).toSorted());
     for (const [key, r] of runs) {

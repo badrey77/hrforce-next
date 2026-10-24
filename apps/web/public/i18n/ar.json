@@ -29,7 +29,9 @@
     "myInterviewsWithCount": "مقابلاتي، التقييمات في انتظار الإدخال: {{count}}",
     "deadlines": "الآجال",
     "deadlinesWithCount": "الآجال، المتجاوزة: {{count}}",
-    "deadlineSettings": "إعدادات الآجال"
+    "deadlineSettings": "إعدادات الآجال",
+    "payroll": "الأجور",
+    "payrollSettings": "إعدادات الأجور"
   },
   "language": {
     "label": "اللغة",
@@ -523,7 +525,14 @@
       "recruitment_criterion": "معيار التقييم",
       "recruitment_opening_criterion": "معيار المنصب",
       "employment_contract": "عقد العمل",
-      "contract_decision": "قرار بشأن نهاية العقد"
+      "contract_decision": "قرار بشأن نهاية العقد",
+      "payroll_policy": "إعدادات الأجور",
+      "payroll_rubrique": "بند الأجر",
+      "payroll_employee_code": "رقم التسجيل في الأجور",
+      "payroll_period": "فترة الأجور",
+      "payroll_adjustment": "متغير أجر معدَّل",
+      "payroll_closing": "إقفال الأجور",
+      "payroll_line": "سطر أجر مقفل"
     },
     "masked": "مخفي",
     "emptyValue": "(فارغ)",
@@ -891,6 +900,57 @@
         "proposed_by": "اقتُرح من طرف",
         "proposed_at": "اقتُرح في",
         "created_at": "فُتح في"
+      },
+      "payroll_adjustment": {
+        "month": "الشهر",
+        "origin_month": "الشهر الأصلي",
+        "rubrique_id": "البند",
+        "value": "القيمة",
+        "note": "ملاحظة",
+        "updated_by": "أدخله"
+      },
+      "payroll_employee_code": {
+        "code": "رقم التسجيل في الأجور",
+        "updated_by": "أدخله"
+      },
+      "payroll_rubrique": {
+        "source": "المصدر",
+        "leave_type_id": "نوع العطلة",
+        "export_code": "رمز التصدير",
+        "name_fr": "التسمية (بالفرنسية)",
+        "name_ar": "التسمية (بالعربية)",
+        "name_en": "التسمية (بالإنجليزية)",
+        "unit": "الوحدة",
+        "active": "نشط",
+        "sort_order": "الترتيب",
+        "created_at": "أُنشئ في"
+      },
+      "payroll_policy": {
+        "cutoff_day": "تاريخ الإقفال المحدد (اليوم)",
+        "regularization_months": "أشهر التسوية",
+        "overtime_min_minutes": "الحد الأدنى للساعات الإضافية (بالدقائق)",
+        "layout": "التنظيم",
+        "separator": "الفاصل",
+        "decimal_separator": "الفاصل العشري",
+        "encoding": "الترميز",
+        "header_row": "سطر العناوين",
+        "columns": "الأعمدة",
+        "period_format": "صيغة الفترة",
+        "file_extension": "امتداد الملف"
+      },
+      "payroll_period": {
+        "month": "الشهر",
+        "status": "الحالة"
+      },
+      "payroll_closing": {
+        "version": "النسخة",
+        "closed_by": "أقفلها",
+        "closed_at": "أُقفلت في",
+        "reopened_by": "أعاد فتحها",
+        "reopened_at": "أُعيد فتحها في",
+        "reopen_reason": "سبب إعادة الفتح",
+        "lines": "الأسطر",
+        "employees": "الموظفون"
       }
     },
     "events": {
@@ -1007,6 +1067,12 @@
       "contract": {
         "decision_opened": "فتح قرار بشأن نهاية العقد",
         "decision_applied": "تطبيق القرار بشأن نهاية العقد"
+      },
+      "payroll": {
+        "closed": "تم إقفال أجور شهر {{month}} (النسخة {{version}}، {{employees}} موظفًا، {{lines}} سطرًا)",
+        "reopened": "تمت إعادة فتح أجور شهر {{month}} (النسخة {{version}}): {{reason}}",
+        "exported": "تم تصدير ملف أجور شهر {{month}} ({{lines}} سطرًا)",
+        "control_exported": "تم تصدير كشف المراقبة لشهر {{month}}"
       }
     },
     "values": {
@@ -4025,6 +4091,321 @@
         "retirementAge": "من {{min}} إلى {{max}}.",
         "retirementNoticeMonths": "من {{min}} إلى {{max}}.",
         "digestEnabled": "إشعار واحد في اليوم عند ظهور آجال جديدة."
+      }
+    }
+  },
+  "payroll": {
+    "month": {
+      "title": "متغيرات الأجر",
+      "heading": "شهر {{month}}",
+      "settingsLink": "إعدادات الأجور",
+      "loadError": "تعذّر تحميل شهر الأجور.",
+      "adjusted": "معدَّل",
+      "bar": {
+        "label": "أشهر الأجور",
+        "year": "السنة",
+        "previousYear": "السنة السابقة",
+        "nextYear": "السنة التالية",
+        "future": "لم يحن بعد"
+      },
+      "status": {
+        "open": "مفتوح",
+        "closedVersion": "مُقفَل (النسخة {{version}})"
+      },
+      "unitShort": {
+        "days": "يوم",
+        "hours": "سا",
+        "amount": "دج"
+      },
+      "chip": {
+        "regularization": "تسوية {{period}}"
+      },
+      "header": {
+        "cutoff": "الإقفال ممكن ابتداءً من {{date}}",
+        "beforeCutoff": "سيكون الإقفال ممكنًا ابتداءً من {{date}}.",
+        "closedOn": "تمّ الإقفال في {{date}} من طرف {{name}}",
+        "employees": "الموظفون المعنيون بمتغيرات: {{count}}",
+        "lines": "عدد الأسطر: {{count}}",
+        "regularizations": "عدد التسويات: {{count}}",
+        "flagsLabel": "نقاط للتحقق",
+        "totals": "المجاميع حسب البند",
+        "tileEmployees": "عدد الموظفين: {{count}}",
+        "noTotals": "لا توجد متغيرات لهذا الشهر.",
+        "history": "سجل الإقفالات",
+        "historyClosed": "النسخة {{version}} أُقفلت في {{date}} من طرف {{name}}",
+        "historyReopened": "أُعيد فتحها في {{date}} من طرف {{name}}"
+      },
+      "flags": {
+        "entry": "الالتحاق في {{date}}",
+        "exit": "المغادرة في {{date}}",
+        "incomplete_days": "أيام غير مكتملة: {{count}}",
+        "pending_leave": "عطلة قيد الانتظار",
+        "no_attendance": "دون تسجيل الحضور: يجب إدخال الغيابات",
+        "pendingLeaveCount": "عطل قيد الانتظار: {{count}}",
+        "incompleteDaysCount": "أيام غير مكتملة: {{count}}",
+        "noAttendanceCount": "موظفون دون تسجيل الحضور: {{count}}"
+      },
+      "actions": {
+        "close": "إقفال الشهر",
+        "reopen": "إعادة فتح",
+        "export": "تصدير ملف الأجور",
+        "exportDraft": "تصدير مسودة",
+        "control": "كشف المراقبة",
+        "controlFr": "كشف المراقبة بالفرنسية",
+        "controlAr": "كشف المراقبة بالعربية"
+      },
+      "files": {
+        "error": "تعذّر تنزيل الملف. يرجى إعادة المحاولة.",
+        "unitHint": "لا تحتوي الملفات إلا على الوحدة المختارة في عوامل التصفية."
+      },
+      "close": {
+        "title": "إقفال {{month}}",
+        "intro": "يُثبّت الإقفال متغيرات الشهر من أجل التصدير:",
+        "warnings": "نقاط للتحقق قبل الإقفال",
+        "after": "ما يتغيّر بعد ذلك في هذا الشهر (عطلة تمّت الموافقة عليها متأخرة، غياب) يظهر كتسوية في شهر لاحق.",
+        "confirm": "إقفال الشهر"
+      },
+      "reopen": {
+        "title": "إعادة فتح الشهر",
+        "intro": "يصبح الشهر قابلًا للتعديل من جديد؛ ويلزم إقفاله مرة أخرى (نسخة جديدة) قبل تصدير الملف.",
+        "reason": "السبب",
+        "hint": "من {{min}} إلى {{max}} حرفًا.",
+        "invalid": "يرجى إدخال سبب من {{min}} إلى {{max}} حرفًا.",
+        "confirm": "إعادة فتح"
+      },
+      "feedback": {
+        "closed": "تمّ إقفال الشهر.",
+        "reopened": "تمّت إعادة فتح الشهر.",
+        "lineSaved": "تمّ حفظ السطر.",
+        "lineAdded": "تمّت إضافة البند.",
+        "codeSaved": "تمّ حفظ رقم التسجيل في الأجور.",
+        "codeCleared": "تمّ حذف رقم التسجيل في الأجور: سيُصدَّر الرقم التعريفي."
+      },
+      "problems": {
+        "beforeCutoff": "لم يحن بعد تاريخ الإقفال المحدد لهذا الشهر.",
+        "periodClosed": "هذا الشهر مُقفَل.",
+        "previousOpen": "يجب إقفال شهر سابق أولًا.",
+        "notLatest": "لا يمكن إعادة فتح إلا آخر شهر مُقفَل.",
+        "periodOpen": "هذا الشهر مفتوح: يجب إقفاله أولًا.",
+        "companyWide": "يتطلب هذا الإجراء صلاحية على مستوى المؤسسة كلها.",
+        "amountForbidden": "لا يمكن إدخال المبالغ إلا لأصحاب الصلاحية على الأجور.",
+        "notFound": "هذا الموظف خارج نطاق صلاحياتك.",
+        "invalid": "تمّ رفض هذا الإدخال. يرجى التحقق من القيم.",
+        "rubriqueInactive": "لم يعد هذا البند مفعّلًا.",
+        "originInvalid": "لا توجد تسوية لهذا البند في هذا الشهر.",
+        "notEmployed": "لم يكن هذا الموظف في الخدمة خلال هذا الشهر."
+      },
+      "filters": {
+        "label": "تصفية المتغيرات",
+        "search": "بحث",
+        "searchPlaceholder": "الاسم أو الرقم التعريفي",
+        "unit": "الوحدة",
+        "includeSubUnits": "تضمين الوحدات الفرعية",
+        "rubrique": "البند",
+        "allRubriques": "كل البنود",
+        "show": "عرض",
+        "all": "كل الموظفين",
+        "adjusted": "الأسطر المعدَّلة",
+        "regularization": "التسويات",
+        "flagged": "نقاط للتحقق",
+        "clear": "مسح عوامل التصفية"
+      },
+      "variables": {
+        "caption": "متغيرات الأجر حسب الموظف",
+        "total": "عدد الموظفين: {{count}}",
+        "matricule": "الرقم التعريفي",
+        "payrollCode": "الأجور:",
+        "employee": "الموظف",
+        "unit": "الوحدة",
+        "lines": "المتغيرات",
+        "flags": "تنبيهات",
+        "empty": "لا توجد متغيرات لهذا الشهر.",
+        "noMatch": "لا يوجد موظف مطابق لعوامل التصفية.",
+        "loadError": "تعذّر تحميل المتغيرات."
+      },
+      "panel": {
+        "title": "متغيرات الموظف",
+        "close": "إغلاق",
+        "loadError": "تعذّر تحميل متغيرات هذا الموظف.",
+        "openEmployee": "ملف الموظف",
+        "openAttendance": "حضور الشهر",
+        "entry": "الالتحاق في {{date}}",
+        "exit": "المغادرة في {{date}}",
+        "readOnly": "اطلاع فقط.",
+        "readOnlyClosed": "هذا الشهر مُقفَل: اطلاع فقط.",
+        "lines": "أسطر الشهر",
+        "noLines": "لا توجد متغيرات لهذا الشهر.",
+        "computed": "القيمة المحسوبة:",
+        "manualLine": "إدخال يدوي",
+        "value": "القيمة",
+        "valueInvalid": "يرجى إدخال عدد (رقمان عشريان على الأكثر).",
+        "note": "ملاحظة",
+        "noteTooLong": "{{max}} حرفًا على الأكثر.",
+        "revert": "العودة إلى القيمة المحسوبة",
+        "remove": "حذف السطر",
+        "addTitle": "إضافة بند يُدخَل يدويًا",
+        "rubrique": "البند",
+        "chooseRubrique": "اختيار بند",
+        "rubriqueRequired": "يرجى اختيار بند.",
+        "add": "إضافة",
+        "codeTitle": "رقم التسجيل في الأجور",
+        "code": "رقم التسجيل في الأجور",
+        "codeHint": "إذا تُرك فارغًا يُصدَّر الرقم التعريفي {{matricule}}. {{max}} حرفًا على الأكثر (حروف، أرقام، _ . -).",
+        "codeInvalid": "حروف وأرقام و _ . - فقط، {{max}} حرفًا على الأكثر.",
+        "codeTaken": "رقم التسجيل في الأجور هذا مستعمل لموظف آخر.",
+        "saveCode": "حفظ رقم التسجيل في الأجور",
+        "noCode": "لا يوجد: يُصدَّر الرقم التعريفي {{matricule}}."
+      }
+    },
+    "source": {
+      "leave": "عطلة",
+      "absence": "غياب غير مبرر",
+      "late": "التأخرات",
+      "overtime_normal": "ساعات إضافية (يوم عمل)",
+      "overtime_rest_day": "ساعات إضافية (يوم راحة)",
+      "overtime_holiday": "ساعات إضافية (يوم عطلة رسمية)",
+      "service_days": "أيام الحضور",
+      "manual": "إدخال يدوي"
+    },
+    "unit": {
+      "days": "أيام",
+      "hours": "ساعات",
+      "amount": "مبلغ (دج)"
+    },
+    "home": {
+      "month": "الأجور — {{month}}",
+      "openFrom": "مفتوحة — الإقفال ممكن ابتداءً من {{date}}",
+      "openSince": "مفتوحة — الإقفال ممكن منذ {{date}}",
+      "closedOn": "تم الإقفال في {{date}}",
+      "closed": "تم الإقفال"
+    },
+    "settings": {
+      "title": "إعدادات الأجور",
+      "back": "العودة إلى متغيرات الأجر",
+      "loadError": "تعذر تحميل إعدادات الأجور.",
+      "saved": "تم حفظ الإعدادات.",
+      "tab": {
+        "rubriques": "البنود",
+        "format": "صيغة التصدير",
+        "calendar": "الرزنامة"
+      },
+      "errors": {
+        "required": "هذا الحقل إلزامي.",
+        "tooLong": "{{requiredLength}} حرفًا على الأكثر.",
+        "range": "يجب إدخال عدد صحيح بين {{min}} و{{max}}.",
+        "code": "من 1 إلى 20 حرفًا: أحرف لاتينية دون نبر، أرقام، « _ » أو « . » أو « - ».",
+        "codeTaken": "هذا الرمز مستعمل من قبل بند نشط.",
+        "companyWide": "تسري هذه الإعدادات على المؤسسة كلها: يتطلب تعديلها صلاحية على مستوى المؤسسة كلها."
+      },
+      "rubriques": {
+        "intro": "يصبح كل بند سطرًا (أو عمودًا) في ملف الأجور. يرجى استبدال الرموز برموز برنامج الأجور المستعمل؛ لا تُحسب ولا تُصدَّر إلا البنود النشطة.",
+        "new": "بند جديد للإدخال اليدوي",
+        "newIntro": "لا يُحسب البند المُدخل يدويًا: تُدخل الموارد البشرية قيمته لكل موظف (منحة، تسبيق، تعويض…).",
+        "create": "إنشاء البند",
+        "created": "تم إنشاء البند.",
+        "empty": "لا توجد بنود.",
+        "exportCode": "رمز التصدير",
+        "codeHint": "رمز البند في برنامج الأجور (من 1 إلى 20 حرفًا: أحرف لاتينية دون نبر، أرقام، « _ »، « . »، « - »).",
+        "names": "التسميات",
+        "name": {
+          "fr": "التسمية (بالفرنسية)",
+          "ar": "التسمية (بالعربية)",
+          "en": "التسمية (بالإنجليزية)"
+        },
+        "source": "المصدر",
+        "unit": "الوحدة",
+        "unitFixed": "تتبع وحدة البند المحسوب مصدره.",
+        "amountHint": "لا يطّلع على المبالغ ولا يُدخلها إلا من له حق الاطلاع على الأجور.",
+        "status": "الحالة",
+        "active": "نشط",
+        "inactive": "غير نشط",
+        "activeLabel": "بند نشط (يُحسب ويُصدَّر)",
+        "order": "الترتيب",
+        "edit": "تعديل",
+        "editNamed": "تعديل البند {{code}}",
+        "editTitle": "البند {{code}}"
+      },
+      "format": {
+        "intro": "ملف الأجور ملف نصي يُستورد في برنامج الأجور. يرجى ضبطه وفق ما ينتظره هذا البرنامج.",
+        "layout": "التنظيم",
+        "layouts": {
+          "per_line": "سطر لكل موظف ولكل بند",
+          "per_employee": "سطر لكل موظف وعمود لكل بند"
+        },
+        "layoutHints": {
+          "per_line": "مثلًا « ⁦matricule;rubrique;valeur;periode⁩ ».",
+          "per_employee": "تأتي أعمدة البنود النشطة بعد الأعمدة المختارة، حسب ترتيب البنود."
+        },
+        "separator": "الفاصل",
+        "separators": {
+          "semicolon": "فاصلة منقوطة ( ; )",
+          "comma": "فاصلة ( , )",
+          "tab": "جدولة",
+          "pipe": "خط عمودي ( | )"
+        },
+        "decimalSeparator": "الفاصل العشري",
+        "decimals": {
+          "comma": "فاصلة (2,5)",
+          "dot": "نقطة (2.5)"
+        },
+        "encoding": "الترميز",
+        "encodings": {
+          "windows1252": "Windows-1252 (ANSI)",
+          "utf8": "UTF-8",
+          "utf8_bom": "UTF-8 مع BOM"
+        },
+        "encodingHint": "تنتظر برامج Windows غالبًا ترميز Windows-1252؛ يصبح كل حرف لا يعرفه « ? ».",
+        "headerRow": "سطر العناوين (أسماء الأعمدة)",
+        "periodFormat": "صيغة الفترة",
+        "periodFormats": {
+          "mm_yyyy": "MM/AAAA (10/2026)",
+          "yyyymm": "AAAAMM (202610)",
+          "yyyy_mm": "AAAA-MM (2026-10)"
+        },
+        "fileExtension": "امتداد الملف",
+        "columns": "الأعمدة، حسب الترتيب",
+        "columnsHint": {
+          "per_line": "رقم التسجيل والبند والقيمة إلزامية؛ {{max}} أعمدة على الأكثر.",
+          "per_employee": "رقم التسجيل إلزامي؛ {{max}} أعمدة على الأكثر قبل أعمدة البنود."
+        },
+        "rubriqueColumns": "+ عمود لكل بند نشط (العنوان = رمز التصدير)",
+        "column": {
+          "matricule": "الرقم التعريفي",
+          "last_name": "اللقب",
+          "first_name": "الاسم",
+          "rubrique": "البند (الرمز)",
+          "label": "تسمية البند",
+          "value": "القيمة",
+          "unit": "الوحدة (J / H / DA)",
+          "period": "الفترة",
+          "origin_period": "الفترة الأصلية",
+          "unit_code": "رمز الوحدة التنظيمية"
+        },
+        "moveUp": "نقل « {{column}} » إلى الأعلى",
+        "moveDown": "نقل « {{column}} » إلى الأسفل",
+        "removeColumn": "حذف « {{column}} »",
+        "addColumn": "إضافة عمود:",
+        "columnsProblem": {
+          "required": "يرجى اختيار عمود واحد على الأقل.",
+          "too_many": "{{max}} أعمدة على الأكثر.",
+          "invalid": "قائمة الأعمدة هذه غير صالحة لهذا التنظيم.",
+          "missing_matricule": "رقم التسجيل إلزامي.",
+          "missing_rubrique_value": "البند والقيمة إلزاميان."
+        },
+        "preview": "معاينة الملف",
+        "previewHint": "الأسطر الخمسة الأولى بالإعدادات المحفوظة (متغيرات الشهر الجاري، أو أسطر للتوضيح).",
+        "reloadPreview": "تحديث",
+        "previewError": "تعذر تحميل المعاينة."
+      },
+      "calendar": {
+        "cutoffDay": "تاريخ الإقفال المحدد (يوم من الشهر)",
+        "regularizationMonths": "الأشهر المقفلة المعاد حسابها (التسويات)",
+        "overtimeMinMinutes": "الحد الأدنى للساعات الإضافية (بالدقائق)",
+        "hints": {
+          "cutoffDay": "يمكن إقفال الشهر ابتداءً من هذا اليوم (من {{min}} إلى {{max}}). كل ما يغيّر شهرًا مقفلًا بعد ذلك يعود في شكل تسوية في الشهر الموالي.",
+          "regularizationMonths": "عدد الأشهر المقفلة التي يُعاد فحصها عند كل حساب (من {{min}} إلى {{max}}؛ 0 = دون تسوية).",
+          "overtimeMinMinutes": "لا يُحتسب التجاوز الأقصر من ذلك في يوم عمل (من {{min}} إلى {{max}} دقيقة)."
+        }
       }
     }
   }

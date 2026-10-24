@@ -211,6 +211,14 @@ export const routes: Routes = [
     loadChildren: () => import('./features/deadlines/deadlines.routes').then((m) => m.DEADLINES_ROUTES),
   },
   {
+    // Payroll variables (docs/contracts/payroll-variables.md › Web): the month needs payroll.read, the settings
+    // payroll.configure — checked per child (features/payroll/payroll.routes.ts).
+    path: 'payroll',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: ['payroll.read', 'payroll.configure'] },
+    loadChildren: () => import('./features/payroll/payroll.routes').then((m) => m.PAYROLL_ROUTES),
+  },
+  {
     // Settings: notification preferences for everyone; the branding section checks `settings.branding` on its own
     // child (features/settings/settings.routes.ts, docs/contracts/branding.md).
     path: 'settings',

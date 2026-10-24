@@ -33,6 +33,7 @@ import { StaffingClock } from '../src/modules/staffing/index.js';
 import { REC_FX, type RecTarget } from './support/recruitment-fixture.js';
 import { insertAck, insertContract, insertExpiringFile, plusDays } from './support/deadlines-fixture.js';
 import { deadlinesToday } from '../src/modules/deadlines/index.js';
+import { payrollToday } from '../src/modules/payroll/index.js';
 import { seedTemplateFixture, SIMPLE_LAYOUT, type TemplateFixture } from './support/templates-fixture.js';
 import { createTestApp } from './support/test-app.js';
 import { createTestDatabase, query, type TestDatabase } from './support/test-database.js';
@@ -312,6 +313,30 @@ const DL = { expiry: '', files: { est: [] as string[], ouest: [] as string[], ot
 const dlNext = (pool: Record<'est' | 'ouest' | 'other', string[]>, t: Target): string => (t === '-' ? MISSING : (pool[t].shift() ?? MISSING));
 const DL_READ_ROWS: readonly Row[] = [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]];
 const DL_HANDLE_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
+  ['est', 'est', ok], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+
+// ── payroll settings, rubriques, matricules, export (docs/contracts/payroll-variables.md › Authorization matrix rows) ──
+/** Filled in beforeAll: one rubrique per company (HS50) to update. The month: today's (an open month, exported as a draft). */
+const PAY = { rubrique: { est: '', other: '' }, month: '' };
+/** Variables (API builder 2): ABS_NJ of each company (a line to adjust); a past month closed then reopened by its admin. */
+const PAYV = { abs: { est: '', other: '' }, closeMonth: '2024-01' };
+const payAbsOf = (t: Target): string => (t === 'other' ? PAYV.abs.other : PAYV.abs.est);
+const payLinePath = (t: Target): string => `/api/payroll/periods/${PAY.month}/variables/${t === '-' ? MISSING : employeeOf(t)}/lines`;
+const payRubriqueOf = (t: Target): string => (t === 'other' ? PAY.rubrique.other : t === '-' ? MISSING : PAY.rubrique.est);
+const PAY_READ_ROWS: readonly Row[] = [['admin', '-', 200], ['est', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['beta', '-', 200], ['agent', '-', 403]];
+const PAY_CONFIG_ROWS = (ok: number): readonly Row[] => [...CONFIG_ROWS(ok), ['agent', '-', 403]];
+const PAY_COMPANY_ROWS = (ok: number): readonly Row[] => [
+  ['admin', 'est', ok], ['admin', 'other', 404],
+  ['est', 'est', 403], ['ouest', 'est', 403], ['acces', 'est', 403],
+  ['beta', 'est', 404], ['beta', 'other', ok],
+  ['agent', 'est', 403],
+];
+const PAY_PREPARE_ROWS = (ok: number): readonly Row[] => [
   ['admin', 'est', ok], ['admin', 'ouest', ok], ['admin', 'other', 404],
   ['est', 'est', ok], ['est', 'ouest', 404],
   ['ouest', 'ouest', 403], ['acces', 'est', 403],
@@ -1548,6 +1573,75 @@ const MATRIX: Record<string, RouteSpec> = {
     rows: [...CONFIG_ROWS(200), ['agent', '-', 403]],
   },
 
+  // ── payroll: settings, rubriques, payroll matricules, export (docs/contracts/payroll-variables.md) ──────────────
+  'GET /api/payroll/settings': { access: 'payroll.configure', request: () => ({ path: '/api/payroll/settings' }), rows: PAY_CONFIG_ROWS(200) },
+  'PUT /api/payroll/settings': {
+    access: 'payroll.configure',
+    request: (_t, n) => ({ path: '/api/payroll/settings', body: { cutoffDay: 1 + (n % 28) } }),
+    rows: PAY_CONFIG_ROWS(200),
+  },
+  'GET /api/payroll/settings/preview': { access: 'payroll.configure', request: () => ({ path: '/api/payroll/settings/preview' }), rows: PAY_CONFIG_ROWS(200) },
+  'GET /api/payroll/rubriques': { access: 'payroll.read', request: () => ({ path: '/api/payroll/rubriques' }), rows: PAY_READ_ROWS },
+  'POST /api/payroll/rubriques': {
+    access: 'payroll.configure',
+    request: (_t, n) => ({ path: '/api/payroll/rubriques', body: { exportCode: `MX_${n}`, names: { fr: 'Rubrique test', ar: 'بند تجريبي', en: 'Test item' }, unit: 'amount' } }),
+    rows: PAY_CONFIG_ROWS(201),
+  },
+  'PUT /api/payroll/rubriques/:id': {
+    access: 'payroll.configure',
+    request: (t, n) => ({ path: `/api/payroll/rubriques/${payRubriqueOf(t)}`, body: { sortOrder: 530 + (n % 5) } }),
+    rows: PAY_COMPANY_ROWS(200),
+  },
+  'PUT /api/payroll/employee-codes/:employeeId': {
+    access: 'payroll.prepare',
+    request: (t, n) => ({ path: `/api/payroll/employee-codes/${t === '-' ? MISSING : employeeOf(t)}`, body: { code: `PM-${t}-${n}` } }),
+    rows: PAY_PREPARE_ROWS(200),
+  },
+  'GET /api/payroll/periods/:month/export': {
+    access: 'payroll.export',
+    request: () => ({ path: `/api/payroll/periods/${PAY.month}/export?draft=true` }),
+    rows: PAY_READ_ROWS,
+  },
+  'GET /api/payroll/periods/:month/control.csv': {
+    access: 'payroll.read',
+    request: () => ({ path: `/api/payroll/periods/${PAY.month}/control.csv` }),
+    rows: PAY_READ_ROWS,
+  },
+  // ── payroll: periods, variables, adjustments, close / reopen (API builder 2; payroll-variables.md › matrix rows) ──
+  'GET /api/payroll/periods': { access: 'payroll.read', request: () => ({ path: '/api/payroll/periods' }), rows: PAY_READ_ROWS },
+  'GET /api/payroll/periods/:month': { access: 'payroll.read', request: () => ({ path: `/api/payroll/periods/${PAY.month}` }), rows: PAY_READ_ROWS },
+  'GET /api/payroll/periods/:month/variables': {
+    access: 'payroll.read',
+    request: () => ({ path: `/api/payroll/periods/${PAY.month}/variables` }),
+    rows: PAY_READ_ROWS,
+  },
+  'GET /api/payroll/periods/:month/variables/:employeeId': {
+    access: 'payroll.read',
+    request: (t) => ({ path: `/api/payroll/periods/${PAY.month}/variables/${t === '-' ? MISSING : employeeOf(t)}` }),
+    rows: PAY_PREPARE_ROWS(200),
+  },
+  'PUT /api/payroll/periods/:month/variables/:employeeId/lines': {
+    access: 'payroll.prepare',
+    request: (t, n) => ({ path: payLinePath(t), body: { rubriqueId: payAbsOf(t), value: 1 + (n % 5), note: 'Matrice' } }),
+    rows: PAY_PREPARE_ROWS(200),
+  },
+  'DELETE /api/payroll/periods/:month/variables/:employeeId/lines/:rubriqueId': {
+    access: 'payroll.prepare',
+    request: (t) => ({ path: `${payLinePath(t)}/${payAbsOf(t)}` }),
+    rows: PAY_PREPARE_ROWS(200),
+  },
+  // close (company A's and BETA's first closing), then reopen it (the latest closed month): keep this order
+  'POST /api/payroll/periods/:month/close': {
+    access: 'payroll.close',
+    request: () => ({ path: `/api/payroll/periods/${PAYV.closeMonth}/close`, body: {} }),
+    rows: PAY_CONFIG_ROWS(200),
+  },
+  'POST /api/payroll/periods/:month/reopen': {
+    access: 'payroll.close',
+    request: () => ({ path: `/api/payroll/periods/${PAYV.closeMonth}/reopen`, body: { reason: 'Contrôle de la matrice' } }),
+    rows: PAY_CONFIG_ROWS(200),
+  },
+
   // ── audit ──────────────────────────────────────────────────────────────────────────────────────────────
   'GET /api/audit/timeline': {
     // @Authenticated: audit.read is checked by the handler for every subject type except leave_request (own visibility)
@@ -1660,6 +1754,14 @@ describe('Authorization matrix (e2e, real grants)', () => {
         DL.files[t].push(await insertExpiringFile(db.superuserUrl, { companyId: company, employmentId: employeeOf(t), uploadedBy: by, expiresOn: DL.expiry, title: `Pièce ${t} ${k}` }));
         DL.acks[t].push(await insertAck(db.superuserUrl, { companyId: company, kind: 'retirement', subjectId: employeeOf(t), dueDate: `2041-01-${String(k + 1).padStart(2, '0')}`, ackedBy: by }));
       }
+    }
+    // payroll: HS50 of each company (a rubrique to update) and today's month
+    PAY.month = payrollToday().slice(0, 7);
+    for (const [t, company] of [['est', unitCompany], ['other', COMPANY_B]] as const) {
+      const [row] = await query<{ id: string }>(db.superuserUrl, `select id from payroll_rubrique where company_id = $1 and export_code = 'HS50'`, [company]);
+      PAY.rubrique[t] = row?.id ?? MISSING;
+      const [abs] = await query<{ id: string }>(db.superuserUrl, `select id from payroll_rubrique where company_id = $1 and export_code = 'ABS_NJ'`, [company]);
+      PAYV.abs[t] = abs?.id ?? MISSING;
     }
     TPL.a = await seedTemplateFixture(db.superuserUrl, unitCompany, USERS.admin.id, 'a');
     TPL.b = await seedTemplateFixture(db.superuserUrl, COMPANY_B, USERS.beta.id, 'b');

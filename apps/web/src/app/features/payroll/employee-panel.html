@@ -1,0 +1,138 @@
+<ng-container *transloco="let t">
+  <dialog #dialog class="modal employee-panel" aria-labelledby="pe-title" (close)="onClosed()" data-panel>
+    <div class="panel-head">
+      <h2 id="pe-title">
+        @if (view(); as v) {
+          <bdi>{{ v.employee.person | displayName: lang() }}</bdi>
+        } @else {
+          {{ t('payroll.month.panel.title') }}
+        }
+      </h2>
+      <button class="btn secondary" type="button" data-action="close-panel" (click)="close()">{{ t('payroll.month.panel.close') }}</button>
+    </div>
+
+    @if (detail.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(loadErrorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="detail.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (view(); as v) {
+      <p class="muted" data-field="identity">
+        <span dir="ltr">{{ v.employee.matricule }}</span> · <bdi>{{ v.employee.unit | displayName: lang() }}</bdi>
+      </p>
+      <p class="panel-links">
+        <a [routerLink]="['/employees', v.employee.id]" data-link="employee">{{ t('payroll.month.panel.openEmployee') }}</a>
+        <a [routerLink]="['/employees', v.employee.id]" [queryParams]="attendanceParams()" data-link="attendance">{{ t('payroll.month.panel.openAttendance') }}</a>
+      </p>
+
+      @if (v.entry || v.exit || v.flags.length) {
+        <ul class="flags" data-field="panel-flags">
+          @if (v.entry) {
+            <li data-flag="entry">{{ t('payroll.month.panel.entry', { date: (v.entry | date: 'dd/MM/yyyy' : undefined : locale()) }) }}</li>
+          }
+          @if (v.exit) {
+            <li data-flag="exit">{{ t('payroll.month.panel.exit', { date: (v.exit | date: 'dd/MM/yyyy' : undefined : locale()) }) }}</li>
+          }
+          @for (flag of v.flags; track flag) {
+            <li class="flag" [attr.data-flag]="flag">
+              {{ flag === 'incomplete_days' ? t('payroll.month.flags.incomplete_days', { count: v.incompleteDays }) : t('payroll.month.flags.' + flag) }}
+            </li>
+          }
+        </ul>
+      }
+
+      @if (!editable()) {
+        <p class="field-hint" data-state="read-only">{{ status() === 'closed' ? t('payroll.month.panel.readOnlyClosed') : t('payroll.month.panel.readOnly') }}</p>
+      }
+      @if (feedback(); as key) {
+        <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+      }
+
+      <section aria-labelledby="pe-lines-title">
+        <h3 id="pe-lines-title">{{ t('payroll.month.panel.lines') }}</h3>
+        @for (line of v.lines; track line.rubriqueId + line.originMonth) {
+          <app-payroll-line-editor [month]="month()" [employeeId]="v.employee.id" [line]="line"
+            [editable]="editable() && (line.unit !== 'amount' || canAmount())" (saved)="applied($event)" />
+        } @empty {
+          <p class="muted" data-state="no-lines">{{ t('payroll.month.panel.noLines') }}</p>
+        }
+      </section>
+
+      @if (editable() && addable().length) {
+        <section aria-labelledby="pe-add-title" class="add-line">
+          <h3 id="pe-add-title">{{ t('payroll.month.panel.addTitle') }}</h3>
+          <form [formGroup]="addForm" (ngSubmit)="submitAdd()" novalidate data-form="add-line">
+            @let rubrique = addForm.controls.rubriqueId;
+            @let value = addForm.controls.value;
+            @let note = addForm.controls.note;
+            <div class="field">
+              <label for="pe-add-rubrique">{{ t('payroll.month.panel.rubrique') }}</label>
+              <select id="pe-add-rubrique" formControlName="rubriqueId" (change)="onAddRubrique()"
+                [attr.aria-invalid]="rubrique.invalid && rubrique.touched" [attr.aria-describedby]="rubrique.invalid && rubrique.touched ? 'pe-add-rubrique-error' : null">
+                <option value="">{{ t('payroll.month.panel.chooseRubrique') }}</option>
+                @for (r of addable(); track r.id) {
+                  <option [value]="r.id">{{ r.exportCode }} — {{ rubriqueName(r) }} ({{ t(unitKey(r.unit)) }})</option>
+                }
+              </select>
+              @if (rubrique.invalid && rubrique.touched) {
+                <p class="field-error" id="pe-add-rubrique-error" data-error="rubriqueId">{{ t('payroll.month.panel.rubriqueRequired') }}</p>
+              }
+            </div>
+            <div class="field">
+              <label for="pe-add-value">{{ t('payroll.month.panel.value') }}@if (addUnit(); as u) { ({{ t(u) }})}</label>
+              <input id="pe-add-value" formControlName="value" inputmode="decimal" autocomplete="off" dir="ltr" class="num-input"
+                [attr.aria-invalid]="value.invalid && value.touched" [attr.aria-describedby]="value.invalid && value.touched ? 'pe-add-value-error' : null" />
+              @if (value.invalid && value.touched) {
+                <p class="field-error" id="pe-add-value-error" data-error="value">{{ t('payroll.month.panel.valueInvalid') }}</p>
+              }
+            </div>
+            <div class="field">
+              <label for="pe-add-note">{{ t('payroll.month.panel.note') }}</label>
+              <input id="pe-add-note" formControlName="note" autocomplete="off" dir="auto" [attr.maxlength]="noteMax"
+                [attr.aria-invalid]="note.invalid && note.touched" [attr.aria-describedby]="note.invalid && note.touched ? 'pe-add-note-error' : null" />
+              @if (note.invalid && note.touched) {
+                <p class="field-error" id="pe-add-note-error" data-error="note">{{ t('payroll.month.panel.noteTooLong', { max: noteMax }) }}</p>
+              }
+            </div>
+            @if (addError(); as e) {
+              <p class="form-error" role="alert" data-error="add" [appRevealAlert]="e">{{ t(e.key) }}</p>
+            }
+            <button class="btn" type="submit" data-action="add-line" [disabled]="adding()">{{ t('payroll.month.panel.add') }}</button>
+          </form>
+        </section>
+      }
+
+      <section aria-labelledby="pe-code-title" class="payroll-code-section">
+        <h3 id="pe-code-title">{{ t('payroll.month.panel.codeTitle') }}</h3>
+        @if (codeEditable()) {
+          <form [formGroup]="codeForm" (ngSubmit)="submitCode()" novalidate data-form="code">
+            @let code = codeForm.controls.code;
+            <div class="field">
+              <label for="pe-code">{{ t('payroll.month.panel.code') }}</label>
+              <input id="pe-code" formControlName="code" autocomplete="off" dir="ltr" [attr.maxlength]="codeMax"
+                [attr.aria-invalid]="code.invalid && code.touched" aria-describedby="pe-code-hint pe-code-error" />
+              <p class="field-hint" id="pe-code-hint">{{ t('payroll.month.panel.codeHint', { matricule: v.employee.matricule, max: codeMax }) }}</p>
+              @if (code.invalid && code.touched) {
+                <p class="field-error" id="pe-code-error" data-error="code">{{ t(codeErrorKey(), { max: codeMax }) }}</p>
+              }
+            </div>
+            @if (codeError(); as e) {
+              <p class="form-error" role="alert" data-error="code-form" [appRevealAlert]="e">{{ t(e.key) }}</p>
+            }
+            <button class="btn secondary" type="submit" data-action="save-code" [disabled]="savingCode()">{{ t('payroll.month.panel.saveCode') }}</button>
+          </form>
+        } @else {
+          <p data-field="code">
+            @if (v.payrollCode) {
+              <span dir="ltr">{{ v.payrollCode }}</span>
+            } @else {
+              <span class="muted">{{ t('payroll.month.panel.noCode', { matricule: v.employee.matricule }) }}</span>
+            }
+          </p>
+        }
+      </section>
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </dialog>
+</ng-container>

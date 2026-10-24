@@ -57,6 +57,44 @@ describe('buildTimeline (pure view model)', () => {
     expect(decision?.lines.map((l) => l.field)).toEqual(['proposal']);
   });
 
+  it('payroll: an adjustment names its rubrique (else "name not available"), hides the employment and updated_at', () => {
+    const entry = {
+      id: 'c:31', at: '2026-09-26T10:00:00Z', actor: null, requestId: null, kind: 'change' as const, table: 'payroll_adjustment', op: 'insert' as const,
+      changes: [
+        { field: 'employment_id', before: null, after: 'emp-27', masked: false },
+        { field: 'rubrique_id', before: null, after: 'rub-prime', masked: false },
+        { field: 'value', before: null, after: 15000, masked: false },
+        { field: 'updated_at', before: null, after: '2026-09-26T10:00:00Z', masked: false },
+      ],
+    };
+    const named = buildTimeline([entry], (kind, value) => (kind === 'payrollRubrique' && value === 'rub-prime' ? 'PRIME_REND · Prime' : undefined), NOW)[0]?.entries[0] as ChangeView;
+    expect(named.lines.map((l) => l.field)).toEqual(['rubrique_id', 'value']);
+    expect(named.lines[0]?.after).toEqual({ kind: 'text', text: 'PRIME_REND · Prime' });
+    const unnamed = buildTimeline([entry], NO_NAMES, NOW)[0]?.entries[0] as ChangeView;
+    expect(unnamed.lines[0]?.after).toEqual({ kind: 'unnamed' });
+    const rubrique = buildTimeline(
+      [{ ...entry, id: 'c:32', table: 'payroll_rubrique', op: 'update' as const, changes: [{ field: 'unit', before: 'days', after: 'amount', masked: false }] }],
+      NO_NAMES,
+      NOW,
+    )[0]?.entries[0] as ChangeView;
+    expect(rubrique.lines[0]?.after).toEqual({ kind: 'key', key: 'payroll.unit.amount', text: 'amount' });
+  });
+
+  it('payroll: the month and origin month of an adjustment are months, not days', () => {
+    const entry = {
+      id: 'c:33', at: '2026-10-24T10:00:00Z', actor: null, requestId: null, kind: 'change' as const, table: 'payroll_adjustment', op: 'insert' as const,
+      changes: [
+        { field: 'month', before: null, after: '2026-10-01', masked: false },
+        { field: 'origin_month', before: null, after: '2026-09-01', masked: false },
+      ],
+    };
+    const view = buildTimeline([entry], NO_NAMES, NOW)[0]?.entries[0] as ChangeView;
+    expect(view.lines.map((l) => l.after)).toEqual([
+      { kind: 'month', iso: '2026-10-01' },
+      { kind: 'month', iso: '2026-09-01' },
+    ]);
+  });
+
   it('update: one line per changed field (id hidden), label keys per table, ids resolved to names', () => {
     const [today] = buildTimeline([RENAMED], names, NOW);
     const change = today?.entries[0] as ChangeView;

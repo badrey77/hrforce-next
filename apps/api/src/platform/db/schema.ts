@@ -676,6 +676,100 @@ export interface OrgUnitVersion {
   valid: string;
 }
 
+export interface PayrollAdjustment {
+  company_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  month: Timestamp;
+  note: string | null;
+  origin_month: Timestamp;
+  rubrique_id: string;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+  value: Numeric;
+}
+
+export interface PayrollClosing {
+  closed_at: Generated<Timestamp>;
+  closed_by: string;
+  company_id: string;
+  employees: number;
+  id: Generated<string>;
+  lines: number;
+  period_id: string;
+  reopen_reason: string | null;
+  reopened_at: Timestamp | null;
+  reopened_by: string | null;
+  version: number;
+}
+
+export interface PayrollEmployeeCode {
+  code: string;
+  company_id: string;
+  employment_id: string;
+  id: Generated<string>;
+  updated_at: Generated<Timestamp>;
+  updated_by: string;
+}
+
+export interface PayrollLine {
+  adjusted: boolean;
+  closing_id: string;
+  company_id: string;
+  computed_value: Numeric | null;
+  employment_id: string;
+  export_code: string;
+  first_name: string;
+  id: Generated<string>;
+  last_name: string;
+  matricule: string;
+  note: string | null;
+  origin_month: Timestamp;
+  rubrique_id: string;
+  unit: string;
+  unit_code: string | null;
+  value: Numeric;
+}
+
+export interface PayrollPeriod {
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  id: Generated<string>;
+  month: Timestamp;
+  status: Generated<string>;
+}
+
+export interface PayrollPolicy {
+  columns: Generated<string[]>;
+  company_id: string;
+  cutoff_day: Generated<number>;
+  decimal_separator: Generated<string>;
+  encoding: Generated<string>;
+  file_extension: Generated<string>;
+  header_row: Generated<boolean>;
+  layout: Generated<string>;
+  overtime_min_minutes: Generated<number>;
+  period_format: Generated<string>;
+  regularization_months: Generated<number>;
+  separator: Generated<string>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PayrollRubrique {
+  active: Generated<boolean>;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  export_code: string;
+  id: Generated<string>;
+  leave_type_id: string | null;
+  name_ar: string;
+  name_en: string;
+  name_fr: string;
+  sort_order: Generated<number>;
+  source: string;
+  unit: string;
+}
+
 export interface Permission {
   code: string;
   group_code: string;
@@ -1122,6 +1216,13 @@ export interface DB {
   org_unit_kind: OrgUnitKind;
   org_unit_kind_parent: OrgUnitKindParent;
   org_unit_version: OrgUnitVersion;
+  payroll_adjustment: PayrollAdjustment;
+  payroll_closing: PayrollClosing;
+  payroll_employee_code: PayrollEmployeeCode;
+  payroll_line: PayrollLine;
+  payroll_period: PayrollPeriod;
+  payroll_policy: PayrollPolicy;
+  payroll_rubrique: PayrollRubrique;
   permission: Permission;
   person: Person;
   person_sensitive: PersonSensitive;

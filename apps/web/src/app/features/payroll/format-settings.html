@@ -1,0 +1,153 @@
+<section *transloco="let t" aria-labelledby="pay-format-title" data-section="format">
+  <div class="toolbar">
+    <h2 id="pay-format-title">{{ t('payroll.settings.tab.format') }}</h2>
+  </div>
+  <p class="muted">{{ t('payroll.settings.format.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+  @if (settings.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('payroll.settings.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="settings.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (settings.hasValue()) {
+    <div class="format-layout">
+      <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate data-form="payroll-format">
+        <fieldset class="choices">
+          <legend>{{ t('payroll.settings.format.layout') }}</legend>
+          @for (l of layouts; track l) {
+            <div class="check">
+              <input type="radio" [id]="'fmt-layout-' + l" formControlName="layout" [value]="l" [attr.aria-describedby]="'fmt-layout-' + l + '-hint'" />
+              <label [for]="'fmt-layout-' + l">{{ t('payroll.settings.format.layouts.' + l) }}</label>
+            </div>
+            <p class="field-hint" [id]="'fmt-layout-' + l + '-hint'">{{ t('payroll.settings.format.layoutHints.' + l) }}</p>
+          }
+        </fieldset>
+
+        <div class="grid">
+          <div class="field">
+            <label for="fmt-separator">{{ t('payroll.settings.format.separator') }}</label>
+            <select id="fmt-separator" formControlName="separator">
+              @for (s of separators; track s) {
+                <option [value]="s">{{ t('payroll.settings.format.separators.' + s) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="fmt-decimal">{{ t('payroll.settings.format.decimalSeparator') }}</label>
+            <select id="fmt-decimal" formControlName="decimalSeparator">
+              @for (d of decimals; track d) {
+                <option [value]="d">{{ t('payroll.settings.format.decimals.' + d) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="fmt-encoding">{{ t('payroll.settings.format.encoding') }}</label>
+            <select id="fmt-encoding" formControlName="encoding" aria-describedby="fmt-encoding-hint">
+              @for (e of encodings; track e) {
+                <option [value]="e">{{ t('payroll.settings.format.encodings.' + e) }}</option>
+              }
+            </select>
+            <p class="field-hint" id="fmt-encoding-hint">{{ t('payroll.settings.format.encodingHint') }}</p>
+          </div>
+          <div class="field">
+            <label for="fmt-period">{{ t('payroll.settings.format.periodFormat') }}</label>
+            <select id="fmt-period" formControlName="periodFormat">
+              @for (p of periodFormats; track p) {
+                <option [value]="p">{{ t('payroll.settings.format.periodFormats.' + p) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label for="fmt-extension">{{ t('payroll.settings.format.fileExtension') }}</label>
+            <select id="fmt-extension" formControlName="fileExtension">
+              @for (x of extensions; track x) {
+                <option [value]="x">.{{ x }}</option>
+              }
+            </select>
+          </div>
+          <div class="check">
+            <input id="fmt-header" type="checkbox" formControlName="headerRow" />
+            <label for="fmt-header">{{ t('payroll.settings.format.headerRow') }}</label>
+          </div>
+        </div>
+
+        <fieldset class="columns" data-columns aria-describedby="fmt-columns-hint fmt-columns-error">
+          <legend>{{ t('payroll.settings.format.columns') }}</legend>
+          <p class="field-hint" id="fmt-columns-hint">
+            {{ t(layout() === 'per_line' ? 'payroll.settings.format.columnsHint.per_line' : 'payroll.settings.format.columnsHint.per_employee', { max: maxColumns }) }}
+          </p>
+          <ol class="pick-list" data-list="selected">
+            @for (c of columns(); track c; let i = $index, first = $first, last = $last) {
+              <li [attr.data-column]="c">
+                <span class="pick-name">{{ t('payroll.settings.format.column.' + c) }}</span>
+                <span class="pick-actions">
+                  <button class="btn secondary small" type="button" data-action="up" [disabled]="first" [attr.aria-label]="t('payroll.settings.format.moveUp', { column: t('payroll.settings.format.column.' + c) })" (click)="move(i, -1)">↑</button>
+                  <button class="btn secondary small" type="button" data-action="down" [disabled]="last" [attr.aria-label]="t('payroll.settings.format.moveDown', { column: t('payroll.settings.format.column.' + c) })" (click)="move(i, 1)">↓</button>
+                  @if (!required().includes(c)) {
+                    <button class="btn secondary small" type="button" data-action="remove" [attr.aria-label]="t('payroll.settings.format.removeColumn', { column: t('payroll.settings.format.column.' + c) })" (click)="remove(c)">✕</button>
+                  }
+                </span>
+              </li>
+            }
+          </ol>
+          @if (layout() === 'per_employee') {
+            <p class="field-hint" data-hint="rubrique-columns">{{ t('payroll.settings.format.rubriqueColumns') }}</p>
+          }
+          @if (available().length > 0) {
+            <p class="add-label">{{ t('payroll.settings.format.addColumn') }}</p>
+            <ul class="add-list" data-list="available">
+              @for (c of available(); track c) {
+                <li>
+                  <button class="btn secondary small" type="button" [attr.data-add]="c" [disabled]="columns().length >= maxColumns" (click)="add(c)">
+                    + {{ t('payroll.settings.format.column.' + c) }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          @if (problem(); as p) {
+            <p class="field-error" id="fmt-columns-error" data-error="columns">{{ t('payroll.settings.format.columnsProblem.' + p, { max: maxColumns }) }}</p>
+          } @else if (columnsServerError(); as key) {
+            <p class="field-error" id="fmt-columns-error" data-error="columns">{{ t(key) }}</p>
+          }
+        </fieldset>
+
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="save-format" [disabled]="saving() || !!problem()">{{ t('common.save') }}</button>
+        </div>
+      </form>
+
+      <section class="panel preview" aria-labelledby="fmt-preview-title" data-preview>
+        <div class="toolbar">
+          <h3 id="fmt-preview-title">{{ t('payroll.settings.format.preview') }}</h3>
+          <button class="btn secondary small" type="button" data-action="reload-preview" (click)="loadPreview()">{{ t('payroll.settings.format.reloadPreview') }}</button>
+        </div>
+        <p class="field-hint">{{ t('payroll.settings.format.previewHint') }}</p>
+        @switch (previewState()) {
+          @case ('loading') {
+            <p class="muted" aria-live="polite">{{ t('common.loading') }}</p>
+          }
+          @case ('error') {
+            <p class="form-error" role="alert" data-preview-error>{{ t('payroll.settings.format.previewError') }}</p>
+          }
+          @case ('ready') {
+            @if (preview(); as p) {
+              <p class="preview-meta">
+                <span class="code" dir="ltr" data-preview-filename>{{ p.filename }}</span>
+                <span class="muted">{{ t('payroll.settings.format.encodings.' + p.encoding) }}</span>
+              </p>
+              <pre class="sample" dir="ltr" tabindex="0" [attr.aria-label]="t('payroll.settings.format.preview')" data-preview-sample>{{ p.sample }}</pre>
+            }
+          }
+        }
+      </section>
+    </div>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</section>

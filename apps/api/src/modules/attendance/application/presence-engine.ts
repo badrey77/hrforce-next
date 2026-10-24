@@ -3,7 +3,7 @@ import { effectiveSite, type OrgSnapshotUnit, type OrgUnitKind } from '../../org
 import { LeaveFacts, type AttendanceLeaveInputs } from '../../leave/index.js';
 import { computeDay, leavePartOn, type DayResult, type LeavePart, type PunchFact } from '../domain/day.js';
 import { AssignmentIndex, dayRuleOf, type OverrideFact, type Placement, type Resolved, type VersionFact } from '../domain/schedules.js';
-import { algiersTime, formatHhMm } from '../domain/time.js';
+import { algiersDate, algiersTime, formatHhMm } from '../domain/time.js';
 import { isRestDay } from '../domain/week.js';
 import { AttendanceRepository, type EmploymentFacts, type PunchRow, type SiteRow, type UnitVersionRow } from '../infra/attendance.repository.js';
 import { KiosksRepository } from '../infra/kiosks.repository.js';
@@ -315,11 +315,12 @@ export class PresenceEngine {
 
   /**
    * Loads the data of `employmentIds` for [from, to]. `allRefs`: device refs of the whole company (shared_device
-   * compares with other employments' punches).
+   * compares with other employments' punches). `nowMs`: the instant that decides final days (default: the attendance
+   * clock; the Payroll module passes its own clock).
    */
-  async load(companyId: string, employmentIds: readonly string[], from: string, to: string, org?: OrgBook): Promise<PresenceData> {
-    const nowMs = this.clock.nowMs();
-    const today = this.clock.today();
+  async load(companyId: string, employmentIds: readonly string[], from: string, to: string, org?: OrgBook, at?: { nowMs: number }): Promise<PresenceData> {
+    const nowMs = at?.nowMs ?? this.clock.nowMs();
+    const today = at ? algiersDate(at.nowMs) : this.clock.today();
     const book = org ?? (await this.orgBook(companyId));
     const [employments, scheduleRows, versions, overrides, assignments, leave, punches, deviceRefs, kiosks, members] = await Promise.all([
       this.repo.employments(companyId, employmentIds),
@@ -349,4 +350,30 @@ export class PresenceEngine {
       members,
     );
   }
+
+  /**
+   * Where attendance is in use (docs/contracts/payroll-variables.md, assumption 6): for each kiosk ever paired, its site
+   * and the Algerian dates it covered — from its pairing day to its revocation day (null: still active).
+   */
+  async kioskSpans(companyId: string): Promise<KioskSpan[]> {
+    const kiosks = await this.kiosks.list(companyId);
+    return kiosks
+      .filter((k) => k.pairedAt !== null)
+      .map((k) => ({ siteId: k.siteId, from: algiersDate((k.pairedAt as Date).getTime()), to: k.revokedAt ? algiersDate(k.revokedAt.getTime()) : null }));
+  }
+}
+
+/** A kiosk's site and the days it was in use (inclusive; `to` null = still active). */
+export interface KioskSpan {
+  siteId: string;
+  from: string;
+  to: string | null;
+}
+
+/**
+ * A {@link PresenceEngine} outside Nest — for dev seeds running inside `runWithContext` (the Payroll demo closing):
+ * the repositories and the clock have no dependencies.
+ */
+export function standalonePresenceEngine(): PresenceEngine {
+  return new PresenceEngine(new AttendanceRepository(), new SchedulesRepository(), new KiosksRepository(), new LeaveFacts(), new AttendanceClock());
 }

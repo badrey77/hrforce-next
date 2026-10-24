@@ -79,6 +79,7 @@ import type { FormMessage } from '../../core/http/problem-form';
 import { dateLocaleOf } from '../../core/i18n/date-locale';
 import { LanguageService } from '../../core/i18n/language.service';
 import { LeaveCatalog, pickLabel } from '../../core/leave/leave-catalog';
+import { PayrollApi } from '../../core/payroll/payroll-api';
 import { DisplayNamePipe, displayNameOf } from '../../shared/display-name/display-name.pipe';
 import { Timeline } from '../../shared/timeline/timeline';
 import type { AuditNameResolver } from '../../shared/timeline/timeline-view';
@@ -127,6 +128,7 @@ const DOCUMENTS_FOR_NAMES = 100;
 export class EmployeeDetailPage {
   private readonly api = inject(EmployeesApi);
   private readonly canAudit = inject(Session).allows('audit.read');
+  private readonly canPayroll = inject(Session).allows('payroll.read');
   /** Leave tab (docs/contracts/leave.md › Web): balances and ledger need `leave.read` (held anywhere; the API scopes). */
   private readonly canLeave = inject(Session).allows('leave.read');
   /** Documents tab (docs/contracts/documents.md › Web): the register rows of this employee need `document.read`. */
@@ -207,6 +209,8 @@ export class EmployeeDetailPage {
       ? { ...DEFAULT_DOCUMENT_QUERY, employmentId: this.id(), pageSize: DOCUMENTS_FOR_NAMES }
       : undefined,
   );
+  /** Payroll adjustments in the History name their rubrique (payroll-variables contract › Audit). */
+  private readonly payrollRubriques = inject(PayrollApi).rubriquesResource(() => this.historyShown() && this.canPayroll());
 
   /**
    * Names for ids in the History tab: units and sites of this employee's assignments, leave types (the tab also
@@ -226,6 +230,10 @@ export class EmployeeDetailPage {
       const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];
       const type = documents.find((d) => d.type.code === value)?.type;
       return type ? pickLabel(type.labels, this.lang()) : undefined;
+    }
+    if (kind === 'payrollRubrique') {
+      const rubrique = this.payrollRubriques.hasValue() ? this.payrollRubriques.value().items.find((r) => r.id === value) : undefined;
+      return rubrique ? `${rubrique.exportCode} · ${pickLabel(rubrique.names, this.lang())}` : undefined;
     }
     if (kind === 'signatory') {
       const documents = this.historyDocuments.hasValue() ? this.historyDocuments.value().items : [];

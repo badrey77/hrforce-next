@@ -14,6 +14,7 @@ import { base32Decode, DEMO_PASSWORD, hotp, inviteUser, MfaClock, totpStep } fro
 import { createDatabase } from '../src/platform/db/database.js';
 import { DEMO_SIGNATORIES, demoPdf } from '../src/modules/documents/index.js';
 import { deadlinesToday } from '../src/modules/deadlines/index.js';
+import { payrollToday } from '../src/modules/payroll/index.js';
 import { DEMO_KIOSKS, DEMO_PAIRING_CODE, DEMO_SCHEDULES, weekOf } from '../src/modules/attendance/index.js';
 import { REC_FX } from './support/recruitment-fixture.js';
 import { scanReceipt } from './support/attendance-fixture.js';
@@ -74,7 +75,9 @@ const AUDITED_TABLES = [
   'document_request', 'document_signatory', 'document_template_version', 'document_type', 'employee_file', 'employee_file_category',
   'employment', 'employment_contract', 'employment_salary',
   'installation_branding', 'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
-  'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version', 'person', 'person_sensitive', 'public_holiday',
+  'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version',
+  'payroll_adjustment', 'payroll_closing', 'payroll_employee_code', 'payroll_line', 'payroll_period', 'payroll_policy', 'payroll_rubrique',
+  'person', 'person_sensitive', 'public_holiday',
   'recruitment_criterion', 'recruitment_opening', 'recruitment_opening_criterion', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'sso_app_role', 'sso_client', 'sso_role_assignment',
   'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
@@ -504,10 +507,15 @@ describe('exit criterion: every write through the API produces an audit row with
     CT.contract = await insertContract(db.superuserUrl, { companyId: COMPANY_A, employmentId: employeeA(26), seq: 1, contractType: 'cdd', startDate: await hire(employeeA(26)), endDate: '2032-12-31' });
     const dgContract = await insertContract(db.superuserUrl, { companyId: COMPANY_A, employmentId: employeeA(1), seq: 1, contractType: 'cdd', startDate: await hire(employeeA(1)), endDate: '2032-12-31' });
     CT.decision = (await client('admin').post(`/api/employees/${employeeA(1)}/contracts/${dgContract}/decision`).expect(201)).body.id;
+    PAYAUD.rubrique = (await query<{ id: string }>(db.superuserUrl, `select id from payroll_rubrique where company_id = $1 and export_code = 'HS50'`, [COMPANY_A]))[0]?.id ?? '';
+    PAYAUD.absence = (await query<{ id: string }>(db.superuserUrl, `select id from payroll_rubrique where company_id = $1 and export_code = 'ABS_NJ'`, [COMPANY_A]))[0]?.id ?? '';
+    expect(PAYAUD.rubrique).not.toBe('');
   });
   const CT = { contract: '', decision: '' };
   let TPL: TemplateFixture;
   const DL = { file: '', fileExpiry: '', ackToDelete: '' };
+  /** payroll: a rubrique to update (DEMO's HS50) */
+  const PAYAUD = { rubrique: '', absence: '' };
 
   interface Write {
     request: () => { path: string; body: object; upload?: Buffer; fields?: Record<string, string> };
@@ -796,6 +804,25 @@ describe('exit criterion: every write through the API produces an audit row with
       tables: ['contract_decision', 'workflow_instance', 'workflow_task'],
     },
     'PUT /api/contract-decisions/:id/proposal': { request: () => ({ path: `/api/contract-decisions/${CT.decision}/proposal`, body: { proposal: 'convert_cdi' } }), tables: ['contract_decision'] },
+    // payroll settings, rubriques, payroll matricules (docs/contracts/payroll-variables.md › Audit): row triggers
+    'PUT /api/payroll/settings': { request: () => ({ path: '/api/payroll/settings', body: { cutoffDay: 15 } }), tables: ['payroll_policy'] },
+    'POST /api/payroll/rubriques': { request: () => ({ path: '/api/payroll/rubriques', body: { exportCode: 'AUD_PRIME', names: { fr: 'Prime audit', ar: 'منحة', en: 'Audit bonus' }, unit: 'amount' } }), tables: ['payroll_rubrique'] },
+    'PUT /api/payroll/rubriques/:id': { request: () => ({ path: `/api/payroll/rubriques/${PAYAUD.rubrique}`, body: { active: true } }), tables: ['payroll_rubrique'] },
+    'PUT /api/payroll/employee-codes/:employeeId': { request: () => ({ path: `/api/payroll/employee-codes/${employeeA(27)}`, body: { code: 'AUD-27' } }), tables: ['payroll_employee_code'] },
+    // payroll variables and closings (payroll-variables.md › Audit, API builder 2): row triggers (+ payroll.closed / reopened events)
+    'PUT /api/payroll/periods/:month/variables/:employeeId/lines': {
+      request: () => ({ path: `/api/payroll/periods/${payrollToday().slice(0, 7)}/variables/${employeeA(27)}/lines`, body: { rubriqueId: PAYAUD.absence, value: 2, note: 'Audit' } }),
+      tables: ['payroll_adjustment'],
+    },
+    'DELETE /api/payroll/periods/:month/variables/:employeeId/lines/:rubriqueId': {
+      request: () => ({ path: `/api/payroll/periods/${payrollToday().slice(0, 7)}/variables/${employeeA(27)}/lines/${PAYAUD.absence}`, body: {} }),
+      tables: ['payroll_adjustment'],
+    },
+    'POST /api/payroll/periods/:month/close': { request: () => ({ path: '/api/payroll/periods/2024-01/close', body: {} }), tables: ['payroll_period', 'payroll_closing'] },
+    'POST /api/payroll/periods/:month/reopen': {
+      request: () => ({ path: '/api/payroll/periods/2024-01/reopen', body: { reason: 'Contrôle audit' } }),
+      tables: ['payroll_period', 'payroll_closing'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],

@@ -31,13 +31,15 @@ export type AuditRefKind =
   /** A connected app's role id (`sso_role_assignment.sso_app_role_id`), named by its code where the page knows it. */
   | 'appRole'
   /** A document type code (`issued_document.type_code`): a custom type has no fixed translation, the page names it. */
-  | 'documentType';
+  | 'documentType'
+  /** A payroll rubrique id (`payroll_adjustment.rubrique_id`), named by its export code where the page knows it. */
+  | 'payrollRubrique';
 
 /**
  * References whose raw value means nothing to a reader (a bare UUID, unlike a role code or a unit id an admin may
  * recognise): when the page cannot name them, the line says "name not available" instead of printing the id.
  */
-const OPAQUE_REFS: ReadonlySet<AuditRefKind> = new Set<AuditRefKind>(['signatory', 'fileCategory', 'appRole']);
+const OPAQUE_REFS: ReadonlySet<AuditRefKind> = new Set<AuditRefKind>(['signatory', 'fileCategory', 'appRole', 'payrollRubrique']);
 
 /**
  * Names a referenced value (a unit id, a role code…) from data the host page already has, or `undefined` to show
@@ -88,6 +90,9 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
   type_code: 'documentType',
   // Contracts (contracts-deadlines contract › Audit): who proposed a contract decision.
   proposed_by: 'user',
+  // Payroll (payroll-variables contract › Audit): who typed a value or a payroll matricule; which rubrique.
+  updated_by: 'user',
+  rubrique_id: 'payrollRubrique',
 };
 
 /**
@@ -95,6 +100,8 @@ export const REFERENCE_FIELDS: Readonly<Record<string, AuditRefKind>> = {
  * Shown as a short fingerprint (the document detail page's convention), the full value on hover.
  */
 const HASH_FIELDS: ReadonlySet<string> = new Set(['content_sha256', 'sha256', 'logo_sha256']);
+/** Months stored as their first day (payroll): shown as « octobre 2026 », not as a day. */
+const MONTH_FIELDS: ReadonlySet<string> = new Set(['payroll_adjustment.month', 'payroll_adjustment.origin_month']);
 const HEX = /^(?:\\x)?([0-9a-f]{2,})$/i;
 /** Hex digits shown: enough to compare two fingerprints by eye. */
 export const SHORT_HASH_LENGTH = 12;
@@ -141,6 +148,14 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'contract_decision.proposal': 'contracts.decision.proposal.',
   // An employment ended by an approved « end » decision (or by hand): the same words as the end-of-employment form.
   'employment.end_reason': 'employees.endReasons.',
+  // Payroll: the same words as /payroll/settings.
+  'payroll_rubrique.source': 'payroll.source.',
+  'payroll_rubrique.unit': 'payroll.unit.',
+  'payroll_policy.layout': 'payroll.settings.format.layouts.',
+  'payroll_policy.separator': 'payroll.settings.format.separators.',
+  'payroll_policy.decimal_separator': 'payroll.settings.format.decimals.',
+  'payroll_policy.encoding': 'payroll.settings.format.encodings.',
+  'payroll_policy.period_format': 'payroll.settings.format.periodFormats.',
 };
 
 /**
@@ -182,6 +197,10 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   // `opened_by` is `system` or a user id, shown by the decision event.
   employment_contract: ['employment_id', 'decision_id'],
   contract_decision: ['employment_id', 'contract_id', 'workflow_instance_id', 'result_contract_id', 'opened_by', 'updated_at'],
+  // Payroll: the employment repeats the subject; `updated_at` repeats the entry's time.
+  payroll_adjustment: ['employment_id', 'updated_at'],
+  payroll_employee_code: ['employment_id', 'updated_at'],
+  payroll_policy: ['updated_at'],
 };
 
 export type DisplayValue =
@@ -192,6 +211,8 @@ export type DisplayValue =
   | { readonly kind: 'range'; readonly from: string; readonly to: string | null }
   /** A `date` as stored (`YYYY-MM-DD`) — formatted by `DatePipe` in the UI language (Angular reads it as a local day: no timezone shift). */
   | { readonly kind: 'date'; readonly iso: string }
+  /** A month stored as its first day (`MONTH_FIELDS`) — « octobre 2026 » in the UI language. */
+  | { readonly kind: 'month'; readonly iso: string }
   /** A `timestamptz` as stored (ISO) — formatted by `DatePipe` in the UI language. */
   | { readonly kind: 'timestamp'; readonly iso: string }
   /** A code from a fixed list (`ENUM_FIELDS`): shown as `t(key)`, or `text` when the key is unknown. */
@@ -264,6 +285,7 @@ interface FieldKind {
   readonly ref?: AuditRefKind | undefined;
   readonly enumPrefix?: string | undefined;
   readonly hash?: boolean;
+  readonly month?: boolean;
 }
 
 function displayValue(value: unknown, masked: boolean, field: FieldKind, resolve: AuditNameResolver): DisplayValue {
@@ -282,7 +304,7 @@ function displayValue(value: unknown, masked: boolean, field: FieldKind, resolve
   if (typeof value === 'string') {
     const range = RANGE.exec(value);
     if (range?.[1]) return { kind: 'range', from: range[1], to: range[2] ?? null };
-    if (DATE.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'date', iso: value };
+    if (DATE.test(value) && !Number.isNaN(Date.parse(value))) return { kind: field.month ? 'month' : 'date', iso: value };
     if (TIMESTAMP.test(value) && !Number.isNaN(Date.parse(value))) return { kind: 'timestamp', iso: value };
     const name = ref ? resolve(ref, value) : undefined;
     if (name) return { kind: 'text', text: name };
@@ -307,6 +329,7 @@ function fieldLine(table: string, op: AuditOp, change: AuditChange, resolve: Aud
     ref: REFERENCE_FIELDS[change.field],
     enumPrefix: ENUM_FIELDS[`${table}.${change.field}`],
     hash: HASH_FIELDS.has(change.field),
+    month: MONTH_FIELDS.has(`${table}.${change.field}`),
   };
   return {
     field: change.field,

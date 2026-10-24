@@ -1,0 +1,200 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+}
+
+[role='tab'] {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 0;
+  border-block-end: 3px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+[role='tab']:hover {
+  background: var(--color-hover);
+}
+
+[role='tab'][aria-selected='true'] {
+  border-block-end-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.names {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.names li[lang='ar'] {
+  font-family: var(--font-arabic);
+}
+
+tr.inactive .code,
+tr.inactive .names {
+  color: var(--color-text-muted);
+}
+
+.btn.small {
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  min-inline-size: 2.25rem;
+}
+
+fieldset {
+  min-inline-size: 0;
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+legend {
+  padding-inline: var(--space-1);
+  font-weight: 600;
+}
+
+.format-layout {
+  display: grid;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .format-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+
+  .preview {
+    position: sticky;
+    inset-block-start: var(--space-4);
+  }
+}
+
+.pick-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding-inline-start: var(--space-6);
+}
+
+.pick-list li {
+  padding-block: var(--space-1);
+}
+
+.pick-list li > * {
+  vertical-align: middle;
+}
+
+.pick-name {
+  display: inline-block;
+  min-inline-size: 10rem;
+  margin-inline-end: var(--space-2);
+}
+
+.pick-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.add-label {
+  margin-block: var(--space-2) var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.add-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+/* The file as it will be written: monospace, left-to-right in every UI language, scrolls instead of wrapping. */
+.sample {
+  margin: 0;
+  padding: var(--space-3);
+  max-inline-size: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 8;
+  text-align: start;
+  unicode-bidi: isolate;
+}
+
+@media (max-width: 640px) {
+  table.cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.cards,
+  table.cards tbody,
+  table.cards tr,
+  table.cards td {
+    display: block;
+  }
+
+  table.cards tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.cards td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    justify-content: space-between;
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.cards td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.data.cards td.who {
+    display: block;
+    font-size: 1.0625rem;
+  }
+
+  table.cards td.who::before {
+    content: none;
+  }
+
+  .pick-name {
+    min-inline-size: 0;
+    inline-size: 100%;
+  }
+}

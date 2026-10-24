@@ -29,7 +29,9 @@
     "myInterviewsWithCount": "Mes entretiens, {{count}} évaluation(s) à saisir",
     "deadlines": "Échéances",
     "deadlinesWithCount": "Échéances, {{count}} en retard",
-    "deadlineSettings": "Paramètres des échéances"
+    "deadlineSettings": "Paramètres des échéances",
+    "payroll": "Paie",
+    "payrollSettings": "Paramètres de la paie"
   },
   "language": {
     "label": "Langue",
@@ -523,7 +525,14 @@
       "recruitment_criterion": "Critère d’évaluation",
       "recruitment_opening_criterion": "Critère du poste",
       "employment_contract": "Contrat de travail",
-      "contract_decision": "Décision de fin de contrat"
+      "contract_decision": "Décision de fin de contrat",
+      "payroll_policy": "Paramètres de la paie",
+      "payroll_rubrique": "Rubrique de paie",
+      "payroll_employee_code": "Matricule paie",
+      "payroll_period": "Période de paie",
+      "payroll_adjustment": "Variable de paie ajustée",
+      "payroll_closing": "Clôture de la paie",
+      "payroll_line": "Ligne de paie clôturée"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -891,6 +900,57 @@
         "proposed_by": "Proposé par",
         "proposed_at": "Proposé le",
         "created_at": "Ouverte le"
+      },
+      "payroll_adjustment": {
+        "month": "Mois",
+        "origin_month": "Mois d’origine",
+        "rubrique_id": "Rubrique",
+        "value": "Valeur",
+        "note": "Note",
+        "updated_by": "Saisi par"
+      },
+      "payroll_employee_code": {
+        "code": "Matricule paie",
+        "updated_by": "Saisi par"
+      },
+      "payroll_rubrique": {
+        "source": "Origine",
+        "leave_type_id": "Type de congé",
+        "export_code": "Code d’export",
+        "name_fr": "Libellé (français)",
+        "name_ar": "Libellé (arabe)",
+        "name_en": "Libellé (anglais)",
+        "unit": "Unité",
+        "active": "Active",
+        "sort_order": "Ordre",
+        "created_at": "Créée le"
+      },
+      "payroll_policy": {
+        "cutoff_day": "Date limite (jour)",
+        "regularization_months": "Mois de régularisation",
+        "overtime_min_minutes": "Minimum d’heures supplémentaires (minutes)",
+        "layout": "Disposition",
+        "separator": "Séparateur",
+        "decimal_separator": "Séparateur décimal",
+        "encoding": "Encodage",
+        "header_row": "Ligne d’en-tête",
+        "columns": "Colonnes",
+        "period_format": "Format de la période",
+        "file_extension": "Extension du fichier"
+      },
+      "payroll_period": {
+        "month": "Mois",
+        "status": "État"
+      },
+      "payroll_closing": {
+        "version": "Version",
+        "closed_by": "Clôturée par",
+        "closed_at": "Clôturée le",
+        "reopened_by": "Rouverte par",
+        "reopened_at": "Rouverte le",
+        "reopen_reason": "Motif de réouverture",
+        "lines": "Lignes",
+        "employees": "Employés"
       }
     },
     "events": {
@@ -1007,6 +1067,12 @@
       "contract": {
         "decision_opened": "Décision de fin de contrat ouverte",
         "decision_applied": "Décision de fin de contrat appliquée"
+      },
+      "payroll": {
+        "closed": "Paie du mois {{month}} clôturée (version {{version}}, {{employees}} employés, {{lines}} lignes)",
+        "reopened": "Paie du mois {{month}} rouverte (version {{version}}) : {{reason}}",
+        "exported": "Fichier de paie du mois {{month}} exporté ({{lines}} lignes)",
+        "control_exported": "État de contrôle du mois {{month}} exporté"
       }
     },
     "values": {
@@ -4025,6 +4091,321 @@
         "retirementAge": "Entre {{min}} et {{max}}.",
         "retirementNoticeMonths": "Entre {{min}} et {{max}}.",
         "digestEnabled": "Une notification par jour, quand de nouvelles échéances apparaissent."
+      }
+    }
+  },
+  "payroll": {
+    "month": {
+      "title": "Variables de paie",
+      "heading": "Mois de {{month}}",
+      "settingsLink": "Paramètres de la paie",
+      "loadError": "Impossible de charger le mois de paie.",
+      "adjusted": "Ajusté",
+      "bar": {
+        "label": "Mois de paie",
+        "year": "Année",
+        "previousYear": "Année précédente",
+        "nextYear": "Année suivante",
+        "future": "À venir"
+      },
+      "status": {
+        "open": "Ouvert",
+        "closedVersion": "Clôturé v{{version}}"
+      },
+      "unitShort": {
+        "days": "j",
+        "hours": "h",
+        "amount": "DA"
+      },
+      "chip": {
+        "regularization": "Régul. {{period}}"
+      },
+      "header": {
+        "cutoff": "Clôture possible à partir du {{date}}",
+        "beforeCutoff": "La clôture sera possible à partir du {{date}}.",
+        "closedOn": "Clôturé le {{date}} par {{name}}",
+        "employees": "Salariés avec variables : {{count}}",
+        "lines": "Lignes : {{count}}",
+        "regularizations": "Régularisations : {{count}}",
+        "flagsLabel": "Points à vérifier",
+        "totals": "Totaux par rubrique",
+        "tileEmployees": "Salariés : {{count}}",
+        "noTotals": "Aucune variable pour ce mois.",
+        "history": "Historique des clôtures",
+        "historyClosed": "Version {{version}} clôturée le {{date}} par {{name}}",
+        "historyReopened": "rouverte le {{date}} par {{name}}"
+      },
+      "flags": {
+        "entry": "Entrée le {{date}}",
+        "exit": "Sortie le {{date}}",
+        "incomplete_days": "Jours incomplets : {{count}}",
+        "pending_leave": "Congé en attente",
+        "no_attendance": "Sans pointage : absences à saisir",
+        "pendingLeaveCount": "Congés en attente : {{count}}",
+        "incompleteDaysCount": "Jours incomplets : {{count}}",
+        "noAttendanceCount": "Salariés sans pointage : {{count}}"
+      },
+      "actions": {
+        "close": "Clôturer le mois",
+        "reopen": "Rouvrir",
+        "export": "Exporter le fichier de paie",
+        "exportDraft": "Export brouillon",
+        "control": "État de contrôle",
+        "controlFr": "État de contrôle en français",
+        "controlAr": "État de contrôle en arabe"
+      },
+      "files": {
+        "error": "Le fichier n’a pas pu être téléchargé. Veuillez réessayer.",
+        "unitHint": "Les fichiers ne contiennent que l’unité choisie dans les filtres."
+      },
+      "close": {
+        "title": "Clôturer {{month}}",
+        "intro": "La clôture fige les variables du mois pour l’export :",
+        "warnings": "Points à vérifier avant la clôture",
+        "after": "Ce qui changera ensuite pour ce mois (congé approuvé tard, absence) reviendra en régularisation sur un mois suivant.",
+        "confirm": "Clôturer le mois"
+      },
+      "reopen": {
+        "title": "Rouvrir le mois",
+        "intro": "Le mois redevient modifiable ; il faudra le clôturer à nouveau (nouvelle version) avant d’exporter le fichier.",
+        "reason": "Motif",
+        "hint": "De {{min}} à {{max}} caractères.",
+        "invalid": "Veuillez indiquer un motif de {{min}} à {{max}} caractères.",
+        "confirm": "Rouvrir"
+      },
+      "feedback": {
+        "closed": "Le mois est clôturé.",
+        "reopened": "Le mois est rouvert.",
+        "lineSaved": "La ligne est enregistrée.",
+        "lineAdded": "La rubrique est ajoutée.",
+        "codeSaved": "Le matricule paie est enregistré.",
+        "codeCleared": "Le matricule paie est retiré : le matricule sera exporté."
+      },
+      "problems": {
+        "beforeCutoff": "La date limite de ce mois n’est pas encore atteinte.",
+        "periodClosed": "Ce mois est clôturé.",
+        "previousOpen": "Un mois précédent doit d’abord être clôturé.",
+        "notLatest": "Seul le dernier mois clôturé peut être rouvert.",
+        "periodOpen": "Ce mois est ouvert : il doit d’abord être clôturé.",
+        "companyWide": "Cette action demande un droit sur toute l’entreprise.",
+        "amountForbidden": "Les montants ne peuvent être saisis que par les personnes habilitées sur les salaires.",
+        "notFound": "Ce salarié n’est pas dans votre périmètre.",
+        "invalid": "Cette saisie a été refusée. Veuillez vérifier les valeurs.",
+        "rubriqueInactive": "Cette rubrique n’est plus active.",
+        "originInvalid": "Ce mois n’a pas de régularisation pour cette rubrique.",
+        "notEmployed": "Ce salarié n’était pas employé ce mois-ci."
+      },
+      "filters": {
+        "label": "Filtrer les variables",
+        "search": "Rechercher",
+        "searchPlaceholder": "Nom ou matricule",
+        "unit": "Unité",
+        "includeSubUnits": "Inclure les sous-unités",
+        "rubrique": "Rubrique",
+        "allRubriques": "Toutes les rubriques",
+        "show": "Afficher",
+        "all": "Tous les salariés",
+        "adjusted": "Lignes ajustées",
+        "regularization": "Régularisations",
+        "flagged": "Points à vérifier",
+        "clear": "Effacer les filtres"
+      },
+      "variables": {
+        "caption": "Variables de paie par salarié",
+        "total": "Salariés : {{count}}",
+        "matricule": "Matricule",
+        "payrollCode": "Paie :",
+        "employee": "Salarié",
+        "unit": "Unité",
+        "lines": "Variables",
+        "flags": "Signalements",
+        "empty": "Aucune variable pour ce mois.",
+        "noMatch": "Aucun salarié ne correspond aux filtres.",
+        "loadError": "Impossible de charger les variables."
+      },
+      "panel": {
+        "title": "Variables du salarié",
+        "close": "Fermer",
+        "loadError": "Impossible de charger les variables de ce salarié.",
+        "openEmployee": "Fiche du salarié",
+        "openAttendance": "Présence du mois",
+        "entry": "Entrée le {{date}}",
+        "exit": "Sortie le {{date}}",
+        "readOnly": "Consultation seule.",
+        "readOnlyClosed": "Ce mois est clôturé : consultation seule.",
+        "lines": "Lignes du mois",
+        "noLines": "Aucune variable pour ce mois.",
+        "computed": "Calculé :",
+        "manualLine": "Saisie manuelle",
+        "value": "Valeur",
+        "valueInvalid": "Veuillez saisir un nombre (deux décimales au plus).",
+        "note": "Note",
+        "noteTooLong": "{{max}} caractères au plus.",
+        "revert": "Revenir au calcul",
+        "remove": "Retirer la ligne",
+        "addTitle": "Ajouter une rubrique saisie",
+        "rubrique": "Rubrique",
+        "chooseRubrique": "Choisir une rubrique",
+        "rubriqueRequired": "Veuillez choisir une rubrique.",
+        "add": "Ajouter",
+        "codeTitle": "Matricule paie",
+        "code": "Matricule paie",
+        "codeHint": "Vide : le matricule {{matricule}} est exporté. {{max}} caractères au plus (lettres, chiffres, _ . -).",
+        "codeInvalid": "Lettres, chiffres, _ . - seulement, {{max}} caractères au plus.",
+        "codeTaken": "Ce matricule paie est déjà utilisé par un autre salarié.",
+        "saveCode": "Enregistrer le matricule paie",
+        "noCode": "Aucun : le matricule {{matricule}} est exporté."
+      }
+    },
+    "source": {
+      "leave": "Congé",
+      "absence": "Absence non justifiée",
+      "late": "Retards",
+      "overtime_normal": "Heures supplémentaires (jour ouvré)",
+      "overtime_rest_day": "Heures supplémentaires (jour de repos)",
+      "overtime_holiday": "Heures supplémentaires (jour férié)",
+      "service_days": "Jours de présence",
+      "manual": "Saisie"
+    },
+    "unit": {
+      "days": "Jours",
+      "hours": "Heures",
+      "amount": "Montant (DA)"
+    },
+    "home": {
+      "month": "Paie — {{month}}",
+      "openFrom": "Ouverte — clôture à partir du {{date}}",
+      "openSince": "Ouverte — clôture possible depuis le {{date}}",
+      "closedOn": "Clôturée le {{date}}",
+      "closed": "Clôturée"
+    },
+    "settings": {
+      "title": "Paramètres de la paie",
+      "back": "Retour aux variables de paie",
+      "loadError": "Impossible de charger les paramètres de la paie.",
+      "saved": "Paramètres enregistrés.",
+      "tab": {
+        "rubriques": "Rubriques",
+        "format": "Format d’export",
+        "calendar": "Calendrier"
+      },
+      "errors": {
+        "required": "Ce champ est obligatoire.",
+        "tooLong": "{{requiredLength}} caractères au plus.",
+        "range": "Entrez un nombre entier entre {{min}} et {{max}}.",
+        "code": "1 à 20 caractères : lettres sans accent, chiffres, « _ », « . » ou « - ».",
+        "codeTaken": "Ce code est déjà utilisé par une rubrique active.",
+        "companyWide": "Ces paramètres valent pour toute l’entreprise : il faut un droit sur toute l’entreprise pour les modifier."
+      },
+      "rubriques": {
+        "intro": "Chaque rubrique devient une ligne (ou une colonne) du fichier de paie. Remplacez les codes par ceux de votre logiciel de paie ; seules les rubriques actives sont calculées et exportées.",
+        "new": "Nouvelle rubrique saisie",
+        "newIntro": "Une rubrique saisie n’est pas calculée : les RH tapent sa valeur pour chaque employé (prime, avance, indemnité…).",
+        "create": "Créer la rubrique",
+        "created": "Rubrique créée.",
+        "empty": "Aucune rubrique.",
+        "exportCode": "Code d’export",
+        "codeHint": "Le code de la rubrique dans le logiciel de paie (1 à 20 caractères : lettres sans accent, chiffres, « _ », « . », « - »).",
+        "names": "Libellés",
+        "name": {
+          "fr": "Libellé (français)",
+          "ar": "Libellé (arabe)",
+          "en": "Libellé (anglais)"
+        },
+        "source": "Origine",
+        "unit": "Unité",
+        "unitFixed": "L’unité d’une rubrique calculée suit son origine.",
+        "amountHint": "Les montants ne sont vus et saisis que par les personnes qui ont accès aux salaires.",
+        "status": "État",
+        "active": "Active",
+        "inactive": "Inactive",
+        "activeLabel": "Rubrique active (calculée et exportée)",
+        "order": "Ordre",
+        "edit": "Modifier",
+        "editNamed": "Modifier la rubrique {{code}}",
+        "editTitle": "Rubrique {{code}}"
+      },
+      "format": {
+        "intro": "Le fichier de paie est un fichier texte à importer dans le logiciel de paie. Réglez-le comme ce logiciel l’attend.",
+        "layout": "Disposition",
+        "layouts": {
+          "per_line": "Une ligne par employé et par rubrique",
+          "per_employee": "Une ligne par employé, une colonne par rubrique"
+        },
+        "layoutHints": {
+          "per_line": "Par exemple « matricule;rubrique;valeur;periode ».",
+          "per_employee": "Les colonnes des rubriques actives suivent les colonnes choisies, dans l’ordre des rubriques."
+        },
+        "separator": "Séparateur",
+        "separators": {
+          "semicolon": "Point-virgule ( ; )",
+          "comma": "Virgule ( , )",
+          "tab": "Tabulation",
+          "pipe": "Barre verticale ( | )"
+        },
+        "decimalSeparator": "Séparateur décimal",
+        "decimals": {
+          "comma": "Virgule (2,5)",
+          "dot": "Point (2.5)"
+        },
+        "encoding": "Encodage",
+        "encodings": {
+          "windows1252": "Windows-1252 (ANSI)",
+          "utf8": "UTF-8",
+          "utf8_bom": "UTF-8 avec BOM"
+        },
+        "encodingHint": "Les logiciels Windows attendent souvent Windows-1252 ; un caractère qu’il ne connaît pas devient « ? ».",
+        "headerRow": "Ligne d’en-tête (noms des colonnes)",
+        "periodFormat": "Format de la période",
+        "periodFormats": {
+          "mm_yyyy": "MM/AAAA (10/2026)",
+          "yyyymm": "AAAAMM (202610)",
+          "yyyy_mm": "AAAA-MM (2026-10)"
+        },
+        "fileExtension": "Extension du fichier",
+        "columns": "Colonnes, dans l’ordre",
+        "columnsHint": {
+          "per_line": "Le matricule, la rubrique et la valeur sont obligatoires ; {{max}} colonnes au plus.",
+          "per_employee": "Le matricule est obligatoire ; {{max}} colonnes au plus avant celles des rubriques."
+        },
+        "rubriqueColumns": "+ une colonne par rubrique active (en-tête = code d’export)",
+        "column": {
+          "matricule": "Matricule",
+          "last_name": "Nom",
+          "first_name": "Prénom",
+          "rubrique": "Rubrique (code)",
+          "label": "Libellé de la rubrique",
+          "value": "Valeur",
+          "unit": "Unité (J / H / DA)",
+          "period": "Période",
+          "origin_period": "Période d’origine",
+          "unit_code": "Code de l’unité"
+        },
+        "moveUp": "Monter « {{column}} »",
+        "moveDown": "Descendre « {{column}} »",
+        "removeColumn": "Retirer « {{column}} »",
+        "addColumn": "Ajouter une colonne :",
+        "columnsProblem": {
+          "required": "Choisissez au moins une colonne.",
+          "too_many": "{{max}} colonnes au plus.",
+          "invalid": "Cette liste de colonnes n’est pas valable pour cette disposition.",
+          "missing_matricule": "Le matricule est obligatoire.",
+          "missing_rubrique_value": "La rubrique et la valeur sont obligatoires."
+        },
+        "preview": "Aperçu du fichier",
+        "previewHint": "Les 5 premières lignes avec les paramètres enregistrés (variables du mois en cours, ou lignes d’exemple).",
+        "reloadPreview": "Actualiser",
+        "previewError": "Impossible de charger l’aperçu."
+      },
+      "calendar": {
+        "cutoffDay": "Date limite (jour du mois)",
+        "regularizationMonths": "Mois clôturés recalculés (régularisations)",
+        "overtimeMinMinutes": "Minimum d’heures supplémentaires (minutes)",
+        "hints": {
+          "cutoffDay": "Un mois peut être clôturé à partir de ce jour ({{min}} à {{max}}). Ce qui change ensuite un mois clôturé revient en régularisation le mois suivant.",
+          "regularizationMonths": "Nombre de mois clôturés vérifiés à chaque calcul ({{min}} à {{max}} ; 0 = aucune régularisation).",
+          "overtimeMinMinutes": "Un dépassement plus court un jour ouvré n’est pas compté ({{min}} à {{max}} minutes)."
+        }
       }
     }
   }

@@ -1,0 +1,63 @@
+<ng-container *transloco="let t">
+  @let l = line();
+  <div class="line" [class.adjusted]="l.adjusted" [attr.data-line]="l.exportCode" [attr.data-origin]="l.originMonth.slice(0, 7)">
+    <div class="line-head">
+      @if (regularization()) {
+        <span class="regul" data-field="origin">{{ t('payroll.month.chip.regularization', { period: originLabel() }) }}</span>&ngsp;
+      }
+      <strong class="chip-code" dir="ltr" [id]="id() + '-name'">{{ l.exportCode }}</strong>&ngsp;
+      <span><bdi>{{ name() }}</bdi></span>&ngsp;
+      @if (l.adjusted && !manual()) {
+        <span class="status-pill" data-field="adjusted">{{ t('payroll.month.adjusted') }}</span>
+      }
+    </div>
+    <p class="line-computed muted" data-field="computed">
+      @if (l.computed === null) {
+        {{ t('payroll.month.panel.manualLine') }}
+      } @else {
+        {{ t('payroll.month.panel.computed') }} <bdi>{{ format(l.computed) }}</bdi> {{ t(unitKey(l.unit)) }}
+      }
+    </p>
+
+    @if (editable()) {
+      <form class="line-form" [formGroup]="form" (ngSubmit)="save()" novalidate [attr.aria-labelledby]="id() + '-name'">
+        @let value = form.controls.value;
+        @let note = form.controls.note;
+        <div class="field">
+          <label [for]="id() + '-value'">{{ t('payroll.month.panel.value') }} ({{ t(unitKey(l.unit)) }})</label>
+          <input [id]="id() + '-value'" formControlName="value" inputmode="decimal" autocomplete="off" dir="ltr" class="num-input"
+            [attr.aria-invalid]="value.invalid && value.touched" [attr.aria-describedby]="value.invalid && value.touched ? id() + '-value-error' : null" />
+          @if (value.invalid && value.touched) {
+            <p class="field-error" [id]="id() + '-value-error'" data-error="value">{{ t('payroll.month.panel.valueInvalid') }}</p>
+          }
+        </div>
+        <div class="field note-field">
+          <label [for]="id() + '-note'">{{ t('payroll.month.panel.note') }}</label>
+          <input [id]="id() + '-note'" formControlName="note" autocomplete="off" dir="auto" [attr.maxlength]="noteMax"
+            [attr.aria-invalid]="note.invalid && note.touched" [attr.aria-describedby]="note.invalid && note.touched ? id() + '-note-error' : null" />
+          @if (note.invalid && note.touched) {
+            <p class="field-error" [id]="id() + '-note-error'" data-error="note">{{ t('payroll.month.panel.noteTooLong', { max: noteMax }) }}</p>
+          }
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit" data-action="save-line" [disabled]="busy()">{{ t('common.save') }}</button>
+          @if (l.adjusted) {
+            <button class="btn secondary" type="button" data-action="revert-line" [disabled]="busy()" (click)="revert()">
+              {{ manual() ? t('payroll.month.panel.remove') : t('payroll.month.panel.revert') }}
+            </button>
+          }
+        </div>
+        @if (error(); as key) {
+          <p class="form-error" role="alert" data-error="line">{{ t(key) }}</p>
+        }
+      </form>
+    } @else {
+      <p class="line-value" data-field="value">
+        <span class="muted">{{ t('payroll.month.panel.value') }}</span>&ngsp;<strong><bdi>{{ format(l.value) }}</bdi> {{ t(unitKey(l.unit)) }}</strong>
+      </p>
+      @if (l.note) {
+        <p class="line-note" data-field="note"><span class="muted">{{ t('payroll.month.panel.note') }}</span>&ngsp;<bdi>{{ l.note }}</bdi></p>
+      }
+    }
+  </div>
+</ng-container>

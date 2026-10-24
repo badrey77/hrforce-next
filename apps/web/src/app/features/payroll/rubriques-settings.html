@@ -1,0 +1,167 @@
+<section *transloco="let t" aria-labelledby="pay-rubriques-title" data-section="rubriques">
+  <div class="toolbar">
+    <h2 id="pay-rubriques-title">{{ t('payroll.settings.tab.rubriques') }}</h2>
+    <button class="btn" type="button" data-action="new-rubrique" (click)="openCreate()">{{ t('payroll.settings.rubriques.new') }}</button>
+  </div>
+  <p class="muted">{{ t('payroll.settings.rubriques.intro') }}</p>
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+
+  @if (editing(); as target) {
+    @let c = form.controls;
+    <form class="panel" [formGroup]="form" (ngSubmit)="save()" novalidate data-form="rubrique">
+      <h3>{{ t('payroll.settings.rubriques.editTitle', { code: target.exportCode }) }}</h3>
+      @if (formError(); as error) {
+        <p class="form-error" role="alert" data-error="form" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="grid">
+        <div class="field">
+          <label for="rub-code">{{ t('payroll.settings.rubriques.exportCode') }}</label>
+          <input id="rub-code" type="text" formControlName="exportCode" dir="ltr" autocomplete="off" maxlength="20"
+            [attr.aria-invalid]="c.exportCode.invalid && c.exportCode.touched" aria-describedby="rub-code-hint rub-code-error" />
+          <p class="field-hint" id="rub-code-hint">{{ t('payroll.settings.rubriques.codeHint') }}</p>
+          <app-control-error [control]="c.exportCode" errorId="rub-code-error" [keys]="errorKeys" />
+        </div>
+        @for (l of ['fr', 'ar', 'en']; track l) {
+          @let control = l === 'fr' ? c.fr : l === 'ar' ? c.ar : c.en;
+          <div class="field">
+            <label [for]="'rub-name-' + l">{{ t('payroll.settings.rubriques.name.' + l) }}</label>
+            <input [id]="'rub-name-' + l" type="text" [formControl]="control" [attr.lang]="l" [attr.dir]="l === 'ar' ? 'rtl' : 'ltr'" maxlength="80"
+              [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'rub-name-' + l + '-error'" />
+            <app-control-error [control]="control" [errorId]="'rub-name-' + l + '-error'" [keys]="errorKeys" />
+          </div>
+        }
+        <div class="field">
+          <label for="rub-unit">{{ t('payroll.settings.rubriques.unit') }}</label>
+          <select id="rub-unit" formControlName="unit" aria-describedby="rub-unit-hint">
+            @for (u of units; track u) {
+              @if (u !== 'amount' || target.source === 'manual') {
+                <option [value]="u">{{ t('payroll.unit.' + u) }}</option>
+              }
+            }
+          </select>
+          @if (target.source !== 'manual') {
+            <p class="field-hint" id="rub-unit-hint">{{ t('payroll.settings.rubriques.unitFixed') }}</p>
+          }
+        </div>
+        <div class="field">
+          <label for="rub-order">{{ t('payroll.settings.rubriques.order') }}</label>
+          <input id="rub-order" type="number" inputmode="numeric" min="0" [max]="9999" formControlName="sortOrder"
+            [attr.aria-invalid]="c.sortOrder.invalid && c.sortOrder.touched" aria-describedby="rub-order-error" />
+          <app-control-error [control]="c.sortOrder" errorId="rub-order-error" [keys]="errorKeys" />
+        </div>
+        <div class="check">
+          <input id="rub-active" type="checkbox" formControlName="active" />
+          <label for="rub-active">{{ t('payroll.settings.rubriques.activeLabel') }}</label>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="save-rubrique" [disabled]="saving()">{{ t('common.save') }}</button>
+        <button class="btn secondary" type="button" (click)="cancel()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  }
+
+  @if (list.error()) {
+    <div class="form-error" role="alert">
+      <p>{{ t('payroll.settings.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (list.hasValue()) {
+    @if (items().length === 0) {
+      <p class="muted" data-empty>{{ t('payroll.settings.rubriques.empty') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data cards" role="table" data-table="rubriques">
+          <caption class="visually-hidden">{{ t('payroll.settings.tab.rubriques') }}</caption>
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">{{ t('payroll.settings.rubriques.exportCode') }}</th>
+              <th scope="col" role="columnheader">{{ t('payroll.settings.rubriques.names') }}</th>
+              <th scope="col" role="columnheader">{{ t('payroll.settings.rubriques.source') }}</th>
+              <th scope="col" role="columnheader">{{ t('payroll.settings.rubriques.unit') }}</th>
+              <th scope="col" role="columnheader">{{ t('payroll.settings.rubriques.status') }}</th>
+              <th scope="col" role="columnheader" class="num">{{ t('payroll.settings.rubriques.order') }}</th>
+              <th scope="col" role="columnheader"><span class="visually-hidden">{{ t('payroll.settings.rubriques.edit') }}</span></th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
+            @for (r of items(); track r.id) {
+              <tr role="row" [attr.data-rubrique]="r.exportCode" [class.inactive]="!r.active">
+                <td role="cell" class="who" [attr.data-label]="t('payroll.settings.rubriques.exportCode')"><span class="code" dir="ltr">{{ r.exportCode }}</span></td>
+                <td role="cell" [attr.data-label]="t('payroll.settings.rubriques.names')">
+                  <ul class="names">
+                    <li lang="fr" dir="ltr">{{ r.names.fr }}</li>
+                    <li lang="ar" dir="rtl">{{ r.names.ar }}</li>
+                    <li lang="en" dir="ltr">{{ r.names.en }}</li>
+                  </ul>
+                </td>
+                <td role="cell" [attr.data-label]="t('payroll.settings.rubriques.source')">
+                  <span>
+                    {{ t('payroll.source.' + r.source) }}
+                    @if (sourceLabel(r); as leaveType) {
+                      · <bdi data-leave-type>{{ leaveType }}</bdi>
+                    }
+                  </span>
+                </td>
+                <td role="cell" [attr.data-label]="t('payroll.settings.rubriques.unit')">{{ t('payroll.unit.' + r.unit) }}</td>
+                <td role="cell" [attr.data-label]="t('payroll.settings.rubriques.status')">
+                  <span class="badge" [attr.data-status]="r.active ? 'approved' : 'cancelled'">{{ t(r.active ? 'payroll.settings.rubriques.active' : 'payroll.settings.rubriques.inactive') }}</span>
+                </td>
+                <td role="cell" class="num" [attr.data-label]="t('payroll.settings.rubriques.order')">{{ r.sortOrder }}</td>
+                <td role="cell" [attr.data-label]="''">
+                  <button class="btn secondary" type="button" data-action="edit-rubrique" [attr.aria-label]="t('payroll.settings.rubriques.editNamed', { code: r.exportCode })" (click)="edit(r)">
+                    {{ t('payroll.settings.rubriques.edit') }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+
+  <dialog #createDialog class="modal" aria-labelledby="rub-new-title" data-dialog="new-rubrique">
+    @let n = createForm.controls;
+    <form [formGroup]="createForm" (ngSubmit)="create()" novalidate data-form="new-rubrique">
+      <h3 id="rub-new-title">{{ t('payroll.settings.rubriques.new') }}</h3>
+      <p class="muted">{{ t('payroll.settings.rubriques.newIntro') }}</p>
+      @if (createError(); as error) {
+        <p class="form-error" role="alert" data-error="create" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+      }
+      <div class="field">
+        <label for="rub-new-code">{{ t('payroll.settings.rubriques.exportCode') }}</label>
+        <input id="rub-new-code" type="text" formControlName="exportCode" dir="ltr" autocomplete="off" maxlength="20"
+          [attr.aria-invalid]="n.exportCode.invalid && n.exportCode.touched" aria-describedby="rub-new-code-hint rub-new-code-error" />
+        <p class="field-hint" id="rub-new-code-hint">{{ t('payroll.settings.rubriques.codeHint') }}</p>
+        <app-control-error [control]="n.exportCode" errorId="rub-new-code-error" [keys]="errorKeys" />
+      </div>
+      @for (l of ['fr', 'ar', 'en']; track l) {
+        @let control = l === 'fr' ? n.fr : l === 'ar' ? n.ar : n.en;
+        <div class="field">
+          <label [for]="'rub-new-name-' + l">{{ t('payroll.settings.rubriques.name.' + l) }}</label>
+          <input [id]="'rub-new-name-' + l" type="text" [formControl]="control" [attr.lang]="l" [attr.dir]="l === 'ar' ? 'rtl' : 'ltr'" maxlength="80"
+            [attr.aria-invalid]="control.invalid && control.touched" [attr.aria-describedby]="'rub-new-name-' + l + '-error'" />
+          <app-control-error [control]="control" [errorId]="'rub-new-name-' + l + '-error'" [keys]="errorKeys" />
+        </div>
+      }
+      <div class="field">
+        <label for="rub-new-unit">{{ t('payroll.settings.rubriques.unit') }}</label>
+        <select id="rub-new-unit" formControlName="unit" aria-describedby="rub-new-unit-hint">
+          @for (u of units; track u) {
+            <option [value]="u">{{ t('payroll.unit.' + u) }}</option>
+          }
+        </select>
+        <p class="field-hint" id="rub-new-unit-hint">{{ t('payroll.settings.rubriques.amountHint') }}</p>
+      </div>
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="create-rubrique" [disabled]="saving()">{{ t('payroll.settings.rubriques.create') }}</button>
+        <button class="btn secondary" type="button" (click)="closeCreate()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</section>

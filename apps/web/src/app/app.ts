@@ -218,6 +218,16 @@ export class App {
       permission: 'deadline.configure',
       visible: () => !this.session.can('deadline.read'),
     },
+    // Payroll variables (docs/contracts/payroll-variables.md › Web).
+    { path: '/payroll', icon: 'payroll', labelKey: 'nav.payroll', exact: true, permission: 'payroll.read' },
+    {
+      path: '/payroll/settings',
+      icon: 'sliders',
+      labelKey: 'nav.payrollSettings',
+      exact: false,
+      permission: 'payroll.configure',
+      visible: () => !this.session.can('payroll.read'),
+    },
     { path: '/organization', icon: 'organization', labelKey: 'nav.organization', exact: false, permission: 'org_unit.read' },
     // Access holds users/roles (access.read) and connected apps (sso.read): either one shows the link.
     {

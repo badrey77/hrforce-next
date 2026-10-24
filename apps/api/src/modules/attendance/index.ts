@@ -7,6 +7,19 @@ export { addDays as attendanceAddDays, algiersDate, algiersInstant, retentionCut
 export { RECEIPT_TTL_SECONDS } from './domain/tokens.js';
 export { toCsv } from './domain/csv.js';
 export {
+  assignmentOn,
+  employeeRefOn,
+  isEmployedOn,
+  PresenceEngine,
+  standalonePresenceEngine,
+  type KioskSpan,
+  type OrgBook,
+  type PresenceData,
+} from './application/presence-engine.js';
+export type { EmploymentFacts } from './infra/attendance.repository.js';
+export type { EmployeeRef as AttendanceEmployeeRef } from './application/attendance-views.js';
+export type { DayResult, DayStatus } from './domain/day.js';
+export {
   deriveKeys,
   encodeKioskCookie,
   sha256 as attendanceSha256,

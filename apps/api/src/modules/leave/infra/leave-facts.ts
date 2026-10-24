@@ -39,6 +39,25 @@ export interface AttendanceLeaveInputs {
   }[];
 }
 
+/** What the Payroll module needs to count leave days per month (docs/contracts/payroll-variables.md › Computation). */
+export interface PayrollLeaveInputs {
+  /** ISO weekday numbers of the company's weekend (policy, else the default) */
+  weekendDays: number[];
+  holidays: { date: string; name: string }[];
+  /** approved and pending requests intersecting [from, to] */
+  requests: {
+    id: string;
+    employmentId: string;
+    leaveTypeId: string;
+    countMode: 'calendar' | 'working';
+    status: 'approved' | 'pending';
+    startDate: string;
+    endDate: string;
+    halfDayStart: boolean;
+    halfDayEnd: boolean;
+  }[];
+}
+
 /**
  * Read-only leave facts for other modules (exported by modules/leave/index.ts), through the request transaction,
  * always filtered by company. No constructor dependency: also usable by seeds inside `runWithContext`.
@@ -96,6 +115,35 @@ export class LeaveFacts {
         halfDayEnd: r.halfDayEnd,
       })),
     };
+  }
+
+  /**
+   * The approved / pending requests of the employments (null = every employment of the company) intersecting
+   * [from, to], with their type and counting mode, the company's weekend days and the public holidays of [from, to]
+   * (count the days of a window with `leaveDaysWithin`).
+   */
+  async payrollInputs(companyId: string, employmentIds: readonly string[] | null, from: string, to: string): Promise<PayrollLeaveInputs> {
+    const tx = currentTx();
+    const [policy, holidays] = await Promise.all([
+      sql<{ weekendDays: number[] }>`select weekend_days as "weekendDays" from leave_policy where company_id = ${companyId}::uuid`.execute(tx),
+      sql<{ date: string; name: string }>`
+        select date::text as date, name_fr as name from public_holiday
+         where company_id = ${companyId}::uuid and date between ${from}::date and ${to}::date order by date`.execute(tx),
+    ]);
+    const base = { weekendDays: policy.rows[0]?.weekendDays ?? [...DEFAULT_POLICY.weekendDays], holidays: holidays.rows };
+    if (employmentIds !== null && employmentIds.length === 0) return { ...base, requests: [] };
+    const only = employmentIds === null ? sql`` : sql`and r.employment_id in (${sql.join(employmentIds.map((id) => sql`${id}::uuid`))})`;
+    const { rows } = await sql<PayrollLeaveInputs['requests'][number]>`
+      select r.id, r.employment_id as "employmentId", r.leave_type_id as "leaveTypeId", t.count_mode as "countMode", r.status,
+             r.start_date::text as "startDate", r.end_date::text as "endDate",
+             r.half_day_start as "halfDayStart", r.half_day_end as "halfDayEnd"
+        from leave_request r
+        join leave_type t on t.company_id = r.company_id and t.id = r.leave_type_id
+       where r.company_id = ${companyId}::uuid and r.status in ('approved', 'pending')
+         and r.start_date <= ${to}::date and r.end_date >= ${from}::date
+         ${only}
+       order by r.start_date, r.id`.execute(tx);
+    return { ...base, requests: rows };
   }
 
   async request(companyId: string, id: string): Promise<LeaveRequestFacts | undefined> {

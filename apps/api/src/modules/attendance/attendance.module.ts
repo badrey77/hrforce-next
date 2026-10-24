@@ -45,5 +45,7 @@ import { SchedulesRepository } from './infra/schedules.repository.js';
     CorrectionsService,
     ReportsService,
   ],
+  // the Payroll module reads the daily computation (docs/contracts/payroll-variables.md › Computation)
+  exports: [PresenceEngine],
 })
 export class AttendanceModule {}

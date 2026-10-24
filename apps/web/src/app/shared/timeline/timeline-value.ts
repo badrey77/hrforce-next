@@ -49,6 +49,9 @@ import type { DisplayValue } from './timeline-view';
         @case ('date') {
           {{ v.iso | date: 'mediumDate' : undefined : locale() }}
         }
+        @case ('month') {
+          {{ v.iso | date: 'LLLL y' : undefined : locale() }}
+        }
         @case ('timestamp') {
           {{ v.iso | date: 'medium' : undefined : locale() }}
         }

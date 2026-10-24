@@ -29,6 +29,8 @@ const ICONS = {
   menu: ['M4 6.5h16', 'M4 12h16', 'M4 17.5h16'],
   // An hourglass: the deadlines board.
   hourglass: ['M6.5 3.5h11', 'M6.5 20.5h11', 'M8 3.5c0 4.5 8 4.5 8 8.5s-8 4-8 8.5', 'M16 3.5c0 4.5-8 4.5-8 8.5s8 4 8 8.5'],
+  // A pay slip with a total line: payroll variables.
+  payroll: ['M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z', 'M9 8h6', 'M9 11.5h6', 'M9 15h3.5'],
 } as const;
 
 export type NavIconName = keyof typeof ICONS;

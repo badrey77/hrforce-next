@@ -301,7 +301,8 @@ export class AuditRepository {
       case 'employee':
         // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
         // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests, issued documents,
-        // document requests and employee files (medical ones per `medicalFiles`; none of them is ever deleted by the app)
+        // document requests and employee files (medical ones per `medicalFiles`; none of them is ever deleted by the app),
+        // contracts and decisions, payroll adjustments (not amounts) and the payroll matricule
         return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
           or (c.table_name = 'employee_file' and c.row_id in (${this.employeeFileIds(companyId, id, medicalFiles)}))
           or (c.table_name = 'leave_request' and c.row_id in (
@@ -314,6 +315,15 @@ export class AuditRepository {
                 select k.id from employment_contract k where k.company_id = ${companyId}::uuid and k.employment_id = ${id}::uuid))
           or (c.table_name = 'contract_decision' and c.row_id in (
                 select d.id from contract_decision d where d.company_id = ${companyId}::uuid and d.employment_id = ${id}::uuid))
+          or (c.table_name in ('payroll_adjustment', 'payroll_employee_code') and c.row_id in (
+                -- payroll adjustments and the payroll matricule (both deletable: found through their insert), never the
+                -- amounts (bonuses, advances: salary data, shown in the payroll screen to employee.salary.read only)
+                select i.row_id from audit.change_log i
+                 where i.company_id = ${companyId}::uuid and i.table_name in ('payroll_adjustment', 'payroll_employee_code') and i.op = 'insert'
+                   and i.after ->> 'employment_id' = ${id}::text
+                   and (i.table_name = 'payroll_employee_code' or not exists (
+                         select 1 from payroll_rubrique r
+                          where r.company_id = ${companyId}::uuid and r.id::text = i.after ->> 'rubrique_id' and r.unit = 'amount'))))
           or (c.table_name in ('assignment', 'employment_salary') and c.row_id in (
                 select a.id from assignment a where a.company_id = ${companyId}::uuid and a.employment_id = ${id}::uuid
                 union

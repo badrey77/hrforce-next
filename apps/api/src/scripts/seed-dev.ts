@@ -23,6 +23,7 @@ import { seedDemoAttendance } from '../modules/attendance/index.js';
 import { seedDemoBranding } from '../modules/branding/index.js';
 import { seedContractDefaults, seedDemoContracts } from '../modules/contracts/index.js';
 import { seedDemoDeadlineAcks } from '../modules/deadlines/index.js';
+import { seedDemoPayrollClosing, seedDemoPayrollRubriques } from '../modules/payroll/index.js';
 import { algiersToday, demoLogoPng, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
 import { demoEmployees, seedDemoEmployees } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
@@ -78,6 +79,26 @@ async function main(): Promise<void> {
       if (!rhAdmin) throw new Error('seed: rh.admin missing');
       const deadlines = await seedDemoDeadlineAcks(tx, DEMO_ORGANIZATION.company.id, rhAdmin.id, algiersToday());
       logger.info(deadlines, 'deadlines demo seeded (policy, one handled item)');
+      // docs/contracts/payroll-variables.md › Seed: DEMO's stored policy, the computed rubriques and three manual ones
+      const payrollRubriques = await seedDemoPayrollRubriques(tx, DEMO_ORGANIZATION.company.id);
+      logger.info({ rubriques: payrollRubriques.size }, 'payroll rubriques seeded');
+      // docs/contracts/payroll-variables.md › Seed: two payroll matricules, the previous month closed (v1, an adjusted line,
+      // a PRIME_REND bonus), then a sick leave in it approved after the closing → a régularisation in the current month
+      const demo = demoEmployees();
+      const emp = (n: number) => demo[n - 1]?.employmentId ?? '';
+      const payrollClosing = await seedDemoPayrollClosing(tx, {
+        companyId: DEMO_ORGANIZATION.company.id,
+        closedBy: rhAdmin.id,
+        today: algiersToday(),
+        manual: payrollRubriques,
+        payrollCodes: [
+          [emp(1), 'P-0001'],
+          [emp(27), 'P-0027'],
+        ],
+        bonusEmploymentId: emp(29),
+        lateLeaveEmploymentId: emp(5),
+      });
+      logger.info(payrollClosing, 'payroll demo seeded (previous month closed, a late sick leave → régularisation)');
       return { employees, leave, documents: { ...documents, employeeFiles }, attendance, sso, recruitment };
     }).then(({ employees, leave, documents, attendance, sso, recruitment }) => {
       logger.info(recruitment, 'recruitment demo seeded (openings in every status, fictitious candidates across the stages, an already purged opening)');

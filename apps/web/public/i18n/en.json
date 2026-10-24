@@ -29,7 +29,9 @@
     "myInterviewsWithCount": "My interviews, {{count}} evaluation(s) to enter",
     "deadlines": "Deadlines",
     "deadlinesWithCount": "Deadlines, {{count}} overdue",
-    "deadlineSettings": "Deadline settings"
+    "deadlineSettings": "Deadline settings",
+    "payroll": "Payroll",
+    "payrollSettings": "Payroll settings"
   },
   "language": {
     "label": "Language",
@@ -523,7 +525,14 @@
       "recruitment_criterion": "Evaluation criterion",
       "recruitment_opening_criterion": "Opening criterion",
       "employment_contract": "Employment contract",
-      "contract_decision": "End-of-contract decision"
+      "contract_decision": "End-of-contract decision",
+      "payroll_policy": "Payroll settings",
+      "payroll_rubrique": "Pay item",
+      "payroll_employee_code": "Payroll ID",
+      "payroll_period": "Payroll period",
+      "payroll_adjustment": "Adjusted payroll variable",
+      "payroll_closing": "Payroll closing",
+      "payroll_line": "Closed payroll line"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -891,6 +900,57 @@
         "proposed_by": "Proposed by",
         "proposed_at": "Proposed",
         "created_at": "Opened"
+      },
+      "payroll_adjustment": {
+        "month": "Month",
+        "origin_month": "Origin month",
+        "rubrique_id": "Pay item",
+        "value": "Value",
+        "note": "Note",
+        "updated_by": "Typed by"
+      },
+      "payroll_employee_code": {
+        "code": "Payroll ID",
+        "updated_by": "Typed by"
+      },
+      "payroll_rubrique": {
+        "source": "Source",
+        "leave_type_id": "Leave type",
+        "export_code": "Export code",
+        "name_fr": "Name (French)",
+        "name_ar": "Name (Arabic)",
+        "name_en": "Name (English)",
+        "unit": "Unit",
+        "active": "Active",
+        "sort_order": "Order",
+        "created_at": "Created on"
+      },
+      "payroll_policy": {
+        "cutoff_day": "Cut-off date (day)",
+        "regularization_months": "Adjustment months",
+        "overtime_min_minutes": "Overtime minimum (minutes)",
+        "layout": "Layout",
+        "separator": "Separator",
+        "decimal_separator": "Decimal separator",
+        "encoding": "Encoding",
+        "header_row": "Header row",
+        "columns": "Columns",
+        "period_format": "Period format",
+        "file_extension": "File extension"
+      },
+      "payroll_period": {
+        "month": "Month",
+        "status": "Status"
+      },
+      "payroll_closing": {
+        "version": "Version",
+        "closed_by": "Closed by",
+        "closed_at": "Closed on",
+        "reopened_by": "Reopened by",
+        "reopened_at": "Reopened on",
+        "reopen_reason": "Reason for reopening",
+        "lines": "Lines",
+        "employees": "Employees"
       }
     },
     "events": {
@@ -1007,6 +1067,12 @@
       "contract": {
         "decision_opened": "End-of-contract decision opened",
         "decision_applied": "End-of-contract decision applied"
+      },
+      "payroll": {
+        "closed": "Payroll for {{month}} closed (version {{version}}, {{employees}} employees, {{lines}} lines)",
+        "reopened": "Payroll for {{month}} reopened (version {{version}}): {{reason}}",
+        "exported": "Payroll file for {{month}} exported ({{lines}} lines)",
+        "control_exported": "Control report for {{month}} exported"
       }
     },
     "values": {
@@ -4025,6 +4091,321 @@
         "retirementAge": "Between {{min}} and {{max}}.",
         "retirementNoticeMonths": "Between {{min}} and {{max}}.",
         "digestEnabled": "One notification a day, when new deadlines appear."
+      }
+    }
+  },
+  "payroll": {
+    "month": {
+      "title": "Payroll variables",
+      "heading": "{{month}}",
+      "settingsLink": "Payroll settings",
+      "loadError": "The payroll month could not be loaded.",
+      "adjusted": "Adjusted",
+      "bar": {
+        "label": "Payroll months",
+        "year": "Year",
+        "previousYear": "Previous year",
+        "nextYear": "Next year",
+        "future": "Not yet"
+      },
+      "status": {
+        "open": "Open",
+        "closedVersion": "Closed v{{version}}"
+      },
+      "unitShort": {
+        "days": "d",
+        "hours": "h",
+        "amount": "DZD"
+      },
+      "chip": {
+        "regularization": "Adj. {{period}}"
+      },
+      "header": {
+        "cutoff": "Can be closed from {{date}}",
+        "beforeCutoff": "Closing will be possible from {{date}}.",
+        "closedOn": "Closed on {{date}} by {{name}}",
+        "employees": "Employees with variables: {{count}}",
+        "lines": "Lines: {{count}}",
+        "regularizations": "Adjustments from closed months: {{count}}",
+        "flagsLabel": "To check",
+        "totals": "Totals per pay item",
+        "tileEmployees": "Employees: {{count}}",
+        "noTotals": "No variables for this month.",
+        "history": "Closing history",
+        "historyClosed": "Version {{version}} closed on {{date}} by {{name}}",
+        "historyReopened": "reopened on {{date}} by {{name}}"
+      },
+      "flags": {
+        "entry": "Joined on {{date}}",
+        "exit": "Left on {{date}}",
+        "incomplete_days": "Incomplete days: {{count}}",
+        "pending_leave": "Leave pending",
+        "no_attendance": "No attendance: absences to type",
+        "pendingLeaveCount": "Pending leave requests: {{count}}",
+        "incompleteDaysCount": "Incomplete days: {{count}}",
+        "noAttendanceCount": "Employees without attendance: {{count}}"
+      },
+      "actions": {
+        "close": "Close the month",
+        "reopen": "Reopen",
+        "export": "Export the payroll file",
+        "exportDraft": "Draft export",
+        "control": "Control report",
+        "controlFr": "Control report in French",
+        "controlAr": "Control report in Arabic"
+      },
+      "files": {
+        "error": "The file could not be downloaded. Please try again.",
+        "unitHint": "The files only hold the unit chosen in the filters."
+      },
+      "close": {
+        "title": "Close {{month}}",
+        "intro": "Closing freezes the month's variables for the export:",
+        "warnings": "To check before closing",
+        "after": "Anything that changes this month afterwards (a late leave approval, an absence) comes back as an adjustment in a later month.",
+        "confirm": "Close the month"
+      },
+      "reopen": {
+        "title": "Reopen the month",
+        "intro": "The month can be changed again; it must be closed again (a new version) before the file is exported.",
+        "reason": "Reason",
+        "hint": "{{min}} to {{max}} characters.",
+        "invalid": "Please give a reason of {{min}} to {{max}} characters.",
+        "confirm": "Reopen"
+      },
+      "feedback": {
+        "closed": "The month is closed.",
+        "reopened": "The month is reopened.",
+        "lineSaved": "The line is saved.",
+        "lineAdded": "The pay item is added.",
+        "codeSaved": "The payroll ID is saved.",
+        "codeCleared": "The payroll ID is removed: the matricule will be exported."
+      },
+      "problems": {
+        "beforeCutoff": "This month's cut-off date has not been reached yet.",
+        "periodClosed": "This month is closed.",
+        "previousOpen": "An earlier month must be closed first.",
+        "notLatest": "Only the latest closed month can be reopened.",
+        "periodOpen": "This month is open: it must be closed first.",
+        "companyWide": "This action needs a company-wide right.",
+        "amountForbidden": "Amounts can only be typed by people allowed to edit salaries.",
+        "notFound": "This employee is outside your scope.",
+        "invalid": "This entry was refused. Please check the values.",
+        "rubriqueInactive": "This pay item is no longer active.",
+        "originInvalid": "This month has no adjustment for this pay item.",
+        "notEmployed": "This employee was not employed in this month."
+      },
+      "filters": {
+        "label": "Filter the variables",
+        "search": "Search",
+        "searchPlaceholder": "Name or matricule",
+        "unit": "Unit",
+        "includeSubUnits": "Include sub-units",
+        "rubrique": "Pay item",
+        "allRubriques": "All pay items",
+        "show": "Show",
+        "all": "All employees",
+        "adjusted": "Adjusted lines",
+        "regularization": "Adjustments from closed months",
+        "flagged": "To check",
+        "clear": "Clear filters"
+      },
+      "variables": {
+        "caption": "Payroll variables per employee",
+        "total": "Employees: {{count}}",
+        "matricule": "Matricule",
+        "payrollCode": "Payroll:",
+        "employee": "Employee",
+        "unit": "Unit",
+        "lines": "Variables",
+        "flags": "Flags",
+        "empty": "No variables for this month.",
+        "noMatch": "No employee matches the filters.",
+        "loadError": "The variables could not be loaded."
+      },
+      "panel": {
+        "title": "Employee variables",
+        "close": "Close",
+        "loadError": "This employee's variables could not be loaded.",
+        "openEmployee": "Employee record",
+        "openAttendance": "Attendance of the month",
+        "entry": "Joined on {{date}}",
+        "exit": "Left on {{date}}",
+        "readOnly": "Read only.",
+        "readOnlyClosed": "This month is closed: read only.",
+        "lines": "Lines of the month",
+        "noLines": "No variables for this month.",
+        "computed": "Computed:",
+        "manualLine": "Typed by hand",
+        "value": "Value",
+        "valueInvalid": "Please type a number (two decimals at most).",
+        "note": "Note",
+        "noteTooLong": "{{max}} characters at most.",
+        "revert": "Back to the computed value",
+        "remove": "Remove the line",
+        "addTitle": "Add a pay item typed by hand",
+        "rubrique": "Pay item",
+        "chooseRubrique": "Choose a pay item",
+        "rubriqueRequired": "Please choose a pay item.",
+        "add": "Add",
+        "codeTitle": "Payroll ID",
+        "code": "Payroll ID",
+        "codeHint": "Empty: the matricule {{matricule}} is exported. {{max}} characters at most (letters, digits, _ . -).",
+        "codeInvalid": "Letters, digits, _ . - only, {{max}} characters at most.",
+        "codeTaken": "This payroll ID is already used by another employee.",
+        "saveCode": "Save the payroll ID",
+        "noCode": "None: the matricule {{matricule}} is exported."
+      }
+    },
+    "source": {
+      "leave": "Leave",
+      "absence": "Unjustified absence",
+      "late": "Lateness",
+      "overtime_normal": "Overtime (working day)",
+      "overtime_rest_day": "Overtime (rest day)",
+      "overtime_holiday": "Overtime (public holiday)",
+      "service_days": "Days employed",
+      "manual": "Typed by HR"
+    },
+    "unit": {
+      "days": "Days",
+      "hours": "Hours",
+      "amount": "Amount (DZD)"
+    },
+    "home": {
+      "month": "Payroll — {{month}}",
+      "openFrom": "Open — closing from {{date}}",
+      "openSince": "Open — can be closed since {{date}}",
+      "closedOn": "Closed on {{date}}",
+      "closed": "Closed"
+    },
+    "settings": {
+      "title": "Payroll settings",
+      "back": "Back to payroll variables",
+      "loadError": "The payroll settings could not be loaded.",
+      "saved": "Settings saved.",
+      "tab": {
+        "rubriques": "Pay items",
+        "format": "Export format",
+        "calendar": "Calendar"
+      },
+      "errors": {
+        "required": "This field is required.",
+        "tooLong": "At most {{requiredLength}} characters.",
+        "range": "Enter a whole number between {{min}} and {{max}}.",
+        "code": "1 to 20 characters: letters without accents, digits, “_”, “.” or “-”.",
+        "codeTaken": "This code is already used by an active pay item.",
+        "companyWide": "These settings apply to the whole company: changing them needs a company-wide right."
+      },
+      "rubriques": {
+        "intro": "Each pay item becomes a line (or a column) of the payroll file. Replace the codes with those of your payroll software; only active items are computed and exported.",
+        "new": "New typed pay item",
+        "newIntro": "A typed pay item is not computed: HR types its value for each employee (bonus, advance, allowance…).",
+        "create": "Create the pay item",
+        "created": "Pay item created.",
+        "empty": "No pay items.",
+        "exportCode": "Export code",
+        "codeHint": "The item’s code in the payroll software (1 to 20 characters: letters without accents, digits, “_”, “.”, “-”).",
+        "names": "Names",
+        "name": {
+          "fr": "Name (French)",
+          "ar": "Name (Arabic)",
+          "en": "Name (English)"
+        },
+        "source": "Source",
+        "unit": "Unit",
+        "unitFixed": "The unit of a computed item follows its source.",
+        "amountHint": "Amounts are seen and typed only by people with access to salaries.",
+        "status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "activeLabel": "Active pay item (computed and exported)",
+        "order": "Order",
+        "edit": "Edit",
+        "editNamed": "Edit pay item {{code}}",
+        "editTitle": "Pay item {{code}}"
+      },
+      "format": {
+        "intro": "The payroll file is a text file to import into the payroll software. Set it up the way that software expects.",
+        "layout": "Layout",
+        "layouts": {
+          "per_line": "One line per employee and pay item",
+          "per_employee": "One line per employee, one column per pay item"
+        },
+        "layoutHints": {
+          "per_line": "For example “matricule;rubrique;valeur;periode”.",
+          "per_employee": "The columns of the active pay items follow the chosen columns, in the items’ order."
+        },
+        "separator": "Separator",
+        "separators": {
+          "semicolon": "Semicolon ( ; )",
+          "comma": "Comma ( , )",
+          "tab": "Tab",
+          "pipe": "Pipe ( | )"
+        },
+        "decimalSeparator": "Decimal separator",
+        "decimals": {
+          "comma": "Comma (2,5)",
+          "dot": "Dot (2.5)"
+        },
+        "encoding": "Encoding",
+        "encodings": {
+          "windows1252": "Windows-1252 (ANSI)",
+          "utf8": "UTF-8",
+          "utf8_bom": "UTF-8 with BOM"
+        },
+        "encodingHint": "Windows programs often expect Windows-1252; a character it does not know becomes “?”.",
+        "headerRow": "Header row (column names)",
+        "periodFormat": "Period format",
+        "periodFormats": {
+          "mm_yyyy": "MM/YYYY (10/2026)",
+          "yyyymm": "YYYYMM (202610)",
+          "yyyy_mm": "YYYY-MM (2026-10)"
+        },
+        "fileExtension": "File extension",
+        "columns": "Columns, in order",
+        "columnsHint": {
+          "per_line": "The matricule, the pay item and the value are required; at most {{max}} columns.",
+          "per_employee": "The matricule is required; at most {{max}} columns before the pay item columns."
+        },
+        "rubriqueColumns": "+ one column per active pay item (header = export code)",
+        "column": {
+          "matricule": "Matricule",
+          "last_name": "Last name",
+          "first_name": "First name",
+          "rubrique": "Pay item (code)",
+          "label": "Pay item name",
+          "value": "Value",
+          "unit": "Unit (J / H / DA)",
+          "period": "Period",
+          "origin_period": "Origin period",
+          "unit_code": "Unit code"
+        },
+        "moveUp": "Move “{{column}}” up",
+        "moveDown": "Move “{{column}}” down",
+        "removeColumn": "Remove “{{column}}”",
+        "addColumn": "Add a column:",
+        "columnsProblem": {
+          "required": "Choose at least one column.",
+          "too_many": "At most {{max}} columns.",
+          "invalid": "This list of columns is not valid for this layout.",
+          "missing_matricule": "The matricule is required.",
+          "missing_rubrique_value": "The pay item and the value are required."
+        },
+        "preview": "File preview",
+        "previewHint": "The first 5 lines with the saved settings (this month’s variables, or example lines).",
+        "reloadPreview": "Refresh",
+        "previewError": "The preview could not be loaded."
+      },
+      "calendar": {
+        "cutoffDay": "Cut-off date (day of the month)",
+        "regularizationMonths": "Closed months recomputed (adjustments from a closed month)",
+        "overtimeMinMinutes": "Overtime minimum (minutes)",
+        "hints": {
+          "cutoffDay": "A month can be closed from this day ({{min}} to {{max}}). Anything that changes a closed month afterwards comes back as an adjustment in the next month.",
+          "regularizationMonths": "Number of closed months checked on each computation ({{min}} to {{max}}; 0 = no adjustments).",
+          "overtimeMinMinutes": "A shorter excess on a working day is not counted ({{min}} to {{max}} minutes)."
+        }
       }
     }
   }

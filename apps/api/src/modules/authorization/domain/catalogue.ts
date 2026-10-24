@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022, 0023), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022, 0023, 0024), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -67,6 +67,11 @@ export const PERMISSION_CODES = [
   'deadline.read',
   'deadline.handle',
   'deadline.configure',
+  'payroll.read',
+  'payroll.prepare',
+  'payroll.export',
+  'payroll.close',
+  'payroll.configure',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CODES)[number];
@@ -109,6 +114,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire',
       // contracts and their deadlines in its region (docs/contracts/contracts-deadlines.md › Permissions)
       'employee.contract.manage', 'deadline.read', 'deadline.handle',
+      // payroll variables of its region; closing and settings stay central (docs/contracts/payroll-variables.md)
+      'payroll.read', 'payroll.prepare', 'payroll.export',
     ],
   },
   {

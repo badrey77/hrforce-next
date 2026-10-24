@@ -15,10 +15,11 @@ import { MyRecruitment, RECRUITMENT_READ } from '../../core/recruitment/my-recru
 import { RecruitmentApi } from '../../core/recruitment/recruitment-api';
 import { ACTIVE_STAGES } from '../../core/recruitment/recruitment.models';
 import { TasksBadge } from '../../core/tasks/tasks-badge';
+import { HomePayrollTile } from './payroll-tile';
 
 @Component({
   selector: 'app-home-page',
-  imports: [TranslocoDirective, RouterLink],
+  imports: [TranslocoDirective, RouterLink, HomePayrollTile],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <ng-container *transloco="let t">
@@ -114,6 +115,9 @@ import { TasksBadge } from '../../core/tasks/tasks-badge';
           </ul>
         </section>
       }
+
+      <!-- Payroll (payroll.read): the month to close next and its status. -->
+      <app-home-payroll-tile />
 
       <!-- Recruitment counts: scoped by the API to what the caller may read; each one opens the filtered list. -->
       @if (summary.hasValue()) {

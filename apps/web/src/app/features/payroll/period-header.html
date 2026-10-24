@@ -1,0 +1,164 @@
+<ng-container *transloco="let t">
+  @let p = period();
+  <div class="period-head" [attr.data-status]="p.status">
+    <div class="period-status">
+      <span class="status-pill" [attr.data-status]="p.status" data-field="status">
+        {{ p.status === 'closed' ? t('payroll.month.status.closedVersion', { version: p.version ?? 1 }) : t('payroll.month.status.open') }}
+      </span>
+      @if (p.status === 'closed') {
+        <span data-field="closed-at">
+          {{ t('payroll.month.header.closedOn', { date: (p.closedAt | date: 'dd/MM/yyyy HH:mm' : undefined : locale()), name: p.closedBy?.displayName ?? '—' }) }}
+        </span>
+      } @else {
+        <span data-field="cutoff">{{ t('payroll.month.header.cutoff', { date: (p.cutoffDate | date: 'dd/MM/yyyy' : undefined : locale()) }) }}</span>
+      }
+    </div>
+
+    <ul class="period-counts" data-field="counts">
+      <li>{{ t('payroll.month.header.employees', { count: p.employees }) }}</li>
+      <li>{{ t('payroll.month.header.lines', { count: p.lines }) }}</li>
+      <li>{{ t('payroll.month.header.regularizations', { count: p.regularizations }) }}</li>
+    </ul>
+
+    @if (warnings().length) {
+      <ul class="period-flags" data-field="flags" [attr.aria-label]="t('payroll.month.header.flagsLabel')">
+        @for (w of warnings(); track w.flag) {
+          <li [attr.data-flag]="w.flag">{{ t(w.key, { count: w.count }) }}</li>
+        }
+      </ul>
+    }
+
+    <div class="form-actions period-actions" data-field="actions">
+      @if (can('close')) {
+        <button class="btn" type="button" data-action="close" [disabled]="beforeCutoff()" [attr.aria-describedby]="beforeCutoff() ? 'pv-cutoff-hint' : null" (click)="openClose()">
+          {{ t('payroll.month.actions.close') }}
+        </button>
+      }
+      @if (can('reopen')) {
+        <button class="btn secondary" type="button" data-action="reopen" (click)="openReopen()">{{ t('payroll.month.actions.reopen') }}</button>
+      }
+      @if (can('export')) {
+        <button class="btn" type="button" data-action="export" [disabled]="downloading() === 'export'" [attr.aria-busy]="downloading() === 'export'" (click)="download('export')">
+          {{ t('payroll.month.actions.export') }}
+        </button>
+      }
+      @if (can('export_draft')) {
+        <button class="btn secondary" type="button" data-action="export-draft" [disabled]="downloading() === 'draft'" [attr.aria-busy]="downloading() === 'draft'" (click)="download('draft')">
+          {{ t('payroll.month.actions.exportDraft') }}
+        </button>
+      }
+      <span class="control-report" role="group" [attr.aria-label]="t('payroll.month.actions.control')">
+        <span class="control-label" aria-hidden="true">{{ t('payroll.month.actions.control') }}</span>
+        <button class="btn secondary" type="button" data-action="control-fr" lang="fr" [attr.aria-label]="t('payroll.month.actions.controlFr')"
+          [disabled]="downloading() === 'control-fr'" (click)="download('control-fr')">FR</button>
+        <button class="btn secondary" type="button" data-action="control-ar" lang="ar" [attr.aria-label]="t('payroll.month.actions.controlAr')"
+          [disabled]="downloading() === 'control-ar'" (click)="download('control-ar')">ع</button>
+      </span>
+    </div>
+    @if (can('close') && beforeCutoff()) {
+      <p class="field-hint" id="pv-cutoff-hint">{{ t('payroll.month.header.beforeCutoff', { date: (p.cutoffDate | date: 'dd/MM/yyyy' : undefined : locale()) }) }}</p>
+    }
+    @if (filter()?.unitId) {
+      <p class="field-hint" data-field="files-hint">{{ t('payroll.month.files.unitHint') }}</p>
+    }
+    @if (downloadError(); as e) {
+      <p class="form-error" role="alert" data-error="download" [appRevealAlert]="e">{{ t(e.key) }}</p>
+    }
+    @if (feedback(); as key) {
+      <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+    }
+  </div>
+
+  <section class="totals" [attr.aria-labelledby]="'pv-totals-title'">
+    <h3 id="pv-totals-title">{{ t('payroll.month.header.totals') }}</h3>
+    @if (p.totals.length) {
+      <ul class="tiles" data-field="totals">
+        @for (total of p.totals; track total.rubriqueId) {
+          <li class="tile" [attr.data-rubrique]="total.exportCode">
+            <span class="tile-code" dir="ltr">{{ total.exportCode }}</span>&ngsp;
+            <span class="tile-label"><bdi>{{ totalName(total) }}</bdi></span>&ngsp;
+            <strong class="tile-total"><bdi>{{ totalText(total) }}</bdi> {{ t(unitKey(total.unit)) }}</strong>&ngsp;
+            <span class="tile-employees muted">{{ t('payroll.month.header.tileEmployees', { count: total.employees }) }}</span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="muted" data-state="no-totals">{{ t('payroll.month.header.noTotals') }}</p>
+    }
+  </section>
+
+  @if (history().length > (p.status === 'closed' ? 1 : 0)) {
+    <details class="closings" data-field="closings">
+      <summary>{{ t('payroll.month.header.history') }}</summary>
+      <ul>
+        @for (c of history(); track c.version) {
+          <li [attr.data-version]="c.version">
+            {{ t('payroll.month.header.historyClosed', { version: c.version, date: (c.closedAt | date: 'dd/MM/yyyy HH:mm' : undefined : locale()), name: c.closedBy?.displayName ?? '—' }) }}
+            @if (c.reopenedAt) {
+              — <bdi>{{ t('payroll.month.header.historyReopened', { date: (c.reopenedAt | date: 'dd/MM/yyyy HH:mm' : undefined : locale()), name: c.reopenedBy?.displayName ?? '—' }) }}</bdi>
+              @if (c.reopenReason) {
+                : <bdi>{{ c.reopenReason }}</bdi>
+              }
+            }
+          </li>
+        }
+      </ul>
+    </details>
+  }
+
+  <dialog #closeDialog class="modal" aria-labelledby="pv-close-title" aria-describedby="pv-close-summary">
+    <h2 id="pv-close-title">{{ t('payroll.month.close.title', { month: (p.month.slice(0, 7) + '-01' | date: 'LLLL y' : undefined : locale()) }) }}</h2>
+    <div id="pv-close-summary">
+      <p>{{ t('payroll.month.close.intro') }}</p>
+      <ul data-field="close-summary">
+        <li>{{ t('payroll.month.header.employees', { count: p.employees }) }}</li>
+        <li>{{ t('payroll.month.header.lines', { count: p.lines }) }}</li>
+        <li>{{ t('payroll.month.header.regularizations', { count: p.regularizations }) }}</li>
+      </ul>
+    </div>
+    @if (warnings().length) {
+      <div class="warning" data-field="close-warnings">
+        <p><strong>{{ t('payroll.month.close.warnings') }}</strong></p>
+        <ul>
+          @for (w of warnings(); track w.flag) {
+            <li>{{ t(w.key, { count: w.count }) }}</li>
+          }
+        </ul>
+      </div>
+    }
+    <p class="field-hint">{{ t('payroll.month.close.after') }}</p>
+    @if (closeError(); as e) {
+      <p class="form-error" role="alert" data-error="close" [appRevealAlert]="e">{{ t(e.key) }}</p>
+    }
+    <div class="form-actions">
+      <button class="btn" type="button" data-action="confirm-close" [disabled]="closing()" [attr.aria-busy]="closing()" (click)="confirmClose()">
+        {{ t('payroll.month.close.confirm') }}
+      </button>
+      <button class="btn secondary" type="button" autofocus (click)="cancelClose()">{{ t('common.cancel') }}</button>
+    </div>
+  </dialog>
+
+  <dialog #reopenDialog class="modal" aria-labelledby="pv-reopen-title">
+    <form [formGroup]="reopenForm" (ngSubmit)="submitReopen()" novalidate>
+      <h2 id="pv-reopen-title">{{ t('payroll.month.reopen.title') }}</h2>
+      <p>{{ t('payroll.month.reopen.intro') }}</p>
+      @let reason = reopenForm.controls.reason;
+      <div class="field">
+        <label for="pv-reopen-reason">{{ t('payroll.month.reopen.reason') }}</label>
+        <textarea id="pv-reopen-reason" formControlName="reason" rows="3" dir="auto" required [attr.maxlength]="reasonMax"
+          [attr.aria-invalid]="reason.invalid && reason.touched" aria-describedby="pv-reopen-hint pv-reopen-error"></textarea>
+        <p class="field-hint" id="pv-reopen-hint">{{ t('payroll.month.reopen.hint', { min: reasonMin, max: reasonMax }) }}</p>
+        @if (reason.invalid && reason.touched) {
+          <p class="field-error" id="pv-reopen-error" data-error="reason">{{ t('payroll.month.reopen.invalid', { min: reasonMin, max: reasonMax }) }}</p>
+        }
+      </div>
+      @if (reopenError(); as e) {
+        <p class="form-error" role="alert" data-error="reopen" [appRevealAlert]="e">{{ t(e.key) }}</p>
+      }
+      <div class="form-actions">
+        <button class="btn" type="submit" data-action="confirm-reopen" [disabled]="reopening()" [attr.aria-busy]="reopening()">{{ t('payroll.month.reopen.confirm') }}</button>
+        <button class="btn secondary" type="button" (click)="cancelReopen()">{{ t('common.cancel') }}</button>
+      </div>
+    </form>
+  </dialog>
+</ng-container>

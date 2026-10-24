@@ -1,0 +1,206 @@
+/* The « Paie » month page: month bar, variables table (cards below 700 px). */
+.month-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-block-end: var(--space-4);
+}
+
+.year-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.year-switch strong {
+  min-inline-size: 3.5rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* No transform for the year arrows: ‹ and › are bidi-mirrored characters, so an RTL page already draws them
+   pointing its reading direction's way (a scaleX(-1) flipped them back). */
+
+.months,
+.chips,
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.month {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-inline-size: 4.5rem;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.month:hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.month:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.month[aria-current='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 -3px 0 var(--color-primary);
+  font-weight: 600;
+}
+
+.month .name {
+  text-transform: capitalize;
+}
+
+.chip,
+.line-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  font-size: 0.75rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.month[data-status='closed'] .chip {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.month-title {
+  margin-block: 0 var(--space-3);
+  font-size: 1.25rem;
+}
+
+.month-title::first-letter {
+  text-transform: uppercase;
+}
+
+.payroll-table tbody tr {
+  cursor: pointer;
+}
+
+.payroll-table tbody tr.selected {
+  background: var(--color-hover);
+}
+
+.payroll-table td.code > span {
+  display: block;
+}
+
+.payroll-code,
+.regul {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  text-align: start;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.line-chip {
+  font-size: 0.8125rem;
+}
+
+.line-chip.regularization {
+  border-style: dashed;
+}
+
+.line-chip.adjusted {
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.chip-code {
+  font-family: var(--font-mono);
+}
+
+.flags {
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+}
+
+.flags .flag {
+  padding-inline: var(--space-2);
+  border-inline-start: 3px solid #9a6700;
+  background: #fff8c5;
+  color: #6b4700;
+}
+
+@media (max-width: 700px) {
+  table.payroll-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.payroll-table,
+  table.payroll-table tbody,
+  table.payroll-table tr,
+  table.payroll-table td {
+    display: block;
+  }
+
+  table.payroll-table tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.payroll-table td {
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.payroll-table td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.payroll-table td.who {
+    font-size: 1.0625rem;
+  }
+
+  table.payroll-table td.who::before {
+    content: none;
+  }
+
+  .month {
+    min-inline-size: 3.75rem;
+  }
+}

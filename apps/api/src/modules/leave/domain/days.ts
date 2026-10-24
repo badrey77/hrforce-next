@@ -92,3 +92,28 @@ export function computeLeaveDays(input: DaysInput): DaysResult {
   if (result.days <= 0) throw new LeaveRuleViolation('leave-dates', 'The request does not cover any counted day.', 'startDate');
   return result;
 }
+
+/**
+ * The days of a request that fall inside [from, to] (e.g. one payroll month and the employed days), counted exactly as
+ * {@link computeLeaveDays} counts the whole request: a half-day flag applies only when the request's own first / last
+ * day is inside the window. 0 when nothing counted falls inside (never throws for that). Payroll variables
+ * (docs/contracts/payroll-variables.md › Computation, source `leave`).
+ */
+export function leaveDaysWithin(
+  request: { startDate: string; endDate: string; halfDayStart: boolean; halfDayEnd: boolean },
+  from: string,
+  to: string,
+  rules: { countMode: CountMode; weekendDays: readonly number[]; holidays: readonly Holiday[] },
+): number {
+  const startDate = request.startDate > from ? request.startDate : from;
+  const endDate = request.endDate < to ? request.endDate : to;
+  if (endDate < startDate) return 0;
+  const halfDayStart = request.halfDayStart && startDate === request.startDate;
+  const halfDayEnd = request.halfDayEnd && endDate === request.endDate;
+  try {
+    return computeLeaveDays({ startDate, endDate, halfDayStart, halfDayEnd, ...rules }).days;
+  } catch (error) {
+    if (error instanceof LeaveRuleViolation) return 0;
+    throw error;
+  }
+}

@@ -1,0 +1,205 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('payroll.month.title') }}</h1>
+    <div class="form-actions">
+      <a *appCan="'payroll.configure'" class="btn secondary" routerLink="/payroll/settings" data-action="settings">{{ t('payroll.month.settingsLink') }}</a>
+    </div>
+  </header>
+
+  <nav class="month-bar" [attr.aria-label]="t('payroll.month.bar.label')" data-month-bar>
+    <div class="year-switch" role="group" [attr.aria-label]="t('payroll.month.bar.year')">
+      <button class="btn secondary" type="button" data-action="prev-year" [attr.aria-label]="t('payroll.month.bar.previousYear')" (click)="shiftYear(-1)">
+        <span aria-hidden="true">‹</span>
+      </button>
+      <strong data-field="year" aria-live="polite">{{ year() }}</strong>
+      <button class="btn secondary" type="button" data-action="next-year" [attr.aria-label]="t('payroll.month.bar.nextYear')"
+        [disabled]="year() >= currentYear" (click)="shiftYear(1)">
+        <span aria-hidden="true">›</span>
+      </button>
+    </div>
+    @if (periods.error()) {
+      <p class="form-error" role="alert">
+        {{ t(periodsErrorKey()) }}
+        <button class="btn secondary" type="button" (click)="periods.reload()">{{ t('common.retry') }}</button>
+      </p>
+    }
+    <ol class="months">
+      @for (cell of months(); track cell.month) {
+        <li>
+          <button type="button" class="month" [attr.data-month]="cell.month" [attr.data-status]="cell.future ? 'future' : (cell.summary?.status ?? 'open')"
+            [disabled]="cell.future" [attr.aria-current]="cell.month === shownMonth() ? 'true' : null" (click)="selectMonth(cell.month)">
+            <span class="name">{{ cell.month + '-01' | date: 'MMM' : undefined : locale() }}</span>
+            @if (cell.future) {
+              <span class="visually-hidden">{{ t('payroll.month.bar.future') }}</span>
+            } @else if (periods.hasValue()) {
+              <span class="chip" data-field="status">
+                @if (cell.summary?.status === 'closed' ? cell.summary : null; as closed) {
+                  {{ t('payroll.month.status.closedVersion', { version: closed.version ?? 1 }) }}
+                } @else {
+                  {{ t('payroll.month.status.open') }}
+                }
+              </span>
+            }
+          </button>
+        </li>
+      }
+    </ol>
+  </nav>
+
+  @let month = shownMonth();
+  @if (month) {
+    <h2 class="month-title" data-field="month">{{ t('payroll.month.heading', { month: (month + '-01' | date: 'LLLL y' : undefined : locale()) }) }}</h2>
+
+    <section [attr.aria-busy]="period.isLoading()" data-section="period">
+      @if (period.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(periodErrorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="period.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (period.hasValue()) {
+        <app-payroll-period-header [period]="period.value()" [filter]="exportFilter()" (changed)="reloadAll()" />
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    @let current = variablesQuery();
+    <form class="filters" appFilterBar role="search" [attr.aria-label]="t('payroll.month.filters.label')" (submit)="$event.preventDefault()">
+      <div class="field">
+        <label for="pv-q">{{ t('payroll.month.filters.search') }}</label>
+        <input id="pv-q" type="search" autocomplete="off" dir="auto" [value]="current.q" [placeholder]="t('payroll.month.filters.searchPlaceholder')" (input)="onSearchInput($event)" />
+      </div>
+      @if (canUnits()) {
+        <div class="field">
+          <label for="pv-unit">{{ t('payroll.month.filters.unit') }}</label>
+          <app-org-unit-picker inputId="pv-unit" [formControl]="unitControl" />
+          <div class="check">
+            <input id="pv-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+            <label for="pv-sub-units">{{ t('payroll.month.filters.includeSubUnits') }}</label>
+          </div>
+        </div>
+      }
+      <div class="field">
+        <label for="pv-rubrique">{{ t('payroll.month.filters.rubrique') }}</label>
+        <select id="pv-rubrique" (change)="onSelect('rubriqueId', $event)">
+          <option value="" [selected]="!current.rubriqueId">{{ t('payroll.month.filters.allRubriques') }}</option>
+          @for (r of rubriqueItems(); track r.id) {
+            <option [value]="r.id" [selected]="r.id === current.rubriqueId">{{ r.exportCode }} — {{ rubriqueName(r) }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="pv-filter">{{ t('payroll.month.filters.show') }}</label>
+        <select id="pv-filter" (change)="onSelect('filter', $event)">
+          <option value="" [selected]="!current.filter">{{ t('payroll.month.filters.all') }}</option>
+          @for (f of filters; track f) {
+            <option [value]="f" [selected]="f === current.filter">{{ t('payroll.month.filters.' + f) }}</option>
+          }
+        </select>
+      </div>
+      @if (filtered()) {
+        <button class="btn secondary clear" type="button" data-action="clear" (click)="clearFilters()">{{ t('payroll.month.filters.clear') }}</button>
+      }
+    </form>
+
+    <section [attr.aria-busy]="variables.isLoading()" data-section="variables">
+      @if (variables.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t(variablesErrorKey()) }}</p>
+          <button class="btn secondary" type="button" (click)="variables.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else if (variables.hasValue()) {
+        <p class="muted" role="status">{{ t('payroll.month.variables.total', { count: total() }) }}</p>
+        @if (items().length) {
+          <div class="table-scroll">
+            <table class="data payroll-table" role="table" data-table="variables">
+              <caption class="visually-hidden">{{ t('payroll.month.variables.caption') }}</caption>
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">{{ t('payroll.month.variables.matricule') }}</th>
+                  <th scope="col" role="columnheader">{{ t('payroll.month.variables.employee') }}</th>
+                  <th scope="col" role="columnheader">{{ t('payroll.month.variables.unit') }}</th>
+                  <th scope="col" role="columnheader">{{ t('payroll.month.variables.lines') }}</th>
+                  <th scope="col" role="columnheader">{{ t('payroll.month.variables.flags') }}</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                @for (item of items(); track item.employee.id) {
+                  <tr role="row" [attr.data-employee]="item.employee.id" [class.selected]="item.employee.id === query().employee" (click)="openEmployee(item.employee.id)">
+                    <td role="cell" class="code" [attr.data-label]="t('payroll.month.variables.matricule')">
+                      <span dir="ltr">{{ item.employee.matricule }}</span>
+                      @if (item.payrollCode) {
+                        <span class="payroll-code" data-field="payroll-code">{{ t('payroll.month.variables.payrollCode') }} <span dir="ltr">{{ item.payrollCode }}</span></span>
+                      }
+                    </td>
+                    <td role="cell" class="who" [attr.data-label]="t('payroll.month.variables.employee')">
+                      <button type="button" class="link" data-action="open-employee" [attr.aria-haspopup]="'dialog'" (click)="$event.stopPropagation(); openEmployee(item.employee.id)">
+                        <bdi>{{ item.employee.person | displayName: lang() }}</bdi>
+                      </button>
+                    </td>
+                    <td role="cell" [attr.data-label]="t('payroll.month.variables.unit')"><bdi>{{ item.employee.unit | displayName: lang() }}</bdi></td>
+                    <td role="cell" [attr.data-label]="t('payroll.month.variables.lines')">
+                      <ul class="chips" data-field="lines">
+                        @for (line of item.lines; track line.rubriqueId + line.originMonth) {
+                          <li class="line-chip" [class.adjusted]="line.adjusted" [class.regularization]="isRegularization(line, month)" [attr.data-rubrique]="line.exportCode">
+                            @if (isRegularization(line, month)) {
+                              <span class="regul">{{ t('payroll.month.chip.regularization', { period: periodLabel(line.originMonth) }) }}</span>&ngsp;
+                            }
+                            <span class="chip-code" dir="ltr">{{ line.exportCode }}</span>&ngsp;
+                            <span class="chip-value"><bdi>{{ chipValue(line) }}</bdi> {{ t(unitKey(line.unit)) }}</span>
+                            @if (line.adjusted) {
+                              <span class="adjusted-mark" aria-hidden="true">✎</span><span class="visually-hidden">{{ t('payroll.month.adjusted') }}</span>
+                            }
+                          </li>
+                        } @empty {
+                          <li class="muted">—</li>
+                        }
+                      </ul>
+                    </td>
+                    <td role="cell" [attr.data-label]="t('payroll.month.variables.flags')">
+                      <ul class="flags" data-field="flags">
+                        @if (item.entry) {
+                          <li data-flag="entry">{{ t('payroll.month.flags.entry', { date: (item.entry | date: 'dd/MM' : undefined : locale()) }) }}</li>
+                        }
+                        @if (item.exit) {
+                          <li data-flag="exit">{{ t('payroll.month.flags.exit', { date: (item.exit | date: 'dd/MM' : undefined : locale()) }) }}</li>
+                        }
+                        @for (flag of item.flags; track flag) {
+                          <li class="flag" [attr.data-flag]="flag">
+                            {{ flag === 'incomplete_days' ? t('payroll.month.flags.incomplete_days', { count: item.incompleteDays }) : t('payroll.month.flags.' + flag) }}
+                          </li>
+                        }
+                      </ul>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+            <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">{{ t('employees.pager.previous') }}</button>
+            <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+            <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">{{ t('employees.pager.next') }}</button>
+            <label for="pv-page-size">{{ t('employees.pager.pageSize') }}</label>
+            <select id="pv-page-size" (change)="onSelect('pageSize', $event)">
+              @for (size of pageSizes; track size) {
+                <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+              }
+            </select>
+          </nav>
+        } @else {
+          <p class="muted" data-state="empty">{{ filtered() ? t('payroll.month.variables.noMatch') : t('payroll.month.variables.empty') }}</p>
+        }
+      } @else {
+        <p class="muted">{{ t('common.loading') }}</p>
+      }
+    </section>
+
+    @if (query().employee; as employeeId) {
+      <app-payroll-employee-panel [month]="month" [employeeId]="employeeId" [status]="period.hasValue() ? period.value().status : null" [rubriques]="rubriqueItems()"
+        (closed)="closeEmployee()" (changed)="reloadAll()" />
+    }
+  } @else if (!periods.error()) {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+</ng-container>

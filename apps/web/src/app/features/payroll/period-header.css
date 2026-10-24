@@ -1,0 +1,114 @@
+/* The month's head: status, counts, flags, actions, totals tiles, closings history. */
+.period-head {
+  margin-block-end: var(--space-4);
+}
+
+.period-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+
+.status-pill {
+  display: inline-block;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.status-pill[data-status='closed'] {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.period-counts,
+.period-flags,
+.tiles {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.period-counts,
+.period-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.period-flags li {
+  padding-inline: var(--space-2);
+  border-inline-start: 3px solid #9a6700;
+  background: #fff8c5;
+  color: #6b4700;
+  font-size: 0.875rem;
+}
+
+.period-actions {
+  align-items: center;
+  margin-block: var(--space-2);
+}
+
+.control-report {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.control-label {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.totals h3 {
+  margin-block: var(--space-2);
+  font-size: 1rem;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.tile-code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.tile-label,
+.closings {
+  font-size: 0.875rem;
+}
+
+.tile-total {
+  color: var(--color-primary);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-employees {
+  font-size: 0.8125rem;
+}
+
+.closings {
+  margin-block-end: var(--space-4);
+}

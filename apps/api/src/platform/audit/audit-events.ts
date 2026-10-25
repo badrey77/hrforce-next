@@ -25,7 +25,8 @@ export type AuditSubjectType =
   | 'recruitment_candidate'
   | 'recruitment_application'
   | 'contract_decision'
-  | 'employment_contract';
+  | 'employment_contract'
+  | 'profile_change_request';
 
 export interface AuditEventInput {
   /** `<area>.<event>`, e.g. `auth.login`, `access.grant_created` */

@@ -6,7 +6,7 @@ const ID = '0190a5d0-0000-7000-8000-000000000abc';
 describe('notification rules', () => {
   it('has an e-mail default for every type (contract table)', () => {
     expect(Object.keys(EMAIL_DEFAULTS).toSorted()).toEqual([...NOTIFICATION_TYPES].toSorted());
-    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['attendance.correction_rejected', 'deadline.digest', 'document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'recruitment.interview_assigned', 'recruitment.interview_cancelled', 'recruitment.opening_approved', 'recruitment.opening_rejected', 'task.assigned']);
+    expect(NOTIFICATION_TYPES.filter((t) => EMAIL_DEFAULTS[t]).toSorted()).toEqual(['attendance.correction_rejected', 'deadline.digest', 'document.ready', 'document.rejected', 'leave.approved', 'leave.rejected', 'leave.submitted_on_behalf', 'profile.bank_changed', 'profile.change_approved', 'profile.change_rejected', 'recruitment.interview_assigned', 'recruitment.interview_cancelled', 'recruitment.opening_approved', 'recruitment.opening_rejected', 'task.assigned']);
     expect(emailDefault('unknown.type')).toBe(false);
   });
 
@@ -52,5 +52,14 @@ describe('notification rules', () => {
     expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
     expect(decodeCursor('not a cursor!')).toBeNull();
     expect(decodeCursor(Buffer.from('2026-09-27|x').toString('base64url'))).toBeNull();
+  });
+});
+
+describe('profile change notifications (docs/contracts/profile-changes.md › Notifications)', () => {
+  it('link to the employee’s own profile; the bank notice is always e-mailed', async () => {
+    const { emailAlways } = await import('./notification-rules.js');
+    expect(linkOf({ type: 'profile.change_approved', subjectType: 'profile_change_request', subjectId: ID, data: { audience: 'employee' } })).toBe(`/me/profile?request=${ID}`);
+    expect(emailAlways('profile.bank_changed')).toBe(true);
+    expect(emailAlways('profile.change_approved')).toBe(false);
   });
 });

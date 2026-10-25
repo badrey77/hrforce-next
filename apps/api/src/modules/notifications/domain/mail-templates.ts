@@ -3,7 +3,7 @@
  * plain text + simple HTML (dir="rtl" for Arabic). Privacy: who / what / when + a link — never balances or reasons
  * (a rejection's comment stays in the app). Pure: no Nest, no Kysely.
  */
-import type { NotificationType } from '../../../platform/notifications/notifier.js';
+import { EMAIL_ALWAYS_TYPES, type NotificationType } from '../../../platform/notifications/notifier.js';
 
 export type MailLocale = 'fr' | 'ar' | 'en';
 
@@ -72,6 +72,9 @@ interface Facts {
   newCount: number;
   overdueCount: number;
   criticalCount: number;
+  /** the subject is a profile change request (docs/contracts/profile-changes.md › Notifications): its section's label */
+  profile: boolean;
+  section: string;
 }
 
 interface Wording {
@@ -80,6 +83,8 @@ interface Wording {
   bodies: Record<NotificationType, (f: Facts) => string>;
   action: Record<NotificationType, string>;
   footer: string;
+  /** Footer of a security notice (EMAIL_ALWAYS_TYPES): its e-mail cannot be switched off in the preferences. */
+  footerAlways: string;
   signature: string;
   someone: string;
   daysUnit: (days: string) => string;
@@ -90,7 +95,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Bonjour ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `HRForce — demande de modification à traiter : ${f.employee} (${f.section})`
+          : f.decision
           ? `HRForce — décision de fin de contrat à prendre : ${f.employee}`
           : f.opening
           ? `HRForce — ouverture de poste à approuver : ${f.title} (${f.reference})`
@@ -125,10 +132,15 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': (f) => `HRForce — entretien du ${f.date} annulé : ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — évaluations de l’entretien du ${f.date} saisies : ${f.title}`,
       'deadline.digest': (f) => `HRForce — ${f.newCount} ${f.newCount === 1 ? 'nouvelle échéance' : 'nouvelles échéances'} à traiter`,
+      'profile.change_approved': (f) => `HRForce — votre demande de modification est acceptée (${f.section})`,
+      'profile.change_rejected': (f) => `HRForce — votre demande de modification est refusée (${f.section})`,
+      'profile.bank_changed': () => 'HRForce — vos coordonnées bancaires ont été modifiées',
     },
     bodies: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `La demande de modification de ${f.employee} (${f.section}) attend votre décision. Le détail et les pièces justificatives sont dans l’application.`
+          : f.decision
           ? `Le contrat de ${f.employee} se termine le ${f.contractEnd} : une décision est attendue (renouveler, passer en CDI ou ne pas renouveler).`
           : f.opening
           ? `Ouverture de poste à approuver : ${f.title} (${f.reference}, ${f.unit}). La demande attend votre décision.`
@@ -164,6 +176,10 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.evaluations_complete': (f) => `Toutes les évaluations de l’entretien du ${f.date} sont saisies — ${f.title} (${f.reference}).`,
       'deadline.digest': (f) =>
         `${f.newCount === 1 ? 'Une nouvelle échéance arrive' : `${f.newCount} nouvelles échéances arrivent`} dans votre périmètre (fins de contrat, périodes d’essai, documents, départs à la retraite). Échéances dépassées : ${f.overdueCount}, dont ${f.criticalCount} ${f.criticalCount === 1 ? 'critique' : 'critiques'}.`,
+      'profile.change_approved': (f) => `Votre demande de modification (${f.section}) a été acceptée par ${f.actor}. Votre profil est à jour.`,
+      'profile.change_rejected': (f) => `Votre demande de modification (${f.section}) a été refusée par ${f.actor}. Le détail est dans l’application.`,
+      'profile.bank_changed': (f) =>
+        `Les coordonnées bancaires de votre dossier ont été modifiées (validation par ${f.actor}). Si vous n’êtes pas à l’origine de cette demande, contactez immédiatement les ressources humaines.`,
     },
     action: {
       'task.assigned': 'Ouvrir la tâche',
@@ -182,8 +198,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': 'Voir mes entretiens',
       'recruitment.evaluations_complete': 'Voir les évaluations',
       'deadline.digest': 'Ouvrir les échéances',
+      'profile.change_approved': 'Ouvrir mon profil',
+      'profile.change_rejected': 'Ouvrir mon profil',
+      'profile.bank_changed': 'Ouvrir mon profil',
     },
     footer: 'Vous pouvez choisir les notifications reçues par e-mail dans Paramètres › Notifications.',
+    footerAlways: 'Cet avis de sécurité est toujours envoyé par e-mail.',
     signature: 'L’équipe HRForce',
     someone: 'un gestionnaire',
     daysUnit: (days) => `${days} j`,
@@ -192,7 +212,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `مرحبًا ${name}،`,
     subjects: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `HRForce — طلب تعديل للمعالجة: ${f.employee} (${f.section})`
+          : f.decision
           ? `HRForce — قرار بشأن نهاية العقد: ${f.employee}`
           : f.opening
           ? `HRForce — طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference})`
@@ -227,10 +249,15 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': (f) => `HRForce — تم إلغاء مقابلة يوم ${f.date}: ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — تم إدخال تقييمات مقابلة يوم ${f.date}: ${f.title}`,
       'deadline.digest': (f) => `HRForce — آجال جديدة للمعالجة: ${f.newCount}`,
+      'profile.change_approved': (f) => `HRForce — تم قبول طلب التعديل (${f.section})`,
+      'profile.change_rejected': (f) => `HRForce — تم رفض طلب التعديل (${f.section})`,
+      'profile.bank_changed': () => 'HRForce — تم تعديل المعلومات البنكية',
     },
     bodies: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `طلب التعديل الخاص بـ${f.employee} (${f.section}) في انتظار القرار. التفاصيل والوثائق الثبوتية متاحة في التطبيق.`
+          : f.decision
           ? `ينتهي عقد ${f.employee} في ${f.contractEnd}: يُنتظر قرار (التجديد، أو التحويل إلى عقد غير محدد المدة، أو عدم التجديد).`
           : f.opening
           ? `طلب فتح منصب في انتظار الموافقة: ${f.title} (${f.reference}، ${f.unit}).`
@@ -267,6 +294,10 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.evaluations_complete': (f) => `تم إدخال جميع تقييمات مقابلة يوم ${f.date} — ${f.title} (${f.reference}).`,
       'deadline.digest': (f) =>
         `توجد آجال جديدة للمعالجة ضمن نطاق الصلاحيات (نهاية العقود، فترات التجربة، الوثائق، الإحالة على التقاعد): ${f.newCount}. عدد الآجال المتجاوزة: ${f.overdueCount}، منها ${f.criticalCount} حرجة.`,
+      'profile.change_approved': (f) => `تم قبول طلب التعديل (${f.section}) من طرف ${f.actor}. تم تحديث الملف الشخصي.`,
+      'profile.change_rejected': (f) => `تم رفض طلب التعديل (${f.section}) من طرف ${f.actor}. التفاصيل متاحة في التطبيق.`,
+      'profile.bank_changed': (f) =>
+        `تم تعديل المعلومات البنكية في الملف (بموافقة ${f.actor}). في حال عدم تقديم هذا الطلب، يرجى الاتصال بالموارد البشرية فورًا.`,
     },
     action: {
       'task.assigned': 'فتح المهمة',
@@ -285,8 +316,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': 'عرض مقابلاتي',
       'recruitment.evaluations_complete': 'عرض التقييمات',
       'deadline.digest': 'عرض الآجال',
+      'profile.change_approved': 'فتح الملف الشخصي',
+      'profile.change_rejected': 'فتح الملف الشخصي',
+      'profile.bank_changed': 'فتح الملف الشخصي',
     },
     footer: 'يمكنك اختيار الإشعارات التي تصلك بالبريد الإلكتروني من الإعدادات › الإشعارات.',
+    footerAlways: 'يُرسَل هذا الإشعار الأمني دائمًا بالبريد الإلكتروني.',
     signature: 'فريق HRForce',
     someone: 'أحد المسيّرين',
     daysUnit: arabicDays,
@@ -295,7 +330,9 @@ const WORDING: Record<MailLocale, Wording> = {
     greeting: (name) => `Hello ${name},`,
     subjects: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `HRForce — change request awaiting your decision: ${f.employee} (${f.section})`
+          : f.decision
           ? `HRForce — end-of-contract decision to make: ${f.employee}`
           : f.opening
           ? `HRForce — opening request awaiting approval: ${f.title} (${f.reference})`
@@ -330,10 +367,15 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': (f) => `HRForce — interview of ${f.date} cancelled: ${f.title}`,
       'recruitment.evaluations_complete': (f) => `HRForce — evaluations of the interview of ${f.date} are in: ${f.title}`,
       'deadline.digest': (f) => `HRForce — ${f.newCount} new deadline${f.newCount === 1 ? '' : 's'} to handle`,
+      'profile.change_approved': (f) => `HRForce — your change request was accepted (${f.section})`,
+      'profile.change_rejected': (f) => `HRForce — your change request was rejected (${f.section})`,
+      'profile.bank_changed': () => 'HRForce — your bank details were changed',
     },
     bodies: {
       'task.assigned': (f) =>
-        f.decision
+        f.profile
+          ? `The change request of ${f.employee} (${f.section}) is awaiting your decision. The details and supporting documents are in the app.`
+          : f.decision
           ? `The contract of ${f.employee} ends on ${f.contractEnd}: a decision is awaited (renew, convert to a permanent contract or end).`
           : f.opening
           ? `Opening request awaiting approval: ${f.title} (${f.reference}, ${f.unit}).`
@@ -369,6 +411,10 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.evaluations_complete': (f) => `All evaluations of the interview of ${f.date} are in — ${f.title} (${f.reference}).`,
       'deadline.digest': (f) =>
         `${f.newCount === 1 ? 'A new deadline is coming up' : `${f.newCount} new deadlines are coming up`} in your scope (contract ends, probation periods, documents, retirements). Overdue: ${f.overdueCount}, of which ${f.criticalCount} critical.`,
+      'profile.change_approved': (f) => `Your change request (${f.section}) was accepted by ${f.actor}. Your profile is up to date.`,
+      'profile.change_rejected': (f) => `Your change request (${f.section}) was rejected by ${f.actor}. The details are in the app.`,
+      'profile.bank_changed': (f) =>
+        `The bank details of your record were changed (approved by ${f.actor}). If you did not ask for this change, contact human resources immediately.`,
     },
     action: {
       'task.assigned': 'Open the task',
@@ -387,8 +433,12 @@ const WORDING: Record<MailLocale, Wording> = {
       'recruitment.interview_cancelled': 'View my interviews',
       'recruitment.evaluations_complete': 'View the evaluations',
       'deadline.digest': 'Open the deadlines',
+      'profile.change_approved': 'Open my profile',
+      'profile.change_rejected': 'Open my profile',
+      'profile.bank_changed': 'Open my profile',
     },
     footer: 'Choose which notifications you receive by e-mail in Settings › Notifications.',
+    footerAlways: 'This security notice is always sent by e-mail.',
     signature: 'The HRForce team',
     someone: 'a manager',
     daysUnit: (days) => `${days} day${days === '1' ? '' : 's'}`,
@@ -416,6 +466,17 @@ export function arabicDays(days: string): string {
 function deFr(label: string): string {
   const lower = label.charAt(0).toLowerCase() + label.slice(1);
   return /^[aeiouyhéèêàâîô]/i.test(lower) ? `d’${lower}` : `de ${lower}`;
+}
+
+const SECTION_LABELS: Record<MailLocale, Record<string, string>> = {
+  fr: { contact: 'coordonnées', emergency: 'personne à prévenir', family: 'situation familiale', bank: 'coordonnées bancaires', identity_note: 'signalement d’erreur' },
+  ar: { contact: 'معلومات الاتصال', emergency: 'الشخص الواجب إبلاغه', family: 'الوضعية العائلية', bank: 'المعلومات البنكية', identity_note: 'الإبلاغ عن خطأ' },
+  en: { contact: 'contact details', emergency: 'emergency contact', family: 'family situation', bank: 'bank details', identity_note: 'error report' },
+};
+
+/** A profile section's label (docs/contracts/profile-changes.md › Wording), the code when unknown. */
+function sectionLabel(section: string, locale: MailLocale): string {
+  return SECTION_LABELS[locale][section] ?? section;
 }
 
 function escapeHtml(value: string): string {
@@ -471,19 +532,22 @@ export function renderNotificationMail(input: NotificationMailInput): Notificati
     newCount: count(d['newCount']),
     overdueCount: count(d['overdueCount']),
     criticalCount: count(d['criticalCount']),
+    profile: d['subjectType'] === 'profile_change_request' || input.subjectType === 'profile_change_request',
+    section: sectionLabel(str(d['section']), input.locale),
   };
   const subject = w.subjects[input.type](facts);
   const body = w.bodies[input.type](facts);
   const action = w.action[input.type];
   const separator = input.locale === 'fr' ? ' : ' : ': ';
-  const text = [w.greeting(input.recipientName), '', body, '', `${action}${separator}${input.link}`, '', w.footer, '', w.signature].join('\n');
+  const footer = EMAIL_ALWAYS_TYPES.includes(input.type) ? w.footerAlways : w.footer;
+  const text = [w.greeting(input.recipientName), '', body, '', `${action}${separator}${input.link}`, '', footer, '', w.signature].join('\n');
   const dir = input.locale === 'ar' ? 'rtl' : 'ltr';
   const html = [
     `<!doctype html><html lang="${input.locale}" dir="${dir}"><body style="font-family: sans-serif; line-height: 1.5">`,
     `<p>${escapeHtml(w.greeting(input.recipientName))}</p>`,
     `<p>${escapeHtml(body)}</p>`,
     `<p><a href="${escapeHtml(input.link)}">${escapeHtml(action)}</a></p>`,
-    `<p style="color: #555">${escapeHtml(w.footer)}</p>`,
+    `<p style="color: #555">${escapeHtml(footer)}</p>`,
     `<p>${escapeHtml(w.signature)}</p>`,
     '</body></html>',
   ].join('\n');

@@ -111,6 +111,24 @@ const LV = {
 const MISSING = '0190a5d0-0000-7000-8000-00000000dead';
 /** Documents fixtures (filled in beforeAll): one issued document per target, own documents, a pending request, type ids. */
 const DOC = { est: '', ouest: '', other: '', agentOwn: '', karimOwn: '', agentRequest: '', typeA: '', typeB: '' };
+
+/** Profile change requests (docs/contracts/profile-changes.md › Authorization matrix rows), filled in beforeAll. */
+const PROF = { est: '', ouest: '', other: '', estFile: '', ouestFile: '', otherFile: '', agentFamily: '', agentFamilyFile: '', agentNote: '' };
+const profOf = (t: Target): string => (t === 'est' ? PROF.est : t === 'ouest' ? PROF.ouest : PROF.other);
+const profFileOf = (t: Target): string => (t === 'est' ? PROF.estFile : t === 'ouest' ? PROF.ouestFile : PROF.otherFile);
+/** the self-service routes: holders of profile.request_self — linked (agent, chef, Karim) or not (central HR: 409) */
+const PROFILE_SELF_ROWS = (ok: number): readonly Row[] => [
+  ['agent', '-', ok], ['est', '-', ok], ['chef', '-', ok],
+  ['admin', '-', 409], ['beta', '-', 409], // profile.request_self held, no linked employment: profile-not-linked
+  ['ouest', '-', 403], ['acces', '-', 403],
+];
+/** HR detail / file of a request (an @Authenticated route: no reader → 404) */
+const PROFILE_READ_ROWS: readonly Row[] = [
+  ['admin', 'est', 200], ['admin', 'ouest', 200], ['admin', 'other', 404],
+  ['est', 'est', 200], ['est', 'ouest', 404],
+  ['ouest', 'ouest', 404], ['acces', 'est', 404], ['agent', 'est', 404],
+  ['beta', 'est', 404], ['beta', 'other', 200],
+];
 const docOf = (t: Target): string => (t === 'est' ? DOC.est : t === 'ouest' ? DOC.ouest : DOC.other);
 const issueBody = (t: Target) => ({ typeCode: 'attestation_travail', employmentId: employeeOf(t), language: 'fr' });
 const PROFILE_BODY = { legalNameFr: 'Société test', legalNameAr: null, addressFr: '1 rue X, Alger', addressAr: null, cityFr: 'Alger', cityAr: null };
@@ -675,6 +693,25 @@ const MATRIX: Record<string, RouteSpec> = {
     request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/nss`, body: { nss: `99000000${String(n).padStart(4, '0')}` } }),
     rows: SENSITIVE_WRITE_ROWS,
   },
+  // personal details (docs/contracts/profile-changes.md): central and regional HR in scope
+  'PUT /api/employees/:id/contact': {
+    access: 'employee.personal.update',
+    request: (t, n) => ({
+      path: `/api/employees/${employeeOf(t)}/contact`,
+      body: { mobilePhone: `0555 00 ${String(n).padStart(4, '0')}`, otherPhone: null, personalEmail: null, addressLine: null, commune: null, wilayaCode: null, postalCode: null },
+    }),
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
+  'PUT /api/employees/:id/emergency-contact': {
+    access: 'employee.personal.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/emergency-contact`, body: { fullName: `Contact ${n}`, relationship: 'other', phone: '0555 11 22 33' } }),
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
+  'PUT /api/employees/:id/family': {
+    access: 'employee.personal.update',
+    request: (t, n) => ({ path: `/api/employees/${employeeOf(t)}/family`, body: { maritalStatus: 'single', maritalStatusSince: null, spouseEmployed: null, children: [{ firstName: `Enfant ${n}`, birthDate: '2015-01-01', sex: null, dependent: true }] } }),
+    rows: EMPLOYEE_WRITE_ROWS,
+  },
   // last of the employee routes: a successful end is final (each one takes a fresh employee, see endTargetOf)
   'POST /api/employees/:id/end': {
     access: 'employee.update',
@@ -917,6 +954,46 @@ const MATRIX: Record<string, RouteSpec> = {
       ['admin', 'other', 404], ['est', 'est', 403], ['ouest', 'ouest', 403], ['acces', 'est', 403], ['beta', 'est', 404], ['agent', 'est', 403],
       ['admin', 'est', 200], ['admin', 'ouest', 200], ['beta', 'other', 200],
     ],
+  },
+  // ── profile change requests (docs/contracts/profile-changes.md › Authorization matrix rows) ──
+  'GET /api/me/profile': { access: 'profile.request_self', request: () => ({ path: '/api/me/profile' }), rows: PROFILE_SELF_ROWS(200) },
+  'GET /api/me/profile/requests': { access: 'profile.request_self', request: () => ({ path: '/api/me/profile/requests' }), rows: PROFILE_SELF_ROWS(200) },
+  // immediate contact changes (each row a different commune)
+  'POST /api/me/profile/requests': {
+    access: 'profile.request_self',
+    request: (_t, n) => ({
+      path: '/api/me/profile/requests',
+      fields: { data: JSON.stringify({ section: 'contact', payload: { mobilePhone: null, otherPhone: null, personalEmail: null, addressLine: null, commune: `Commune ${n}`, wilayaCode: null, postalCode: null } }) },
+    }),
+    rows: PROFILE_SELF_ROWS(201),
+  },
+  // agent.annaba's own pending family request (beforeAll): Karim (est) is not its requester → 404
+  'GET /api/me/profile/requests/:id/files/:fileId': {
+    access: 'profile.request_self',
+    request: () => ({ path: `/api/me/profile/requests/${PROF.agentFamily}/files/${PROF.agentFamilyFile}` }),
+    rows: [['agent', 'est', 200], ['est', 'est', 404], ['chef', 'est', 404], ['admin', 'est', 409], ['ouest', 'est', 403], ['acces', 'est', 403]],
+  },
+  'POST /api/me/profile/requests/:id/cancel': {
+    access: 'profile.request_self',
+    request: () => ({ path: `/api/me/profile/requests/${PROF.agentNote}/cancel` }),
+    rows: [['est', 'est', 404], ['chef', 'est', 404], ['admin', 'est', 409], ['ouest', 'est', 403], ['acces', 'est', 403], ['agent', 'est', 200]],
+  },
+  'GET /api/profile/requests': {
+    access: 'employee.personal.read',
+    request: () => ({ path: '/api/profile/requests' }),
+    rows: [['admin', '-', 200], ['est', '-', 200], ['beta', '-', 200], ['ouest', '-', 403], ['acces', '-', 403], ['agent', '-', 403]],
+  },
+  'GET /api/profile/requests/:id': { access: 'authenticated', request: (t) => ({ path: `/api/profile/requests/${profOf(t)}` }), rows: PROFILE_READ_ROWS },
+  'GET /api/profile/requests/:id/files/:fileId': {
+    access: 'authenticated',
+    request: (t) => ({ path: `/api/profile/requests/${profOf(t)}/files/${profFileOf(t)}` }),
+    rows: PROFILE_READ_ROWS,
+  },
+  'GET /api/profile/settings': { access: 'profile.configure', request: () => ({ path: '/api/profile/settings' }), rows: [...CONFIG_ROWS(200), ['agent', '-', 403]] },
+  'PUT /api/profile/settings': {
+    access: 'profile.configure',
+    request: (_t, n) => ({ path: '/api/profile/settings', body: { contactMode: 'immediate', emergencyMode: 'immediate', familyMode: 'approval', fileRetentionDays: 30 + (n % 300) } }),
+    rows: [...CONFIG_ROWS(200), ['agent', '-', 403]],
   },
   'GET /api/me/documents': {
     access: 'document.request_self',
@@ -1725,6 +1802,35 @@ describe('Authorization matrix (e2e, real grants)', () => {
     DOC.agentOwn = await issueAs('admin', employeeA(30));
     DOC.karimOwn = await issueAs('admin', employeeA(22));
     DOC.agentRequest = ((await as(app, 'agent', xsrf).post('/api/me/documents/requests').send({ typeCode: 'attestation_travail', language: 'fr' }).expect(201)).body as { id: string }).id;
+    // profile change requests: one pending request (with a file) per HR target, agent.annaba's own family request
+    // (with a file) and identity note (cancelled by its row)
+    const profRequest = async (company: string, employmentId: string) => {
+      const [row] = await query<{ id: string; file: string }>(
+        db.superuserUrl,
+        `with r as (
+           insert into profile_change_request (company_id, employment_id, person_id, section, payload, requested_by)
+           select e.company_id, e.id, e.person_id, 'identity_note', '{"note": "Matrice"}'::jsonb, $3 from employment e where e.company_id = $1 and e.id = $2
+           returning id, company_id)
+         insert into profile_change_file (company_id, request_id, original_filename, mime, size_bytes, sha256, content)
+         select r.company_id, r.id, 'matrice.pdf', 'application/pdf', octet_length($4::bytea), sha256($4::bytea), $4::bytea from r
+         returning request_id::text as id, id::text as file`,
+        [company, employmentId, USERS.admin.id, demoPdf('TEST DATA - matrix profile file')],
+      );
+      return { id: row?.id ?? '', file: row?.file ?? '' };
+    };
+    for (const t of ['est', 'ouest', 'other'] as const) {
+      const r = await profRequest(t === 'other' ? COMPANY_B : unitCompany, employeeOf(t));
+      PROF[t] = r.id;
+      PROF[t === 'est' ? 'estFile' : t === 'ouest' ? 'ouestFile' : 'otherFile'] = r.file;
+    }
+    const family = await as(app, 'agent', xsrf)
+      .post('/api/me/profile/requests')
+      .field('data', JSON.stringify({ section: 'family', payload: { maritalStatus: null, maritalStatusSince: null, spouseEmployed: null, children: [{ firstName: 'Matrice', birthDate: '2024-01-01', sex: null, dependent: true }] } }))
+      .attach('files', demoPdf('TEST DATA - matrix livret'), 'livret.pdf')
+      .expect(201);
+    PROF.agentFamily = (family.body as { id: string }).id;
+    PROF.agentFamilyFile = (family.body as { files: { id: string }[] }).files[0]?.id ?? '';
+    PROF.agentNote = ((await as(app, 'agent', xsrf).post('/api/me/profile/requests').field('data', JSON.stringify({ section: 'identity_note', payload: { note: 'Matrice' } })).expect(201)).body as { id: string }).id;
     const docType = async (company: string) =>
       (await query<{ id: string }>(db.superuserUrl, `select id from document_type where company_id = $1 and code = 'titre_conge'`, [company]))[0]?.id ?? '';
     DOC.typeA = await docType(unitCompany);

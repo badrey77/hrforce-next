@@ -1,0 +1,243 @@
+<ng-container *transloco="let t">
+  <header class="page-header">
+    <h1>{{ t('profile.title') }}</h1>
+  </header>
+
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-state="feedback">{{ t(key) }}</p>
+  }
+
+  @if (notLinked()) {
+    <div class="warning" role="alert" data-state="not-linked">
+      <p>{{ t('profile.notLinked') }}</p>
+    </div>
+  } @else if (profileRes.error() && !profile()) {
+    <div class="form-error" role="alert" data-state="load-error">
+      <p>{{ t('profile.loadError') }}</p>
+      <button class="btn secondary" type="button" (click)="profileRes.reload()">{{ t('common.retry') }}</button>
+    </div>
+  } @else if (profile(); as p) {
+    <p class="muted intro">{{ t('profile.intro') }}</p>
+
+    <!-- Identity: read-only; HR changes it from official papers. -->
+    <section class="card" data-card="identity_note" aria-labelledby="card-identity">
+      <div class="card-head">
+        <h2 id="card-identity" tabindex="-1">{{ t('profile.identity.title') }}</h2>
+      </div>
+      <dl class="facts">
+        <dt>{{ t('profile.identity.name') }}</dt>
+        <dd data-field="name">{{ p.employee.person | displayName: lang() }}</dd>
+        <dt>{{ t('profile.identity.matricule') }}</dt>
+        <dd><span class="code" dir="ltr">{{ p.employee.matricule }}</span></dd>
+        <dt>{{ t('profile.identity.unit') }}</dt>
+        <dd>{{ p.employee.unit | displayName: lang() }}</dd>
+        <dt>{{ t('profile.identity.jobTitle') }}</dt>
+        <dd dir="auto">{{ p.employee.jobTitle }}</dd>
+        <dt>{{ t('profile.identity.hireDate') }}</dt>
+        <dd>{{ p.employee.hireDate | date: 'mediumDate' : undefined : locale() }}</dd>
+        <dt>{{ t('profile.identity.birthDate') }}</dt>
+        <dd>{{ p.identity.birthDate ? (p.identity.birthDate | date: 'mediumDate' : undefined : locale()) : t('profile.notSet') }}</dd>
+        <dt>{{ t('profile.identity.birthPlace') }}</dt>
+        <dd dir="auto">{{ p.identity.birthPlace ?? t('profile.notSet') }}</dd>
+        <dt>{{ t('profile.identity.nationality') }}</dt>
+        <dd>{{ p.identity.nationality }}</dd>
+        <dt>{{ t('profile.identity.nin') }}</dt>
+        <dd data-field="nin"><span dir="ltr">{{ p.identity.ninMasked ?? t('profile.notSet') }}</span></dd>
+      </dl>
+      <p class="field-hint">{{ t('profile.identity.readOnly') }}</p>
+      @if (pending('identity_note'); as pend) {
+        <div class="pending" data-state="pending">
+          <p><span class="badge" data-status="pending">{{ t('profile.pending.noteLabel') }}</span>
+            {{ t('profile.pending.since', { date: (pend.requestedAt | date: 'mediumDate' : undefined : locale()) }) }}</p>
+          <button class="btn secondary" type="button" data-action="cancel-pending" (click)="openCancel(pend)">{{ t('profile.actions.cancelRequest') }}</button>
+        </div>
+      } @else if (editing() === 'identity_note') {
+        <app-profile-identity-note-form (done)="onDone($event)" (closed)="closeForm()" />
+      } @else {
+        <button class="btn secondary" type="button" data-action="edit" (click)="edit('identity_note')">{{ t('profile.identity.report') }}</button>
+      }
+    </section>
+
+    @for (section of cardSections; track section) {
+      <section class="card" [attr.data-card]="section" [attr.aria-labelledby]="'card-' + section">
+        <div class="card-head">
+          <h2 [id]="'card-' + section" tabindex="-1">{{ t('profile.sections.' + section) }}</h2>
+          <span class="badge" data-field="mode-badge">{{ t('profile.modes.' + modeOf(section)) }}</span>
+        </div>
+
+        @if (editing() !== section) {
+          @switch (section) {
+            @case ('contact') {
+              @let c = p.personal.contact;
+              <dl class="facts">
+                <dt>{{ t('profile.fields.mobilePhone') }}</dt>
+                <dd><span dir="ltr">{{ c.mobilePhone ?? t('profile.notSet') }}</span></dd>
+                <dt>{{ t('profile.fields.otherPhone') }}</dt>
+                <dd><span dir="ltr">{{ c.otherPhone ?? t('profile.notSet') }}</span></dd>
+                <dt>{{ t('profile.fields.personalEmail') }}</dt>
+                <dd class="wrap"><span dir="ltr">{{ c.personalEmail ?? t('profile.notSet') }}</span></dd>
+                <dt>{{ t('profile.fields.address') }}</dt>
+                <dd dir="auto" data-field="address">
+                  @if (c.addressLine || c.commune || c.wilayaCode || c.postalCode) {
+                    @if (c.addressLine) { <span class="line">{{ c.addressLine }}</span> }
+                    <span class="line">{{ c.postalCode }} {{ c.commune }}</span>
+                    @if (c.wilayaCode) { <span class="line">{{ wilaya(c.wilayaCode) }}</span> }
+                  } @else {
+                    {{ t('profile.notSet') }}
+                  }
+                </dd>
+              </dl>
+            }
+            @case ('emergency') {
+              @if (p.personal.emergencyContact; as e) {
+                <dl class="facts">
+                  <dt>{{ t('profile.fields.fullName') }}</dt>
+                  <dd dir="auto">{{ e.fullName }}</dd>
+                  <dt>{{ t('profile.fields.relationship') }}</dt>
+                  <dd>{{ t('profile.relationship.' + e.relationship) }}</dd>
+                  <dt>{{ t('profile.fields.phone') }}</dt>
+                  <dd><span dir="ltr">{{ e.phone }}</span></dd>
+                </dl>
+              } @else {
+                <p class="muted" data-state="no-emergency">{{ t('profile.emergency.none') }}</p>
+              }
+            }
+            @case ('family') {
+              @let f = p.personal.family;
+              <dl class="facts">
+                <dt>{{ t('profile.fields.maritalStatus') }}</dt>
+                <dd>
+                  {{ f.maritalStatus ? t('profile.maritalStatus.' + f.maritalStatus) : t('profile.notSet') }}
+                  @if (f.maritalStatusSince) {
+                    ({{ t('profile.since', { date: (f.maritalStatusSince | date: 'mediumDate' : undefined : locale()) }) }})
+                  }
+                </dd>
+                @if (f.maritalStatus === 'married') {
+                  <dt>{{ t('profile.fields.spouseEmployed') }}</dt>
+                  <dd>{{ f.spouseEmployed ? t('profile.spouseEmployed.' + f.spouseEmployed) : t('profile.notSet') }}</dd>
+                }
+              </dl>
+              <h3 class="sub">{{ t('profile.fields.children') }}</h3>
+              <ul class="children">
+                @for (child of f.children; track child.id) {
+                  <li data-child>
+                    <bdi>{{ child.firstName }}</bdi> · {{ t('profile.children.age', { count: age(child.birthDate) }) }}
+                    @if (child.sex) { · {{ t('profile.childSex.' + child.sex) }} }
+                    @if (!child.dependent) { · <span class="muted">{{ t('profile.children.notDependent') }}</span> }
+                  </li>
+                } @empty {
+                  <li class="muted" data-state="no-children">{{ t('profile.children.none') }}</li>
+                }
+              </ul>
+            }
+            @case ('bank') {
+              <dl class="facts">
+                <dt>{{ t('profile.fields.rib') }}</dt>
+                <dd data-field="rib"><span dir="ltr" class="code">{{ p.bank.ribMasked ?? t('profile.notSet') }}</span></dd>
+                <dt>{{ t('profile.fields.bankName') }}</dt>
+                <dd dir="auto">{{ p.bank.bankName ?? t('profile.notSet') }}</dd>
+              </dl>
+            }
+          }
+        }
+
+        @if (pending(section); as pend) {
+          <div class="pending" data-state="pending">
+            <p><span class="badge" data-status="pending">{{ t('profile.pending.label') }}</span>
+              {{ t('profile.pending.since', { date: (pend.requestedAt | date: 'mediumDate' : undefined : locale()) }) }}</p>
+            <button class="btn secondary" type="button" data-action="cancel-pending" (click)="openCancel(pend)">{{ t('profile.actions.cancelRequest') }}</button>
+          </div>
+        } @else if (editing() === section) {
+          @switch (section) {
+            @case ('contact') { <app-profile-contact-form [profile]="p" (done)="onDone($event)" (closed)="closeForm()" /> }
+            @case ('emergency') { <app-profile-emergency-form [profile]="p" (done)="onDone($event)" (closed)="closeForm()" /> }
+            @case ('family') { <app-profile-family-form [profile]="p" (done)="onDone($event)" (closed)="closeForm()" /> }
+            @case ('bank') { <app-profile-bank-form [profile]="p" (done)="onDone($event)" (closed)="closeForm()" /> }
+          }
+        } @else {
+          <button class="btn secondary" type="button" data-action="edit" [attr.aria-label]="t('profile.actions.editSection', { section: t('profile.sections.' + section) })"
+            (click)="edit(section)">{{ t('profile.actions.edit') }}</button>
+        }
+      </section>
+    }
+
+    <section class="card" aria-labelledby="my-requests-title" data-card="requests" [attr.aria-busy]="requestsRes.isLoading()">
+      <h2 id="my-requests-title">{{ t('profile.requests.title') }}</h2>
+      @if (fileError(); as key) {
+        <p class="form-error" role="alert">{{ t(key) }}</p>
+      }
+      @if (requestsRes.error()) {
+        <div class="form-error" role="alert">
+          <p>{{ t('profile.requests.loadError') }}</p>
+          <button class="btn secondary" type="button" (click)="requestsRes.reload()">{{ t('common.retry') }}</button>
+        </div>
+      } @else {
+        <ul class="items">
+          @for (r of requests(); track r.id) {
+            <li [attr.data-request]="r.id" [class.highlight]="r.id === highlighted()" [attr.aria-current]="r.id === highlighted() ? 'true' : null"
+              [attr.tabindex]="r.id === highlighted() ? -1 : null">
+              <div class="item-head">
+                <p><strong>{{ t('profile.sections.' + r.section) }}</strong> ·
+                  {{ t('profile.requests.requestedOn', { date: (r.requestedAt | date: 'mediumDate' : undefined : locale()) }) }}</p>
+                <span class="badge" [attr.data-status]="r.status">{{ t('profile.status.' + r.status) }}</span>
+              </div>
+              @if (r.changedFields.length && r.section !== 'identity_note') {
+                <p class="muted" data-field="changed">{{ t('profile.requests.changed') }}
+                  @for (field of r.changedFields; track field; let last = $last) {
+                    {{ t('profile.fields.' + field) }}{{ last ? '' : (lang() === 'ar' ? '، ' : ', ') }}
+                  }
+                </p>
+              }
+              @if (r.decidedAt && r.status !== 'pending') {
+                <p class="muted">{{ t('profile.requests.decidedOn', { date: (r.decidedAt | date: 'mediumDate' : undefined : locale()) }) }}</p>
+              }
+              @if (r.rejectionComment) {
+                <p class="warning" dir="auto" data-field="rejection">{{ t('profile.requests.rejectedBecause', { comment: r.rejectionComment }) }}</p>
+              }
+              @if (r.files.length) {
+                <ul class="files">
+                  @for (file of r.files; track file.id) {
+                    <li>
+                      <bdi>{{ file.filename }}</bdi> · {{ file.sizeBytes | fileSize: lang() }}
+                      @if (file.purged) {
+                        · <span class="muted">{{ t('profile.requests.filePurged') }}</span>
+                      } @else if (r.status === 'pending') {
+                        <!-- The API serves the requester's files only while the request is pending. -->
+                        <button class="btn secondary small" type="button" data-action="download"
+                          [attr.aria-label]="t('profile.requests.downloadLabel', { name: file.filename })" (click)="download(r, file)">{{ t('profile.requests.download') }}</button>
+                      }
+                    </li>
+                  }
+                </ul>
+              }
+              @if (r.workflow && r.status === 'pending') {
+                <app-workflow-stepper [progress]="r.workflow" />
+              }
+              @if (canCancel(r)) {
+                <button class="btn secondary" type="button" data-action="cancel-request" (click)="openCancel(r)">{{ t('profile.actions.cancelRequest') }}</button>
+              }
+            </li>
+          } @empty {
+            <li class="muted" data-state="no-requests">{{ t('profile.requests.none') }}</li>
+          }
+        </ul>
+      }
+    </section>
+  } @else {
+    <p class="muted">{{ t('common.loading') }}</p>
+  }
+
+  <dialog #cancelDialog class="modal" aria-labelledby="profile-cancel-title" (close)="onCancelClosed()">
+    @if (cancelling(); as ref) {
+      <h2 id="profile-cancel-title">{{ t('profile.cancel.title') }}</h2>
+      <p>{{ t('profile.sections.' + ref.section) }}</p>
+      @if (cancelError(); as key) {
+        <p class="form-error" role="alert">{{ t(key) }}</p>
+      }
+      <div class="form-actions">
+        <button class="btn" type="button" data-action="confirm-cancel" [disabled]="cancelSubmitting()" (click)="confirmCancel()">{{ t('profile.cancel.confirm') }}</button>
+        <button class="btn secondary" type="button" (click)="closeCancel()">{{ t('profile.cancel.keep') }}</button>
+      </div>
+    }
+  </dialog>
+</ng-container>

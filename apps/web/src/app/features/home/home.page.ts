@@ -10,7 +10,12 @@ import { EmployeesApi } from '../../core/employees/employees-api';
 import { DEFAULT_EMPLOYEE_QUERY } from '../../core/employees/employees.models';
 import { LeaveApi } from '../../core/leave/leave-api';
 import { DEFAULT_LEAVE_QUERY } from '../../core/leave/leave.models';
-import { ATTENDANCE_SELF_SERVICE_PERMISSION, MyEmployment, SELF_SERVICE_PERMISSION } from '../../core/leave/my-employment';
+import {
+  ATTENDANCE_SELF_SERVICE_PERMISSION,
+  MyEmployment,
+  PROFILE_SELF_SERVICE_PERMISSION,
+  SELF_SERVICE_PERMISSION,
+} from '../../core/leave/my-employment';
 import { MyRecruitment, RECRUITMENT_READ } from '../../core/recruitment/my-recruitment';
 import { RecruitmentApi } from '../../core/recruitment/recruitment-api';
 import { ACTIVE_STAGES } from '../../core/recruitment/recruitment.models';
@@ -64,6 +69,10 @@ import { HomePayrollTile } from './payroll-tile';
             </li>
           }
         </ul>
+        @if (canEditProfile()) {
+          <p class="mine-links"><a routerLink="/me/profile" class="action" data-link="my-profile">{{ t('nav.myProfile') }}</a>
+            <span class="action-note">{{ t('profile.home.note') }}</span></p>
+        }
       </section>
 
       @if (presence.hasValue()) {
@@ -183,6 +192,7 @@ import { HomePayrollTile } from './payroll-tile';
     a.tile:hover span { color: var(--color-text); }
     .action { display: inline-block; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-primary); border-radius: var(--radius); color: var(--color-primary); font-weight: 600; text-decoration: none; }
     .action:hover { background: var(--color-primary); color: var(--color-on-primary); }
+    .mine-links { margin-block: var(--space-3) 0; }
     .action-note { margin-inline-start: var(--space-2); color: var(--color-text-muted); }
     @media (prefers-reduced-motion: reduce) { a.tile { transition: none; } }
   `,
@@ -198,6 +208,7 @@ export class HomePage {
 
   // Self-service figures need the permission AND a linked employment (as the « Pointage » and « Mes congés » pages).
   private readonly canPunch = computed(() => this.session.can(ATTENDANCE_SELF_SERVICE_PERMISSION) && this.me.linked() === true);
+  protected readonly canEditProfile = computed(() => this.session.can(PROFILE_SELF_SERVICE_PERMISSION) && this.me.linked() === true);
   private readonly canRequestLeave = computed(() => this.session.can(SELF_SERVICE_PERMISSION) && this.me.linked() === true);
   private readonly myDays = this.attendance.myDaysResource(() => (this.canPunch() ? {} : undefined));
   private readonly myBalances = this.leave.myBalancesResource(() => this.canRequestLeave());

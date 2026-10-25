@@ -40,6 +40,12 @@ export function configureApp(app: NestExpressApplication): NestExpressApplicatio
   app.use(`/${API_PREFIX}/documents/templates`, function documentTemplateBody(req: Request, res: Response, next: NextFunction) {
     templateBody(req, res, next);
   });
+  // PUT /employees/:id/emergency-contact takes the JSON body `null` to remove the contact (docs/contracts/
+  // profile-changes.md): a non-strict parser for that route only (the default one refuses a top-level `null`).
+  const emergencyBody = json({ strict: false });
+  app.use(`/${API_PREFIX}/employees/:id/emergency-contact`, function emergencyContactBody(req: Request, res: Response, next: NextFunction) {
+    emergencyBody(req, res, next);
+  });
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalFilters(app.get(ProblemDetailsFilter));
   app.useGlobalPipes(app.get(ZodValidationPipe));

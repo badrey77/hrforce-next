@@ -9,6 +9,7 @@ import { algiersToday, runEmployeeFileRetention } from '../modules/documents/ind
 import { runAccruals } from '../modules/leave/index.js';
 import { recruitmentAlgiersDate, runRecruitmentRetention } from '../modules/recruitment/index.js';
 import { cleanupReadNotifications, createWorkerNotifier, EMAIL_JOB, parseEmailPayload, sendNotificationEmail, type MailPort } from '../modules/notifications/index.js';
+import { runProfileFilePurge } from '../modules/profile/index.js';
 import { runOidcCleanup } from '../modules/sso/index.js';
 import type { Database } from '../platform/db/database.js';
 import { forEachCompany, inCompany } from './company-loop.js';
@@ -43,6 +44,7 @@ export const TASKS = {
   oidcCleanup: 'oidc.cleanup',
   recruitmentRetention: 'recruitment.retention',
   deadlinesDaily: 'deadlines.daily',
+  profileFilesPurge: 'profile.files_purge',
 } as const;
 
 const requestIdOf = (task: string, job: JobInfo) => `job:${task}:${job.id}`;
@@ -197,6 +199,20 @@ export async function deadlinesDailyTask(deps: WorkerDeps, payload: unknown, job
   return { today, since, companies: results.length, decisions: sum((r) => r.decisions), digests: sum((r) => r.digests) };
 }
 
+/**
+ * `profile.files_purge` (daily) — company by company, erases the bytes of the supporting files of rejected / cancelled
+ * change requests decided more than the policy's `file_retention_days` ago, and of approved ones once copied into the
+ * employee file (docs/contracts/profile-changes.md › Notifications, worker). `payload.now` (ISO instant) pins the clock.
+ */
+export async function profileFilesPurgeTask(deps: WorkerDeps, payload: unknown, job: JobInfo): Promise<Record<string, unknown>> {
+  const given = ((payload ?? {}) as Record<string, unknown>)['now'];
+  if (given !== undefined && (typeof given !== 'string' || Number.isNaN(Date.parse(given)))) throw new Error('profile.files_purge: payload.now must be an ISO instant');
+  const now = typeof given === 'string' ? new Date(given) : new Date();
+  const audit = new PgAuditEvents(deps.db);
+  const results = await forEachCompany(deps.db, requestIdOf(TASKS.profileFilesPurge, job), (tx, companyId) => runProfileFilePurge(tx, companyId, now, audit));
+  return { companies: results.length, requests: results.reduce((n, r) => n + (r.result?.requests ?? 0), 0), files: results.reduce((n, r) => n + (r.result?.files ?? 0), 0) };
+}
+
 type TaskFn = (deps: WorkerDeps, payload: unknown, job: JobInfo) => Promise<Record<string, unknown>>;
 
 const HANDLERS: Record<string, TaskFn> = {
@@ -210,6 +226,7 @@ const HANDLERS: Record<string, TaskFn> = {
   [TASKS.oidcCleanup]: oidcCleanupTask,
   [TASKS.recruitmentRetention]: recruitmentRetentionTask,
   [TASKS.deadlinesDaily]: deadlinesDailyTask,
+  [TASKS.profileFilesPurge]: profileFilesPurgeTask,
 };
 
 /** Graphile Worker task list: every handler with structured logging (a thrown error = a retry with back-off). */

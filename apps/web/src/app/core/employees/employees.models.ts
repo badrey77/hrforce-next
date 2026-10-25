@@ -13,6 +13,7 @@
 
 /** Latin names are required; Arabic ones optional (contract: "optional Arabic names for people and org units"). */
 import type { ContractSummary, ContractType, InitialContract } from '../contracts/contracts.models';
+import type { PersonalView } from '../profile/personal.models';
 
 export interface NamePair {
   readonly lastName: string;
@@ -110,8 +111,16 @@ export interface EmployeeNss {
 }
 
 /** A block the caller may not read: omitted from the payload and named here. */
-export type RedactedBlock = 'salary' | 'bank' | 'nss';
-export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss' | 'manage_contract';
+export type RedactedBlock = 'salary' | 'bank' | 'nss' | 'personal';
+export type EmployeeAction =
+  | 'update'
+  | 'assign'
+  | 'end'
+  | 'update_salary'
+  | 'update_bank'
+  | 'update_nss'
+  | 'manage_contract'
+  | 'update_personal';
 
 export interface EmployeeDetail extends EmployeeListItem {
   readonly person: EmployeePerson;
@@ -121,6 +130,8 @@ export interface EmployeeDetail extends EmployeeListItem {
   readonly salary?: EmployeeSalary;
   readonly bank?: EmployeeBank;
   readonly nss?: EmployeeNss;
+  /** Contact, emergency contact and family (profile-changes contract): omitted without `employee.personal.read`. */
+  readonly personal?: PersonalView;
   readonly _redacted: readonly RedactedBlock[];
   readonly _actions: readonly EmployeeAction[];
 }

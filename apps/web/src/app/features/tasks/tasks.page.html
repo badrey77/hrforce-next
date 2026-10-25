@@ -59,6 +59,14 @@
                       · {{ t('tasks.decision.endsOn', { date: (task.subject.contract.endDate | date: 'mediumDate' : undefined : locale()) }) }}
                     }
                   </span>
+                } @else if (task.subject.type === 'profile_change_request') {
+                  <!-- Field names only: a task row never shows personal values. -->
+                  <span class="what" data-subject="profile_change_request">
+                    {{ t('personal.task.title') }} · {{ t('personal.sections.' + task.subject.section) }}
+                    @if (task.subject.changedFields.length) {
+                      · {{ t('personal.task.fields', { count: task.subject.changedFields.length, fields: fieldNames(task.subject.changedFields, t) }) }}
+                    }
+                  </span>
                 } @else if (task.subject.type === 'leave_request') {
                   <span class="what">
                     {{ catalog.nameOf(task.subject.leaveTypeId) }} ·
@@ -149,6 +157,8 @@
           <p class="field-hint">{{ t('recruitment.tasks.approveHint') }}</p>
         } @else if (task.subject.type === 'contract_decision') {
           <app-contract-decision-panel [subject]="task.subject" [stepKey]="task.stepKey" (saved)="onDecisionSaved()" (dirtyChange)="decisionDirty.set($event)" />
+        } @else if (task.subject.type === 'profile_change_request') {
+          <app-profile-change-panel [subject]="task.subject" />
         } @else if (task.subject.type === 'document_request') {
           <dl class="facts" data-panel="document-request">
             <dt>{{ t('documents.fields.employee') }}</dt>

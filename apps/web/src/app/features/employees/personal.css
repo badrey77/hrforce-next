@@ -1,0 +1,155 @@
+/* « Coordonnées et famille » tab and the HR list of change requests. Logical properties only (RTL mirrors). */
+.personal-section {
+  margin-block-end: var(--space-5, 2rem);
+}
+
+.children-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.children-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.children-list .name {
+  font-weight: 600;
+}
+
+.tag {
+  display: inline-block;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.tag[data-dependent='false'] {
+  color: var(--color-text-muted);
+}
+
+.children-edit {
+  display: grid;
+  gap: var(--space-3);
+  margin-block-end: var(--space-2);
+}
+
+.child-row {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.child-row legend {
+  padding-inline: var(--space-2);
+  font-weight: 600;
+}
+
+.child-dependent {
+  align-self: end;
+}
+
+.status-pill {
+  display: inline-block;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.status-pill[data-status='pending'] {
+  border-color: #9a6700;
+  background: #fff8c5;
+  color: #6b4700;
+}
+
+.status-pill[data-status='rejected'] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.request-detail td {
+  padding-block: var(--space-3);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.who a,
+.who .code,
+.who .muted {
+  display: block;
+}
+
+.who .muted {
+  margin: 0;
+}
+
+/* Below 640 px a request row becomes a card: each cell on its own line with its column name before it. */
+@media (max-width: 640px) {
+  table.cards thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.cards,
+  table.cards tbody,
+  table.cards tr,
+  table.cards td {
+    display: block;
+  }
+
+  table.cards tr {
+    margin-block-end: var(--space-3);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+  }
+
+  table.data.cards td {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    justify-content: space-between;
+    padding-inline: 0;
+    border: 0;
+    text-align: start;
+  }
+
+  table.cards td[data-label]::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+  }
+
+  table.data.cards td.who,
+  table.data.cards tr.request-detail td {
+    display: block;
+  }
+
+  table.cards tr.request-detail {
+    margin-block-start: calc(-1 * var(--space-3));
+    border-block-start: 0;
+    border-start-start-radius: 0;
+    border-start-end-radius: 0;
+  }
+}

@@ -160,7 +160,8 @@ a.btn {
   margin-block-end: var(--space-4);
 }
 
-.employee-header .header-actions {
+.employee-header .header-actions,
+.page-header .header-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);

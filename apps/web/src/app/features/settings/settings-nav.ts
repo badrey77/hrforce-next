@@ -21,6 +21,9 @@ import { CanDirective } from '../../shared/can/can.directive';
         <a *appCan="'settings.branding'" routerLink="/settings/branding" routerLinkActive="active" ariaCurrentWhenActive="page" data-tab="branding">{{
           t('settings.nav.branding')
         }}</a>
+        <a *appCan="'profile.configure'" routerLink="/settings/profile" routerLinkActive="active" ariaCurrentWhenActive="page" data-tab="profile">{{
+          t('settings.nav.profile')
+        }}</a>
       </nav>
     </ng-container>
   `,

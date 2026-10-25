@@ -243,7 +243,7 @@ describe('GET /api/employees/:id — field blocks, _redacted, _actions', () => {
       bank: { rib: seed.rib, bankName: seed.bankName },
       nss: { nss: seed.nss },
       _redacted: [],
-      _actions: ['update', 'assign', 'end', 'update_salary', 'update_bank', 'update_nss', 'manage_contract'],
+      _actions: ['update', 'assign', 'end', 'update_salary', 'update_bank', 'update_nss', 'manage_contract', 'update_personal'],
       contract: null,
     });
     expect(typeof res.body.salary.current.baseSalary).toBe('string');
@@ -252,14 +252,14 @@ describe('GET /api/employees/:id — field blocks, _redacted, _actions', () => {
   it('lecture.ouest reads its region: salary, bank and nss redacted, no write action', async () => {
     const res = await client('ouest').get(`/api/employees/${employeeA(36)}`).expect(200);
     assertNoSecrets(res.body);
-    expect(res.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss'], _actions: [] });
-    for (const block of ['salary', 'bank', 'nss']) expect(res.body).not.toHaveProperty(block);
+    expect(res.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss', 'personal'], _actions: [] });
+    for (const block of ['salary', 'bank', 'nss', 'personal']) expect(res.body).not.toHaveProperty(block);
     expect(JSON.stringify(res.body)).not.toContain(demoEmployee(36).rib ?? 'x');
   });
 
   it('rh.est: employee actions, but no sensitive block nor action; out-of-scope / other company / malformed → 404', async () => {
     const res = await client('est').get(`/api/employees/${employeeA(33)}`).expect(200);
-    expect(res.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss'], _actions: ['update', 'assign', 'end', 'manage_contract'] });
+    expect(res.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss'], _actions: ['update', 'assign', 'end', 'manage_contract', 'update_personal'] });
     await client('est').get(`/api/employees/${employeeA(36)}`).expect(404);
     await client('est').get(`/api/employees/${EMPLOYEE_B.employmentId}`).expect(404);
     await client('admin').get('/api/employees/not-a-uuid').expect(404);
@@ -332,7 +332,7 @@ describe('writes — field permissions, scope, date rules, 409 slugs', () => {
     expect(await query(db.superuserUrl, `select 1 from employment where matricule = 'EST-0001'`)).toHaveLength(0);
     const ok = await client('est').post('/api/employees').send({ ...base, matricule: 'EST-0001', orgUnitId: unitA('AG-CNE') });
     expect(ok.status, JSON.stringify(ok.body)).toBe(201);
-    expect(ok.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss'], _actions: ['update', 'assign', 'end', 'manage_contract'] });
+    expect(ok.body).toMatchObject({ _redacted: ['salary', 'bank', 'nss'], _actions: ['update', 'assign', 'end', 'manage_contract', 'update_personal'] });
     // outside REG-EST: forbidden-scope on the unit; unknown unit / site → 422
     const ouest = await client('est').post('/api/employees').send({ ...base, matricule: 'EST-0002', orgUnitId: unitA('AG-ORAN') });
     expect(ouest.status).toBe(403);

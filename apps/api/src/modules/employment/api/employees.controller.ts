@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { RequirePermission } from '../../../platform/authz/decorators.js';
 import type { EmployeeDetail, EmployeeListView } from '../application/employee-views.js';
 import { EmployeesService } from '../application/employees.service.js';
+import { PersonalDetailsService, type PersonalView } from '../application/personal-details.service.js';
 import {
   AssignDto,
   CreateEmployeeDto,
@@ -14,6 +15,7 @@ import {
   SetSalaryDto,
   UpdatePersonDto,
 } from './employees.dto.js';
+import { ContactDto, EmergencyDto, FamilyDto } from './personal.dto.js';
 
 /** A malformed id cannot exist: 404 like any unknown / other-tenant / out-of-scope id. */
 function employmentId(id: string): string {
@@ -24,7 +26,10 @@ function employmentId(id: string): string {
 /** Employee endpoints — docs/contracts/employment.md (`:id` = employment id). */
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employees: EmployeesService) {}
+  constructor(
+    private readonly employees: EmployeesService,
+    private readonly personal: PersonalDetailsService,
+  ) {}
 
   @Get()
   @RequirePermission('employee.read')
@@ -82,5 +87,26 @@ export class EmployeesController {
   @RequirePermission('employee.nss.update')
   setNss(@Param('id') id: string, @Body() body: SetNssDto): Promise<EmployeeDetail> {
     return this.employees.setNss(employmentId(id), body);
+  }
+
+  // ── personal details (docs/contracts/profile-changes.md › Employment additions) ─────────────────────────────────
+
+  @Put(':id/contact')
+  @RequirePermission('employee.personal.update')
+  setContact(@Param('id') id: string, @Body() body: ContactDto): Promise<PersonalView> {
+    return this.personal.setContact(employmentId(id), body);
+  }
+
+  /** The body `null` removes the emergency contact (configure-app parses this route's JSON non-strictly). */
+  @Put(':id/emergency-contact')
+  @RequirePermission('employee.personal.update')
+  setEmergency(@Param('id') id: string, @Body() body: EmergencyDto): Promise<PersonalView> {
+    return this.personal.setEmergency(employmentId(id), body.value);
+  }
+
+  @Put(':id/family')
+  @RequirePermission('employee.personal.update')
+  setFamily(@Param('id') id: string, @Body() body: FamilyDto): Promise<PersonalView> {
+    return this.personal.setFamily(employmentId(id), body);
   }
 }

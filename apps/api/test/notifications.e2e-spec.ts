@@ -378,6 +378,9 @@ describe('endpoints', () => {
       { type: 'recruitment.interview_cancelled', email: true, default: true },
       { type: 'recruitment.evaluations_complete', email: false, default: false },
       { type: 'deadline.digest', email: true, default: true },
+      { type: 'profile.change_approved', email: true, default: true },
+      { type: 'profile.change_rejected', email: true, default: true },
+      { type: 'profile.bank_changed', email: true, default: true },
     ]);
     const put = await client('agent').put('/api/me/notification-preferences').send([{ type: 'leave.approved', email: false }, { type: 'task.escalated', email: true }]).expect(200);
     expect(put.body).toEqual(expect.arrayContaining([{ type: 'leave.approved', email: false, default: true }, { type: 'task.escalated', email: true, default: false }]));

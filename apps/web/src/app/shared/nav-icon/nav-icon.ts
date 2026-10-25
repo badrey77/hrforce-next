@@ -30,6 +30,8 @@ const ICONS = {
   // An hourglass: the deadlines board.
   hourglass: ['M6.5 3.5h11', 'M6.5 20.5h11', 'M8 3.5c0 4.5 8 4.5 8 8.5s-8 4-8 8.5', 'M16 3.5c0 4.5-8 4.5-8 8.5s8 4 8 8.5'],
   // A pay slip with a total line: payroll variables.
+  // An identity card: « Mon profil ».
+  profile: ['M3.5 5.5h17v13h-17z', 'M9 11.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z', 'M5.5 16c.4-1.8 1.7-2.8 3.5-2.8s3.1 1 3.5 2.8', 'M14.5 9.5h4', 'M14.5 13h4'],
   payroll: ['M6 3.5h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3z', 'M9 8h6', 'M9 11.5h6', 'M9 15h3.5'],
 } as const;
 

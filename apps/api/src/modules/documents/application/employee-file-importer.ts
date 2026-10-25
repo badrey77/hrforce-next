@@ -28,19 +28,31 @@ export class EmployeeFileImporter {
 
   /** → how many files were copied (duplicates skipped). */
   async copy(employmentId: string, files: readonly ImportedFile[]): Promise<number> {
+    return (await this.copyEach(employmentId, files)).filter((r) => r.created).length;
+  }
+
+  /**
+   * As {@link copy}, into the system category `categoryCode` (default `recruitment`; the profile module's approved
+   * supporting documents use `supporting_document`, docs/contracts/profile-changes.md): one result per input file, in
+   * order — the employee-file id (the existing live one for a duplicate) and whether it was created.
+   */
+  async copyEach(employmentId: string, files: readonly ImportedFile[], categoryCode: string = RECRUITMENT_FILE_CATEGORY): Promise<{ employeeFileId: string; created: boolean }[]> {
     const { companyId, userId } = requireContext();
     if (!companyId || !userId) throw new Error('EmployeeFileImporter needs a signed-in request');
-    if (files.length === 0) return 0;
-    const category = (await this.repo.categories(companyId)).find((c) => c.code === RECRUITMENT_FILE_CATEGORY);
-    if (!category) throw new Error(`employee-file category ${RECRUITMENT_FILE_CATEGORY} missing (seedDocumentDefaults)`);
-    let copied = 0;
-    const seen = new Set<string>();
+    if (files.length === 0) return [];
+    const category = (await this.repo.categories(companyId)).find((c) => c.code === categoryCode);
+    if (!category) throw new Error(`employee-file category ${categoryCode} missing (seedDocumentDefaults)`);
+    const results: { employeeFileId: string; created: boolean }[] = [];
+    const seen = new Map<string, string>();
     for (const file of files) {
       const sha256 = createHash('sha256').update(file.content).digest();
       const key = sha256.toString('hex');
-      if (seen.has(key) || (await this.repo.liveDuplicate(companyId, employmentId, sha256))) continue;
-      seen.add(key);
-      await this.repo.insertFile(companyId, {
+      const existing = seen.get(key) ?? (await this.repo.liveDuplicateId(companyId, employmentId, sha256));
+      if (existing) {
+        results.push({ employeeFileId: existing, created: false });
+        continue;
+      }
+      const id = await this.repo.insertFile(companyId, {
         employmentId,
         categoryId: category.id,
         title: file.title,
@@ -52,8 +64,9 @@ export class EmployeeFileImporter {
         uploadedBy: userId,
         content: file.content,
       });
-      copied += 1;
+      seen.set(key, id);
+      results.push({ employeeFileId: id, created: true });
     }
-    return copied;
+    return results;
   }
 }

@@ -1,0 +1,165 @@
+<ng-container *transloco="let t">
+  @if (feedback(); as key) {
+    <p class="feedback" role="status" data-feedback>{{ t(key) }}</p>
+  }
+  @let p = personal();
+
+  <!-- Contact ----------------------------------------------------------------------------------------------- -->
+  <section class="personal-section" data-section="contact" aria-labelledby="personal-contact-title">
+    <div class="toolbar">
+      <h2 id="personal-contact-title">{{ t('personal.sections.contact') }}</h2>
+      @if (canEdit() && editing() !== 'contact') {
+        <button class="btn secondary" type="button" data-action="edit-contact" (click)="edit('contact')">{{ t('personal.edit') }}</button>
+      }
+    </div>
+    @if (editing() === 'contact') {
+      <app-contact-form [employmentId]="employee().id" [contact]="p.contact" (saved)="onSaved($event)" (cancelled)="cancel()" />
+    } @else {
+      @let c = p.contact;
+      <dl class="facts">
+        <dt>{{ t('personal.fields.mobilePhone') }}</dt>
+        <dd data-field="mobilePhone"><bdi dir="ltr">{{ c.mobilePhone ?? '—' }}</bdi></dd>
+        <dt>{{ t('personal.fields.otherPhone') }}</dt>
+        <dd data-field="otherPhone"><bdi dir="ltr">{{ c.otherPhone ?? '—' }}</bdi></dd>
+        <dt>{{ t('personal.fields.personalEmail') }}</dt>
+        <dd data-field="personalEmail"><bdi dir="ltr">{{ c.personalEmail ?? '—' }}</bdi></dd>
+        <dt>{{ t('personal.fields.addressLine') }}</dt>
+        <dd data-field="addressLine"><bdi>{{ c.addressLine ?? '—' }}</bdi></dd>
+        <dt>{{ t('personal.fields.commune') }}</dt>
+        <dd data-field="commune"><bdi>{{ c.commune ?? '—' }}</bdi></dd>
+        <dt>{{ t('personal.fields.wilayaCode') }}</dt>
+        <dd data-field="wilaya">{{ c.wilayaCode ? wilaya(c.wilayaCode) : '—' }}</dd>
+        <dt>{{ t('personal.fields.postalCode') }}</dt>
+        <dd data-field="postalCode" class="code">{{ c.postalCode ?? '—' }}</dd>
+      </dl>
+      @if (c.updatedAt) {
+        <p class="field-hint" data-field="contactUpdated">{{ t('personal.updatedAt', { date: (c.updatedAt | date: 'mediumDate' : undefined : locale()) }) }}</p>
+      }
+    }
+  </section>
+
+  <!-- Emergency contact ------------------------------------------------------------------------------------- -->
+  <section class="personal-section" data-section="emergency" aria-labelledby="personal-emergency-title">
+    <div class="toolbar">
+      <h2 id="personal-emergency-title">{{ t('personal.sections.emergency') }}</h2>
+      @if (canEdit() && editing() !== 'emergency') {
+        <button class="btn secondary" type="button" data-action="edit-emergency" (click)="edit('emergency')">{{ t('personal.edit') }}</button>
+      }
+    </div>
+    @if (editing() === 'emergency') {
+      <app-emergency-form [employmentId]="employee().id" [emergency]="p.emergencyContact" (saved)="onSaved($event)" (cancelled)="cancel()" />
+    } @else if (p.emergencyContact; as e) {
+      <dl class="facts">
+        <dt>{{ t('personal.fields.fullName') }}</dt>
+        <dd data-field="emergencyName"><bdi>{{ e.fullName }}</bdi></dd>
+        <dt>{{ t('personal.fields.relationship') }}</dt>
+        <dd data-field="relationship">{{ t('personal.relationship.' + e.relationship) }}</dd>
+        <dt>{{ t('personal.fields.phone') }}</dt>
+        <dd data-field="emergencyPhone"><bdi dir="ltr">{{ e.phone }}</bdi></dd>
+      </dl>
+    } @else {
+      <p class="muted" data-state="no-emergency">{{ t('personal.emergency.none') }}</p>
+    }
+  </section>
+
+  <!-- Family ------------------------------------------------------------------------------------------------ -->
+  <section class="personal-section" data-section="family" aria-labelledby="personal-family-title">
+    <div class="toolbar">
+      <h2 id="personal-family-title">{{ t('personal.sections.family') }}</h2>
+      @if (canEdit() && editing() !== 'family') {
+        <button class="btn secondary" type="button" data-action="edit-family" (click)="edit('family')">{{ t('personal.edit') }}</button>
+      }
+    </div>
+    @if (editing() === 'family') {
+      <app-family-form [employmentId]="employee().id" [family]="p.family" (saved)="onSaved($event)" (cancelled)="cancel()" />
+    } @else {
+      @let f = p.family;
+      <dl class="facts">
+        <dt>{{ t('personal.fields.maritalStatus') }}</dt>
+        <dd data-field="maritalStatus">{{ f.maritalStatus ? t('personal.maritalStatus.' + f.maritalStatus) : '—' }}</dd>
+        <dt>{{ t('personal.fields.maritalStatusSince') }}</dt>
+        <dd data-field="maritalStatusSince" class="nowrap">{{ f.maritalStatusSince ? (f.maritalStatusSince | date: 'mediumDate' : undefined : locale()) : '—' }}</dd>
+        <dt>{{ t('personal.fields.spouseEmployed') }}</dt>
+        <dd data-field="spouseEmployed">{{ f.spouseEmployed ? t('personal.spouseEmployed.' + f.spouseEmployed) : '—' }}</dd>
+      </dl>
+      <h3 id="personal-children-title">{{ t('personal.sections.children') }}</h3>
+      <ul class="children-list" aria-labelledby="personal-children-title" data-list="children">
+        @for (child of f.children; track child.id) {
+          <li [attr.data-child]="child.id">
+            <span class="name"><bdi>{{ child.firstName }}</bdi></span>
+            <span data-field="age">
+              {{ age(child.birthDate) < 1 ? t('personal.ageUnderOne') : t('personal.age', { count: age(child.birthDate) }) }}
+              <span class="muted">({{ child.birthDate | date: 'mediumDate' : undefined : locale() }})</span>
+            </span>
+            @if (child.sex) {
+              <span>{{ t('personal.childSex.' + child.sex) }}</span>
+            }
+            <span class="tag" data-field="dependent" [attr.data-dependent]="child.dependent">{{ t(child.dependent ? 'personal.dependent.yes' : 'personal.dependent.no') }}</span>
+          </li>
+        } @empty {
+          <li class="muted" data-state="no-children">{{ t('personal.children.none') }}</li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- The employee's change requests --------------------------------------------------------------------------- -->
+  <section class="personal-section" data-section="requests" aria-labelledby="personal-requests-title" [attr.aria-busy]="requests.isLoading()">
+    <h2 id="personal-requests-title">{{ t('personal.requests.title') }}</h2>
+    @if (requests.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(requestsErrorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="requests.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (requests.hasValue()) {
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data cards" data-table="employee-requests">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('personal.requests.columns.requestedAt') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.section') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.fields') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.status') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ t('personal.requests.columns.actions') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of items(); track r.id) {
+                <tr [attr.data-request]="r.id">
+                  <td class="nowrap" [attr.data-label]="t('personal.requests.columns.requestedAt')">{{ r.requestedAt | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td [attr.data-label]="t('personal.requests.columns.section')">{{ t('personal.sections.' + r.section) }}</td>
+                  <td [attr.data-label]="t('personal.requests.columns.fields')">
+                    @for (field of r.changedFields; track field; let last = $last) {
+                      {{ t('personal.fields.' + field) }}{{ last ? '' : (lang() === 'ar' ? '، ' : ', ') }}
+                    }
+                  </td>
+                  <td [attr.data-label]="t('personal.requests.columns.status')">
+                    <span class="status-pill" data-field="status" [attr.data-status]="r.status">{{ t('personal.requests.status.' + r.status) }}</span>
+                  </td>
+                  <td>
+                    <button class="btn secondary" type="button" data-action="toggle-request" [attr.aria-expanded]="expanded() === r.id"
+                      [attr.aria-controls]="'request-detail-' + r.id" (click)="toggle(r)">
+                      {{ expanded() === r.id ? t('personal.requests.hide') : t('personal.requests.details') }}
+                    </button>
+                  </td>
+                </tr>
+                @if (expanded() === r.id) {
+                  <tr class="request-detail" [id]="'request-detail-' + r.id">
+                    <td colspan="5" [attr.aria-label]="t('personal.requests.detailsLabel', { date: (r.requestedAt | date: 'mediumDate' : undefined : locale()) })">
+                      <app-profile-request-diff [request]="r" />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="muted" data-state="no-requests">{{ t('personal.requests.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

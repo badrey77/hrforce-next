@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { requireContext } from '../../../platform/context/request-context.js';
 import type { NotificationSubjectType } from '../../../platform/notifications/notifier.js';
 import { ValidationProblemException } from '../../../platform/http/problem-details.js';
-import { audienceOf, EMAIL_DEFAULTS, encodeCursor, isNotificationType, linkOf, NOTIFICATION_TYPES, publicData, type NotificationCursor } from '../domain/notification-rules.js';
+import { audienceOf, EMAIL_DEFAULTS, emailAlways, encodeCursor, isNotificationType, linkOf, NOTIFICATION_TYPES, publicData, type NotificationCursor } from '../domain/notification-rules.js';
 import { NotificationRepository, type NotificationRow } from '../infra/notification.repository.js';
 import type { NotificationPage, NotificationView, PreferenceView } from './notification-views.js';
 
@@ -69,7 +69,7 @@ export class NotificationsService {
   async preferences(): Promise<PreferenceView[]> {
     const { companyId, userId } = caller();
     const stored = await this.repo.preferences(companyId, userId);
-    return NOTIFICATION_TYPES.map((type) => ({ type, email: stored.get(type) ?? EMAIL_DEFAULTS[type], default: EMAIL_DEFAULTS[type] }));
+    return NOTIFICATION_TYPES.map((type) => ({ type, email: emailAlways(type) ? true : (stored.get(type) ?? EMAIL_DEFAULTS[type]), default: EMAIL_DEFAULTS[type] }));
   }
 
   async setPreferences(items: readonly { type: string; email: boolean }[]): Promise<PreferenceView[]> {
@@ -81,6 +81,7 @@ export class NotificationsService {
     items.forEach((item, i) => {
       if (seen.has(item.type)) errors.push({ field: `${i}.type`, code: 'duplicate', message: 'Each type at most once' });
       seen.add(item.type);
+      if (emailAlways(item.type) && !item.email) errors.push({ field: `${i}.email`, code: 'email_always', message: 'This security notice is always sent by e-mail.' });
     });
     if (errors.length) throw new ValidationProblemException(errors);
     for (const item of items) await this.repo.setPreference(companyId, userId, item.type, item.email);

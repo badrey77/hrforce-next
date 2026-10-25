@@ -18,6 +18,7 @@ import type { DecisionContract, DecisionProposal } from '../deadlines/deadlines.
 import type { NamePair } from '../employees/employees.models';
 import type { DocumentLanguage } from '../documents/documents.models';
 import type { Labels, LeaveEmployee } from '../leave/leave.models';
+import type { ProfileSection } from '../profile/profile.models';
 import type { OpeningTaskSummary } from '../recruitment/recruitment.models';
 
 export interface DocumentTaskSubject {
@@ -68,7 +69,20 @@ export interface ContractDecisionTaskSubject {
   readonly comment: string | null;
 }
 
+/**
+ * A profile change request of an employee (docs/contracts/profile-changes.md): the section and the NAMES of the changed
+ * fields only — never their values (the task panel reads `GET /profile/requests/:id` for those). `id` is the request id.
+ */
+export interface ProfileChangeTaskSubject {
+  readonly type: 'profile_change_request';
+  readonly id: string;
+  readonly employee: LeaveEmployee;
+  readonly section: ProfileSection;
+  readonly changedFields: readonly string[];
+}
+
 export type TaskSubject =
+  | ProfileChangeTaskSubject
   | LeaveTaskSubject
   | DocumentTaskSubject
   | CorrectionTaskSubject

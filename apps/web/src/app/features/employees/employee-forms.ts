@@ -144,6 +144,10 @@ export function fieldErrorKey(control: AbstractControl): string {
   if (control.hasError('money')) return 'employees.form.errors.money';
   if (control.hasError('notBefore')) return 'employees.form.errors.notBefore';
   if (control.hasError('probationRange')) return 'contracts.form.errors.probationRange';
+  if (control.hasError('phone')) return 'personal.form.errors.phone';
+  if (control.hasError('email')) return 'personal.form.errors.email';
+  if (control.hasError('postalCode')) return 'personal.form.errors.postalCode';
+  if (control.hasError('future')) return 'personal.form.errors.future';
   return 'errors.generic';
 }
 

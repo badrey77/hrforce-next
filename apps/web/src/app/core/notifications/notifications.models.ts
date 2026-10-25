@@ -25,6 +25,10 @@ export const NOTIFICATION_TYPES = [
   'recruitment.evaluations_complete',
   // Contracts & deadlines (docs/contracts/contracts-deadlines.md › Notifications): the daily digest to HR.
   'deadline.digest',
+  // Profile changes (docs/contracts/profile-changes.md › Notifications): the outcome of a request; a bank change applied.
+  'profile.change_approved',
+  'profile.change_rejected',
+  'profile.bank_changed',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -41,7 +45,7 @@ export interface NotificationView {
   readonly type: string;
   readonly createdAt: string;
   readonly readAt: string | null;
-  readonly subject: { readonly type: 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview' | 'contract_decision'; readonly id: string };
+  readonly subject: { readonly type: 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview' | 'contract_decision' | 'profile_change_request'; readonly id: string };
   /**
    * Names/dates needed to render, e.g. `{employeeName, leaveType (code), startDate, endDate, days, actorName, stepKey}`;
    * documents add `subjectType` (`leave_request` | `document_request`, on `task.assigned`) and `documentType` (code);

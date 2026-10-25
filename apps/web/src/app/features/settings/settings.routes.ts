@@ -9,6 +9,7 @@ import { NOT_FOUND_ROUTE } from '../../shared/not-found/not-found.route';
 import { SettingsPage } from './settings.page';
 
 export const BRANDING_PERMISSION = 'settings.branding';
+export const PROFILE_CONFIGURE_PERMISSION = 'profile.configure';
 
 export const SETTINGS_ROUTES: Routes = [
   { path: '', pathMatch: 'full', component: SettingsPage },
@@ -16,6 +17,12 @@ export const SETTINGS_ROUTES: Routes = [
     path: 'branding',
     canMatch: [permissionGuard(BRANDING_PERMISSION)],
     loadComponent: () => import('./branding/branding.page').then((m) => m.BrandingPage),
+  },
+  {
+    // Self-service profile changes (docs/contracts/profile-changes.md › Settings): modes and file retention.
+    path: 'profile',
+    canMatch: [permissionGuard(PROFILE_CONFIGURE_PERMISSION)],
+    loadComponent: () => import('./profile/profile-settings.page').then((m) => m.ProfileSettingsPage),
   },
   NOT_FOUND_ROUTE,
 ];

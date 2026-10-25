@@ -1,0 +1,129 @@
+<ng-container *transloco="let t">
+  <p><a routerLink="/employees">{{ t('employees.detail.back') }}</a></p>
+  <header class="page-header">
+    <h1>{{ t('personal.requests.hrTitle') }}</h1>
+  </header>
+  <p class="field-hint">{{ t('personal.requests.intro') }}</p>
+
+  @let current = query();
+  <form class="filters" appFilterBar role="search" [attr.aria-label]="t('personal.requests.filters.label')" (submit)="$event.preventDefault()">
+    <div class="field">
+      <label for="pr-q">{{ t('personal.requests.filters.search') }}</label>
+      <input id="pr-q" type="search" autocomplete="off" dir="auto" [value]="current.q" [placeholder]="t('personal.requests.filters.searchPlaceholder')"
+        (input)="onSearchInput($event)" />
+    </div>
+    <div class="field">
+      <label for="pr-status">{{ t('personal.requests.filters.status') }}</label>
+      <select id="pr-status" (change)="onField('status', $event)">
+        <option [value]="allStatuses" [selected]="current.status === ''">{{ t('personal.requests.filters.allStatuses') }}</option>
+        @for (status of statuses; track status) {
+          <option [value]="status" [selected]="status === current.status">{{ t('personal.requests.status.' + status) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="pr-section">{{ t('personal.requests.filters.section') }}</label>
+      <select id="pr-section" (change)="onField('section', $event)">
+        <option value="" [selected]="current.section === ''">{{ t('personal.requests.filters.allSections') }}</option>
+        @for (section of sections(); track section) {
+          <option [value]="section" [selected]="section === current.section">{{ t('personal.sections.' + section) }}</option>
+        }
+      </select>
+    </div>
+    @if (canUnits()) {
+      <div class="field unit-filter">
+        <label for="pr-unit">{{ t('personal.requests.filters.unit') }}</label>
+        <app-org-unit-picker inputId="pr-unit" [formControl]="unitControl" />
+        <div class="check">
+          <input id="pr-sub-units" type="checkbox" [checked]="current.includeSubUnits" [disabled]="!current.unitId" (change)="onIncludeSubUnits($event)" />
+          <label for="pr-sub-units">{{ t('employees.filters.includeSubUnits') }}</label>
+        </div>
+      </div>
+    }
+    @if (filtered()) {
+      <button class="btn secondary clear" type="button" data-action="clear" (click)="clearFilters()">{{ t('employees.filters.clear') }}</button>
+    }
+  </form>
+
+  <section [attr.aria-busy]="list.isLoading()">
+    @if (list.error()) {
+      <div class="form-error" role="alert">
+        <p>{{ t(errorKey()) }}</p>
+        <button class="btn secondary" type="button" (click)="list.reload()">{{ t('common.retry') }}</button>
+      </div>
+    } @else if (list.hasValue()) {
+      <p class="muted" role="status" data-field="total">{{ t('personal.requests.total', { count: total() }) }}</p>
+      @if (items().length) {
+        <div class="table-scroll">
+          <table class="data cards" data-table="profile-requests">
+            <thead>
+              <tr>
+                <th scope="col">{{ t('personal.requests.columns.requestedAt') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.employee') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.section') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.fields') }}</th>
+                <th scope="col">{{ t('personal.requests.columns.status') }}</th>
+                <th scope="col"><span class="visually-hidden">{{ t('personal.requests.columns.actions') }}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of items(); track r.id) {
+                <tr [attr.data-request]="r.id" [attr.data-status]="r.status">
+                  <td class="nowrap" [attr.data-label]="t('personal.requests.columns.requestedAt')">{{ r.requestedAt | date: 'mediumDate' : undefined : locale() }}</td>
+                  <td class="who">
+                    <a [routerLink]="['/employees', r.employee.id]" [queryParams]="{ tab: 'personal' }" data-link="employee"><bdi>{{ r.employee.person | displayName: lang() }}</bdi></a>
+                    <span class="code" dir="ltr">{{ r.employee.matricule }}</span>
+                    <span class="muted"><bdi>{{ r.employee.unit | displayName: lang() }}</bdi></span>
+                  </td>
+                  <td [attr.data-label]="t('personal.requests.columns.section')" data-field="section">{{ t('personal.sections.' + r.section) }}</td>
+                  <td [attr.data-label]="t('personal.requests.columns.fields')" data-field="fields">
+                    @for (field of r.changedFields; track field; let last = $last) {
+                      {{ t('personal.fields.' + field) }}{{ last ? '' : (lang() === 'ar' ? '، ' : ', ') }}
+                    }
+                  </td>
+                  <td [attr.data-label]="t('personal.requests.columns.status')">
+                    <span class="status-pill" data-field="status" [attr.data-status]="r.status">{{ t('personal.requests.status.' + r.status) }}</span>
+                    @if (r.decidedAt) {
+                      <span class="muted nowrap">{{ r.decidedAt | date: 'mediumDate' : undefined : locale() }}</span>
+                    }
+                  </td>
+                  <td>
+                    <button class="btn secondary" type="button" data-action="toggle-request" [attr.aria-expanded]="expanded() === r.id"
+                      [attr.aria-controls]="'pr-detail-' + r.id" (click)="toggle(r)">
+                      {{ expanded() === r.id ? t('personal.requests.hide') : t('personal.requests.details') }}
+                    </button>
+                  </td>
+                </tr>
+                @if (expanded() === r.id) {
+                  <tr class="request-detail" [id]="'pr-detail-' + r.id">
+                    <td colspan="6">
+                      <app-profile-request-diff [request]="r" />
+                      @if (r.status === 'pending') {
+                        <p><a routerLink="/tasks" data-link="tasks">{{ t('personal.requests.toTasks') }}</a></p>
+                      }
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+        <nav class="form-actions pager" [attr.aria-label]="t('employees.pager.label')">
+          <button class="btn secondary" type="button" data-action="prev" [disabled]="current.page <= 1" (click)="goToPage(current.page - 1)">{{ t('employees.pager.previous') }}</button>
+          <span aria-live="polite">{{ t('employees.pager.pageOf', { page: current.page, count: pageCount() }) }}</span>
+          <button class="btn secondary" type="button" data-action="next" [disabled]="current.page >= pageCount()" (click)="goToPage(current.page + 1)">{{ t('employees.pager.next') }}</button>
+          <label for="pr-page-size">{{ t('employees.pager.pageSize') }}</label>
+          <select id="pr-page-size" (change)="onField('pageSize', $event)">
+            @for (size of pageSizes; track size) {
+              <option [value]="size" [selected]="size === current.pageSize">{{ size }}</option>
+            }
+          </select>
+        </nav>
+      } @else {
+        <p class="muted" data-state="empty">{{ filtered() ? t('personal.requests.noMatch') : t('personal.requests.empty') }}</p>
+      }
+    } @else {
+      <p class="muted">{{ t('common.loading') }}</p>
+    }
+  </section>
+</ng-container>

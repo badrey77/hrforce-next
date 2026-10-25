@@ -76,8 +76,9 @@ describe('system roles', () => {
       'recruitment.read', 'recruitment.manage', 'recruitment.approve_opening', 'recruitment.hire',
       'employee.contract.manage', 'deadline.read', 'deadline.handle',
       'payroll.read', 'payroll.prepare', 'payroll.export',
+      'employee.personal.read', 'employee.personal.update',
     ]);
-    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self', 'attendance.punch_self']);
+    expect(byCode.get('employe')?.permissions).toEqual(['leave.request_self', 'document.request_self', 'attendance.punch_self', 'profile.request_self']);
     expect(byCode.get('lecture')?.permissions).toEqual(['org_unit.read', 'site.read', 'employee.read', 'attendance.read']);
     expect(byCode.get('admin_acces')?.permissions).toEqual([
       'org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read', 'sso.read', 'sso.manage_apps', 'sso.assign',

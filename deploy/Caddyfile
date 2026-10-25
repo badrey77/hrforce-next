@@ -58,9 +58,9 @@
 	#    server). Fonts are self-hosted (Cairo, Source Sans 3). The index.html build output must contain no inline
 	#    <script> / on* handler: apps/web/Dockerfile fails the build otherwise (deploy/web/check-index-csp.mjs).
 	# (employee files, and the candidate files of recruitment — HR route and the heads' /me route)
-	@employeeFileContent path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content)$
+	@employeeFileContent path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content|(me/)?profile/requests/[^/]+/files/[^/]+)$
 	@notEmployeeFileContent {
-		not path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content)$
+		not path_regexp ^/api/(employees/[^/]+/files/[^/]+/content|recruitment/candidates/[^/]+/files/[^/]+/content|me/recruitment/applications/[^/]+/files/[^/]+/content|(me/)?profile/requests/[^/]+/files/[^/]+)$
 		not path /oidc /oidc/*
 	}
 	header @employeeFileContent {
@@ -84,6 +84,12 @@
 		@employeeFileUpload path_regexp ^/api/(employees|recruitment/candidates)/[^/]+/files$
 		request_body @employeeFileUpload {
 			max_size 25MB
+		}
+		# Profile change requests (POST /api/me/profile/requests, docs/contracts/profile-changes.md): up to 3 files of
+		# EMPLOYEE_FILE_MAX_BYTES each, refused by the API beyond that (422).
+		@profileRequestUpload path /api/me/profile/requests
+		request_body @profileRequestUpload {
+			max_size 65MB
 		}
 		# Caddy replaces any client-sent X-Forwarded-For with the real client IP (no trusted_proxies configured),
 		# so the API's TRUST_PROXY_HOPS=1 yields the true client address for the login throttle.

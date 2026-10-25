@@ -31,7 +31,8 @@
     "deadlinesWithCount": "Échéances, {{count}} en retard",
     "deadlineSettings": "Paramètres des échéances",
     "payroll": "Paie",
-    "payrollSettings": "Paramètres de la paie"
+    "payrollSettings": "Paramètres de la paie",
+    "myProfile": "Mon profil"
   },
   "language": {
     "label": "Langue",
@@ -532,7 +533,14 @@
       "payroll_period": "Période de paie",
       "payroll_adjustment": "Variable de paie ajustée",
       "payroll_closing": "Clôture de la paie",
-      "payroll_line": "Ligne de paie clôturée"
+      "payroll_line": "Ligne de paie clôturée",
+      "person_contact": "Coordonnées",
+      "person_emergency_contact": "Personne à prévenir",
+      "person_family": "Situation familiale",
+      "person_child": "Enfant à charge",
+      "profile_change_request": "Demande de modification du profil",
+      "profile_change_file": "Pièce justificative",
+      "profile_policy": "Paramètres des demandes de modification"
     },
     "masked": "masqué",
     "emptyValue": "(vide)",
@@ -951,6 +959,58 @@
         "reopen_reason": "Motif de réouverture",
         "lines": "Lignes",
         "employees": "Employés"
+      },
+      "person_contact": {
+        "mobile_phone": "Téléphone mobile personnel",
+        "other_phone": "Autre téléphone",
+        "personal_email": "E-mail personnel",
+        "address_line": "Adresse",
+        "commune": "Commune",
+        "wilaya_code": "Wilaya",
+        "postal_code": "Code postal",
+        "updated_by": "Modifié par"
+      },
+      "person_emergency_contact": {
+        "full_name": "Nom et prénom",
+        "relationship": "Lien de parenté",
+        "phone": "Téléphone",
+        "updated_by": "Modifié par"
+      },
+      "person_family": {
+        "marital_status": "Situation matrimoniale",
+        "marital_status_since": "Depuis le",
+        "spouse_employed": "Conjoint(e) salarié(e)",
+        "updated_by": "Modifié par"
+      },
+      "person_child": {
+        "first_name": "Prénom",
+        "birth_date": "Date de naissance",
+        "sex": "Sexe",
+        "dependent": "À charge"
+      },
+      "profile_change_request": {
+        "section": "Rubrique",
+        "status": "Statut",
+        "payload": "Nouvelles valeurs",
+        "before": "Valeurs avant la demande",
+        "employee_comment": "Commentaire",
+        "requested_by": "Demandé par",
+        "requested_at": "Demandé le",
+        "decided_at": "Décidé le",
+        "files_purged_at": "Pièces effacées le"
+      },
+      "profile_change_file": {
+        "original_filename": "Nom du fichier",
+        "mime": "Type",
+        "size_bytes": "Taille",
+        "sha256": "Empreinte",
+        "created_at": "Ajouté le"
+      },
+      "profile_policy": {
+        "contact_mode": "Coordonnées",
+        "emergency_mode": "Personne à prévenir",
+        "family_mode": "Situation familiale",
+        "file_retention_days": "Conservation des pièces (jours)"
       }
     },
     "events": {
@@ -1073,6 +1133,34 @@
         "reopened": "Paie du mois {{month}} rouverte (version {{version}}) : {{reason}}",
         "exported": "Fichier de paie du mois {{month}} exporté ({{lines}} lignes)",
         "control_exported": "État de contrôle du mois {{month}} exporté"
+      },
+      "profile": {
+        "requested": {
+          "contact": "Demande de modification des coordonnées",
+          "emergency": "Demande de modification de la personne à prévenir",
+          "family": "Demande de modification de la situation familiale",
+          "bank": "Demande de modification des coordonnées bancaires",
+          "identity_note": "Erreur d’identité signalée aux RH",
+          "unknown": "Demande de modification du profil"
+        },
+        "applied": {
+          "contact": "Coordonnées modifiées",
+          "emergency": "Personne à prévenir modifiée",
+          "family": "Situation familiale modifiée",
+          "bank": "Coordonnées bancaires modifiées",
+          "identity_note": "Signalement d’erreur traité",
+          "unknown": "Profil modifié"
+        },
+        "cancelled": {
+          "contact": "Demande de modification des coordonnées annulée",
+          "emergency": "Demande de modification de la personne à prévenir annulée",
+          "family": "Demande de modification de la situation familiale annulée",
+          "bank": "Demande de modification des coordonnées bancaires annulée",
+          "identity_note": "Signalement d’erreur annulé",
+          "unknown": "Demande de modification du profil annulée"
+        },
+        "file_downloaded": "Pièce justificative d’une demande de modification téléchargée",
+        "files_purged": "{{requests}} demande(s) de modification : pièces effacées (durée de conservation)"
       }
     },
     "values": {
@@ -1682,7 +1770,8 @@
         "escalated_attendance": "Votre correction de pointage du {{date}} passe directement à l’étape RH (aucun responsable disponible).",
         "assigned_recruitment": "Ouverture de poste à approuver : {{title}} ({{reference}}, {{unitName}}).",
         "escalated_recruitment": "Votre demande d'ouverture de poste {{title}} ({{reference}}) passe directement à l’étape RH (aucun responsable disponible).",
-        "assigned_contract": "Décision de fin de contrat à prendre : {{employeeName}}."
+        "assigned_contract": "Décision de fin de contrat à prendre : {{employeeName}}.",
+        "assigned_profile": "Demande de modification du profil à traiter : {{employeeName}}."
       },
       "leave": {
         "approved": "Votre demande « {{leaveType}} » du {{startDate}} au {{endDate}} a été approuvée.",
@@ -1709,6 +1798,11 @@
       },
       "deadline": {
         "digest": "Nouvelles échéances à traiter : {{newCount}} (en retard : {{overdueCount}}, critiques : {{criticalCount}})."
+      },
+      "profile": {
+        "change_approved": "Votre demande de modification du profil a été acceptée.",
+        "change_rejected": "Votre demande de modification du profil a été refusée.",
+        "bank_changed": "Vos coordonnées bancaires ont été modifiées. Si vous n’êtes pas à l’origine de ce changement, contactez les RH."
       }
     },
     "typesNamed": {
@@ -1749,6 +1843,11 @@
       },
       "deadline": {
         "digest": "Le résumé quotidien des échéances"
+      },
+      "profile": {
+        "change_approved": "Ma demande de modification du profil est acceptée",
+        "change_rejected": "Ma demande de modification du profil est refusée",
+        "bank_changed": "Mes coordonnées bancaires sont modifiées (e-mail toujours envoyé)"
       }
     }
   },
@@ -1773,7 +1872,8 @@
     "nav": {
       "label": "Sections des paramètres",
       "notifications": "Notifications",
-      "branding": "Identité visuelle"
+      "branding": "Identité visuelle",
+      "profile": "Demandes de modification"
     }
   },
   "security": {
@@ -4407,6 +4507,395 @@
           "overtimeMinMinutes": "Un dépassement plus court un jour ouvré n’est pas compté ({{min}} à {{max}} minutes)."
         }
       }
+    }
+  },
+  "personal": {
+    "tab": "Coordonnées et famille",
+    "loadError": "Impossible de charger les demandes de modification.",
+    "notSet": "Non renseigné",
+    "updatedAt": "Mis à jour le {{date}}",
+    "edit": "Modifier",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "sections": {
+      "contact": "Coordonnées",
+      "emergency": "Personne à prévenir",
+      "family": "Situation familiale",
+      "children": "Enfants à charge",
+      "bank": "Coordonnées bancaires",
+      "identity_note": "Signalement d’erreur"
+    },
+    "fields": {
+      "mobilePhone": "Téléphone mobile personnel",
+      "otherPhone": "Autre téléphone",
+      "personalEmail": "E-mail personnel",
+      "addressLine": "Adresse",
+      "commune": "Commune",
+      "wilayaCode": "Wilaya",
+      "postalCode": "Code postal",
+      "fullName": "Nom et prénom",
+      "relationship": "Lien de parenté",
+      "phone": "Téléphone",
+      "maritalStatus": "Situation matrimoniale",
+      "maritalStatusSince": "Depuis le",
+      "spouseEmployed": "Conjoint(e) salarié(e)",
+      "children": "Enfants à charge",
+      "firstName": "Prénom",
+      "birthDate": "Date de naissance",
+      "sex": "Sexe",
+      "dependent": "À charge",
+      "age": "Âge",
+      "rib": "RIB",
+      "bankName": "Banque",
+      "note": "Message"
+    },
+    "relationship": {
+      "spouse": "Conjoint(e)",
+      "parent": "Parent",
+      "child": "Enfant",
+      "sibling": "Frère ou sœur",
+      "other": "Autre"
+    },
+    "maritalStatus": {
+      "single": "Célibataire",
+      "married": "Marié(e)",
+      "divorced": "Divorcé(e)",
+      "widowed": "Veuf(ve)"
+    },
+    "spouseEmployed": {
+      "yes": "Oui",
+      "no": "Non",
+      "unknown": "Inconnu"
+    },
+    "childSex": {
+      "M": "Garçon",
+      "F": "Fille"
+    },
+    "age": "{{count}} an(s)",
+    "ageUnderOne": "Moins d’un an",
+    "dependent": {
+      "yes": "À charge",
+      "no": "Plus à charge"
+    },
+    "emergency": {
+      "none": "Aucune personne à prévenir enregistrée.",
+      "clear": "Supprimer la personne à prévenir",
+      "clearHint": "Laissez les trois champs vides pour ne garder personne à prévenir."
+    },
+    "children": {
+      "none": "Aucun enfant à charge enregistré.",
+      "add": "Ajouter un enfant",
+      "remove": "Retirer",
+      "removeLabel": "Retirer l’enfant {{n}}",
+      "legend": "Enfant {{n}}",
+      "max": "{{max}} enfants au plus.",
+      "count": "{{count}} enfant(s)"
+    },
+    "form": {
+      "optional": "facultatif",
+      "choose": "Choisir…",
+      "none": "—",
+      "wilayaPlaceholder": "Choisir une wilaya",
+      "phoneHint": "8 à 20 chiffres ; « + » et espaces acceptés (ex. +213 555 12 34 56).",
+      "postalHint": "5 chiffres.",
+      "errors": {
+        "phone": "Numéro invalide : 8 à 20 chiffres, « + » et espaces acceptés.",
+        "email": "Adresse e-mail invalide.",
+        "postalCode": "Le code postal compte 5 chiffres.",
+        "future": "La date ne peut pas être dans le futur.",
+        "emergencyIncomplete": "Renseignez le nom, le lien de parenté et le téléphone, ou laissez les trois vides.",
+        "tooManyChildren": "{{max}} enfants au plus."
+      }
+    },
+    "feedback": {
+      "contactSaved": "Coordonnées enregistrées.",
+      "emergencySaved": "Personne à prévenir enregistrée.",
+      "emergencyCleared": "Personne à prévenir supprimée.",
+      "familySaved": "Situation familiale enregistrée."
+    },
+    "requests": {
+      "title": "Demandes de modification",
+      "hrTitle": "Demandes de modification du profil",
+      "intro": "Les demandes des employés de votre périmètre. Celles qui attendent votre décision sont dans « Mes tâches ».",
+      "listLink": "Demandes de modification",
+      "empty": "Aucune demande de modification.",
+      "noMatch": "Aucune demande ne correspond aux filtres.",
+      "total": "{{count}} demande(s)",
+      "details": "Détails",
+      "hide": "Masquer",
+      "detailsLabel": "Détails de la demande du {{date}}",
+      "detailError": "Impossible de charger la demande.",
+      "toTasks": "Traiter dans « Mes tâches »",
+      "columns": {
+        "requestedAt": "Date",
+        "section": "Rubrique",
+        "status": "Statut",
+        "employee": "Employé",
+        "fields": "Champs modifiés",
+        "decidedAt": "Décision",
+        "actions": "Actions"
+      },
+      "status": {
+        "pending": "En attente",
+        "approved": "Approuvée",
+        "rejected": "Refusée",
+        "cancelled": "Annulée",
+        "applied": "Appliquée"
+      },
+      "filters": {
+        "label": "Filtrer les demandes",
+        "search": "Recherche",
+        "searchPlaceholder": "Nom ou matricule",
+        "status": "Statut",
+        "allStatuses": "Tous les statuts",
+        "section": "Rubrique",
+        "allSections": "Toutes les rubriques",
+        "unit": "Unité"
+      }
+    },
+    "diff": {
+      "field": "Champ",
+      "before": "Avant",
+      "after": "Après",
+      "caption": "Modifications demandées",
+      "changedSince": "Modifié depuis la demande : les valeurs actuelles ne sont plus celles que l’employé avait sous les yeux. L’approbation appliquera quand même les valeurs demandées.",
+      "current": "Valeur actuelle",
+      "noChange": "Aucun champ modifié.",
+      "comment": "Commentaire de l’employé",
+      "rejection": "Motif du refus",
+      "note": "Erreur signalée",
+      "files": "Pièces justificatives",
+      "noFiles": "Aucune pièce jointe.",
+      "fileOpen": "{{name}} (s’ouvre dans un nouvel onglet)",
+      "filePurged": "{{name}} — supprimée",
+      "ribMasked": "RIB masqué : seuls les titulaires du droit de consulter les coordonnées bancaires le voient en entier.",
+      "childAdded": "ajouté",
+      "childRemoved": "retiré",
+      "requestedAt": "Demandée le",
+      "decidedAt": "Décidée le"
+    },
+    "task": {
+      "title": "Demande de modification",
+      "fields": "{{count}} champ(s) : {{fields}}",
+      "approveHint": "Approuver applique la modification et classe les pièces justificatives dans le dossier de l’employé. Refuser demande un commentaire, que l’employé verra.",
+      "approveHintNote": "Approuver marque le signalement comme traité : rien n’est modifié. Corrigez l’identité depuis l’onglet « Identité ».",
+      "approveHintBank": "Approuver remplace le RIB ; un e-mail de sécurité est envoyé à l’employé."
+    },
+    "problems": {
+      "applyFailed": "La modification de {{name}} n’a pas pu être appliquée : les valeurs demandées ne sont plus valides. Refusez la demande avec un commentaire.",
+      "employmentEnded": "La demande de {{name}} ne peut plus être appliquée : son emploi a pris fin."
+    }
+  },
+  "profile": {
+    "title": "Mon profil",
+    "intro": "Vos données personnelles. Certaines modifications s’appliquent tout de suite, les autres sont validées par les RH.",
+    "loadError": "Impossible de charger votre profil.",
+    "notLinked": "Votre compte n’est lié à aucun emploi en cours : votre profil n’est pas disponible. Contactez les RH si c’est une erreur.",
+    "notSet": "Non renseigné",
+    "since": "depuis le {{date}}",
+    "sections": {
+      "contact": "Coordonnées",
+      "emergency": "Personne à prévenir",
+      "family": "Situation familiale",
+      "bank": "Coordonnées bancaires",
+      "identity_note": "Signalement d’erreur"
+    },
+    "identity": {
+      "title": "Identité",
+      "name": "Nom",
+      "matricule": "Matricule",
+      "unit": "Unité",
+      "jobTitle": "Poste",
+      "hireDate": "Date d’embauche",
+      "birthDate": "Date de naissance",
+      "birthPlace": "Lieu de naissance",
+      "nationality": "Nationalité",
+      "nin": "NIN",
+      "readOnly": "Ces informations sont modifiées par les RH à partir des pièces officielles.",
+      "report": "Signaler une erreur",
+      "noteLabel": "Qu’est-ce qui est inexact ?",
+      "noteHint": "Décrivez l’erreur et la bonne valeur ({{max}} caractères au plus). Vous pouvez joindre une pièce."
+    },
+    "fields": {
+      "mobilePhone": "Téléphone mobile personnel",
+      "otherPhone": "Autre téléphone",
+      "personalEmail": "E-mail personnel",
+      "address": "Adresse",
+      "addressLine": "Adresse",
+      "commune": "Commune",
+      "wilayaCode": "Wilaya",
+      "postalCode": "Code postal",
+      "fullName": "Nom et prénom",
+      "relationship": "Lien de parenté",
+      "phone": "Téléphone",
+      "maritalStatus": "Situation matrimoniale",
+      "maritalStatusSince": "Depuis le",
+      "spouseEmployed": "Conjoint(e) salarié(e)",
+      "children": "Enfants à charge",
+      "firstName": "Prénom",
+      "birthDate": "Date de naissance",
+      "sex": "Sexe",
+      "dependent": "À charge",
+      "rib": "RIB",
+      "bankName": "Banque",
+      "comment": "Commentaire pour les RH",
+      "note": "Message"
+    },
+    "relationship": {
+      "spouse": "Conjoint(e)",
+      "parent": "Parent",
+      "child": "Enfant",
+      "sibling": "Frère ou sœur",
+      "other": "Autre"
+    },
+    "maritalStatus": {
+      "single": "Célibataire",
+      "married": "Marié(e)",
+      "divorced": "Divorcé(e)",
+      "widowed": "Veuf(ve)"
+    },
+    "spouseEmployed": {
+      "yes": "Oui",
+      "no": "Non",
+      "unknown": "Inconnu"
+    },
+    "childSex": {
+      "M": "Garçon",
+      "F": "Fille"
+    },
+    "status": {
+      "pending": "En attente",
+      "approved": "Approuvée",
+      "rejected": "Refusée",
+      "cancelled": "Annulée",
+      "applied": "Appliquée"
+    },
+    "modes": {
+      "immediate": "Immédiat",
+      "approval": "Validation RH"
+    },
+    "mode": {
+      "immediate": "Cette modification s’applique tout de suite.",
+      "approval": "Cette modification sera envoyée aux RH pour validation.",
+      "familyApproval": "Cette modification sera envoyée aux RH pour validation. Un changement de situation ou d’enfants demande une pièce justificative.",
+      "bankApproval": "Un changement de RIB est validé par les RH centrales, avec un RIB joint. Un e-mail vous confirmera le changement.",
+      "identityNote": "Votre message est envoyé aux RH, qui corrigeront à partir des pièces officielles."
+    },
+    "form": {
+      "phoneHint": "8 à 20 chiffres ; « + » et espaces acceptés (ex. +213 555 12 34 56).",
+      "ribHint": "20 chiffres ; les espaces sont acceptés.",
+      "wilayaPlaceholder": "Choisir une wilaya",
+      "choose": "Choisir…",
+      "notSet": "Non renseigné",
+      "commentHint": "Facultatif, lu par les RH (500 caractères au plus)."
+    },
+    "errors": {
+      "required": "Champ obligatoire.",
+      "tooLong": "Trop long ({{max}} caractères au plus).",
+      "phone": "Numéro invalide : 8 à 20 chiffres, « + » et espaces acceptés.",
+      "email": "Adresse e-mail invalide.",
+      "postalCode": "Le code postal compte 5 chiffres.",
+      "rib": "Le RIB compte 20 chiffres.",
+      "invalidDate": "Date invalide.",
+      "future": "La date ne peut pas être dans le futur."
+    },
+    "files": {
+      "label": "Pièces justificatives",
+      "optional": "facultatif",
+      "hint": "{{count}} fichiers au plus (PDF, JPEG ou PNG, {{max}} chacun).",
+      "hintFamily": "Livret de famille, acte de mariage, extrait de naissance…",
+      "hintBank": "Un RIB ou un relevé d’identité bancaire.",
+      "takePhoto": "Prendre une photo",
+      "choose": "Choisir un fichier",
+      "drop": "ou déposez les fichiers ici",
+      "chosen": "Fichiers choisis",
+      "remove": "Retirer {{name}}",
+      "removeShort": "Retirer",
+      "tooMany": "3 fichiers au plus.",
+      "required": "Joignez au moins une pièce justificative.",
+      "invalid": "Fichier refusé."
+    },
+    "upload": {
+      "sending": "Envoi en cours…",
+      "percent": "{{percent}} % ({{loaded}} sur {{total}})",
+      "aborted": "Envoi interrompu."
+    },
+    "actions": {
+      "edit": "Modifier",
+      "editSection": "Modifier : {{section}}",
+      "save": "Enregistrer",
+      "send": "Envoyer aux RH",
+      "sending": "Envoi…",
+      "abort": "Interrompre",
+      "cancelRequest": "Annuler la demande"
+    },
+    "pending": {
+      "label": "En attente de validation RH",
+      "noteLabel": "Signalement en attente",
+      "since": "Demande du {{date}}"
+    },
+    "emergency": {
+      "none": "Aucune personne à prévenir.",
+      "remove": "Ne plus avoir de personne à prévenir"
+    },
+    "children": {
+      "none": "Aucun enfant à charge déclaré.",
+      "add": "Ajouter un enfant",
+      "remove": "Retirer",
+      "removeLabel": "Retirer l’enfant {{n}}",
+      "legend": "Enfant {{n}}",
+      "max": "{{max}} enfants au plus.",
+      "age": "{{count}} an(s)",
+      "notDependent": "plus à charge"
+    },
+    "feedback": {
+      "applied": "Modification enregistrée.",
+      "requested": "Demande envoyée aux RH.",
+      "noteSent": "Votre signalement a été envoyé aux RH.",
+      "cancelled": "Demande annulée."
+    },
+    "problems": {
+      "pending": "Une demande est déjà en attente pour cette rubrique.",
+      "unchanged": "Aucune modification : les valeurs sont identiques.",
+      "ended": "Votre emploi est terminé : vous ne pouvez plus demander de modification.",
+      "notLinked": "Votre compte n’est plus lié à un emploi en cours.",
+      "notCancellable": "Cette demande ne peut plus être annulée (elle a déjà été traitée)."
+    },
+    "requests": {
+      "title": "Mes demandes",
+      "none": "Aucune demande pour l’instant.",
+      "loadError": "Impossible de charger vos demandes.",
+      "requestedOn": "le {{date}}",
+      "decidedOn": "Décision du {{date}}",
+      "changed": "Champs :",
+      "rejectedBecause": "Motif du refus : {{comment}}",
+      "download": "Télécharger",
+      "downloadLabel": "Télécharger {{name}}",
+      "filePurged": "fichier effacé ou versé au dossier",
+      "fileError": "Impossible de télécharger ce fichier."
+    },
+    "cancel": {
+      "title": "Annuler cette demande ?",
+      "confirm": "Annuler la demande",
+      "keep": "Garder la demande"
+    },
+    "home": {
+      "note": "Coordonnées, famille, RIB"
+    },
+    "settings": {
+      "title": "Demandes de modification du profil",
+      "intro": "Choisissez, pour chaque rubrique, si les modifications des employés s’appliquent tout de suite ou passent par les RH.",
+      "modes": {
+        "immediate": "Appliquer immédiatement",
+        "approval": "Validation par les RH"
+      },
+      "alwaysApproval": "Les coordonnées bancaires et les signalements d’erreur passent toujours par les RH.",
+      "retention": "Conservation des pièces refusées ou annulées (jours)",
+      "retentionHint": "Entre {{min}} et {{max}} jours.",
+      "retentionError": "Indiquez un nombre entier de jours entre {{min}} et {{max}}.",
+      "saving": "Enregistrement…",
+      "saved": "Paramètres enregistrés.",
+      "loadError": "Impossible de charger les paramètres."
     }
   }
 }

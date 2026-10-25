@@ -25,10 +25,11 @@ import { seedContractDefaults, seedDemoContracts } from '../modules/contracts/in
 import { seedDemoDeadlineAcks } from '../modules/deadlines/index.js';
 import { seedDemoPayrollClosing, seedDemoPayrollRubriques } from '../modules/payroll/index.js';
 import { algiersToday, demoLogoPng, seedDemoDocuments, seedDemoEmployeeFiles } from '../modules/documents/index.js';
-import { demoEmployees, seedDemoEmployees } from '../modules/employment/index.js';
+import { demoEmployees, seedDemoEmployees, seedDemoPersonal, seedProfileDefaults } from '../modules/employment/index.js';
 import { DEMO_PASSWORD, DEMO_USERS, seedIdentity } from '../modules/identity/index.js';
 import { LEAVE_DEMO, LEAVE_DEMO_USERS, seedDemoLeave } from '../modules/leave/index.js';
 import { DEMO_ORGANIZATION, seedOrganization, toIsoDate } from '../modules/organization/index.js';
+import { seedDemoProfileRequests } from '../modules/profile/index.js';
 import { seedDemoRecruitment } from '../modules/recruitment/index.js';
 import { DEMO_SSO_CLIENT, seedDemoSso } from '../modules/sso/index.js';
 
@@ -52,7 +53,16 @@ async function main(): Promise<void> {
       // docs/contracts/mfa.md: two-step sign-in is NOT enforced in the demo company (demos keep working)
       await seedSecurityPolicy(tx, DEMO_ORGANIZATION.company.id, { mfaEnforced: false });
       const employees = await seedDemoEmployees(tx);
+      // docs/contracts/profile-changes.md › Seed: the request approval chains, the policy defaults, and fictitious
+      // contact / emergency / family data (TEST DATA) for most demo employees
+      await seedProfileDefaults(tx, DEMO_ORGANIZATION.company.id);
+      const personal = await seedDemoPersonal(tx, DEMO_ORGANIZATION.company.id, demoEmployees());
+      logger.info({ persons: personal }, 'personal details demo seeded (fictitious contact, emergency and family data)');
       const leave = await seedDemoLeave(tx, { requests: true });
+      // docs/contracts/profile-changes.md › Seed: agent.annaba's change requests (pending family, applied contact,
+      // rejected bank) — TEST DATA
+      const profileRequests = await seedDemoProfileRequests(tx, DEMO_ORGANIZATION.company.id);
+      logger.info({ requests: profileRequests }, 'profile change requests demo seeded');
       const documents = await seedDemoDocuments(tx, renderer, algiersToday());
       const employeeFiles = await seedDemoEmployeeFiles(tx, algiersToday());
       const attendance = await seedDemoAttendance(tx, Date.now());

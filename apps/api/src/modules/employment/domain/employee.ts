@@ -28,10 +28,10 @@ export const LIST_LANGS = ['fr', 'ar'] as const;
 export type ListLang = (typeof LIST_LANGS)[number];
 
 /** Field blocks guarded by their own permissions (omitted and listed in `_redacted` without them). */
-export const FIELD_BLOCKS = ['salary', 'bank', 'nss'] as const;
+export const FIELD_BLOCKS = ['salary', 'bank', 'nss', 'personal'] as const;
 export type FieldBlock = (typeof FIELD_BLOCKS)[number];
 
-export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss' | 'manage_contract';
+export type EmployeeAction = 'update' | 'assign' | 'end' | 'update_salary' | 'update_bank' | 'update_nss' | 'manage_contract' | 'update_personal';
 
 export type EmploymentProblemSlug =
   | 'matricule-taken'
@@ -178,7 +178,7 @@ export function isPositiveMoney(value: string): boolean {
  */
 export function employeeActions(
   open: boolean,
-  can: { update: boolean; salaryUpdate: boolean; bankUpdate: boolean; nssUpdate: boolean; manageContract?: boolean },
+  can: { update: boolean; salaryUpdate: boolean; bankUpdate: boolean; nssUpdate: boolean; manageContract?: boolean; personalUpdate?: boolean },
 ): EmployeeAction[] {
   if (!open) return [];
   const actions: EmployeeAction[] = [];
@@ -187,6 +187,7 @@ export function employeeActions(
   if (can.bankUpdate) actions.push('update_bank');
   if (can.nssUpdate) actions.push('update_nss');
   if (can.manageContract) actions.push('manage_contract');
+  if (can.personalUpdate) actions.push('update_personal');
   return actions;
 }
 

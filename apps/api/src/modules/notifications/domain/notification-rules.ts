@@ -2,9 +2,14 @@
  * Notification rules (docs/contracts/notifications.md › Notifications) — pure: e-mail defaults per type, the link of a
  * notification, the list cursor. No Nest, no Kysely.
  */
-import { NOTIFICATION_TYPES, type NotificationAudience, type NotificationType } from '../../../platform/notifications/notifier.js';
+import { EMAIL_ALWAYS_TYPES, NOTIFICATION_TYPES, type NotificationAudience, type NotificationType } from '../../../platform/notifications/notifier.js';
 
-export { NOTIFICATION_TYPES, type NotificationAudience, type NotificationType };
+export { EMAIL_ALWAYS_TYPES, NOTIFICATION_TYPES, type NotificationAudience, type NotificationType };
+
+/** The e-mail of this type is sent whatever the preference (docs/contracts/profile-changes.md › Notifications). */
+export function emailAlways(type: string): boolean {
+  return (EMAIL_ALWAYS_TYPES as readonly string[]).includes(type);
+}
 
 /** E-mail default per type (contract › Types): an absent preference row means this value. */
 export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
@@ -24,6 +29,10 @@ export const EMAIL_DEFAULTS: Readonly<Record<NotificationType, boolean>> = {
   'recruitment.interview_cancelled': true,
   'recruitment.evaluations_complete': false,
   'deadline.digest': true,
+  'profile.change_approved': true,
+  'profile.change_rejected': true,
+  // a security notice: always e-mailed, whatever the preference (EMAIL_ALWAYS_TYPES)
+  'profile.bank_changed': true,
 };
 
 export function isNotificationType(value: string): value is NotificationType {
@@ -56,6 +65,8 @@ export interface LinkSource {
  *                              interviewer's list), /recruitment/candidates/<candidate id>?application=<id> (evaluations
  *                              complete, to the HR user who scheduled it — ids only, never a name)
  *   deadline_digest          → /deadlines (docs/contracts/contracts-deadlines.md › Notifications)
+ *   profile_change_request   → /me/profile?request=<id> (docs/contracts/profile-changes.md › Notifications: always to
+ *                              the employee's own user)
  */
 export function linkOf(n: LinkSource): string {
   const id = encodeURIComponent(n.subjectId);
@@ -76,6 +87,7 @@ export function linkOf(n: LinkSource): string {
       : '/recruitment';
   }
   if (n.subjectType === 'deadline_digest') return '/deadlines';
+  if (n.subjectType === 'profile_change_request') return `/me/profile?request=${id}`;
   return '/notifications';
 }
 

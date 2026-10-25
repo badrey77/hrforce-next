@@ -105,6 +105,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/my-documents/my-documents.page').then((m) => m.MyDocumentsPage),
   },
   {
+    // My profile (docs/contracts/profile-changes.md › Web): personal details and change requests.
+    path: 'me/profile',
+    canMatch: [...signedIn, permissionGuard()],
+    data: { permission: 'profile.request_self' },
+    loadComponent: () => import('./features/my-profile/my-profile.page').then((m) => m.MyProfilePage),
+  },
+  {
     // My tasks: every signed-in user may be a candidate (a unit head needs no permission), so no permission guard.
     path: 'tasks',
     canMatch: signedIn,

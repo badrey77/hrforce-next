@@ -9,10 +9,10 @@ import { WorkflowRepository, type InstanceRow, type TaskRow } from '../infra/wor
 import { WorkflowSubjects } from './workflow-subjects.js';
 import type { AssigneeView, OpenTaskView, TaskActionView, TaskHistoryView, UserRef, WorkflowProgressView } from './workflow-views.js';
 
-/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011, 0014, 0017, 0019 and 0023). */
-export type WorkflowSubjectType = 'leave_request' | 'document_request' | 'attendance_correction' | 'recruitment_opening' | 'contract_decision';
+/** Subject types the engine drives (workflow_instance_subject_type_ck, migrations 0011, 0014, 0017, 0019, 0023 and 0025). */
+export type WorkflowSubjectType = 'leave_request' | 'document_request' | 'attendance_correction' | 'recruitment_opening' | 'contract_decision' | 'profile_change_request';
 
-const SUBJECT_TYPES: readonly WorkflowSubjectType[] = ['leave_request', 'document_request', 'attendance_correction', 'recruitment_opening', 'contract_decision'];
+const SUBJECT_TYPES: readonly WorkflowSubjectType[] = ['leave_request', 'document_request', 'attendance_correction', 'recruitment_opening', 'contract_decision', 'profile_change_request'];
 
 /** The 409 slug of a cancellation refused because the instance is already finished, per subject type. */
 const NOT_CANCELLABLE: Record<WorkflowSubjectType, string> = {
@@ -21,6 +21,7 @@ const NOT_CANCELLABLE: Record<WorkflowSubjectType, string> = {
   attendance_correction: 'attendance-correction-not-cancellable',
   recruitment_opening: 'recruitment-opening-not-cancellable',
   contract_decision: 'contract-decision-not-cancellable',
+  profile_change_request: 'profile-not-cancellable',
 };
 
 export interface StartInput {

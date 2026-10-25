@@ -1,0 +1,85 @@
+<form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="family-form-title" novalidate data-form="family">
+  <h3 id="family-form-title">{{ t('personal.sections.family') }}</h3>
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+  @let c = form.controls;
+  <div class="grid">
+    <div class="field">
+      <label for="family-status">{{ t('personal.fields.maritalStatus') }}</label>
+      <select id="family-status" formControlName="maritalStatus">
+        <option value="">{{ t('personal.notSet') }}</option>
+        @for (s of maritalStatuses; track s) {
+          <option [value]="s">{{ t('personal.maritalStatus.' + s) }}</option>
+        }
+      </select>
+    </div>
+    <div class="field">
+      <label for="family-since">{{ t('personal.fields.maritalStatusSince') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="family-since" type="date" formControlName="maritalStatusSince" [max]="today"
+        [attr.aria-invalid]="c.maritalStatusSince.invalid && c.maritalStatusSince.touched" aria-describedby="family-since-error" />
+      <app-field-error [control]="c.maritalStatusSince" errorId="family-since-error" />
+    </div>
+    <div class="field">
+      <label for="family-spouse">{{ t('personal.fields.spouseEmployed') }}</label>
+      <select id="family-spouse" formControlName="spouseEmployed">
+        <option value="">{{ t('personal.notSet') }}</option>
+        @for (v of spouseValues; track v) {
+          <option [value]="v">{{ t('personal.spouseEmployed.' + v) }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  <h4 id="family-children-title">{{ t('personal.sections.children') }}</h4>
+  <div #childrenList formArrayName="children" class="children-edit" role="group" aria-labelledby="family-children-title">
+    @for (child of children.controls; track child; let i = $index) {
+      <fieldset class="child-row" [formGroupName]="i" [attr.data-child]="i">
+        <legend>{{ t('personal.children.legend', { n: i + 1 }) }}</legend>
+        @let k = child.controls;
+        <div class="grid">
+          <div class="field">
+            <label [for]="'child-' + i + '-name'">{{ t('personal.fields.firstName') }}</label>
+            <input [id]="'child-' + i + '-name'" type="text" formControlName="firstName" autocomplete="off" dir="auto" required
+              [maxlength]="limits.childFirstName" [attr.aria-invalid]="k.firstName.invalid && k.firstName.touched"
+              [attr.aria-describedby]="'child-' + i + '-name-error'" />
+            <app-field-error [control]="k.firstName" [errorId]="'child-' + i + '-name-error'" />
+          </div>
+          <div class="field">
+            <label [for]="'child-' + i + '-birth'">{{ t('personal.fields.birthDate') }}</label>
+            <input [id]="'child-' + i + '-birth'" type="date" formControlName="birthDate" required [max]="today"
+              [attr.aria-invalid]="k.birthDate.invalid && k.birthDate.touched" [attr.aria-describedby]="'child-' + i + '-birth-error'" />
+            <app-field-error [control]="k.birthDate" [errorId]="'child-' + i + '-birth-error'" />
+          </div>
+          <div class="field">
+            <label [for]="'child-' + i + '-sex'">{{ t('personal.fields.sex') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+            <select [id]="'child-' + i + '-sex'" formControlName="sex">
+              <option value="">{{ t('personal.form.none') }}</option>
+              <option value="M">{{ t('personal.childSex.M') }}</option>
+              <option value="F">{{ t('personal.childSex.F') }}</option>
+            </select>
+          </div>
+          <div class="field check child-dependent">
+            <input [id]="'child-' + i + '-dependent'" type="checkbox" formControlName="dependent" />
+            <label [for]="'child-' + i + '-dependent'">{{ t('personal.fields.dependent') }}</label>
+          </div>
+        </div>
+        <button class="btn secondary" type="button" data-action="remove-child" [attr.aria-label]="t('personal.children.removeLabel', { n: i + 1 })"
+          (click)="removeChild(i)">{{ t('personal.children.remove') }}</button>
+      </fieldset>
+    } @empty {
+      <p class="muted" data-state="no-children">{{ t('personal.children.none') }}</p>
+    }
+  </div>
+  <p class="field-hint" id="family-children-max">{{ t('personal.children.max', { max: limits.children }) }}</p>
+  <button #addButton class="btn secondary" type="button" data-action="add-child" [disabled]="full()" aria-describedby="family-children-max" (click)="addChild()">
+    {{ t('personal.children.add') }}
+  </button>
+
+  <div class="form-actions">
+    <button class="btn" type="submit" data-action="save-family" [disabled]="submitting()">
+      {{ submitting() ? t('personal.saving') : t('personal.save') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

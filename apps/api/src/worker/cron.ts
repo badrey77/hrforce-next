@@ -23,6 +23,8 @@ export const CRON_ITEMS: readonly CronItem[] = [
   { task: TASKS.recruitmentRetention, identifier: TASKS.recruitmentRetention, match: '45 2 1 * *', options: { backfillPeriod: 7 * 24 * HOUR, maxAttempts: 10 } },
   // docs/contracts/contracts-deadlines.md › Worker: daily, 05:00 UTC (06:00 in Algiers)
   { task: TASKS.deadlinesDaily, identifier: TASKS.deadlinesDaily, match: '0 5 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
+  // docs/contracts/profile-changes.md › Notifications, worker: daily, 03:45
+  { task: TASKS.profileFilesPurge, identifier: TASKS.profileFilesPurge, match: '45 3 * * *', options: { backfillPeriod: 12 * HOUR, maxAttempts: 5 } },
 ];
 
 export function parsedCronItems(): ParsedCronItem[] {

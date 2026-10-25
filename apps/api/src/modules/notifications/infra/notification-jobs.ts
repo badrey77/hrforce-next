@@ -1,7 +1,7 @@
 import { sql, type Transaction } from 'kysely';
 import type { DB } from '../../../platform/db/schema.js';
 import { renderNotificationMail, type MailLocale } from '../domain/mail-templates.js';
-import { emailDefault, isNotificationType, linkOf } from '../domain/notification-rules.js';
+import { emailAlways, emailDefault, isNotificationType, linkOf } from '../domain/notification-rules.js';
 
 /**
  * Worker side of the Notifications module (run by src/worker.ts as hrforce_worker, inside a transaction that has set
@@ -44,7 +44,8 @@ function locale(value: string | null | undefined): MailLocale {
 }
 
 /**
- * `notifications.email`: re-checks, AT SEND TIME, the recipient's preference for the type (absent row = default) and
+ * `notifications.email`: re-checks, AT SEND TIME, the recipient's preference for the type (absent row = default; none
+ * for the EMAIL_ALWAYS_TYPES security notices) and
  * account (not active or no longer a member → skipped), then renders the mail in the recipient's locale with the link
  * and sends it. A thrown error (SMTP down) makes Graphile retry the job.
  */
@@ -63,7 +64,7 @@ export async function sendNotificationEmail(tx: Transaction<DB>, deps: EmailJobD
     .where('user_id', '=', n.user_id)
     .where('type', '=', n.type)
     .executeTakeFirst();
-  if (!(pref?.email ?? emailDefault(n.type))) return 'preference-off';
+  if (!emailAlways(n.type) && !(pref?.email ?? emailDefault(n.type))) return 'preference-off';
   const { rows } = await sql<{ email: string; display_name: string; locale: string; status: string }>`
     select email, display_name, locale, status from auth.notification_recipient(${n.user_id}::uuid)`.execute(tx);
   const recipient = rows[0];

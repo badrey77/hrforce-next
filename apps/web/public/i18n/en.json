@@ -31,7 +31,8 @@
     "deadlinesWithCount": "Deadlines, {{count}} overdue",
     "deadlineSettings": "Deadline settings",
     "payroll": "Payroll",
-    "payrollSettings": "Payroll settings"
+    "payrollSettings": "Payroll settings",
+    "myProfile": "My profile"
   },
   "language": {
     "label": "Language",
@@ -532,7 +533,14 @@
       "payroll_period": "Payroll period",
       "payroll_adjustment": "Adjusted payroll variable",
       "payroll_closing": "Payroll closing",
-      "payroll_line": "Closed payroll line"
+      "payroll_line": "Closed payroll line",
+      "person_contact": "Contact details",
+      "person_emergency_contact": "Emergency contact",
+      "person_family": "Family situation",
+      "person_child": "Dependent child",
+      "profile_change_request": "Profile change request",
+      "profile_change_file": "Supporting document",
+      "profile_policy": "Profile change settings"
     },
     "masked": "hidden",
     "emptyValue": "(empty)",
@@ -951,6 +959,58 @@
         "reopen_reason": "Reason for reopening",
         "lines": "Lines",
         "employees": "Employees"
+      },
+      "person_contact": {
+        "mobile_phone": "Personal mobile phone",
+        "other_phone": "Other phone",
+        "personal_email": "Personal e-mail",
+        "address_line": "Address",
+        "commune": "Commune",
+        "wilaya_code": "Wilaya",
+        "postal_code": "Postal code",
+        "updated_by": "Changed by"
+      },
+      "person_emergency_contact": {
+        "full_name": "Full name",
+        "relationship": "Relationship",
+        "phone": "Phone",
+        "updated_by": "Changed by"
+      },
+      "person_family": {
+        "marital_status": "Marital status",
+        "marital_status_since": "Since",
+        "spouse_employed": "Spouse employed",
+        "updated_by": "Changed by"
+      },
+      "person_child": {
+        "first_name": "First name",
+        "birth_date": "Date of birth",
+        "sex": "Sex",
+        "dependent": "Dependent"
+      },
+      "profile_change_request": {
+        "section": "Section",
+        "status": "Status",
+        "payload": "New values",
+        "before": "Values before the request",
+        "employee_comment": "Comment",
+        "requested_by": "Requested by",
+        "requested_at": "Requested on",
+        "decided_at": "Decided on",
+        "files_purged_at": "Files erased on"
+      },
+      "profile_change_file": {
+        "original_filename": "File name",
+        "mime": "Type",
+        "size_bytes": "Size",
+        "sha256": "Fingerprint",
+        "created_at": "Added on"
+      },
+      "profile_policy": {
+        "contact_mode": "Contact details",
+        "emergency_mode": "Emergency contact",
+        "family_mode": "Family situation",
+        "file_retention_days": "File retention (days)"
       }
     },
     "events": {
@@ -1073,6 +1133,34 @@
         "reopened": "Payroll for {{month}} reopened (version {{version}}): {{reason}}",
         "exported": "Payroll file for {{month}} exported ({{lines}} lines)",
         "control_exported": "Control report for {{month}} exported"
+      },
+      "profile": {
+        "requested": {
+          "contact": "Change of contact details requested",
+          "emergency": "Change of emergency contact requested",
+          "family": "Change of family situation requested",
+          "bank": "Change of bank details requested",
+          "identity_note": "Identity error reported to HR",
+          "unknown": "Profile change requested"
+        },
+        "applied": {
+          "contact": "Contact details changed",
+          "emergency": "Emergency contact changed",
+          "family": "Family situation changed",
+          "bank": "Bank details changed",
+          "identity_note": "Error report handled",
+          "unknown": "Profile changed"
+        },
+        "cancelled": {
+          "contact": "Contact details request cancelled",
+          "emergency": "Emergency contact request cancelled",
+          "family": "Family situation request cancelled",
+          "bank": "Bank details request cancelled",
+          "identity_note": "Error report cancelled",
+          "unknown": "Profile change request cancelled"
+        },
+        "file_downloaded": "Change request supporting document downloaded",
+        "files_purged": "Supporting documents of {{requests}} change request(s) erased (retention period)"
       }
     },
     "values": {
@@ -1682,7 +1770,8 @@
         "escalated_attendance": "Your attendance correction for {{date}} goes straight to the HR step (no manager available).",
         "assigned_recruitment": "Opening request to approve: {{title}} ({{reference}}, {{unitName}}).",
         "escalated_recruitment": "Your opening request {{title}} ({{reference}}) goes straight to the HR step (no manager available).",
-        "assigned_contract": "End-of-contract decision to take: {{employeeName}}."
+        "assigned_contract": "End-of-contract decision to take: {{employeeName}}.",
+        "assigned_profile": "Profile change request to handle: {{employeeName}}."
       },
       "leave": {
         "approved": "Your “{{leaveType}}” request, {{startDate}} to {{endDate}}, was approved.",
@@ -1709,6 +1798,11 @@
       },
       "deadline": {
         "digest": "New deadlines to handle: {{newCount}} (overdue: {{overdueCount}}, critical: {{criticalCount}})."
+      },
+      "profile": {
+        "change_approved": "Your profile change request was approved.",
+        "change_rejected": "Your profile change request was rejected.",
+        "bank_changed": "Your bank details were changed. If you did not ask for this change, contact HR."
       }
     },
     "typesNamed": {
@@ -1749,6 +1843,11 @@
       },
       "deadline": {
         "digest": "The daily deadline digest"
+      },
+      "profile": {
+        "change_approved": "My profile change request is approved",
+        "change_rejected": "My profile change request is rejected",
+        "bank_changed": "My bank details are changed (e-mail always sent)"
       }
     }
   },
@@ -1773,7 +1872,8 @@
     "nav": {
       "label": "Settings sections",
       "notifications": "Notifications",
-      "branding": "Branding"
+      "branding": "Branding",
+      "profile": "Change requests"
     }
   },
   "security": {
@@ -4407,6 +4507,395 @@
           "overtimeMinMinutes": "A shorter excess on a working day is not counted ({{min}} to {{max}} minutes)."
         }
       }
+    }
+  },
+  "personal": {
+    "tab": "Contact and family",
+    "loadError": "Could not load the change requests.",
+    "notSet": "Not set",
+    "updatedAt": "Updated on {{date}}",
+    "edit": "Edit",
+    "save": "Save",
+    "saving": "Saving…",
+    "sections": {
+      "contact": "Contact details",
+      "emergency": "Emergency contact",
+      "family": "Family situation",
+      "children": "Dependent children",
+      "bank": "Bank details",
+      "identity_note": "Error report"
+    },
+    "fields": {
+      "mobilePhone": "Personal mobile",
+      "otherPhone": "Other phone",
+      "personalEmail": "Personal e-mail",
+      "addressLine": "Address",
+      "commune": "Commune",
+      "wilayaCode": "Wilaya",
+      "postalCode": "Postal code",
+      "fullName": "Full name",
+      "relationship": "Relationship",
+      "phone": "Phone",
+      "maritalStatus": "Marital status",
+      "maritalStatusSince": "Since",
+      "spouseEmployed": "Spouse employed",
+      "children": "Dependent children",
+      "firstName": "First name",
+      "birthDate": "Birth date",
+      "sex": "Sex",
+      "dependent": "Dependent",
+      "age": "Age",
+      "rib": "RIB",
+      "bankName": "Bank",
+      "note": "Message"
+    },
+    "relationship": {
+      "spouse": "Spouse",
+      "parent": "Parent",
+      "child": "Child",
+      "sibling": "Sibling",
+      "other": "Other"
+    },
+    "maritalStatus": {
+      "single": "Single",
+      "married": "Married",
+      "divorced": "Divorced",
+      "widowed": "Widowed"
+    },
+    "spouseEmployed": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Unknown"
+    },
+    "childSex": {
+      "M": "Boy",
+      "F": "Girl"
+    },
+    "age": "{{count}} year(s)",
+    "ageUnderOne": "Under one year",
+    "dependent": {
+      "yes": "Dependent",
+      "no": "No longer dependent"
+    },
+    "emergency": {
+      "none": "No emergency contact recorded.",
+      "clear": "Remove the emergency contact",
+      "clearHint": "Leave the three fields empty to keep no emergency contact."
+    },
+    "children": {
+      "none": "No dependent child recorded.",
+      "add": "Add a child",
+      "remove": "Remove",
+      "removeLabel": "Remove child {{n}}",
+      "legend": "Child {{n}}",
+      "max": "{{max}} children at most.",
+      "count": "{{count}} child(ren)"
+    },
+    "form": {
+      "optional": "optional",
+      "choose": "Choose…",
+      "none": "—",
+      "wilayaPlaceholder": "Choose a wilaya",
+      "phoneHint": "8 to 20 digits; « + » and spaces allowed (e.g. +213 555 12 34 56).",
+      "postalHint": "5 digits.",
+      "errors": {
+        "phone": "Invalid number: 8 to 20 digits, « + » and spaces allowed.",
+        "email": "Invalid e-mail address.",
+        "postalCode": "The postal code has 5 digits.",
+        "future": "The date cannot be in the future.",
+        "emergencyIncomplete": "Enter the name, relationship and phone, or leave all three empty.",
+        "tooManyChildren": "{{max}} children at most."
+      }
+    },
+    "feedback": {
+      "contactSaved": "Contact details saved.",
+      "emergencySaved": "Emergency contact saved.",
+      "emergencyCleared": "Emergency contact removed.",
+      "familySaved": "Family situation saved."
+    },
+    "requests": {
+      "title": "Change requests",
+      "hrTitle": "Profile change requests",
+      "intro": "Requests of the employees in your scope. Those waiting for your decision are in « My tasks ».",
+      "listLink": "Change requests",
+      "empty": "No change request.",
+      "noMatch": "No request matches the filters.",
+      "total": "{{count}} request(s)",
+      "details": "Details",
+      "hide": "Hide",
+      "detailsLabel": "Details of the request of {{date}}",
+      "detailError": "Could not load the request.",
+      "toTasks": "Handle in « My tasks »",
+      "columns": {
+        "requestedAt": "Date",
+        "section": "Section",
+        "status": "Status",
+        "employee": "Employee",
+        "fields": "Changed fields",
+        "decidedAt": "Decision",
+        "actions": "Actions"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled",
+        "applied": "Applied"
+      },
+      "filters": {
+        "label": "Filter the requests",
+        "search": "Search",
+        "searchPlaceholder": "Name or matricule",
+        "status": "Status",
+        "allStatuses": "All statuses",
+        "section": "Section",
+        "allSections": "All sections",
+        "unit": "Unit"
+      }
+    },
+    "diff": {
+      "field": "Field",
+      "before": "Before",
+      "after": "After",
+      "caption": "Requested changes",
+      "changedSince": "Changed since the request: the current values are no longer those the employee saw. Approving still applies the requested values.",
+      "current": "Current value",
+      "noChange": "No field changed.",
+      "comment": "Employee’s comment",
+      "rejection": "Reason for rejection",
+      "note": "Reported error",
+      "files": "Supporting documents",
+      "noFiles": "No file attached.",
+      "fileOpen": "{{name}} (opens in a new tab)",
+      "filePurged": "{{name}} — deleted",
+      "ribMasked": "RIB masked: only holders of the bank-details permission see it in full.",
+      "childAdded": "added",
+      "childRemoved": "removed",
+      "requestedAt": "Requested on",
+      "decidedAt": "Decided on"
+    },
+    "task": {
+      "title": "Change request",
+      "fields": "{{count}} field(s): {{fields}}",
+      "approveHint": "Approving applies the change and files the supporting documents in the employee file. Rejecting needs a comment, which the employee will see.",
+      "approveHintNote": "Approving marks the report as handled: nothing is changed. Correct the identity from the « Identity » tab.",
+      "approveHintBank": "Approving replaces the RIB; a security e-mail is sent to the employee."
+    },
+    "problems": {
+      "applyFailed": "The change for {{name}} could not be applied: the requested values are no longer valid. Reject the request with a comment.",
+      "employmentEnded": "The request of {{name}} can no longer be applied: the employment has ended."
+    }
+  },
+  "profile": {
+    "title": "My profile",
+    "intro": "Your personal details. Some changes apply at once; the others are approved by HR.",
+    "loadError": "Could not load your profile.",
+    "notLinked": "Your account is not linked to a current employment, so your profile is not available. Contact HR if this is a mistake.",
+    "notSet": "Not set",
+    "since": "since {{date}}",
+    "sections": {
+      "contact": "Contact details",
+      "emergency": "Emergency contact",
+      "family": "Family situation",
+      "bank": "Bank details",
+      "identity_note": "Error report"
+    },
+    "identity": {
+      "title": "Identity",
+      "name": "Name",
+      "matricule": "Employee number",
+      "unit": "Unit",
+      "jobTitle": "Job title",
+      "hireDate": "Hire date",
+      "birthDate": "Date of birth",
+      "birthPlace": "Place of birth",
+      "nationality": "Nationality",
+      "nin": "NIN",
+      "readOnly": "HR changes these details from official papers.",
+      "report": "Report an error",
+      "noteLabel": "What is wrong?",
+      "noteHint": "Describe the error and the right value (at most {{max}} characters). You may attach a document."
+    },
+    "fields": {
+      "mobilePhone": "Personal mobile phone",
+      "otherPhone": "Other phone",
+      "personalEmail": "Personal e-mail",
+      "address": "Address",
+      "addressLine": "Address",
+      "commune": "Commune",
+      "wilayaCode": "Wilaya",
+      "postalCode": "Postal code",
+      "fullName": "Full name",
+      "relationship": "Relationship",
+      "phone": "Phone",
+      "maritalStatus": "Marital status",
+      "maritalStatusSince": "Since",
+      "spouseEmployed": "Spouse employed",
+      "children": "Dependent children",
+      "firstName": "First name",
+      "birthDate": "Date of birth",
+      "sex": "Sex",
+      "dependent": "Dependent",
+      "rib": "RIB",
+      "bankName": "Bank",
+      "comment": "Comment for HR",
+      "note": "Message"
+    },
+    "relationship": {
+      "spouse": "Spouse",
+      "parent": "Parent",
+      "child": "Child",
+      "sibling": "Sibling",
+      "other": "Other"
+    },
+    "maritalStatus": {
+      "single": "Single",
+      "married": "Married",
+      "divorced": "Divorced",
+      "widowed": "Widowed"
+    },
+    "spouseEmployed": {
+      "yes": "Yes",
+      "no": "No",
+      "unknown": "Unknown"
+    },
+    "childSex": {
+      "M": "Boy",
+      "F": "Girl"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "applied": "Applied"
+    },
+    "modes": {
+      "immediate": "Immediate",
+      "approval": "HR approval"
+    },
+    "mode": {
+      "immediate": "This change applies at once.",
+      "approval": "This change will be sent to HR for approval.",
+      "familyApproval": "This change will be sent to HR for approval. A change of status or children needs a supporting document.",
+      "bankApproval": "A new RIB is approved by central HR, with a RIB attached. An e-mail will confirm the change.",
+      "identityNote": "Your message goes to HR, who will correct the details from official papers."
+    },
+    "form": {
+      "phoneHint": "8 to 20 digits; \"+\" and spaces allowed (e.g. +213 555 12 34 56).",
+      "ribHint": "20 digits; spaces allowed.",
+      "wilayaPlaceholder": "Choose a wilaya",
+      "choose": "Choose…",
+      "notSet": "Not set",
+      "commentHint": "Optional, read by HR (at most 500 characters)."
+    },
+    "errors": {
+      "required": "Required.",
+      "tooLong": "Too long (at most {{max}} characters).",
+      "phone": "Invalid number: 8 to 20 digits, \"+\" and spaces allowed.",
+      "email": "Invalid e-mail address.",
+      "postalCode": "The postal code has 5 digits.",
+      "rib": "A RIB has 20 digits.",
+      "invalidDate": "Invalid date.",
+      "future": "The date cannot be in the future."
+    },
+    "files": {
+      "label": "Supporting documents",
+      "optional": "optional",
+      "hint": "At most {{count}} files (PDF, JPEG or PNG, {{max}} each).",
+      "hintFamily": "Family booklet, marriage certificate, birth certificate…",
+      "hintBank": "A RIB (bank identity statement).",
+      "takePhoto": "Take a photo",
+      "choose": "Choose a file",
+      "drop": "or drop the files here",
+      "chosen": "Chosen files",
+      "remove": "Remove {{name}}",
+      "removeShort": "Remove",
+      "tooMany": "At most 3 files.",
+      "required": "Attach at least one supporting document.",
+      "invalid": "File refused."
+    },
+    "upload": {
+      "sending": "Sending…",
+      "percent": "{{percent}} % ({{loaded}} of {{total}})",
+      "aborted": "Upload stopped."
+    },
+    "actions": {
+      "edit": "Edit",
+      "editSection": "Edit: {{section}}",
+      "save": "Save",
+      "send": "Send to HR",
+      "sending": "Sending…",
+      "abort": "Stop",
+      "cancelRequest": "Cancel the request"
+    },
+    "pending": {
+      "label": "Awaiting HR approval",
+      "noteLabel": "Report pending",
+      "since": "Requested on {{date}}"
+    },
+    "emergency": {
+      "none": "No emergency contact.",
+      "remove": "Remove the emergency contact"
+    },
+    "children": {
+      "none": "No dependent children declared.",
+      "add": "Add a child",
+      "remove": "Remove",
+      "removeLabel": "Remove child {{n}}",
+      "legend": "Child {{n}}",
+      "max": "At most {{max}} children.",
+      "age": "{{count}} year(s)",
+      "notDependent": "no longer dependent"
+    },
+    "feedback": {
+      "applied": "Change saved.",
+      "requested": "Request sent to HR.",
+      "noteSent": "Your report was sent to HR.",
+      "cancelled": "Request cancelled."
+    },
+    "problems": {
+      "pending": "A request is already pending for this section.",
+      "unchanged": "Nothing changed: the values are the same.",
+      "ended": "Your employment has ended: changes can no longer be requested.",
+      "notLinked": "Your account is no longer linked to a current employment.",
+      "notCancellable": "This request can no longer be cancelled (it was already handled)."
+    },
+    "requests": {
+      "title": "My requests",
+      "none": "No requests yet.",
+      "loadError": "Could not load your requests.",
+      "requestedOn": "on {{date}}",
+      "decidedOn": "Decided on {{date}}",
+      "changed": "Fields:",
+      "rejectedBecause": "Reason for rejection: {{comment}}",
+      "download": "Download",
+      "downloadLabel": "Download {{name}}",
+      "filePurged": "file erased or moved to the employee file",
+      "fileError": "Could not download this file."
+    },
+    "cancel": {
+      "title": "Cancel this request?",
+      "confirm": "Cancel the request",
+      "keep": "Keep the request"
+    },
+    "home": {
+      "note": "Contact, family, bank details"
+    },
+    "settings": {
+      "title": "Profile change requests",
+      "intro": "Choose, for each section, whether employees’ changes apply at once or go through HR.",
+      "modes": {
+        "immediate": "Apply at once",
+        "approval": "HR approval"
+      },
+      "alwaysApproval": "Bank details and error reports always go through HR.",
+      "retention": "Keep files of rejected or cancelled requests (days)",
+      "retentionHint": "Between {{min}} and {{max}} days.",
+      "retentionError": "Enter a whole number of days between {{min}} and {{max}}.",
+      "saving": "Saving…",
+      "saved": "Settings saved.",
+      "loadError": "Could not load the settings."
     }
   }
 }

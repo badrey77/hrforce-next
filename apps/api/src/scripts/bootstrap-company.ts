@@ -17,6 +17,7 @@ import { seedAttendanceDefaults } from '../modules/attendance/index.js';
 import { seedBrandingDefaults } from '../modules/branding/index.js';
 import { seedContractDefaults } from '../modules/contracts/index.js';
 import { seedDocumentDefaults } from '../modules/documents/index.js';
+import { seedProfileDefaults } from '../modules/employment/index.js';
 import { inviteUser, type InviteResult } from '../modules/identity/index.js';
 import { seedLeaveDefaults } from '../modules/leave/index.js';
 import { seedOrganization } from '../modules/organization/index.js';
@@ -90,6 +91,8 @@ export async function bootstrapCompany(tx: Transaction<DB>, input: BootstrapInpu
   await seedContractDefaults(tx, companyId);
   // docs/contracts/payroll-variables.md › Seed: the computed rubriques (one per leave type; placeholder export codes)
   await seedPayrollDefaults(tx, companyId);
+  // docs/contracts/profile-changes.md: the request approval chains (profile.hr, profile.bank) and the policy defaults
+  await seedProfileDefaults(tx, companyId);
   // docs/contracts/branding.md › Owning company: the first company created owns the installation branding
   await seedBrandingDefaults(tx, companyId);
 

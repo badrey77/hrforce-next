@@ -9,7 +9,10 @@
 <ng-container *transloco="let t">
   <header class="page-header">
     <h1>{{ t('employees.title') }}</h1>
-    <a *appCan="'employee.create'" class="btn" routerLink="/employees/new" data-action="new">{{ t('employees.list.new') }}</a>
+    <div class="header-actions">
+      <a *appCan="'employee.personal.read'" class="btn secondary" routerLink="/employees/profile-requests" data-link="profile-requests">{{ t('personal.requests.listLink') }}</a>
+      <a *appCan="'employee.create'" class="btn" routerLink="/employees/new" data-action="new">{{ t('employees.list.new') }}</a>
+    </div>
   </header>
 
   @let current = query();

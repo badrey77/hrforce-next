@@ -33,6 +33,7 @@ import {
 } from '../infra/employee.repository.js';
 import type { AssignmentView, EmployeeDetail, EmployeeListItem, EmployeeListView, KnownPerson, SiteRef, UnitRef } from './employee-views.js';
 import { EmploymentClock } from './employment-clock.js';
+import { PersonalDetailsService } from './personal-details.service.js';
 import { UnitSnapshots } from './unit-snapshots.js';
 
 export const EMPLOYEE_PERMISSIONS = {
@@ -50,7 +51,7 @@ export const EMPLOYEE_PERMISSIONS = {
 const P = EMPLOYEE_PERMISSIONS;
 
 /** Update permission of each field block (POST /employees `forbidden-field`, PUT /employees/:id/<block>). */
-const BLOCK_UPDATE: Record<FieldBlock, string> = { salary: P.salaryUpdate, bank: P.bankUpdate, nss: P.nssUpdate };
+const BLOCK_UPDATE: Record<Exclude<FieldBlock, 'personal'>, string> = { salary: P.salaryUpdate, bank: P.bankUpdate, nss: P.nssUpdate };
 
 export interface ListEmployeesInput {
   q?: string | undefined;
@@ -176,6 +177,7 @@ export class EmployeesService implements OnModuleInit {
     private readonly clock: EmploymentClock,
     private readonly contracts: ContractsService,
     private readonly contractHooks: ContractHooks,
+    private readonly personal: PersonalDetailsService,
   ) {}
 
   /** An approved « end » contract decision ends the employment through this module's rules. */
@@ -475,6 +477,7 @@ export class EmployeesService implements OnModuleInit {
       can(P.read), can(P.salaryRead), can(P.bankRead), can(P.nssRead), can(P.update), can(P.salaryUpdate), can(P.bankUpdate), can(P.nssUpdate),
       this.contracts.canManageUnit(unitId),
     ]);
+    const personalCan = await this.personal.can(unitId);
     if (!read && !options.skipRead) throw notFound();
 
     const snapshots = new UnitSnapshots(versions);
@@ -515,7 +518,7 @@ export class EmployeesService implements OnModuleInit {
       contract: (await this.contracts.summaries([employment.id], today)).get(employment.id) ?? null,
       assignments,
       _redacted: redacted,
-      _actions: employeeActions(employment.endDate === null, { update, salaryUpdate, bankUpdate, nssUpdate, manageContract }),
+      _actions: employeeActions(employment.endDate === null, { update, salaryUpdate, bankUpdate, nssUpdate, manageContract, personalUpdate: personalCan.update }),
     };
     if (salaryRead) {
       const current = salaries.find((s) => s.validFrom <= today && (s.validTo === null || today < s.validTo));
@@ -528,6 +531,8 @@ export class EmployeesService implements OnModuleInit {
     else redacted.push('bank');
     if (nssRead) detail.nss = { nss: sensitive?.nss ?? null };
     else redacted.push('nss');
+    if (personalCan.read) detail.personal = await this.personal.viewOfPerson(employment.personId);
+    else redacted.push('personal');
     return detail;
   }
 }

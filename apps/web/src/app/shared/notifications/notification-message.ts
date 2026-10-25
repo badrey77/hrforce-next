@@ -64,6 +64,7 @@ export function notificationKey(
     else if (subjectType === 'attendance_correction') suffix = '_attendance';
     else if (subjectType === 'recruitment_opening') suffix = '_recruitment';
     else if (subjectType === 'contract_decision') suffix = '_contract';
+    else if (subjectType === 'profile_change_request') suffix = '_profile';
   } else if (notification.type === 'task.escalated' && notification.subject?.type === 'attendance_correction') {
     suffix = '_attendance';
   } else if (notification.type === 'task.escalated' && notification.subject?.type === 'recruitment_opening') {

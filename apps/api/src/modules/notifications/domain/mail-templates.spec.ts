@@ -238,3 +238,22 @@ describe('notification mails', () => {
     expect(formatDays('1.5', 'fr')).toBe('1,5');
   });
 });
+
+describe('profile change mails (docs/contracts/profile-changes.md › Notifications)', () => {
+  const profile = { employeeName: 'Walid Mansouri', employeeNameAr: 'وليد منصوري', section: 'family', actorName: 'Karim Haddad', audience: 'employee' };
+  it('name the section in the recipient’s language, never a value; the task names the employee', () => {
+    const fr = renderNotificationMail({ type: 'profile.change_approved', locale: 'fr', recipientName: 'W', data: profile, leaveTypeLabel: null, subjectType: 'profile_change_request', link });
+    expect(fr.subject).toBe('HRForce — votre demande de modification est acceptée (situation familiale)');
+    const ar = renderNotificationMail({ type: 'profile.change_rejected', locale: 'ar', recipientName: 'W', data: profile, leaveTypeLabel: null, subjectType: 'profile_change_request', link });
+    expect(ar.subject).toContain('الوضعية العائلية');
+    expect(ar.html).toContain('dir="rtl"');
+    const bank = renderNotificationMail({ type: 'profile.bank_changed', locale: 'en', recipientName: 'W', data: { ...profile, section: 'bank' }, leaveTypeLabel: null, subjectType: 'profile_change_request', link });
+    expect(bank.text).toContain('contact human resources immediately');
+    // a security notice cannot be switched off: its footer does not point to the e-mail preferences
+    expect(bank.text).toContain('This security notice is always sent by e-mail.');
+    expect(bank.text).not.toContain('Settings › Notifications');
+    expect(fr.text).toContain('Paramètres › Notifications');
+    const task = renderNotificationMail({ type: 'task.assigned', locale: 'fr', recipientName: 'K', data: { ...profile, subjectType: 'profile_change_request', audience: 'approver' }, leaveTypeLabel: null, link });
+    expect(task.subject).toBe('HRForce — demande de modification à traiter : Walid Mansouri (situation familiale)');
+  });
+});

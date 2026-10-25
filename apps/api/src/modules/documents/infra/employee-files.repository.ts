@@ -190,6 +190,11 @@ export class EmployeeFilesRepository {
 
   /** Whether a live file of these employments already has these bytes (duplicate detection before inserting). */
   async liveDuplicate(companyId: string, employmentId: string, sha256: Buffer): Promise<boolean> {
+    return (await this.liveDuplicateId(companyId, employmentId, sha256)) !== undefined;
+  }
+
+  /** The id of a live (not deleted, not purged) file of the employment with these bytes. */
+  async liveDuplicateId(companyId: string, employmentId: string, sha256: Buffer): Promise<string | undefined> {
     const row = await currentTx()
       .selectFrom('employee_file')
       .select('id')
@@ -199,7 +204,7 @@ export class EmployeeFilesRepository {
       .where('deleted_at', 'is', null)
       .where('purged_at', 'is', null)
       .executeTakeFirst();
-    return row !== undefined;
+    return row?.id;
   }
 
   async content(companyId: string, id: string): Promise<Buffer | undefined> {

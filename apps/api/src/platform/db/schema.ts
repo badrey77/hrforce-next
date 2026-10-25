@@ -797,12 +797,97 @@ export interface Person {
   sort_name: Generated<string | null>;
 }
 
+export interface PersonChild {
+  birth_date: Timestamp;
+  company_id: string;
+  created_at: Generated<Timestamp>;
+  dependent: Generated<boolean>;
+  first_name: string;
+  id: Generated<string>;
+  person_id: string;
+  sex: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PersonContact {
+  address_line: string | null;
+  commune: string | null;
+  company_id: string;
+  mobile_phone: string | null;
+  other_phone: string | null;
+  person_id: string;
+  personal_email: string | null;
+  postal_code: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+  wilaya_code: string | null;
+}
+
+export interface PersonEmergencyContact {
+  company_id: string;
+  full_name: string;
+  person_id: string;
+  phone: string;
+  relationship: string;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+}
+
+export interface PersonFamily {
+  company_id: string;
+  marital_status: string | null;
+  marital_status_since: Timestamp | null;
+  person_id: string;
+  spouse_employed: string | null;
+  updated_at: Generated<Timestamp>;
+  updated_by: string | null;
+}
+
 export interface PersonSensitive {
   bank_name: string | null;
   company_id: string;
   nss: string | null;
   person_id: string;
   rib: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ProfileChangeFile {
+  company_id: string;
+  content: Buffer | null;
+  created_at: Generated<Timestamp>;
+  employee_file_id: string | null;
+  id: Generated<string>;
+  mime: string;
+  original_filename: string;
+  request_id: string;
+  sha256: Buffer;
+  size_bytes: number;
+}
+
+export interface ProfileChangeRequest {
+  before: Json | null;
+  company_id: string;
+  decided_at: Timestamp | null;
+  employee_comment: string | null;
+  employment_id: string;
+  files_purged_at: Timestamp | null;
+  id: Generated<string>;
+  payload: Json;
+  person_id: string;
+  requested_at: Generated<Timestamp>;
+  requested_by: string;
+  section: string;
+  status: Generated<string>;
+  workflow_instance_id: string | null;
+}
+
+export interface ProfilePolicy {
+  company_id: string;
+  contact_mode: Generated<string>;
+  emergency_mode: Generated<string>;
+  family_mode: Generated<string>;
+  file_retention_days: Generated<number>;
   updated_at: Generated<Timestamp>;
 }
 
@@ -1225,7 +1310,14 @@ export interface DB {
   payroll_rubrique: PayrollRubrique;
   permission: Permission;
   person: Person;
+  person_child: PersonChild;
+  person_contact: PersonContact;
+  person_emergency_contact: PersonEmergencyContact;
+  person_family: PersonFamily;
   person_sensitive: PersonSensitive;
+  profile_change_file: ProfileChangeFile;
+  profile_change_request: ProfileChangeRequest;
+  profile_policy: ProfilePolicy;
   public_holiday: PublicHoliday;
   recruitment_application: RecruitmentApplication;
   recruitment_application_salary: RecruitmentApplicationSalary;

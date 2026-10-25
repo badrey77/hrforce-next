@@ -269,7 +269,9 @@ export class AuditRepository {
       or (e.subject_type = 'attendance_correction' and e.subject_id in (
       select c.id from attendance_correction c where c.company_id = ${companyId}::uuid and c.employment_id = ${subject.id}::uuid))
       or (e.subject_type = 'contract_decision' and e.subject_id in (
-      select d.id from contract_decision d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid)))`;
+      select d.id from contract_decision d where d.company_id = ${companyId}::uuid and d.employment_id = ${subject.id}::uuid))
+      or (e.subject_type = 'profile_change_request' and e.subject_id in (
+      select q.id from profile_change_request q where q.company_id = ${companyId}::uuid and q.employment_id = ${subject.id}::uuid)))`;
   }
 
   /**
@@ -302,7 +304,8 @@ export class AuditRepository {
         // the employment, its assignments and salaries (live, or recorded by an insert), its person and the person's
         // sensitive row (keyed on person_id: audit.capture('person_id')), its leave requests, issued documents,
         // document requests and employee files (medical ones per `medicalFiles`; none of them is ever deleted by the app),
-        // contracts and decisions, payroll adjustments (not amounts) and the payroll matricule
+        // contracts and decisions, payroll adjustments (not amounts) and the payroll matricule, the person's contact,
+        // emergency contact, family and children (docs/contracts/profile-changes.md; values masked)
         return sql<boolean>`(c.table_name = 'employment' and c.row_id = ${id}::uuid)
           or (c.table_name = 'employee_file' and c.row_id in (${this.employeeFileIds(companyId, id, medicalFiles)}))
           or (c.table_name = 'leave_request' and c.row_id in (
@@ -332,8 +335,13 @@ export class AuditRepository {
                 select i.row_id from audit.change_log i
                  where i.company_id = ${companyId}::uuid and i.table_name in ('assignment', 'employment_salary') and i.op = 'insert'
                    and i.after ->> 'employment_id' = ${id}::text))
-          or (c.table_name in ('person', 'person_sensitive') and c.row_id in (
-                select e.person_id from employment e where e.company_id = ${companyId}::uuid and e.id = ${id}::uuid))`;
+          or (c.table_name in ('person', 'person_sensitive', 'person_contact', 'person_emergency_contact', 'person_family') and c.row_id in (
+                select e.person_id from employment e where e.company_id = ${companyId}::uuid and e.id = ${id}::uuid))
+          or (c.table_name = 'person_child' and c.row_id in (
+                -- the person's children (deletable: found through their insert; names and birth dates are masked)
+                select i.row_id from audit.change_log i
+                 where i.company_id = ${companyId}::uuid and i.table_name = 'person_child' and i.op = 'insert'
+                   and i.after ->> 'person_id' = (select e.person_id::text from employment e where e.company_id = ${companyId}::uuid and e.id = ${id}::uuid)))`;
       case 'leave_request':
         // the request, its workflow instance and that instance's tasks (workflow rows are never deleted by the app)
         return sql<boolean>`(c.table_name = 'leave_request' and c.row_id = ${id}::uuid)

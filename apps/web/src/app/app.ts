@@ -167,6 +167,14 @@ export class App {
       permission: 'attendance.punch_self',
       visible: () => this.myEmployment.linked() === true,
     },
+    {
+      path: '/me/profile',
+      icon: 'profile',
+      labelKey: 'nav.myProfile',
+      exact: false,
+      permission: 'profile.request_self',
+      visible: () => this.myEmployment.linked() === true,
+    },
     { path: '/tasks', icon: 'tasks', labelKey: 'nav.tasks', exact: false, badge: { name: 'tasks', count: () => this.tasks.count(), labelKey: 'nav.tasksWithCount' } },
     { path: '/me/team', icon: 'team', labelKey: 'nav.myTeam', exact: false, visible: () => this.myEmployment.headsUnits() },
     // Unit heads and requesters (no recruitment permission); HR uses « Recrutement » below.

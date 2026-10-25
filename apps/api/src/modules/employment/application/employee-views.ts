@@ -1,6 +1,7 @@
 import type { ContractSummary } from '../../contracts/index.js';
 /** Response shapes of docs/contracts/employment.md (the API layer returns them as-is). */
 import type { EmployeeAction, EmployeeStatus, FieldBlock } from '../domain/employee.js';
+import type { ContactValues, EmergencyValues, FamilyInput } from '../domain/personal.js';
 
 export interface NamePair {
   lastName: string;
@@ -94,6 +95,20 @@ export interface EmployeeDetail extends EmployeeListItem {
   salary?: SalaryBlock;
   bank?: { rib: string | null; bankName: string | null };
   nss?: { nss: string | null };
+  /** contact, emergency contact, family (docs/contracts/profile-changes.md); needs employee.personal.read */
+  personal?: PersonalView;
   _redacted: FieldBlock[];
   _actions: EmployeeAction[];
+}
+
+/** docs/contracts/profile-changes.md › PersonalView. */
+export interface PersonalView {
+  contact: ContactValues & { updatedAt: string | null };
+  emergencyContact: EmergencyValues | null;
+  family: {
+    maritalStatus: FamilyInput['maritalStatus'];
+    maritalStatusSince: string | null;
+    spouseEmployed: FamilyInput['spouseEmployed'];
+    children: { id: string; firstName: string; birthDate: string; sex: 'M' | 'F' | null; dependent: boolean }[];
+  };
 }

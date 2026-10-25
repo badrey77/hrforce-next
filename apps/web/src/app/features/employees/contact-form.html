@@ -1,0 +1,64 @@
+<form *transloco="let t" class="panel" [formGroup]="form" (ngSubmit)="submit()" aria-labelledby="contact-form-title" novalidate data-form="contact">
+  <h3 id="contact-form-title">{{ t('personal.sections.contact') }}</h3>
+  @if (formError(); as error) {
+    <p class="form-error" role="alert" [appRevealAlert]="error">{{ 'key' in error ? t(error.key) : error.text }}</p>
+  }
+  @let c = form.controls;
+  <div class="grid">
+    <div class="field">
+      <label for="contact-mobile">{{ t('personal.fields.mobilePhone') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-mobile" type="tel" formControlName="mobilePhone" autocomplete="off" dir="ltr" inputmode="tel"
+        [attr.aria-invalid]="c.mobilePhone.invalid && c.mobilePhone.touched" aria-describedby="contact-mobile-hint contact-mobile-error" />
+      <p class="field-hint" id="contact-mobile-hint">{{ t('personal.form.phoneHint') }}</p>
+      <app-field-error [control]="c.mobilePhone" errorId="contact-mobile-error" />
+    </div>
+    <div class="field">
+      <label for="contact-other">{{ t('personal.fields.otherPhone') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-other" type="tel" formControlName="otherPhone" autocomplete="off" dir="ltr" inputmode="tel"
+        [attr.aria-invalid]="c.otherPhone.invalid && c.otherPhone.touched" aria-describedby="contact-other-error" />
+      <app-field-error [control]="c.otherPhone" errorId="contact-other-error" />
+    </div>
+    <div class="field">
+      <label for="contact-email">{{ t('personal.fields.personalEmail') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-email" type="email" formControlName="personalEmail" autocomplete="off" dir="ltr" [maxlength]="limits.email"
+        [attr.aria-invalid]="c.personalEmail.invalid && c.personalEmail.touched" aria-describedby="contact-email-error" />
+      <app-field-error [control]="c.personalEmail" errorId="contact-email-error" />
+    </div>
+    <div class="field">
+      <label for="contact-address">{{ t('personal.fields.addressLine') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-address" type="text" formControlName="addressLine" autocomplete="off" dir="auto" [maxlength]="limits.addressLine"
+        [attr.aria-invalid]="c.addressLine.invalid && c.addressLine.touched" aria-describedby="contact-address-error" />
+      <app-field-error [control]="c.addressLine" errorId="contact-address-error" />
+    </div>
+    <div class="field">
+      <label for="contact-commune">{{ t('personal.fields.commune') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-commune" type="text" formControlName="commune" autocomplete="off" dir="auto" [maxlength]="limits.commune"
+        [attr.aria-invalid]="c.commune.invalid && c.commune.touched" aria-describedby="contact-commune-error" />
+      <app-field-error [control]="c.commune" errorId="contact-commune-error" />
+    </div>
+    <div class="field">
+      <label for="contact-wilaya">{{ t('personal.fields.wilayaCode') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <select id="contact-wilaya" formControlName="wilayaCode" aria-describedby="contact-wilaya-error"
+        [attr.aria-invalid]="c.wilayaCode.invalid && c.wilayaCode.touched">
+        <option value="">{{ t('personal.form.wilayaPlaceholder') }}</option>
+        @for (w of wilayas; track w.code) {
+          <option [value]="w.code">{{ w.code }} — {{ wilayaName(w) }}</option>
+        }
+      </select>
+      <app-field-error [control]="c.wilayaCode" errorId="contact-wilaya-error" />
+    </div>
+    <div class="field">
+      <label for="contact-postal">{{ t('personal.fields.postalCode') }} <span class="field-hint">{{ t('personal.form.optional') }}</span></label>
+      <input id="contact-postal" type="text" formControlName="postalCode" autocomplete="off" dir="ltr" inputmode="numeric" maxlength="5"
+        [attr.aria-invalid]="c.postalCode.invalid && c.postalCode.touched" aria-describedby="contact-postal-hint contact-postal-error" />
+      <p class="field-hint" id="contact-postal-hint">{{ t('personal.form.postalHint') }}</p>
+      <app-field-error [control]="c.postalCode" errorId="contact-postal-error" />
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn" type="submit" data-action="save-contact" [disabled]="submitting()">
+      {{ submitting() ? t('personal.saving') : t('personal.save') }}
+    </button>
+    <button class="btn secondary" type="button" (click)="cancelled.emit()">{{ t('common.cancel') }}</button>
+  </div>
+</form>

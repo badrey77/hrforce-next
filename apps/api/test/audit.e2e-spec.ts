@@ -77,7 +77,8 @@ const AUDITED_TABLES = [
   'installation_branding', 'issued_document', 'leave_ledger', 'leave_policy', 'leave_request', 'leave_type',
   'notification_preference', 'org_unit', 'org_unit_head', 'org_unit_version',
   'payroll_adjustment', 'payroll_closing', 'payroll_employee_code', 'payroll_line', 'payroll_period', 'payroll_policy', 'payroll_rubrique',
-  'person', 'person_sensitive', 'public_holiday',
+  'person', 'person_child', 'person_contact', 'person_emergency_contact', 'person_family', 'person_sensitive',
+  'profile_change_file', 'profile_change_request', 'profile_policy', 'public_holiday',
   'recruitment_criterion', 'recruitment_opening', 'recruitment_opening_criterion', 'recruitment_opening_sequence', 'recruitment_policy', 'recruitment_rejection_reason',
   'role', 'role_grant', 'role_permission', 'security_policy', 'site', 'sso_app_role', 'sso_client', 'sso_role_assignment',
   'user_employment', 'workflow_definition', 'workflow_instance', 'workflow_task',
@@ -359,6 +360,14 @@ async function runWrite(key: string, send: (requestId: string) => request.Test):
 }
 
 describe('exit criterion: every write through the API produces an audit row with before and after values', () => {
+  /**
+   * Self-service profile writes (docs/contracts/profile-changes.md › Audit): run as the LINKED employee (rh.admin has
+   * no linked employment: 409), each with its row changes (personal values masked) and its event.
+   */
+  const PROFILE_SELF_WRITES: Record<string, string[]> = {
+    'POST /api/me/profile/requests': ['profile_change_request', 'profile_change_file', 'workflow_instance', 'workflow_task'],
+    'POST /api/me/profile/requests/:id/cancel': ['profile_change_request', 'workflow_instance', 'workflow_task'],
+  };
   /** POST routes that write nothing (a read with a body). */
   const READ_ONLY_POSTS = ['POST /api/leave/preview', 'POST /api/documents/preview', 'POST /api/documents/templates/:id/preview', 'POST /api/attendance/scan', 'POST /api/recruitment/candidates/match'];
   /**
@@ -566,6 +575,22 @@ describe('exit criterion: every write through the API produces an audit row with
     'PUT /api/employees/:id/salary': { request: () => ({ path: `/api/employees/${employeeA(4)}/salary`, body: { baseSalary: '99000.00', validFrom: '2026-10-01' } }), tables: ['employment_salary'] },
     'PUT /api/employees/:id/bank': { request: () => ({ path: `/api/employees/${employeeA(5)}/bank`, body: { rib: '00799999000000000005', bankName: 'BEA' } }), tables: ['person_sensitive'] },
     'PUT /api/employees/:id/nss': { request: () => ({ path: `/api/employees/${employeeA(9)}/nss`, body: { nss: '990000000009' } }), tables: ['person_sensitive'] },
+    // personal details (docs/contracts/profile-changes.md › Audit): row triggers, personal values masked
+    'PUT /api/employees/:id/contact': {
+      request: () => ({ path: `/api/employees/${employeeA(6)}/contact`, body: { mobilePhone: '0555 00 00 06', otherPhone: null, personalEmail: null, addressLine: null, commune: 'Hydra', wilayaCode: '16', postalCode: '16035' } }),
+      tables: ['person_contact'],
+    },
+    'PUT /api/employees/:id/emergency-contact': {
+      request: () => ({ path: `/api/employees/${employeeA(6)}/emergency-contact`, body: { fullName: 'Audit Contact', relationship: 'parent', phone: '0555 00 00 07' } }),
+      tables: ['person_emergency_contact'],
+    },
+    'PUT /api/employees/:id/family': {
+      request: () => ({
+        path: `/api/employees/${employeeA(6)}/family`,
+        body: { maritalStatus: 'married', maritalStatusSince: '2020-01-01', spouseEmployed: 'unknown', children: [{ firstName: 'Audit', birthDate: '2021-05-05', sex: null, dependent: true }] },
+      }),
+      tables: ['person_family', 'person_child'],
+    },
     'PUT /api/access/users/:id/employment': {
       request: () => ({ path: `/api/access/users/${USERS.newbie.id}/employment`, body: { employmentId: employeeA(31) } }),
       tables: ['user_employment'],
@@ -823,6 +848,11 @@ describe('exit criterion: every write through the API produces an audit row with
       request: () => ({ path: '/api/payroll/periods/2024-01/reopen', body: { reason: 'Contrôle audit' } }),
       tables: ['payroll_period', 'payroll_closing'],
     },
+    // profile change requests (docs/contracts/profile-changes.md › Audit): the company policy, row trigger
+    'PUT /api/profile/settings': {
+      request: () => ({ path: '/api/profile/settings', body: { contactMode: 'immediate', emergencyMode: 'immediate', familyMode: 'approval', fileRetentionDays: 45 } }),
+      tables: ['profile_policy'],
+    },
     'PUT /api/me/notification-preferences': {
       request: () => ({ path: '/api/me/notification-preferences', body: [{ type: 'task.assigned', email: false }, { type: 'leave.cancelled', email: true }] }),
       tables: ['notification_preference'],
@@ -836,7 +866,36 @@ describe('exit criterion: every write through the API produces an audit row with
       .filter((r) => r.method !== 'GET' && !r.path.startsWith('/api/auth/'))
       .map((r) => `${r.method} ${r.path}`)
       .filter((key) => !READ_ONLY_POSTS.includes(key) && !AUDIT_EXEMPT_WRITES.includes(key) && !PENDING_ONLY_WRITES.includes(key) && !OIDC_STATE_WRITES.includes(key));
-    expect([...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES), ...Object.keys(ATTENDANCE_EVENT_WRITES), ...Object.keys(RECRUITMENT_EVENT_WRITES)].toSorted()).toEqual(writes.toSorted());
+    expect(
+      [...Object.keys(WRITES), ...Object.keys(MFA_EVENT_WRITES), ...Object.keys(ATTENDANCE_EVENT_WRITES), ...Object.keys(RECRUITMENT_EVENT_WRITES), ...Object.keys(PROFILE_SELF_WRITES)].toSorted(),
+    ).toEqual(writes.toSorted());
+  });
+
+  it('profile self-service writes (as the linked employee): change rows and events, personal values masked', async () => {
+    const agent = client('agent');
+    const runs: [string, Awaited<ReturnType<typeof runWrite>>][] = [];
+    const run = async (key: string, send: (id: string) => request.Test) => {
+      const r = await runWrite(key, send);
+      runs.push([key, r]);
+      return r;
+    };
+    const asked = await run('POST /api/me/profile/requests', (id) =>
+      agent
+        .post('/api/me/profile/requests')
+        .set('X-Request-Id', id)
+        .field('data', JSON.stringify({ section: 'family', payload: { maritalStatus: 'married', maritalStatusSince: '2020-02-02', spouseEmployed: 'no', children: [{ firstName: 'Confidentiel', birthDate: '2022-02-02', sex: 'F', dependent: true }] }, comment: 'Confidentiel' }))
+        .attach('files', demoPdf('TEST DATA - audit livret'), 'livret-confidentiel.pdf'),
+    );
+    await run('POST /api/me/profile/requests/:id/cancel', (id) => agent.post(`/api/me/profile/requests/${asked.res.body.id}/cancel`).set('X-Request-Id', id));
+    expect(runs.map(([key]) => key).toSorted()).toEqual(Object.keys(PROFILE_SELF_WRITES).toSorted());
+    for (const [key, r] of runs) {
+      const rows = await changes('request_id = $1', [r.requestId]);
+      expect(rows.map((c) => c.table_name), key).toEqual(expect.arrayContaining(PROFILE_SELF_WRITES[key] ?? []));
+      for (const row of rows) expect(row, key).toMatchObject({ company_id: COMPANY_A, actor_user_id: USERS.agent.id, request_id: r.requestId });
+      const evs = await events('request_id = $1', [r.requestId]);
+      expect(evs.length, key).toBeGreaterThan(0);
+      expect(JSON.stringify([rows, evs]), key).not.toMatch(/Confidentiel|2022-02-02|livret-confidentiel/);
+    }
   });
 
   it('recruitment candidate data: every write is an event without personal payload, in the request transaction, and no change row', async () => {

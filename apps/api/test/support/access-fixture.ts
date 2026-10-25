@@ -3,7 +3,7 @@ import request from 'supertest';
 import { seedDemoAccess, seedGrants, seedSecurityPolicy, seedSystemRoles, type SeedGrant } from '../../src/modules/authorization/index.js';
 import { seedBrandingDefaults } from '../../src/modules/branding/index.js';
 import { seedCompanyProfile, seedDemoDocumentSettings, seedDocumentDefaults, seedSignatory } from '../../src/modules/documents/index.js';
-import { demoEmployees, seedDemoEmployees, seedEmployees, type SeedEmployee } from '../../src/modules/employment/index.js';
+import { demoEmployees, seedDemoEmployees, seedEmployees, seedProfileDefaults, type SeedEmployee } from '../../src/modules/employment/index.js';
 import { DEMO_USERS, seedIdentity, type DemoUser } from '../../src/modules/identity/index.js';
 import { LEAVE_DEMO_USERS, seedDemoLeave, seedLeaveDefaults } from '../../src/modules/leave/index.js';
 import { DEMO_COMPANY_ID, DEMO_ORGANIZATION, seedOrganization, toIsoDate, type SeedOrganization } from '../../src/modules/organization/index.js';
@@ -206,6 +206,9 @@ export async function seedAccessFixture(db: TestDatabase, today = toIsoDate(new 
       // payroll rubriques of both companies (created after migration 0024; one per leave type seeded above), DEMO's manual ones
       await seedDemoPayrollRubriques(tx, COMPANY_A);
       await seedPayrollDefaults(tx, COMPANY_B);
+      // the profile change chains and policy rows of both companies (created after migration 0025)
+      await seedProfileDefaults(tx, COMPANY_A);
+      await seedProfileDefaults(tx, COMPANY_B);
       if (options.recruitment) await seedRecruitmentFixture(tx);
       await seedGrants(tx, COMPANY_B, [
         { id: GRANTS.betaAdmin, userId: USERS.beta.id, roleCode: 'admin_rh_central', orgUnitId: unitB('BETA-DG'), includeDescendants: true, validFrom: '2026-01-01' },

@@ -27,6 +27,7 @@ import type { MyEmployment as MyEmploymentBody } from './leave.models';
 export const SELF_SERVICE_PERMISSION = 'leave.request_self';
 export const DOCUMENT_SELF_SERVICE_PERMISSION = 'document.request_self';
 export const ATTENDANCE_SELF_SERVICE_PERMISSION = 'attendance.punch_self';
+export const PROFILE_SELF_SERVICE_PERMISSION = 'profile.request_self';
 
 @Injectable({ providedIn: 'root' })
 export class MyEmployment {
@@ -35,7 +36,8 @@ export class MyEmployment {
     () =>
       this.session.can(SELF_SERVICE_PERMISSION) ||
       this.session.can(DOCUMENT_SELF_SERVICE_PERMISSION) ||
-      this.session.can(ATTENDANCE_SELF_SERVICE_PERMISSION),
+      this.session.can(ATTENDANCE_SELF_SERVICE_PERMISSION) ||
+      this.session.can(PROFILE_SELF_SERVICE_PERMISSION),
   );
   private readonly resource = inject(LeaveApi).myEmploymentResource(() => this.anySelfService());
 

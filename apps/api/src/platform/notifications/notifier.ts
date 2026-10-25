@@ -23,10 +23,29 @@ export const NOTIFICATION_TYPES = [
   'recruitment.interview_cancelled',
   'recruitment.evaluations_complete',
   'deadline.digest',
+  'profile.change_approved',
+  'profile.change_rejected',
+  'profile.bank_changed',
 ] as const;
+
+/**
+ * Types whose e-mail is sent whatever the recipient's preference (security notices: docs/contracts/profile-changes.md
+ * › Notifications — a bank change applied to one's account).
+ */
+export const EMAIL_ALWAYS_TYPES: readonly NotificationType[] = ['profile.bank_changed'];
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export type NotificationSubjectType = 'workflow_task' | 'leave_request' | 'document_request' | 'issued_document' | 'attendance_correction' | 'recruitment_opening' | 'recruitment_interview' | 'deadline_digest' | 'contract_decision';
+export type NotificationSubjectType =
+  | 'workflow_task'
+  | 'leave_request'
+  | 'document_request'
+  | 'issued_document'
+  | 'attendance_correction'
+  | 'recruitment_opening'
+  | 'recruitment_interview'
+  | 'deadline_digest'
+  | 'contract_decision'
+  | 'profile_change_request';
 
 /**
  * Who the recipient is to the subject — decides the link: `approver` (a task candidate: /tasks…), `employee` (the

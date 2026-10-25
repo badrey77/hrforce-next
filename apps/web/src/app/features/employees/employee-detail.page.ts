@@ -90,12 +90,13 @@ import { EmployeeContractsTab } from './employee-contracts-tab';
 import { EmployeeDocumentsTab } from './employee-documents-tab';
 import { EmployeeFileTab } from './employee-file-tab';
 import { EmployeeLeaveTab } from './employee-leave-tab';
+import { EmployeePersonalTab } from './employee-personal-tab';
 import { FieldError } from './field-error';
 import { PersonForm } from './person-form';
 import { BankForm, NssForm, SalaryForm } from './sensitive-forms';
 
-export type EmployeeTab = 'identity' | 'assignments' | 'contracts' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'attendance' | 'history';
-const EMPLOYEE_TABS: readonly string[] = ['identity', 'assignments', 'contracts', 'pay', 'bank', 'leave', 'documents', 'file', 'attendance', 'history'];
+export type EmployeeTab = 'identity' | 'personal' | 'assignments' | 'contracts' | 'pay' | 'bank' | 'leave' | 'documents' | 'file' | 'attendance' | 'history';
+const EMPLOYEE_TABS: readonly string[] = ['identity', 'personal', 'assignments', 'contracts', 'pay', 'bank', 'leave', 'documents', 'file', 'attendance', 'history'];
 type Editing = 'person' | 'assignment' | 'salary' | 'bank' | 'nss';
 /** Documents read to name signatories in the History: the API's page maximum (documents contract › GET /documents). */
 const DOCUMENTS_FOR_NAMES = 100;
@@ -120,6 +121,7 @@ const DOCUMENTS_FOR_NAMES = 100;
     EmployeeFileTab,
     EmployeeAttendanceTab,
     EmployeeContractsTab,
+    EmployeePersonalTab,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './employee-detail.page.html',
@@ -174,7 +176,10 @@ export class EmployeeDetailPage {
   /** Tabs this caller may see for this employee. */
   protected readonly tabs = computed<readonly EmployeeTab[]>(() => {
     const e = this.detail();
-    const tabs: EmployeeTab[] = ['identity', 'assignments', 'contracts'];
+    const tabs: EmployeeTab[] = ['identity'];
+    // « Coordonnées et famille » (profile-changes contract): only when the detail carries the personal block.
+    if (e && !isRedacted(e, 'personal')) tabs.push('personal');
+    tabs.push('assignments', 'contracts');
     if (e && !isRedacted(e, 'salary')) tabs.push('pay');
     if (e && (!isRedacted(e, 'bank') || !isRedacted(e, 'nss'))) tabs.push('bank');
     if (this.canLeave()) tabs.push('leave');
@@ -253,6 +258,11 @@ export class EmployeeDetailPage {
   protected readonly fixedTerm = isFixedTerm;
   /** The header names the probation only while it runs. */
   protected readonly today = todayIso();
+
+  /** The personal tab's label lives with the slice's other keys (`personal.*`). */
+  protected tabLabelKey(tab: EmployeeTab): string {
+    return tab === 'personal' ? 'personal.tab' : `employees.tabs.${tab}`;
+  }
 
   protected can(action: EmployeeAction): boolean {
     return this.actions().includes(action);

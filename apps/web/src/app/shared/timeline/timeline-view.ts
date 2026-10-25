@@ -156,6 +156,16 @@ export const ENUM_FIELDS: Readonly<Record<string, string>> = {
   'payroll_policy.decimal_separator': 'payroll.settings.format.decimals.',
   'payroll_policy.encoding': 'payroll.settings.format.encodings.',
   'payroll_policy.period_format': 'payroll.settings.format.periodFormats.',
+  // Personal details and profile changes: the same words as « Mon profil ».
+  'person_emergency_contact.relationship': 'profile.relationship.',
+  'person_family.marital_status': 'profile.maritalStatus.',
+  'person_family.spouse_employed': 'profile.spouseEmployed.',
+  'person_child.sex': 'profile.childSex.',
+  'profile_change_request.section': 'profile.sections.',
+  'profile_change_request.status': 'profile.status.',
+  'profile_policy.contact_mode': 'profile.settings.modes.',
+  'profile_policy.emergency_mode': 'profile.settings.modes.',
+  'profile_policy.family_mode': 'profile.settings.modes.',
 };
 
 /**
@@ -201,6 +211,15 @@ const HIDDEN_FIELDS: Readonly<Record<string, readonly string[]>> = {
   payroll_adjustment: ['employment_id', 'updated_at'],
   payroll_employee_code: ['employment_id', 'updated_at'],
   payroll_policy: ['updated_at'],
+  // Personal details: the person repeats the subject; `updated_at` repeats the entry's time.
+  person_contact: ['person_id', 'updated_at'],
+  person_emergency_contact: ['person_id', 'updated_at'],
+  person_family: ['person_id', 'updated_at'],
+  person_child: ['person_id', 'created_at', 'updated_at'],
+  // Profile changes: links repeat the subject or are bare ids; `payload` / `before` are whole sections as JSON (masked).
+  profile_change_request: ['employment_id', 'person_id', 'workflow_instance_id'],
+  profile_change_file: ['request_id', 'employee_file_id', 'content'],
+  profile_policy: ['updated_at'],
 };
 
 export type DisplayValue =
@@ -362,6 +381,7 @@ function eventParams(data: Readonly<Record<string, unknown>>, resolve: AuditName
  * every language instead of showing raw `in` / `qr` placeholders. Other events: `audit.events.<type>`.
  */
 const VARIANT_EVENTS: ReadonlySet<string> = new Set(['attendance.punch_recorded', 'attendance.punch_voided', 'attendance.punch_deleted']);
+const SECTION_EVENTS: ReadonlySet<string> = new Set(['profile.requested', 'profile.applied', 'profile.cancelled']);
 
 export function eventSentenceKey(type: string, data: Readonly<Record<string, unknown>>): string {
   const base = `audit.events.${type}`;
@@ -371,6 +391,8 @@ export function eventSentenceKey(type: string, data: Readonly<Record<string, unk
     if (typeof data['autoCause'] === 'string') return `${base}.auto_${data['autoCause']}`;
     return `${base}.${typeof data['to'] === 'string' ? data['to'] : 'unknown'}`;
   }
+  // Profile events are worded by their section (« Coordonnées modifiées », « Situation familiale modifiée »).
+  if (SECTION_EVENTS.has(type)) return `${base}.${typeof data['section'] === 'string' ? data['section'] : 'unknown'}`;
   if (!VARIANT_EVENTS.has(type)) return base;
   const source = typeof data['source'] === 'string' ? data['source'] : 'unknown';
   const direction = typeof data['direction'] === 'string' ? `_${data['direction']}` : '';

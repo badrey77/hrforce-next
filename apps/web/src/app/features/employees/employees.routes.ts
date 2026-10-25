@@ -31,6 +31,12 @@ export const EMPLOYEES_ROUTES: Routes = [
   },
   { ...NOT_FOUND_ROUTE, path: 'new' },
   {
+    path: 'profile-requests',
+    canMatch: [permissionGuard('employee.personal.read')],
+    loadComponent: () => import('./profile-requests.page').then((m) => m.ProfileRequestsPage),
+  },
+  { ...NOT_FOUND_ROUTE, path: 'profile-requests' },
+  {
     path: ':id/rehire',
     canMatch: [permissionGuard('employee.create')],
     loadComponent: () => import('./employee-rehire.page').then((m) => m.EmployeeRehirePage),

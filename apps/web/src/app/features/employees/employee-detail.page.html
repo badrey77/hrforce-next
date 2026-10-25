@@ -60,7 +60,7 @@
           aria-controls="employee-tab-panel"
           (click)="select(tabName)"
         >
-          {{ t('employees.tabs.' + tabName) }}
+          {{ t(tabLabelKey(tabName)) }}
         </button>
       }
     </div>
@@ -167,6 +167,13 @@
                 }
               </tbody>
             </table>
+          </div>
+        }
+
+        <!-- Coordonnées et famille: contact, emergency contact, family, change requests (employee-personal-tab.ts). -->
+        @case ('personal') {
+          <div data-panel="personal">
+            <app-employee-personal-tab [employee]="e" (changed)="employee.reload()" />
           </div>
         }
 

@@ -10,7 +10,7 @@ export const ACCESS_PERMISSIONS = {
   manageRoles: 'access.manage_roles',
 } as const;
 
-/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022, 0023, 0024), in catalogue order. A unit test keeps this in sync with the DB. */
+/** Every code of the catalogue (migrations 0008, 0009, 0010, 0011, 0014, 0015, 0016, 0018, 0019, 0021, 0022, 0023, 0024, 0025), in catalogue order. A unit test keeps this in sync with the DB. */
 export const PERMISSION_CODES = [
   'org_unit.read',
   'org_unit.create',
@@ -25,6 +25,10 @@ export const PERMISSION_CODES = [
   'employee.create',
   'employee.update',
   'employee.contract.manage',
+  'employee.personal.read',
+  'employee.personal.update',
+  'profile.request_self',
+  'profile.configure',
   'employee.salary.read',
   'employee.salary.update',
   'employee.bank.read',
@@ -116,6 +120,8 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'employee.contract.manage', 'deadline.read', 'deadline.handle',
       // payroll variables of its region; closing and settings stay central (docs/contracts/payroll-variables.md)
       'payroll.read', 'payroll.prepare', 'payroll.export',
+      // contact details and family of its region; the settings stay central (docs/contracts/profile-changes.md)
+      'employee.personal.read', 'employee.personal.update',
     ],
   },
   {
@@ -130,11 +136,12 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
     permissions: ['org_unit.read', 'site.read', 'access.read', 'access.grant', 'access.manage_roles', 'audit.read', 'sso.read', 'sso.manage_apps', 'sso.assign'],
   },
   {
-    // self-service (docs/contracts/leave.md, documents.md, attendance.md): request one's own leave and attestations,
-    // clock in; the manager step and the unit heads' team view need no permission
+    // self-service (docs/contracts/leave.md, documents.md, attendance.md, profile-changes.md): request one's own leave
+    // and attestations, clock in, ask for changes to one's profile; the manager step and the unit heads' team view
+    // need no permission
     code: 'employe',
     names: { fr: 'Employé (libre-service)', ar: 'موظف (الخدمة الذاتية)', en: 'Employee (self-service)' },
-    permissions: ['leave.request_self', 'document.request_self', 'attendance.punch_self'],
+    permissions: ['leave.request_self', 'document.request_self', 'attendance.punch_self', 'profile.request_self'],
   },
 ];
 

@@ -63,7 +63,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { TranslocoDirective } from '@jsverse/transloco';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import type { Observable } from 'rxjs';
 import { AttendanceApi } from '../../core/attendance/attendance-api';
 import { isApiProblemError, PROBLEM_TYPE_NETWORK } from '../../core/http/api-problem';
@@ -81,6 +81,7 @@ import { DisplayNamePipe } from '../../shared/display-name/display-name.pipe';
 import { BalanceCards } from '../../shared/leave/balance-cards';
 import { LeaveRequestView } from '../../shared/leave/leave-request-view';
 import { ContractDecisionPanel } from './contract-decision-panel';
+import { ProfileChangePanel, profileApprovalErrorKey } from './profile-change-panel';
 
 export const COMMENT_MAX = 500;
 
@@ -150,6 +151,7 @@ export function decisionErrorKey(error: unknown): string {
     CorrectionPreviewView,
     DayStatusBadge,
     ContractDecisionPanel,
+    ProfileChangePanel,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tasks.page.html',
@@ -158,6 +160,7 @@ export function decisionErrorKey(error: unknown): string {
 export class TasksPage {
   private readonly api = inject(TasksApi);
   private readonly injector = inject(Injector);
+  private readonly transloco = inject(TranslocoService);
   protected readonly store = inject(TasksBadge);
   protected readonly catalog = inject(LeaveCatalog);
   protected readonly lang = inject(LanguageService).current;
@@ -230,7 +233,13 @@ export class TasksPage {
     if (subject.type === 'leave_request') return this.catalog.nameOf(subject.leaveTypeId);
     if (subject.type === 'document_request') return this.catalog.labelOf(subject.documentType.labels);
     if (subject.type === 'recruitment_opening') return `${subject.title} (${subject.reference})`;
+    if (subject.type === 'profile_change_request') return this.transloco.translate(`personal.sections.${subject.section}`);
     return '';
+  }
+
+  /** The changed fields of a profile change, by name (`t` is the template's translate function). */
+  protected fieldNames(fields: readonly string[], t: (key: string) => string): string {
+    return fields.map((field) => t(`personal.fields.${field}`)).join(', ');
   }
 
   /** The person a task is about (`null` for a purged correction). */
@@ -301,7 +310,7 @@ export class TasksPage {
         this.acting.set(false);
         this.store.show(task.id); // rollback: the row is back where it was
         this.selectedId.set(task.id);
-        const key = decisionErrorKey(error);
+        const key = (task.subject.type === 'profile_change_request' ? profileApprovalErrorKey(error) : undefined) ?? decisionErrorKey(error);
         this.feedback.set({ key, name, kind: 'error' });
         if (key === 'tasks.problems.correctionStale') this.panelError.set({ taskId: task.id, key });
         if (isApiProblemError(error) && problemSlug(error.problem.type) === 'workflow-task-closed') this.store.refresh();
